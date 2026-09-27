@@ -194,6 +194,15 @@ add_cxxime_test(ui_presentation_router_test
     SOURCES server/ui_presentation_router_test.cc
     DEPS cxxime-ipc
 )
+add_cxxime_test(ui_candidate_page_conversion_test
+    SOURCES
+        server/ui_candidate_page_conversion_test.cc
+        ${CMAKE_SOURCE_DIR}/server/src/ui_candidate_page_conversion.cc
+    DEPS cxxime-ipc
+)
+target_include_directories(ui_candidate_page_conversion_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/server/src
+)
 target_sources(ui_presentation_router_test PRIVATE
     ${CMAKE_SOURCE_DIR}/server/src/ui_presentation_router.cc
 )
@@ -204,6 +213,7 @@ add_cxxime_test(ui_presentation_controller_test
     SOURCES
         server/ui_presentation_controller_test.cc
         ${CMAKE_SOURCE_DIR}/server/src/ui_presentation_controller.cc
+        ${CMAKE_SOURCE_DIR}/server/src/ui_candidate_page_conversion.cc
     DEPS cxxime-engine cxxime-ui cxxime-ipc ole32
 )
 target_include_directories(ui_presentation_controller_test PRIVATE

@@ -23,6 +23,8 @@
 #include <cxxime/ui_presentation_trace.h>
 #include <cxxime/window_position.h>
 
+#include "ui_candidate_page_conversion.h"
+
 namespace {
 
 constexpr DWORD kUiThreadStartTimeoutMs = 5000;
@@ -96,30 +98,6 @@ bool transform_caret_to_physical(std::uint64_t source_window, RECT* caret) {
 std::string packet_text(const char* text, std::uint32_t length, std::size_t capacity) {
     const std::size_t safe_length = (std::min)(static_cast<std::size_t>(length), capacity);
     return std::string(text, text + safe_length);
-}
-
-cxxime::CandidatePresentationPage candidate_page_from_snapshot(
-    const cxxime::UiPresentationSnapshot& snapshot) {
-    const cxxime::UiCandidatePage& source = snapshot.candidate_page;
-    cxxime::CandidatePresentationPage page;
-    page.page_index = source.page_current > 0 ? static_cast<int>(source.page_current - 1) : 0;
-    page.page_offset = static_cast<int>(source.offset);
-    page.page_size = static_cast<int>(source.count);
-    page.extent.known_count = static_cast<int>(snapshot.candidate_known_count);
-    page.extent.state = snapshot.candidate_extent_state;
-    page.extent.complete = snapshot.candidate_extent_complete != 0;
-    page.highlighted = source.count > 0 ? static_cast<int>(source.highlighted) : -1;
-    page.items.reserve(source.count);
-    for (std::uint32_t index = 0; index < source.count; ++index) {
-        const cxxime::UiCandidate& source_candidate = source.candidates[index];
-        cxxime::CandidatePresentationItem candidate;
-        candidate.text = packet_text(source_candidate.text, source_candidate.text_length,
-                                     sizeof(source_candidate.text));
-        candidate.hint = packet_text(source_candidate.hint, source_candidate.hint_length,
-                                     sizeof(source_candidate.hint));
-        page.items.push_back(std::move(candidate));
-    }
-    return page;
 }
 
 cxxime::ButtonState button_state_from_snapshot(const cxxime::UiPresentationSnapshot& snapshot) {
@@ -576,7 +554,7 @@ private:
             candidate_window_.set_preedit({});
         }
         candidate_window_.move_to_caret(applied.caret);
-        candidate_window_.update(candidate_page_from_snapshot(current));
+        candidate_window_.update(cxxime::candidate_page_from_snapshot(current));
         candidate_window_.show();
         applied.candidate_visible = candidate_window_.is_visible();
         if (!applied.candidate_visible) {

@@ -380,6 +380,7 @@ void CandidateWindow::recreate_renderers_for_dpi() {
 }
 
 void CandidateWindow::destroy() {
+    skip_next_show_redraw_ = false;
     clear_preedit_cursor_emphasis();
     if (gdi_renderer_) { gdi_renderer_->finalize(); delete gdi_renderer_; gdi_renderer_ = nullptr; }
     if (d2d_renderer_) { d2d_renderer_->finalize(); delete d2d_renderer_; d2d_renderer_ = nullptr; }
@@ -396,10 +397,14 @@ bool CandidateWindow::is_created() const {
 }
 
 void CandidateWindow::show() {
-    if (!is_created())
+    if (!is_created()) {
+        skip_next_show_redraw_ = false;
         return;
+    }
 
     ScopedDpiAwarenessContext dpi_context(GetWindowDpiAwarenessContext(hwnd_));
+    const bool was_visible_before_show = IsWindowVisible(hwnd_) != FALSE;
+    const bool skip_redraw = skip_next_show_redraw_ && was_visible_before_show;
 
     if (!IsWindowVisible(hwnd_) && has_last_caret_rect_) {
         RECT wr = {};
@@ -416,9 +421,14 @@ void CandidateWindow::show() {
     SetWindowPos(hwnd_, HWND_TOPMOST, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
     visible_candidate_count_ = static_cast<int>(candidate_rects_.size());
-    RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
+    const bool redraw = !skip_redraw;
+    skip_next_show_redraw_ = false;
+    if (redraw) {
+        RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
+    }
 }
 void CandidateWindow::hide() {
+    skip_next_show_redraw_ = false;
     clear_preedit_cursor_emphasis();
     if (hwnd_ && IsWindowVisible(hwnd_))
         ShowWindow(hwnd_, SW_HIDE);
@@ -434,6 +444,7 @@ void CandidateWindow::reset_placement() {
 }
 
 void CandidateWindow::set_owner(HWND owner) {
+    skip_next_show_redraw_ = false;
     if (!hwnd_ || (owner && !IsWindow(owner))) {
         return;
     }
@@ -508,6 +519,7 @@ void CandidateWindow::set_config(const Config& config) {
     set_render_backend(next_backend);
 }
 void CandidateWindow::set_theme(const Theme& t) {
+    skip_next_show_redraw_ = false;
     ScopedDpiAwarenessContext dpi_context(GetWindowDpiAwarenessContext(hwnd_));
     theme_ = t;
     render_ctx_.high_contrast = system_high_contrast_enabled();
@@ -523,10 +535,15 @@ void CandidateWindow::set_theme(const Theme& t) {
         RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_ALLCHILDREN);
 }
 void CandidateWindow::set_render_backend(RenderBackend b) {
+    skip_next_show_redraw_ = false;
     backend_ = b;
     if (b == RenderBackend::D2D && !d2d_renderer_) init_d2d_renderer();
 }
-void CandidateWindow::set_page_info(int cur, int tot) { page_current_ = cur; page_total_ = tot; }
+void CandidateWindow::set_page_info(int cur, int tot) {
+    skip_next_show_redraw_ = false;
+    page_current_ = cur;
+    page_total_ = tot;
+}
 void CandidateWindow::set_preedit(const std::string& preedit) {
     set_preedit(preedit, preedit.size());
 }
@@ -538,6 +555,7 @@ void CandidateWindow::set_preedit(const std::string& preedit, size_t cursor) {
 void CandidateWindow::set_preedit(const std::string& preedit, size_t cursor,
                                   size_t converted_prefix, size_t focused_start,
                                   size_t focused_end, bool has_syllable_boundaries) {
+    skip_next_show_redraw_ = false;
     const size_t next_cursor = clamp_utf8_boundary(preedit, cursor);
     const bool text_changed = preedit != preedit_text_;
     const bool cursor_moved = !text_changed && next_cursor != preedit_cursor_;
@@ -564,7 +582,10 @@ void CandidateWindow::set_preedit(const std::string& preedit, size_t cursor,
         focused_preedit_end_ = preedit.size();
     }
 }
-void CandidateWindow::set_layout(const std::string& l) { layout_orientation_ = l; }
+void CandidateWindow::set_layout(const std::string& l) {
+    skip_next_show_redraw_ = false;
+    layout_orientation_ = l;
+}
 void CandidateWindow::set_candidate_selection_callback(CandidateSelectionCallback cb) {
     candidate_selection_cb_ = std::move(cb);
 }
@@ -636,6 +657,7 @@ void CandidateWindow::update_window_region(int width, int height, int corner) {
 
 void CandidateWindow::move_to_caret(const RECT& caretRect) {
     if (!hwnd_) return;
+    skip_next_show_redraw_ = false;
 
     ScopedDpiAwarenessContext dpi_context(GetWindowDpiAwarenessContext(hwnd_));
 
@@ -662,6 +684,7 @@ void CandidateWindow::move_to_screen_position(int x, int y) {
     if (!hwnd_) {
         return;
     }
+    skip_next_show_redraw_ = false;
     ScopedDpiAwarenessContext dpi_context(GetWindowDpiAwarenessContext(hwnd_));
     move_window_now(x, y);
     if (refresh_dpi_scale()) {
@@ -733,7 +756,11 @@ void CandidateWindow::update(const CandidatePresentationPage& presentation) {
 }
 
 void CandidateWindow::update(const CandidatePage& page) {
-    if (!hwnd_) return;
+    if (!hwnd_) {
+        skip_next_show_redraw_ = false;
+        return;
+    }
+    skip_next_show_redraw_ = IsWindowVisible(hwnd_) != FALSE;
     ScopedDpiAwarenessContext dpi_context(GetWindowDpiAwarenessContext(hwnd_));
     if (refresh_dpi_scale())
         recreate_renderers_for_dpi();

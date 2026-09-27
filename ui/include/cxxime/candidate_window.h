@@ -102,6 +102,9 @@ private:
     int monitor_display_width() const;
 
     HWND hwnd_ = nullptr;
+    // update() redraws synchronously. When the window was already visible,
+    // the immediately following show() only needs to restore z-order.
+    bool skip_next_show_redraw_ = false;
     float dpi_scale_ = 1.0f;
     LayoutConfig scaled_cfg_;
     CandidatePage page_;

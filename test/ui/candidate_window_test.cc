@@ -104,6 +104,93 @@ TEST(CandidateWindow, page_buttons_use_page_callback) {
     window.destroy();
 }
 
+TEST(CandidateWindow, visible_update_keeps_window_visible_after_show) {
+    cxxime::Config config;
+    config.render_backend = "gdi";
+    cxxime::CandidatePage page;
+    page.candidates.push_back(cxxime::Candidate{"candidate", "hint"});
+
+    cxxime::CandidateWindow window;
+    ASSERT_TRUE(window.create(nullptr, config));
+    window.update(page);
+    window.show();
+    ASSERT_TRUE(window.is_visible());
+
+    page.candidates[0].text = "updated";
+    window.update(page);
+    window.show();
+    ASSERT_TRUE(window.is_visible());
+    ASSERT_EQ(window.visible_candidate_count(), 1);
+
+    page.candidates[0].text = "hidden-between-update-and-show";
+    window.update(page);
+    ShowWindow(window.hwnd_for_test(), SW_HIDE);
+    window.show();
+    ASSERT_TRUE(window.is_visible());
+    ASSERT_EQ(window.visible_candidate_count(), 1);
+    window.destroy();
+}
+
+TEST(CandidateWindow, first_show_after_update_still_paints_and_shows) {
+    cxxime::Config config;
+    config.render_backend = "gdi";
+    cxxime::CandidatePage page;
+    page.candidates.push_back(cxxime::Candidate{"candidate", "hint"});
+
+    cxxime::CandidateWindow window;
+    ASSERT_TRUE(window.create(nullptr, config));
+    window.update(page);
+    window.show();
+    ASSERT_TRUE(window.is_visible());
+    ASSERT_EQ(window.visible_candidate_count(), 1);
+    window.destroy();
+}
+
+TEST(CandidateWindow, hide_then_show_keeps_first_show_redraw_semantics) {
+    cxxime::Config config;
+    config.render_backend = "gdi";
+    cxxime::CandidatePage page;
+    page.candidates.push_back(cxxime::Candidate{"candidate", "hint"});
+
+    cxxime::CandidateWindow window;
+    ASSERT_TRUE(window.create(nullptr, config));
+    window.update(page);
+    window.show();
+    window.hide();
+    ASSERT_TRUE(!window.is_visible());
+
+    page.candidates[0].text = "after-hide";
+    window.update(page);
+    window.show();
+    ASSERT_TRUE(window.is_visible());
+    ASSERT_EQ(window.visible_candidate_count(), 1);
+    window.destroy();
+}
+
+TEST(CandidateWindow, preedit_and_page_info_changes_do_not_skip_next_show) {
+    cxxime::Config config;
+    config.render_backend = "gdi";
+    cxxime::CandidatePage page;
+    page.candidates.push_back(cxxime::Candidate{"candidate", "hint"});
+
+    cxxime::CandidateWindow window;
+    ASSERT_TRUE(window.create(nullptr, config));
+    window.update(page);
+    window.show();
+
+    window.update(page);
+    window.set_preedit("nihao");
+    window.show();
+    ASSERT_TRUE(window.is_visible());
+
+    window.update(page);
+    window.set_page_info(2, 2);
+    window.show();
+    ASSERT_TRUE(window.is_visible());
+    ASSERT_EQ(window.visible_candidate_count(), 1);
+    window.destroy();
+}
+
 TEST(CandidateWindow, indeterminate_extent_keeps_next_page_available) {
     cxxime::Config config;
     config.render_backend = "gdi";

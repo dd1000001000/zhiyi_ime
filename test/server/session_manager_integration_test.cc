@@ -377,6 +377,62 @@ TEST(SessionIntegration, english_capslock_keeps_english_and_outputs_uppercase) {
     ASSERT_EQ(text, "NIHAO");
 }
 
+TEST(SessionIntegration, idle_space_respects_shape_in_chinese_english_and_capslock_modes) {
+    const std::string dict_path = setup_test_dict();
+    for (bool english : {false, true}) {
+        for (bool caps : {false, true}) {
+            for (bool full_shape : {false, true}) {
+                auto config = std::make_shared<cxxime::Config>();
+                config->ascii_switch_key["Caps_Lock"] = "clear";
+                config->initial_full_shape = full_shape;
+                SessionManager manager;
+                ASSERT_TRUE(manager.initialize(dict_path, config));
+                const uint32_t id = manager.create_session();
+                if (english) {
+                    manager.toggle_chinese(id);
+                }
+
+                // The first space must also synchronize an already-enabled CapsLock.
+                cxxime::KeyEvent space = make_key(VK_SPACE, false, caps);
+                for (int repeat = 0; repeat < 2; ++repeat) {
+                    const auto result = manager.process_key(id, space);
+                    ASSERT_EQ(result.status, cxxime::IPCStatus::OK);
+                    ASSERT_EQ(result.result, full_shape ? cxxime::ProcessResult::COMMITTED
+                                                        : cxxime::ProcessResult::REJECTED);
+                    ASSERT_EQ(result.commit_text, full_shape ? "\xE3\x80\x80" : "");
+                    ASSERT_TRUE(!result.composing);
+                    ASSERT_TRUE(result.preedit.empty());
+                    ASSERT_EQ(result.ime_status.caps_lock(), caps);
+                    ASSERT_EQ(result.ime_status.chinese_mode(), !english && !caps);
+                }
+
+                space.is_key_up = true;
+                const auto released = manager.process_key(id, space);
+                ASSERT_EQ(released.result, cxxime::ProcessResult::REJECTED);
+                ASSERT_TRUE(released.commit_text.empty());
+                ASSERT_TRUE(!released.composing);
+            }
+        }
+    }
+}
+
+TEST(SessionIntegration, capslock_shift_space_still_toggles_shape) {
+    auto config = std::make_shared<cxxime::Config>();
+    config->ascii_switch_key["Caps_Lock"] = "clear";
+    SessionManager manager;
+    ASSERT_TRUE(manager.initialize(setup_test_dict(), config));
+    const uint32_t id = manager.create_session();
+
+    for (bool full_shape : {true, false}) {
+        const auto result = manager.process_key(id, make_key(VK_SPACE, true, true));
+        ASSERT_EQ(result.result, cxxime::ProcessResult::TOGGLE_SHAPE);
+        ASSERT_EQ(result.ime_status.full_shape(), full_shape);
+        ASSERT_TRUE(result.ime_status.caps_lock());
+        ASSERT_TRUE(result.commit_text.empty());
+        ASSERT_TRUE(!result.composing);
+    }
+}
+
 TEST(SessionIntegration, english_enter_passes_to_application) {
     SessionManager mgr;
     mgr.initialize(setup_test_dict());

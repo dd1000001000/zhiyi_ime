@@ -388,11 +388,14 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
             return ProcessResult::COMMITTED;
         }
 
-        // Space: commit a space (full-width ideographic space when full_shape)
+        // Idle half-width Space belongs to the host, including application shortcuts.
+        // Only full-width Space needs an IME text commit.
         if (vk == 0x20) {  // VK_SPACE
-            context_.committed_text = opts.full_shape
-                ? OutputComposer::to_full_width(' ')
-                : " ";
+            if (!opts.full_shape) {
+                record_total_us(trace_, total_start, trace_enabled_);
+                return ProcessResult::REJECTED;
+            }
+            context_.committed_text = OutputComposer::to_full_width(' ');
             context_.set_commit_source(CommitSource::kRawCode);
             if (trace_enabled_) {
                 auto total_end = std::chrono::steady_clock::now();

@@ -143,6 +143,49 @@ TEST(WubiEngine, engine_wubi_auto_commit) {
     DeleteFileA(wubi_path.c_str());
 }
 
+TEST(WubiEngine, engine_wubi_page_single_candidate_does_not_auto_commit) {
+    std::string pinyin_path = make_temp_path("test_wubi_page_single_pinyin.bin");
+    std::string wubi_path = make_temp_path("test_wubi_page_single_wubi.bin");
+    ASSERT_TRUE(cxxime::Dict::create_test_dict(pinyin_path, {{"a", "啊", 100}}));
+    ASSERT_TRUE(cxxime::Dict::create_test_dict(wubi_path, {
+                                                              {"abcd", "甲", 300},
+                                                              {"abcd", "乙", 200},
+                                                              {"abcd", "丙", 100},
+                                                          }));
+
+    cxxime::Config config;
+    config.page_size = 2;
+    cxxime::Engine engine;
+    ASSERT_TRUE(engine.initialize(pinyin_path));
+    auto wubi_dict = std::make_shared<cxxime::Dict>(cxxime::UserDictKind::WUBI);
+    ASSERT_TRUE(wubi_dict->open(wubi_path));
+    ASSERT_TRUE(test::apply_runtime(engine, pinyin_path, config, wubi_dict));
+    engine.switch_mode(cxxime::InputMode::WUBI);
+
+    ASSERT_EQ(engine.process_key(make_key('A')), cxxime::ProcessResult::ACCEPTED);
+    ASSERT_EQ(engine.process_key(make_key('B')), cxxime::ProcessResult::ACCEPTED);
+    ASSERT_EQ(engine.process_key(make_key('C')), cxxime::ProcessResult::ACCEPTED);
+    ASSERT_EQ(engine.process_key(make_key('D')), cxxime::ProcessResult::ACCEPTED);
+    ASSERT_TRUE(engine.context().committed_text.empty());
+    ASSERT_EQ(engine.context().page_offset(), 0);
+    ASSERT_EQ(engine.context().candidate_page().candidates.size(), 2u);
+
+    ASSERT_EQ(engine.process_key(make_key(VK_OEM_PLUS)), cxxime::ProcessResult::ACCEPTED);
+    ASSERT_TRUE(engine.context().committed_text.empty());
+    ASSERT_EQ(engine.context().page_offset(), 2);
+    ASSERT_EQ(engine.context().candidate_page().candidates.size(), 1u);
+    ASSERT_EQ(engine.context().candidate_page().candidates[0].text, "丙");
+    ASSERT_TRUE(engine.context().is_composing());
+
+    ASSERT_EQ(engine.process_key(make_key(VK_SPACE)), cxxime::ProcessResult::COMMITTED);
+    ASSERT_EQ(engine.context().committed_text, "丙");
+
+    engine.finalize();
+    wubi_dict->close();
+    DeleteFileA(pinyin_path.c_str());
+    DeleteFileA(wubi_path.c_str());
+}
+
 TEST(WubiEngine, engine_wubi_fifth_key_commits_first_and_starts_next_code) {
     std::string pinyin_path = make_temp_path("test_wubi_fifth_key_pinyin.bin");
     std::string wubi_path = make_temp_path("test_wubi_fifth_key_wubi.bin");

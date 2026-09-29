@@ -50,6 +50,8 @@ bool WubiInputPolicy::should_auto_commit(CompositionScheme scheme,
     return config.wubi_auto_commit &&
            (scheme == CompositionScheme::kWubi || scheme == CompositionScheme::kMixed) &&
            active_input.size() == kMaxWubiCodeLength && result.entries.size() == 1 &&
+           result.extent.known_count == 1 &&
+           result.extent.state == CandidateExtentState::kExhausted &&
            first_candidate_is_wubi(result);
 }
 

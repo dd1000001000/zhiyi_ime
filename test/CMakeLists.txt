@@ -400,6 +400,11 @@ if(Python3_FOUND)
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/data/wubi_prefix_index_test.py
     )
     add_test(
+        NAME wubi_symbol_ranking_test
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/data/wubi_symbol_ranking_test.py
+    )
+    add_test(
         NAME pinyin_topn_pipeline_test
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/data/pinyin_topn_pipeline_test.py

@@ -9,31 +9,35 @@
         "min_rare_single_character_blockers": 3,
         "min_blocked_completion_frequency": 500000,
         "max_blocked_completion_length": 4,
-        "max_blocked_completion_promotion_permille": 1
+        "max_blocked_completion_promotion_permille": 1,
+        "symbol_order_policy_version": 2
     },
     "fingerprints": {
         "dictionary": "4a766e4cf9e1c2e32420ab464024ef717f649221ce1703fef3101ea6e8b87629",
         "general_frequency": "8ab17a1eb5d0b14f83a9ed9d6a228ca5ac52a6c5e2e6bc74efc9bde6c44d5eb9",
         "ranking_overrides": "18d9871cc2bd49220daeabd21b163a5353119def27b4e845c0eb1abafbe02756",
         "source_ranking": "5f8912a4c6846c5dfaf015c65a64ac7a890e2cca0c8278a587f65b4de50e0a22",
-        "ranked": "9e72140010329d2945f7373014462fd62dffa9568427abbb56fc8957d1d66230"
+        "ranked": "82f46711881106c2da9708c08864c0652bd95f5703d2d7a3d2262306abc79b02"
     },
     "audit": {
         "prefix_count": 87381,
         "three_code_prefixes": 13954,
         "four_code_prefixes": 72777,
         "short_prefix_changes": 0,
+        "short_symbol_repairs": 0,
         "visible_set_changes": 1,
         "unsafe_top_changes": 0,
         "three_code_top_changes": 1810,
-        "four_code_top_changes": 18,
+        "four_code_top_changes": 20,
         "safe_four_code_promotions": 18,
+        "symbol_order_repairs": 5,
+        "symbol_top_promotions": 2,
         "blocked_completion_promotions": 1,
         "ranking_override_changes": 1,
         "ranking_override_visible_set_changes": 1,
         "unknown_exact_demotions": 117,
-        "visible_order_changes": 3190,
-        "visible_position_moves": 24767,
+        "visible_order_changes": 3195,
+        "visible_position_moves": 24781,
         "internal_frequency_regressions": 0
     }
 }

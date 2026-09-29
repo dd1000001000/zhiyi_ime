@@ -7,6 +7,7 @@ import hashlib
 import json
 import sqlite3
 import struct
+import unicodedata
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 
@@ -37,6 +38,7 @@ def ranking_rules() -> Dict[str, int]:
         "max_blocked_completion_promotion_permille": (
             MAX_BLOCKED_COMPLETION_PROMOTION_PERMILLE
         ),
+        "symbol_order_policy_version": 2,
     }
 
 
@@ -199,11 +201,14 @@ class RankingAudit:
     three_code_prefixes: int = 0
     four_code_prefixes: int = 0
     short_prefix_changes: int = 0
+    short_symbol_repairs: int = 0  # Classified one- and two-code changes.
     visible_set_changes: int = 0
     unsafe_top_changes: int = 0
     three_code_top_changes: int = 0
     four_code_top_changes: int = 0
     safe_four_code_promotions: int = 0
+    symbol_order_repairs: int = 0
+    symbol_top_promotions: int = 0
     blocked_completion_promotions: int = 0
     ranking_override_changes: int = 0
     ranking_override_visible_set_changes: int = 0
@@ -214,8 +219,11 @@ class RankingAudit:
 
     def validate(self) -> None:
         errors = []
-        if self.short_prefix_changes:
-            errors.append(f"short prefix changes: {self.short_prefix_changes}")
+        if self.short_prefix_changes != self.short_symbol_repairs:
+            errors.append(
+                "unclassified short prefix changes: "
+                f"{self.short_prefix_changes - self.short_symbol_repairs}"
+            )
         unreviewed_visible_set_changes = (
             self.visible_set_changes - self.ranking_override_visible_set_changes
         )
@@ -248,19 +256,22 @@ class RankingAudit:
                 f"{self.blocked_completion_promotions}/"
                 f"{self.three_code_prefixes}"
             )
-        if self.four_code_top_changes != self.safe_four_code_promotions:
+        classified_four_code = (
+            self.safe_four_code_promotions + self.symbol_top_promotions
+        )
+        if self.four_code_top_changes != classified_four_code:
             errors.append(
                 "unclassified four-code top candidate changes: "
-                f"{self.four_code_top_changes - self.safe_four_code_promotions}"
+                f"{self.four_code_top_changes - classified_four_code}"
             )
         four_code_promotion_budget = max(
             1,
             self.four_code_prefixes * MAX_FOUR_CODE_PROMOTION_PERMILLE // 1000,
         )
-        if self.safe_four_code_promotions > four_code_promotion_budget:
+        if classified_four_code > four_code_promotion_budget:
             errors.append(
                 "safe four-code promotions exceed the review budget: "
-                f"{self.safe_four_code_promotions}/{self.four_code_prefixes}"
+                f"{classified_four_code}/{self.four_code_prefixes}"
             )
         if self.unknown_exact_demotions > self.three_code_prefixes // 100:
             errors.append(
@@ -341,6 +352,54 @@ def _is_han_text(text: bytes) -> bool:
         or 0x20000 <= ord(character) <= 0x3134F
         for character in decoded
     )
+
+
+def _is_ranking_symbol(text: bytes) -> bool:
+    # Freeze the policy across Python Unicode versions. Technical-symbol and
+    # pictograph blocks include reserved positions; this is a ranking policy,
+    # not a claim that every position has Unicode category S. In Unicode 3.2,
+    # U+23B5 was Pe, and newer emoji such as U+1F9AD were unassigned.
+    decoded = text.decode("utf-8")
+    return bool(decoded) and all(
+        unicodedata.ucd_3_2_0.category(character).startswith("S")
+        or 0x2300 <= ord(character) <= 0x23FF
+        or 0x1F300 <= ord(character) <= 0x1FAFF
+        for character in decoded
+    )
+
+
+def _repair_symbol_blockers(
+    visible, entries, general_frequencies, prefix_length
+):
+    reordered = list(visible)
+    # Short-code exact matches and the corpus-ranked first candidate stay put.
+    first_movable = 1 if prefix_length < 4 else 0
+    for position in range(1, len(reordered)):
+        _, entry_index = reordered[position]
+        code, text, source_frequency = entries[entry_index]
+        frequency = general_frequencies.get(text, 0)
+        if not _is_han_text(text) or frequency <= 0:
+            continue
+        if prefix_length < 4 and len(code) <= prefix_length:
+            continue
+        while position > first_movable:
+            _, prior_index = reordered[position - 1]
+            prior_code, prior_text, prior_source_frequency = (
+                entries[prior_index]
+            )
+            if (
+                prior_code != code
+                or prior_source_frequency != source_frequency
+                or not _is_ranking_symbol(prior_text)
+                or general_frequencies.get(prior_text, 0) > frequency
+            ):
+                break
+            reordered[position - 1], reordered[position] = (
+                reordered[position],
+                reordered[position - 1],
+            )
+            position -= 1
+    return reordered
 
 
 def _completion_key(
@@ -463,7 +522,7 @@ def _repair_rare_single_character_blockers(
     return strong_completions + meaningful + rare_blockers + other
 
 
-def rerank_visible_candidates(
+def _rerank_corpus_candidates(
     source_ranking: Sequence[int],
     entries: Sequence[DictionaryEntry],
     prefix_length: int,
@@ -553,14 +612,35 @@ def rerank_visible_candidates(
         promoted = _safe_four_code_promotion(
             visible, entries, general_frequencies
         )
-        if promoted is None:
-            return list(source_ranking)
-        reordered = [promoted] + [item for item in visible if item != promoted]
+        reordered = (
+            visible
+            if promoted is None
+            else [promoted] + [item for item in visible if item != promoted]
+        )
     else:
         return list(source_ranking)
 
     return [entry_index for _, entry_index in reordered] + list(
         source_ranking[VISIBLE_CANDIDATE_CAPACITY:]
+    )
+
+
+def rerank_visible_candidates(
+    source_ranking: Sequence[int],
+    entries: Sequence[DictionaryEntry],
+    prefix_length: int,
+    general_frequencies: Dict[bytes, int],
+) -> List[int]:
+    ranked = _rerank_corpus_candidates(
+        source_ranking, entries, prefix_length, general_frequencies
+    )
+    visible = list(enumerate(ranked[:VISIBLE_CANDIDATE_CAPACITY]))
+    repaired = _repair_symbol_blockers(
+        visible, entries, general_frequencies, prefix_length
+    )
+    return (
+        [index for _, index in repaired]
+        + ranked[VISIBLE_CANDIDATE_CAPACITY:]
     )
 
 
@@ -630,11 +710,38 @@ def audit_ranking_change(
         audit.three_code_prefixes += 1
     elif prefix_length == 4:
         audit.four_code_prefixes += 1
-    if prefix_length <= 2 and list(source_ranking) != list(ranked):
-        audit.short_prefix_changes += 1
-
     source_visible = source_ranking[:VISIBLE_CANDIDATE_CAPACITY]
     ranked_visible = ranked[:VISIBLE_CANDIDATE_CAPACITY]
+    symbol_top_promoted = False
+    symbol_repair_applied = False
+    changed = list(source_ranking) != list(ranked)
+    if changed and not ranking_override_applied:
+        corpus_ranked = _rerank_corpus_candidates(
+            source_ranking, entries, prefix_length, general_frequencies
+        )
+        before_symbols = list(
+            enumerate(corpus_ranked[:VISIBLE_CANDIDATE_CAPACITY])
+        )
+        repaired = _repair_symbol_blockers(
+            before_symbols, entries, general_frequencies, prefix_length
+        )
+        expected = (
+            [index for _, index in repaired]
+            + corpus_ranked[VISIBLE_CANDIDATE_CAPACITY:]
+        )
+        symbol_repair_applied = (
+            repaired != before_symbols and expected == list(ranked)
+        )
+        if symbol_repair_applied:
+            audit.symbol_order_repairs += 1
+            symbol_top_promoted = (
+                corpus_ranked[0] == source_ranking[0]
+                and ranked[0] != source_ranking[0]
+            )
+    if prefix_length <= 2 and changed:
+        audit.short_prefix_changes += 1
+        if symbol_repair_applied:
+            audit.short_symbol_repairs += 1
     if set(source_visible) != set(ranked_visible):
         audit.visible_set_changes += 1
         if ranking_override_applied:
@@ -725,6 +832,9 @@ def audit_ranking_change(
             return
     elif prefix_length == 4:
         audit.four_code_top_changes += 1
+        if symbol_top_promoted:
+            audit.symbol_top_promotions += 1
+            return
         visible = list(enumerate(source_visible))
         safe_promotion = _safe_four_code_promotion(
             visible, entries, general_frequencies

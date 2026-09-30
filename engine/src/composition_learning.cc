@@ -19,6 +19,7 @@
 
 #include <cxxime/composition_state.h>
 #include <cxxime/logging.h>
+#include <cxxime/ordinary_candidate.h>
 #include <cxxime/user_dict_validation.h>
 #include <cxxime/user_data_merge.h>
 
@@ -426,7 +427,7 @@ bool CompositionLearningService::load(const std::string& path) {
         event.text = fields[0];
         event.code = fields[1];
         event.syllables = fields[2];
-        if (!valid_event(event)) {
+        if (!valid_event(event) || !is_ordinary_candidate_text(event.text)) {
             continue;
         }
         LearningRecord record;

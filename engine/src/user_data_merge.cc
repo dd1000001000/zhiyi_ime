@@ -18,6 +18,7 @@
 #include <cxxime/disabled_system_lexicon.h>
 #include <cxxime/input_limits.h>
 #include <cxxime/manual_candidate_order.h>
+#include <cxxime/ordinary_candidate.h>
 #include <cxxime/user_dict_validation.h>
 #include <cxxime/user_lexicon.h>
 
@@ -178,6 +179,10 @@ bool merge_user_lexicon(UserDictKind kind, const std::string& current,
     std::size_t serialized_size = 0;
     for (std::size_t index = 0; index < records.size(); ++index) {
         const auto item = fields(records[index]);
+        if (!is_ordinary_candidate_text(item[0])) {
+            records[index].clear();
+            continue;
+        }
         positions[make_key(item, 0, 1)] = index;
         serialized_size += records[index].size() + 1;
     }
@@ -186,7 +191,8 @@ bool merge_user_lexicon(UserDictKind kind, const std::string& current,
     }
     for (const std::string& line : lines(imported)) {
         const auto item = fields(line);
-        if (!UserLexicon::validate_contents(line + '\n', kind)) {
+        if (!UserLexicon::validate_contents(line + '\n', kind) ||
+            !is_ordinary_candidate_text(item[0])) {
             ++result->skipped_count;
             continue;
         }
@@ -248,7 +254,8 @@ bool merge_records(RecordFormat format, const std::string& current,
     std::size_t serialized_size = 0;
     for (const std::string& line : lines(current)) {
         const auto item = fields(line);
-        if (valid_record_line(format, line)) {
+        if (valid_record_line(format, line) &&
+            (disabled || is_ordinary_candidate_text(item[0]))) {
             records[key_for(line, item)] = line;
         }
     }
@@ -263,7 +270,8 @@ bool merge_records(RecordFormat format, const std::string& current,
     std::map<std::string, std::size_t> imported_occurrences;
     for (const std::string& line : lines(imported)) {
         const auto item = fields(line);
-        if (!valid_record_line(format, line)) {
+        if (!valid_record_line(format, line) ||
+            (!disabled && !is_ordinary_candidate_text(item[0]))) {
             ++result->skipped_count;
             continue;
         }
@@ -344,7 +352,7 @@ bool merge_candidate_order(const std::string& current, const std::string& import
             std::uint64_t position = 0;
             const bool valid =
                 item.size() == 5 && is_valid_user_dict_code(item[0]) &&
-                item[0].size() <= max_code_length && is_valid_user_dict_text(item[1]) &&
+                item[0].size() <= max_code_length && is_ordinary_candidate_text(item[1]) &&
                 is_valid_user_dict_code(item[2]) && item[2].size() <= max_code_length &&
                 is_valid_user_dict_syllables(item[3]) && parse_unsigned(item[4], &position) &&
                 position != 0 && position <= MANUAL_CANDIDATE_ORDER_MAX_ENTRIES;

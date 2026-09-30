@@ -20,6 +20,7 @@ add_library(cxxime-shared STATIC
     src/dictionary_monitor.cc
     src/diagnostics_config.cc
     src/mpscq.cc
+    src/ordinary_candidate.cc
     src/query_trace_log.cc
     src/settings_launcher.cc
     src/settings_launcher_util.cc

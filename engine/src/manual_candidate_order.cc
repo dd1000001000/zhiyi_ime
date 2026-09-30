@@ -10,6 +10,7 @@
 #include <utility>
 
 #include <cxxime/input_limits.h>
+#include <cxxime/ordinary_candidate.h>
 #include <cxxime/user_dict_validation.h>
 #include <cxxime/user_data_merge.h>
 
@@ -121,6 +122,21 @@ bool ManualCandidateOrder::parse_contents(const std::string& contents, UserDictK
     if (!validate_orders(loaded, kind)) {
         return false;
     }
+    // Validate original positions first; removing a historical symbol must not
+    // invalidate the following entries or discard unrelated ordering groups.
+    for (auto group = loaded.begin(); group != loaded.end();) {
+        auto& entries = group->second;
+        entries.erase(std::remove_if(entries.begin(), entries.end(),
+                                     [](const auto& entry) {
+                                         return !is_ordinary_candidate_text(entry.text);
+                                     }),
+                      entries.end());
+        if (entries.empty()) {
+            group = loaded.erase(group);
+        } else {
+            ++group;
+        }
+    }
     *orders = std::move(loaded);
     return true;
 }
@@ -227,6 +243,11 @@ bool ManualCandidateOrder::replace_and_save_if_version(
 
 bool ManualCandidateOrder::replace_and_save_locked(
     const std::string& input_code, const std::vector<ManualCandidateOrderEntry>& entries) {
+    if (std::any_of(entries.begin(), entries.end(), [](const auto& entry) {
+            return !is_ordinary_candidate_text(entry.text);
+        })) {
+        return false;
+    }
     Orders next;
     std::string path;
     {

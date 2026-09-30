@@ -17,6 +17,7 @@
 #include <cxxime/layout.h>
 #include <cxxime/render_context.h>
 #include <cxxime/settings_route.h>
+#include <cxxime/symbol_table.h>
 #include <cxxime/user_dict.h>
 #include <cxxime/user_backup_control.h>
 
@@ -47,6 +48,10 @@ private:
     void create_advanced_layout_panel(HWND panel);
     void create_shortcuts_panel(HWND panel);
     void create_dictionary_panel(HWND panel, int panel_width);
+    void create_symbols_panel(HWND panel, int panel_width);
+    void load_symbol_categories();
+    void load_symbol_candidates();
+    bool handle_symbols_command(int control_id, int notification);
     void create_backup_panel(HWND panel, int panel_width);
     void create_diagnostics_panel(HWND panel);
     void create_about_panel(HWND panel, int panel_width);
@@ -135,7 +140,16 @@ private:
     cxxime::SettingsPanel initial_panel_ = cxxime::SettingsPanel::kInput;
 
     // Panel container windows
-    HWND hPanels_[8] = {};
+    HWND hPanels_[9] = {};
+
+    // Symbols panel: the same read-only table used by the engine.
+    SymbolTable symbolTable_;
+    std::vector<std::string> symbolCategoryCodes_;
+    std::vector<std::wstring> symbolTexts_;
+    HWND hSymbolCategories_ = nullptr;
+    HWND hSymbolCandidates_ = nullptr;
+    HWND hSymbolCopy_ = nullptr;
+    HWND hSymbolStatus_ = nullptr;
 
     // Input panel controls
     HWND hInputModePinyin_ = nullptr;

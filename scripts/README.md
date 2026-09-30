@@ -22,7 +22,7 @@ python scripts\package.py --skip-dict
 python scripts\package.py --output-dir <path>
 ```
 
-修改词典源数据、候选排序或索引格式后，正式打包不得使用 `--skip-dict`。
+修改词典源数据、符号清单、候选排序或索引格式后，正式打包不得使用 `--skip-dict`。
 
 ## 脚本职责
 
@@ -50,8 +50,9 @@ python scripts\package.py --output-dir <path>
 词典 bundle 的正式生成顺序为：
 
 ```text
-源词典
-  -> prepare_dictionary_bundle.py（全拼与四种双拼 spellings 表，方案清单见 dictionary_bundle_layout.py）
+独立符号清单 + 源词典
+  -> prepare_dictionary_bundle.py
+  -> 独立生成 symbols.json，并过滤临时词典中的系统符号
   -> 拼音 Top-N 构建中间文件
   -> topn_builder 绑定 pinyin.dict.bin 并生成共享候选索引
   -> 为拼音和五笔 dict.bin 生成 Settings 反向索引

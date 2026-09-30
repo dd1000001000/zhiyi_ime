@@ -27,10 +27,10 @@ namespace {
 EditorApp* g_app = nullptr;
 
 const wchar_t* kPanelNames[] = {
-    L"输入", L"界面", L"高级布局", L"快捷键", L"词库管理", L"备份与导入",
+    L"输入", L"界面", L"高级布局", L"快捷键", L"词库管理", L"特殊符号", L"备份与导入",
     L"故障排查", L"关于"
 };
-const int kPanelCount = 8;
+const int kPanelCount = 9;
 
 UINT settings_navigate_message() {
     static const UINT message = RegisterWindowMessageW(cxxime::kSettingsNavigateMessage);
@@ -40,11 +40,11 @@ UINT settings_navigate_message() {
 int settings_panel_index(cxxime::SettingsPanel panel) {
     switch (panel) {
     case cxxime::SettingsPanel::kBackup:
-        return 5;
-    case cxxime::SettingsPanel::kDiagnostics:
         return 6;
-    case cxxime::SettingsPanel::kAbout:
+    case cxxime::SettingsPanel::kDiagnostics:
         return 7;
+    case cxxime::SettingsPanel::kAbout:
+        return 8;
     default:
         return static_cast<int>(panel);
     }
@@ -155,9 +155,10 @@ void EditorApp::create_controls(HWND window) {
     create_advanced_layout_panel(hPanels_[2]);
     create_shortcuts_panel(hPanels_[3]);
     create_dictionary_panel(hPanels_[4], panel_width);
-    create_backup_panel(hPanels_[5], panel_width);
-    create_diagnostics_panel(hPanels_[6]);
-    create_about_panel(hPanels_[7], panel_width);
+    create_symbols_panel(hPanels_[5], panel_width);
+    create_backup_panel(hPanels_[6], panel_width);
+    create_diagnostics_panel(hPanels_[7]);
+    create_about_panel(hPanels_[8], panel_width);
 
     CreateWindowExW(0, L"BUTTON", L"确定", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
                     save_x, button_y, button_width, button_height, window,
@@ -194,6 +195,9 @@ void EditorApp::show_panel(int idx) {
         update_cand_preview();
     if (idx == 4)
         query_lexicon_entries(false);
+    if (idx == 5) {
+        load_symbol_categories();
+    }
     update_candidate_preview_buttons();
     InvalidateRect(hList_, nullptr, TRUE);
 }
@@ -591,6 +595,7 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             a->handle_advanced_layout_command(control_id, notification) ||
             a->handle_shortcuts_command(control_id, notification) ||
             a->handle_dictionary_command(control_id, notification) ||
+            a->handle_symbols_command(control_id, notification) ||
             a->handle_backup_command(control_id, notification) ||
             a->handle_diagnostics_command(control_id, notification)) {
             return 0;

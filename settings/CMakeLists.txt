@@ -20,6 +20,7 @@ add_executable(cxxime-settings WIN32
     editor_lexicon_mutations.cc
     editor_input_panel.cc
     editor_shortcuts_panel.cc
+    editor_symbols_panel.cc
     lexicon_panel_model.cc
     lexicon_panel_model.h
     lexicon_query_service.cc

@@ -131,6 +131,8 @@ preedit 为空时视为空闲状态，并将默认状态恢复为 `kIme`。`Cont
 
 符号分类名称只用于导航，不作为正文候选提交。Symbol 状态不应应用五笔四码自动提交或第五码规则。
 
+符号是独立资源：系统词典在构建期已剥离纯符号与 emoji，这些符号不再混入拼音或五笔候选，统一由 `\` 符号输入提供（清单与生成方式见 [词典系统设计](dictionary.md)）。
+
 如果符号编码后追加技术字符，组合可以转为 `kInlineAscii`。删除追加字符并精确恢复原符号编码后，符号候选和原光标位置随即恢复。
 
 ## 7. 五笔第五码
@@ -195,6 +197,7 @@ CapsLock 支持 `code`、`candidate`、`clear`、`append`、`noop`。`append` �
 | `engine/src/symbol_processor.cc` | `\` 入口、符号查询与导航和提交 |
 | `engine/src/symbol_table.cc` | 符号分类和助记码 |
 | `data/punctuation.json` | `/`、`\` 等中文标点映射 |
+| `data/symbol_catalog.json` | 符号收录与分类的唯一来源，构建期生成 `data/symbols.json` |
 | `settings/editor_shortcuts_panel.cc` | 修饰键动作配置界面 |
 
 主要回归测试位于：

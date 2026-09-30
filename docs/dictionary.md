@@ -426,13 +426,17 @@ python data/tools/build_runtime_dictionary.py -i data/pinyin.dict.db -o data/pin
 - `data/pinyin.dict.bin` — 排序数组主词典
 - `data/pinyin.reverse.idx` — 词语反查索引（由 `prepare_dictionary_bundle.py` 生成，供 Settings 反查）
 
-五笔：先拆分符号扩展项，再生成 `dict.bin` + 完整前缀索引：
+五笔：先在临时副本上剥离系统符号（emoji 与纯 P/S 符号，含旧 `co*` 扩展项），再用过滤后的词典生成 `dict.bin` + 完整前缀索引。
+剥离掉的符号不进入候选，而是并入独立清单 `data/symbol_catalog.json`，由 `generate_symbols.py` 生成引擎与设置面板共用的 `data/symbols.json`：
 
 ```bash
-python data/tools/split_wubi_symbols.py --input data/wubi86.dict.db \
-    --symbols-output data/symbols.json --filtered-output <filtered-wubi.dict.db>
+python data/tools/filter_dictionary_symbols.py --wubi-input data/wubi86.dict.db \
+    --pinyin-input data/pinyin.dict.db \
+    --wubi-output <filtered-wubi.dict.db> --pinyin-output <filtered-pinyin.dict.db>
 python data/tools/build_runtime_dictionary.py -i <filtered-wubi.dict.db> -o data/wubi86 \
     --dict-only --wubi-prefix-index
+python data/tools/generate_symbols.py --catalog data/symbol_catalog.json \
+    --output data/symbols.json
 ```
 
 ### 5.3 构建管线
@@ -463,13 +467,15 @@ fetch_pinyin_dictionary.py / fetch_wubi_dictionary.py    从网络获取词典�
         ▼
    pinyin.topn.bin                运行时内存加载（Darts trie + 8 字节 posting：词典词条索引 + score）
 
-  fetch_wubi_dictionary.py / split_wubi_symbols.py   五笔源数据 → symbols.json + 过滤后词典
+  fetch_wubi_dictionary.py / filter_dictionary_symbols.py   五笔与拼音源数据 → 剥离系统符号的词典
         │
         ▼
   build_runtime_dictionary.py --dict-only --wubi-prefix-index
         │
         ▼
    wubi86.dict.bin + wubi86.dict.idx（完整前缀索引）
+
+  symbol_catalog.json / generate_symbols.py         独立符号清单 → symbols.json（不进入词典候选）
 
   prepare_dictionary_bundle.py   bundle 打包 + 反查索引
         │
@@ -570,7 +576,10 @@ RUN_ALL_TESTS()                            // main 入口，自动发现并运�
 | `shuangpin_test` | 双拼方案描述表、候选规范输入键、分段选词与学习、方案热切换 |
 | `shuangpin_schema_runtime_test` | 合成双拼 schema 生成的 trie 由运行时索引加载与切分 |
 | `pinyin_spelling_schema_test` | 双拼 schema 契约、黄金映射与冲突声明校验（Python） |
-| `wubi_symbol_pipeline_test` | 五笔符号拆分流水线验证（Python） |
+| `ordinary_candidate_test` | 语义策略：混合文本保留、纯符号/emoji 剔除，个人词/偏好/排序/学习的加载、导入与修改路径 |
+| `dictionary_symbol_policy_test` | 词典符号过滤、分类与构建期共享策略验证（Python） |
+| `symbol_catalog_test` | 独立符号清单 → symbols.json 的可复现性、顺序与非法输入边界（Python） |
+| `unicode_classification_generator_test` | 冻结 Unicode 输入复现符号/emoji 分类数据（Python） |
 | `wubi_prefix_index_test` | 五笔完整前缀索引构建验证（Python） |
 | `pinyin_topn_pipeline_test` | Top-N 键生成与共享候选转换验证（Python） |
 | `reverse_index_pipeline_test` | 反查索引流水线验证（Python） |

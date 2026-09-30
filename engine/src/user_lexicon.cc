@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include <utility>
 
+#include <cxxime/ordinary_candidate.h>
 #include <cxxime/pinyin_user_code.h>
 #include <cxxime/user_dict_validation.h>
 
@@ -103,6 +104,9 @@ bool UserLexicon::parse_entries(const std::string& contents, bool reject_invalid
             continue;
         }
 
+        if (!is_ordinary_candidate_text(fields[0])) {
+            continue;
+        }
         Entry entry;
         entry.text = fields[0];
         entry.code = fields[1];
@@ -147,6 +151,7 @@ bool UserLexicon::add_to_snapshot(Snapshot* snapshot, const std::string& text,
                                   const std::string& code,
                                   const std::string& syllables) const {
     if (!snapshot || !is_valid_user_dict_entry(text, code, syllables) ||
+        !is_ordinary_candidate_text(text) ||
         (kind_ == UserDictKind::PINYIN &&
          !is_canonical_pinyin_user_code(code, syllables))) {
         return false;
@@ -196,6 +201,7 @@ bool UserLexicon::replace_in_snapshot(Snapshot* snapshot, const std::string& old
                                       const std::string& new_code,
                                       const std::string& syllables) const {
     if (!snapshot || !is_valid_user_dict_entry(new_text, new_code, syllables) ||
+        !is_ordinary_candidate_text(new_text) ||
         (kind_ == UserDictKind::PINYIN &&
          !is_canonical_pinyin_user_code(new_code, syllables))) {
         return false;
@@ -378,6 +384,7 @@ bool UserLexicon::add_entry_and_save(const std::string& text, const std::string&
     std::lock_guard<std::mutex> transaction_lock(transaction_mutex_);
     Snapshot next = snapshot();
     if (!is_valid_user_dict_entry(text, code, syllables) ||
+        !is_ordinary_candidate_text(text) ||
         (kind_ == UserDictKind::PINYIN &&
          !is_canonical_pinyin_user_code(code, syllables))) {
         return false;

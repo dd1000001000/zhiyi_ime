@@ -27,10 +27,10 @@ TEST(SymbolTable, loads_categories_and_paginates) {
     ASSERT_TRUE(table.load(project_data_path("symbols.json")));
 
     cxxime::CandidatePage first = table.translate_page("bd", 0, 7);
-    ASSERT_EQ(first.extent.known_count, 46);
+    ASSERT_EQ(first.extent.known_count, 14);
     ASSERT_EQ(first.extent.state, cxxime::CandidateExtentState::kHasMore);
     ASSERT_EQ(first.candidates.size(), 7u);
-    ASSERT_EQ(first.candidates[0].text, "。");
+    ASSERT_EQ(first.candidates[0].text, u8"\u2026");
     ASSERT_EQ(first.candidates[0].code, "\\bd");
     ASSERT_EQ(first.candidates[0].source, cxxime::CandidateSource::kSymbol);
 
@@ -46,10 +46,10 @@ TEST(SymbolTable, lists_category_navigation_in_source_order) {
     ASSERT_TRUE(table.load(project_data_path("symbols.json")));
 
     cxxime::CandidatePage first = table.translate_page("", 0, 7);
-    ASSERT_EQ(first.extent.known_count, 14);
+    ASSERT_EQ(first.extent.known_count, 10);
     ASSERT_EQ(first.extent.state, cxxime::CandidateExtentState::kHasMore);
     ASSERT_EQ(first.candidates.size(), 7u);
-    ASSERT_EQ(first.candidates[0].text, "标点");
+    ASSERT_EQ(first.candidates[0].text, "补充标点");
     ASSERT_EQ(first.candidates[0].comment, "\\bd");
     ASSERT_EQ(first.candidates[0].code, "\\bd");
     ASSERT_EQ(first.candidates[1].text, "数字序号");
@@ -57,9 +57,9 @@ TEST(SymbolTable, lists_category_navigation_in_source_order) {
 
     cxxime::CandidatePage second = table.translate_page("", 1, 7);
     ASSERT_EQ(second.page_offset, 7);
-    ASSERT_EQ(second.candidates.size(), 7u);
-    ASSERT_EQ(second.candidates[0].text, "电脑符号");
-    ASSERT_EQ(second.candidates[0].comment, "\\dn");
+    ASSERT_EQ(second.candidates.size(), 3u);
+    ASSERT_EQ(second.candidates[0].text, "常用符号");
+    ASSERT_EQ(second.candidates[0].comment, "\\ts");
 
     cxxime::CandidatePage capped = table.translate_page("", 0, 10);
     ASSERT_EQ(capped.page_size, 9);
@@ -71,7 +71,7 @@ TEST(SymbolTable, every_published_category_has_candidates) {
     ASSERT_TRUE(table.load(project_data_path("symbols.json")));
 
     const char* codes[] = {
-        "bd", "sz", "sx", "jt", "xl", "ew", "rw", "dn", "dw", "hb", "ts", "zy", "py", "pp",
+        "bd", "sz", "sx", "jt", "xl", "dw", "hb", "ts", "py", "pp",
     };
     for (const char* code : codes) {
         ASSERT_TRUE(!table.translate_page(code, 0, 7).candidates.empty()) << code;

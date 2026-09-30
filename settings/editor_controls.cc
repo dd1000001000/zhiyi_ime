@@ -3,6 +3,7 @@
 #include "editor_app_internal.h"
 
 #include <algorithm>
+#include <cwchar>
 
 namespace cxxime {
 namespace settings {
@@ -224,6 +225,32 @@ LRESULT CALLBACK PanelForwardProc(HWND window, UINT message, WPARAM wparam, LPAR
         RemoveWindowSubclass(window, PanelForwardProc, subclass_id);
     }
     return DefSubclassProc(window, message, wparam, lparam);
+}
+
+bool copy_text_to_clipboard(HWND owner, const wchar_t* text) {
+    const size_t character_count = wcslen(text) + 1;
+    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, character_count * sizeof(wchar_t));
+    if (!memory) {
+        return false;
+    }
+    auto* destination = static_cast<wchar_t*>(GlobalLock(memory));
+    if (!destination) {
+        GlobalFree(memory);
+        return false;
+    }
+    wcscpy_s(destination, character_count, text);
+    GlobalUnlock(memory);
+    if (!OpenClipboard(owner)) {
+        GlobalFree(memory);
+        return false;
+    }
+    const bool copied =
+        EmptyClipboard() && SetClipboardData(CF_UNICODETEXT, memory) != nullptr;
+    CloseClipboard();
+    if (!copied) {
+        GlobalFree(memory);
+    }
+    return copied;
 }
 
 } // namespace settings

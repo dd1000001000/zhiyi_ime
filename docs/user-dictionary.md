@@ -138,6 +138,8 @@ recent_bonus      = (delta <= 1000) ? 1000 - delta : 0，delta = sequence_ - ent
 
 `import_file`：从源文件导入用户词库（严格模式，任一行非法即整体失败），文件大小上限 64 MiB（`kMaxUserDictImportBytes`），成功后整体替换当前用户词库并落盘。
 
+用户数据沿用与系统词典相同的纯符号判定：加载、导入以及手工新增/修改（用户词库、候选偏好、手动候选顺序、整句学习）都会过滤纯符号与 emoji，混合文本（如 `U盘`、`SDK`）保留。系统符号已在构建期从系统词典剥离（见 [词典系统设计](dictionary.md)），不会再经由用户数据回到候选中。
+
 ### 文件格式（用户词库）
 
 TSV（Tab-Separated Values），支持 3 列（向后兼容）和 4 列格式：

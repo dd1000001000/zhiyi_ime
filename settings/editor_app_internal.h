@@ -55,6 +55,7 @@ std::wstring utf8_to_wstr(const std::string& text);
 std::string wstr_to_utf8(const std::wstring& text);
 std::string edit_text_utf8(HWND edit);
 std::wstring path_for_display(const std::string& path);
+bool copy_text_to_clipboard(HWND owner, const wchar_t* text);
 
 void set_edit_int(HWND edit, int value);
 int get_edit_int(HWND edit);

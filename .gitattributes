@@ -1,0 +1,5 @@
+*.nsi text eol=crlf whitespace=trailing-space,space-before-tab,cr-at-eol
+*.nsh text eol=crlf whitespace=trailing-space,space-before-tab,cr-at-eol
+.editorconfig whitespace=trailing-space,space-before-tab,cr-at-eol
+# Preserve the exact official bytes used by the pinned Unicode SHA-256 checks.
+data/unicode/**/*.txt -text

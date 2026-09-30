@@ -2,8 +2,6 @@
 
 #include "editor_app.h"
 
-#include <cwchar>
-
 #include <shellapi.h>
 #include <windowsx.h>
 
@@ -30,34 +28,6 @@ const wchar_t* about_link_url(UINT_PTR control_id) {
     default:
         return nullptr;
     }
-}
-
-bool copy_text_to_clipboard(HWND owner, const wchar_t* text) {
-    const size_t character_count = wcslen(text) + 1;
-    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, character_count * sizeof(wchar_t));
-    if (!memory) {
-        return false;
-    }
-
-    auto* destination = static_cast<wchar_t*>(GlobalLock(memory));
-    if (!destination) {
-        GlobalFree(memory);
-        return false;
-    }
-    wcscpy_s(destination, character_count, text);
-    GlobalUnlock(memory);
-
-    if (!OpenClipboard(owner)) {
-        GlobalFree(memory);
-        return false;
-    }
-    EmptyClipboard();
-    bool copied = SetClipboardData(CF_UNICODETEXT, memory) != nullptr;
-    CloseClipboard();
-    if (!copied) {
-        GlobalFree(memory);
-    }
-    return copied;
 }
 
 LRESULT CALLBACK AboutLinkProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam,

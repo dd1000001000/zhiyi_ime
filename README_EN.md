@@ -17,6 +17,7 @@ CxxIME is a lightweight Windows TSF-based input method with three modes: Pinyin,
 - Pinyin, Wubi 86, and mixed modes, with full Pinyin, four Shuangpin schemes (Microsoft / Xiaohe / Ziranma / Sogou), shorthand, fuzzy syllables, dynamic sentence building, and segment-by-segment selection
 - Candidates ranked in tiers by match quality, so exact syllables and near-complete words are never buried by frequent long words; long Pinyin can be selected by segment
 - A dedicated Wubi prefix index covering shortcut codes, completion hints, automatic commit on a unique four-code match, and fifth-code handling
+- System symbols are kept out of dictionary candidates: type `\` or a category mnemonic (such as `\bd`) to browse and commit them by category, and browse or copy them in Settings
 - Candidate window supports horizontal and vertical layouts, D2D and GDI rendering, and 12 built-in themes (6 palettes × light/dark)
 - App hosts can take over inline preedit and candidate rendering via TSF UIElement (verified in DOTA2)
 - Candidate learning is off by default; when enabled, preferences persist independently, and the user dictionary, candidate order, and learning data are managed separately in Settings
@@ -58,11 +59,13 @@ Results vary with hardware and dictionary data. See [docs/benchmark-data.md](doc
 - Use **CxxIME Settings** from the Start Menu
 - Or edit the user configuration file `%USERPROFILE%\cxxime\default.json` directly
 
-All options (input modes, Pinyin scheme, candidate window, themes, dictionary management, shortcuts, etc.) are documented in [docs/settings-guide.md](docs/settings-guide.md).
+All options (input modes, Pinyin scheme, candidate window, themes, dictionary management, symbols, shortcuts, etc.) are documented in [docs/settings-guide.md](docs/settings-guide.md).
 
 ## Dictionaries
 
 CxxIME ships with Pinyin and Wubi 86 dictionaries. The Pinyin data comes from [rime-ice](https://github.com/iDvel/rime-ice) (~1.9M entries, GPL-3.0-only), and the Wubi data from [KyleBing/rime-wubi86-jidian](https://github.com/KyleBing/rime-wubi86-jidian) (Apache-2.0). Dictionary sources and licenses are documented in [data/README.md](data/README.md), and the data formats and build/maintenance pipeline in [docs/dictionary.md](docs/dictionary.md).
+
+System symbols (emoji and standalone punctuation or symbol characters) are stripped from the dictionaries at build time and never appear as Pinyin or Wubi candidates; they are provided by the bundled symbol table and entered with `\` by category.
 
 ## Compatibility
 

@@ -39,7 +39,9 @@ from dictionary_bundle_layout import (
     REQUIRED_MANIFEST_ROLES,
     SHUANGPIN_SCHEME_NAMES,
 )
-from dict_builder import build_reverse_index, copy_source_database
+from dict_builder import build_reverse_index
+from filter_dictionary_symbols import prepare_filtered_sources
+from generate_symbols import generate as generate_symbols
 
 TOPN_RUNTIME_HEADER_FORMAT = "<8s11IQI"
 TOPN_RUNTIME_HEADER_SIZE = struct.calcsize(TOPN_RUNTIME_HEADER_FORMAT)
@@ -54,17 +56,6 @@ def find_source(data_dir: str, name: str) -> str | None:
     if os.path.isfile(db):
         return db
     return None
-
-
-def prepare_source_copy(src: str, work_dir: str) -> str:
-    """Return a writable dictionary DB path in work_dir."""
-    source_name = os.path.basename(src)
-    if source_name.endswith(".zip"):
-        source_name = source_name[:-4]
-        print(f"  Extracting {os.path.basename(src)}...")
-    db_copy = os.path.join(work_dir, source_name)
-    copy_source_database(src, db_copy)
-    return db_copy
 
 
 def run_pinyin_spelling_generation(db_path: str, schema_name: str) -> None:
@@ -110,30 +101,6 @@ def run_build_runtime_dictionary(
             cmd.extend(["--wubi-ranking-overrides", wubi_ranking_overrides])
     print(f"  Building binary dicts: {os.path.basename(output_prefix)}.*")
     subprocess.run(cmd, check=True, capture_output=False)
-
-
-def run_wubi_symbol_split(
-    source_db: str,
-    filtered_db: str,
-    symbols_output: str,
-) -> None:
-    """Split the temporary Wubi source into symbols and dictionary entries."""
-    script = os.path.join(DATA_TOOLS, "split_wubi_symbols.py")
-    print("  Splitting Wubi symbol entries...")
-    subprocess.run(
-        [
-            sys.executable,
-            script,
-            "--input",
-            source_db,
-            "--symbols-output",
-            symbols_output,
-            "--filtered-output",
-            filtered_db,
-        ],
-        check=True,
-        capture_output=False,
-    )
 
 
 def verify_generated_text_file(generated_path: str, expected_path: str) -> None:
@@ -253,83 +220,59 @@ def write_dictionary_manifest(output_dir: str) -> str:
     return path
 
 
-def prepare_pinyin_dictionary(data_dir: str, output_dir: str) -> list[str]:
+def prepare_pinyin_dictionary(db_path: str, output_dir: str) -> list[str]:
     """Prepare pinyin binary dictionary files."""
     print("--- Pinyin dictionary ---")
-    src = find_source(data_dir, "pinyin")
-    if src is None:
-        print("  WARNING: pinyin.dict.db(.zip) not found, skipping pinyin dictionary")
-        return []
-
     generated = []
-    with tempfile.TemporaryDirectory(prefix="cxxime_prep_pinyin_") as tmpdir:
-        db_path = prepare_source_copy(src, tmpdir)
-        run_pinyin_spelling_generation(db_path, "pinyin.full-pinyin.schema.json")
+    run_pinyin_spelling_generation(db_path, "pinyin.full-pinyin.schema.json")
 
-        output_prefix = os.path.join(output_dir, "pinyin")
-        run_build_runtime_dictionary(db_path, output_prefix)
-        reverse_index_path = output_prefix + ".reverse.idx"
-        build_reverse_index(output_prefix + ".dict.bin", reverse_index_path)
-        generated.extend([
-            output_prefix + ".dict.bin",
-            output_prefix + ".dict.idx",
-            output_prefix + ".spellings.bin",
-            reverse_index_path,
-        ])
+    output_prefix = os.path.join(output_dir, "pinyin")
+    run_build_runtime_dictionary(db_path, output_prefix)
+    reverse_index_path = output_prefix + ".reverse.idx"
+    build_reverse_index(output_prefix + ".dict.bin", reverse_index_path)
+    generated.extend([
+        output_prefix + ".dict.bin",
+        output_prefix + ".dict.idx",
+        output_prefix + ".spellings.bin",
+        reverse_index_path,
+    ])
 
-        for scheme_name in SHUANGPIN_SCHEME_NAMES:
-            schema_stem = f"{scheme_name}-shuangpin"
-            run_pinyin_spelling_generation(db_path, f"pinyin.{schema_stem}.schema.json")
-            scheme_prefix = os.path.join(output_dir, f"pinyin.{schema_stem}")
-            run_build_runtime_dictionary(db_path, scheme_prefix, spellings_only=True)
-            generated.append(scheme_prefix + ".spellings.bin")
+    for scheme_name in SHUANGPIN_SCHEME_NAMES:
+        schema_stem = f"{scheme_name}-shuangpin"
+        run_pinyin_spelling_generation(db_path, f"pinyin.{schema_stem}.schema.json")
+        scheme_prefix = os.path.join(output_dir, f"pinyin.{schema_stem}")
+        run_build_runtime_dictionary(db_path, scheme_prefix, spellings_only=True)
+        generated.append(scheme_prefix + ".spellings.bin")
 
-        topn_path = os.path.join(output_dir, "pinyin.topn.bin")
-        run_build_pinyin_topn(db_path, topn_path)
-        generated.append(topn_path)
+    topn_path = os.path.join(output_dir, "pinyin.topn.bin")
+    run_build_pinyin_topn(db_path, topn_path)
+    generated.append(topn_path)
 
     return generated
 
 
-def prepare_wubi_dictionary(data_dir: str, output_dir: str) -> list[str]:
+def prepare_wubi_dictionary(
+    db_path: str, output_dir: str, ranking_source: str,
+) -> list[str]:
     """Prepare wubi86 binary dictionary files."""
     print("--- Wubi86 dictionary ---")
-    src = find_source(data_dir, "wubi86")
-    if src is None:
-        raise RuntimeError("wubi86.dict.db(.zip) not found")
-    ranking_source = find_source(data_dir, "pinyin")
-    if ranking_source is None:
-        raise RuntimeError("pinyin.dict.db(.zip) is required for Wubi ranking")
-
-    generated = []
-    with tempfile.TemporaryDirectory(prefix="cxxime_prep_wubi86_") as tmpdir:
-        source_db = prepare_source_copy(src, tmpdir)
-        generated_symbols = os.path.join(tmpdir, "symbols.json")
-        db_path = os.path.join(tmpdir, "wubi86.filtered.dict.db")
-        run_wubi_symbol_split(source_db, db_path, generated_symbols)
-        verify_generated_text_file(generated_symbols, os.path.join(data_dir, "symbols.json"))
-        symbols_output = os.path.join(output_dir, "symbols.json")
-        shutil.copy2(generated_symbols, symbols_output)
-        output_prefix = os.path.join(output_dir, "wubi86")
-        run_build_runtime_dictionary(
-            db_path,
-            output_prefix,
-            dict_only=True,
-            wubi_prefix_index=True,
-            wubi_ranking_source=ranking_source,
-            wubi_ranking_baseline=WUBI_RANKING_BASELINE,
-            wubi_ranking_overrides=WUBI_RANKING_OVERRIDES,
-        )
-        reverse_index_path = output_prefix + ".reverse.idx"
-        build_reverse_index(output_prefix + ".dict.bin", reverse_index_path)
-        generated.extend([
-            symbols_output,
-            output_prefix + ".dict.bin",
-            output_prefix + ".dict.idx",
-            reverse_index_path,
-        ])
-
-    return generated
+    output_prefix = os.path.join(output_dir, "wubi86")
+    run_build_runtime_dictionary(
+        db_path,
+        output_prefix,
+        dict_only=True,
+        wubi_prefix_index=True,
+        wubi_ranking_source=ranking_source,
+        wubi_ranking_baseline=WUBI_RANKING_BASELINE,
+        wubi_ranking_overrides=WUBI_RANKING_OVERRIDES,
+    )
+    reverse_index_path = output_prefix + ".reverse.idx"
+    build_reverse_index(output_prefix + ".dict.bin", reverse_index_path)
+    return [
+        output_prefix + ".dict.bin",
+        output_prefix + ".dict.idx",
+        reverse_index_path,
+    ]
 
 
 def prepare_dictionary_bundle(
@@ -342,26 +285,36 @@ def prepare_dictionary_bundle(
     """Run dictionary preparation, using separate workers for pinyin and wubi86."""
     os.makedirs(output_dir, exist_ok=True)
     workers = max(1, min(workers, 2))
-    tasks = [
-        ("pinyin", prepare_pinyin_dictionary),
-        ("wubi86", prepare_wubi_dictionary),
-    ]
     generated = []
-
-    if workers == 1:
-        for _, task in tasks:
-            generated.extend(task(data_dir, output_dir))
-    else:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = [
-                (name, executor.submit(task, data_dir, output_dir))
-                for name, task in tasks
-            ]
-            for name, future in futures:
-                try:
+    pinyin_source = find_source(data_dir, "pinyin")
+    wubi_source = find_source(data_dir, "wubi86")
+    if pinyin_source is None or wubi_source is None:
+        raise RuntimeError("pinyin and wubi86 source dictionaries are required")
+    with tempfile.TemporaryDirectory(prefix="cxxime_prep_") as tmpdir:
+        pinyin_db = os.path.join(tmpdir, "pinyin.dict.db")
+        wubi_db = os.path.join(tmpdir, "wubi86.dict.db")
+        symbols = os.path.join(tmpdir, "symbols.json")
+        generate_symbols(os.path.join(data_dir, "symbol_catalog.json"), symbols)
+        verify_generated_text_file(symbols, os.path.join(data_dir, "symbols.json"))
+        stats = prepare_filtered_sources(
+            wubi_source, pinyin_source, wubi_db, pinyin_db,
+        )
+        print("Dictionary symbol filtering: " + json.dumps(stats))
+        tasks = [
+            (prepare_pinyin_dictionary, (pinyin_db, output_dir)),
+            (prepare_wubi_dictionary, (wubi_db, output_dir, pinyin_source)),
+        ]
+        if workers == 1:
+            for task, args in tasks:
+                generated.extend(task(*args))
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = [executor.submit(task, *args) for task, args in tasks]
+                for future in futures:
                     generated.extend(future.result())
-                except Exception as e:
-                    raise RuntimeError(f"{name} dictionary preparation failed: {e}") from e
+        symbols_output = os.path.join(output_dir, "symbols.json")
+        shutil.copy2(symbols, symbols_output)
+        generated.append(symbols_output)
 
     if defer_topn_conversion:
         return generated

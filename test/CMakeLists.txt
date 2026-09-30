@@ -72,6 +72,10 @@ add_cxxime_test(user_data_separation_test
     SOURCES engine/user_data_separation_test.cc
     DEPS cxxime-engine
 )
+add_cxxime_test(ordinary_candidate_test
+    SOURCES engine/ordinary_candidate_test.cc
+    DEPS cxxime-engine nlohmann_json
+)
 add_cxxime_test(disabled_system_lexicon_test
     SOURCES engine/disabled_system_lexicon_test.cc
     DEPS cxxime-engine cxxime-test-topn-data
@@ -392,8 +396,19 @@ if(Python3_FOUND)
                 ${CMAKE_CURRENT_SOURCE_DIR}/data/reverse_index_pipeline_test.py
     )
     add_test(
-        NAME wubi_symbol_pipeline_test
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/data/wubi_symbol_pipeline_test.py
+        NAME dictionary_symbol_policy_test
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/data/dictionary_symbol_policy_test.py
+    )
+    add_test(
+        NAME symbol_catalog_test
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/data/symbol_catalog_test.py
+    )
+    add_test(
+        NAME unicode_classification_generator_test
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/data/unicode_classification_generator_test.py
     )
     add_test(
         NAME wubi_prefix_index_test

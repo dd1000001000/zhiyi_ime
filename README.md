@@ -17,6 +17,7 @@ CxxIME 是一款基于 Windows TSF（Text Services Framework）的轻量级输�
 - 拼音、五笔 86 与混输三种模式，支持全拼、微软 / 小鹤 / 自然码 / 搜狗四种双拼、简拼、模糊音、动态组句与多段选词
 - 候选按匹配质量分层排序：精确音节与接近完成的词不会被高频长词压过；长拼音可分段选择
 - 五笔独立前缀索引，包含简码、补码提示、四码唯一候选自动上屏与第五码行为
+- 系统符号与词典候选分离：输入 `\` 或分类助记码（如 `\bd`）按分类浏览与提交，设置中可浏览并复制符号
 - 候选窗口支持横排 / 竖排、D2D 与 GDI 双渲染，内置 12 套配色主题（6 种色系 × 浅色 / 深色）
 - 支持宿主通过 TSF UIElement 接管 inline preedit 与候选绘制（DOTA2 已验证）
 - 选词学习默认关闭，开启后偏好独立持久化；用户词典、候选顺序与学习数据可在设置中分别管理
@@ -58,11 +59,13 @@ Release 历史基准中，Preedit IPC 平均时延往返约 `50 µs`，`nihao` �
 - 通过开始菜单打开 **CxxIME Settings** 图形化配置
 - 或直接编辑用户配置文件 `%USERPROFILE%\cxxime\default.json`
 
-所有配置项（输入模式、拼音方案、候选窗口、主题、词库管理、快捷键等）见 [docs/settings-guide.md](docs/settings-guide.md)。
+所有配置项（输入模式、拼音方案、候选窗口、主题、词库管理、特殊符号、快捷键等）见 [docs/settings-guide.md](docs/settings-guide.md)。
 
 ## 词典
 
 CxxIME 内置拼音与五笔 86 词库。拼音词典来自 [rime-ice](https://github.com/iDvel/rime-ice)（约 190 万词条，GPL-3.0-only），五笔词典来自 [KyleBing/rime-wubi86-jidian](https://github.com/KyleBing/rime-wubi86-jidian)（Apache-2.0）。词库来源与授权见 [data/README.md](data/README.md)，数据格式与生成维护流程见 [docs/dictionary.md](docs/dictionary.md)。
+
+系统符号（emoji 与单独的标点、符号字符）在构建期就从词典中剥离，不参与拼音或五笔候选，由随包符号表统一提供，输入 `\` 按分类浏览与提交。
 
 ## 兼容性
 

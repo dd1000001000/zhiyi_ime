@@ -12,6 +12,7 @@
 #include <windows.h>
 
 #include <cxxime/input_limits.h>
+#include <cxxime/ordinary_candidate.h>
 #include <cxxime/user_dict_validation.h>
 #include <cxxime/user_data_merge.h>
 
@@ -135,7 +136,7 @@ bool CandidatePreference::load(const std::string& path) {
             line.pop_back();
         }
         const std::vector<std::string> fields = split_tsv_line(line);
-        if (fields.size() != 6 || fields[0].empty() || fields[1].empty() ||
+        if (fields.size() != 6 || !is_ordinary_candidate_text(fields[0]) || fields[1].empty() ||
             fields[2].empty()) {
             continue;
         }

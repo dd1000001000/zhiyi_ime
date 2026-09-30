@@ -45,6 +45,8 @@
 - **五笔**：`wubi86.dict.idx`（CXWIDX v1）在构建期按「精确匹配 → 码长升序 → 词频降序 → 码序 → 文本长度 → 文本字典序」预排序 postings，运行时直接读取，不做实时评分。
 - 拼音普通管道与 Top-N 的排序规则详见 [候选词选词算法](candidate-selection.md) 与 [短输入快速路径](short-input-fast-path.md)；五笔默认排序的质量约束与审计见 [五笔候选质量排序](wubi-candidate-ranking.md)。
 
+系统词典在构建期已剥离纯符号与 emoji（见 [词典系统设计](dictionary.md)），默认排序只处理文字与混合文本候选；符号候选统一由 `\` 符号输入提供，不参与这些排序层级。
+
 ### 1.4 分页与展示（第 4 层）
 
 有序候选列表按 `page_size` 切分返回（`CandidatePage{page_index, page_offset, page_size, total_count, highlighted}`），高亮项固定为当前页第一个候选。分页不改变排序，只负责切片与展示。
@@ -217,4 +219,5 @@ struct CandidateOrderQueryResult {
 - `user_data_separation_test`：手动固定与偏好的事务、版本与失效语义；
 - `session_manager_status_test` / `session_manager_integration_test`：服务端加载与 IPC；
 - `wubi_engine_test`：五笔混合排序与固定/偏好；
+- `dictionary_symbol_policy_test` / `symbol_catalog_test` / `ordinary_candidate_test`：系统符号剥离与用户数据的纯符号过滤；
 - `pinyin_topn_pipeline_test` / `wubi_prefix_index_test`：默认排序层构建验证。

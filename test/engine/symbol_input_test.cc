@@ -122,6 +122,53 @@ TEST(SymbolInput, works_in_all_input_modes) {
     }
 }
 
+TEST(SymbolInput, every_published_symbol_can_be_paged_and_committed_in_all_modes) {
+    SymbolEngineFixture fixture;
+    ASSERT_TRUE(fixture.initialize());
+    cxxime::SymbolTable table;
+    ASSERT_TRUE(table.load(std::string(CXXIME_DATA_DIR) + "symbols.json"));
+    const cxxime::InputMode modes[] = {
+        cxxime::InputMode::PINYIN, cxxime::InputMode::WUBI, cxxime::InputMode::MIXED,
+    };
+    for (const auto mode : modes) {
+        fixture.engine().switch_mode(mode);
+        int committed_count = 0;
+        for (int category_page = 0;; ++category_page) {
+            const auto categories = table.translate_page("", category_page, 9);
+            for (const auto& category : categories.candidates) {
+                const std::string code = category.code.substr(1);
+                fixture.engine().clear();
+                type_symbol_code(fixture.engine(), code.c_str());
+                const int page_size = fixture.engine().context().candidate_page().page_size;
+                for (int page = 0;; ++page) {
+                    const auto expected = table.translate_page(code, page, page_size);
+                    for (size_t i = 0; i < expected.candidates.size(); ++i) {
+                        fixture.engine().clear();
+                        type_symbol_code(fixture.engine(), code.c_str());
+                        for (int step = 0; step < page; ++step) {
+                            ASSERT_EQ(fixture.engine().process_key(make_key(VK_NEXT)),
+                                      cxxime::ProcessResult::ACCEPTED);
+                        }
+                        ASSERT_EQ(fixture.engine().process_key(make_key('1' + static_cast<int>(i))),
+                                  cxxime::ProcessResult::COMMITTED);
+                        const auto commit = fixture.engine().take_commit_text_with_source();
+                        ASSERT_EQ(commit.first, expected.candidates[i].text);
+                        ASSERT_EQ(commit.second, cxxime::CommitSource::kCandidate);
+                        ++committed_count;
+                    }
+                    if (expected.extent.state != cxxime::CandidateExtentState::kHasMore) {
+                        break;
+                    }
+                }
+            }
+            if (categories.extent.state != cxxime::CandidateExtentState::kHasMore) {
+                break;
+            }
+        }
+        ASSERT_EQ(committed_count, 304);
+    }
+}
+
 TEST(SymbolInput, enter_commits_raw_trigger) {
     SymbolEngineFixture fixture;
     ASSERT_TRUE(fixture.initialize());
@@ -139,15 +186,15 @@ TEST(SymbolInput, bare_trigger_navigates_categories_without_committing) {
     type_symbol_code(fixture.engine(), "");
 
     const auto categories = fixture.engine().context().candidate_page();
-    ASSERT_EQ(categories.extent.known_count, 14);
+    ASSERT_EQ(categories.extent.known_count, 10);
     ASSERT_EQ(categories.extent.state, cxxime::CandidateExtentState::kHasMore);
-    ASSERT_EQ(categories.candidates[0].text, "标点");
+    ASSERT_EQ(categories.candidates[0].text, "补充标点");
     ASSERT_EQ(categories.candidates[0].comment, "\\bd");
 
     ASSERT_EQ(fixture.engine().process_key(make_key('1')), cxxime::ProcessResult::ACCEPTED);
     ASSERT_EQ(fixture.engine().context().active_input(), "\\bd");
     ASSERT_TRUE(fixture.engine().context().committed_text.empty());
-    ASSERT_EQ(fixture.engine().context().candidate_page().candidates[0].text, "。");
+    ASSERT_EQ(fixture.engine().context().candidate_page().candidates[0].text, u8"\u2026");
 
     fixture.engine().clear();
     type_symbol_code(fixture.engine(), "");
@@ -163,7 +210,7 @@ TEST(SymbolInput, mouse_selection_navigates_categories_without_committing) {
     ASSERT_TRUE(fixture.engine().select_candidate(0));
     ASSERT_EQ(fixture.engine().context().active_input(), "\\bd");
     ASSERT_TRUE(fixture.engine().context().committed_text.empty());
-    ASSERT_EQ(fixture.engine().context().candidate_page().candidates[0].text, "。");
+    ASSERT_EQ(fixture.engine().context().candidate_page().candidates[0].text, u8"\u2026");
 }
 
 TEST(SymbolInput, shift_commits_raw_trigger_and_switches_to_english) {

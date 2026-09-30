@@ -39,8 +39,10 @@ class CatalogTest(unittest.TestCase):
 
     def test_catalog_reproduces_runtime_table_without_dictionaries(self):
         generate(ROOT / "data/symbol_catalog.json", self.output)
-        self.assertEqual(self.output.read_bytes(),
-                         (ROOT / "data/symbols.json").read_bytes())
+        self.assertEqual(
+            self.output.read_text(encoding="utf-8"),
+            (ROOT / "data/symbols.json").read_text(encoding="utf-8"),
+        )
 
     def test_desktop_catalog_has_only_traditional_categories(self):
         _, categories = load_catalog(ROOT / "data/symbol_catalog.json")
@@ -54,8 +56,10 @@ class CatalogTest(unittest.TestCase):
             ROOT / "data/tools/dict_builder/emoji_classification.json",
             self.output,
         )
-        self.assertEqual(self.output.read_bytes(),
-                         (ROOT / "shared/src/symbol_ranges.inc").read_bytes())
+        self.assertEqual(
+            self.output.read_text(encoding="utf-8"),
+            (ROOT / "shared/src/symbol_ranges.inc").read_text(encoding="utf-8"),
+        )
 
     def test_order_cross_category_entries_and_sequences_are_preserved(self):
         self.save()

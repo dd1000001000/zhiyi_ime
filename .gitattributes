@@ -1,5 +1,18 @@
+# Use LF for project text, independent of each contributor's core.autocrlf.
+* text=auto eol=lf
+
+# Match the existing Windows script conventions in .editorconfig.
+*.bat text eol=crlf whitespace=trailing-space,space-before-tab,cr-at-eol
 *.nsi text eol=crlf whitespace=trailing-space,space-before-tab,cr-at-eol
 *.nsh text eol=crlf whitespace=trailing-space,space-before-tab,cr-at-eol
 .editorconfig whitespace=trailing-space,space-before-tab,cr-at-eol
-# Preserve the exact official bytes used by the pinned Unicode SHA-256 checks.
+
+# Preserve upstream licenses and the pinned Unicode SHA-256 inputs.
+third_party/**/LICENSE -text
+data/licenses/** -text
 data/unicode/**/*.txt -text
+
+# Treat binary assets as binary even if their contents look like text.
+*.ico binary
+*.png binary
+*.zip binary

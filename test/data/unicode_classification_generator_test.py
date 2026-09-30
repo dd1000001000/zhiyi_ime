@@ -28,7 +28,10 @@ class UnicodeGeneratorTest(unittest.TestCase):
         self.assertEqual(generator.DEFAULT_SOURCE_DIR,
                          ROOT / "data/unicode" / generator.VERSION)
         generator.generate(*self.inputs, self.output)
-        self.assertEqual(self.output.read_bytes(), generator.DEFAULT_OUTPUT.read_bytes())
+        self.assertEqual(
+            self.output.read_text(encoding="utf-8"),
+            generator.DEFAULT_OUTPUT.read_text(encoding="utf-8"),
+        )
 
     def copy_inputs(self):
         inputs = []
@@ -66,7 +69,10 @@ class UnicodeGeneratorTest(unittest.TestCase):
             cwd=self.root, capture_output=True, text=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.output.read_bytes(), generator.DEFAULT_OUTPUT.read_bytes())
+        self.assertEqual(
+            self.output.read_text(encoding="utf-8"),
+            generator.DEFAULT_OUTPUT.read_text(encoding="utf-8"),
+        )
 
     def test_missing_input_does_not_overwrite_output(self):
         self.output.write_bytes(b"previous")

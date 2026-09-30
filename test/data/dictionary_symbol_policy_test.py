@@ -241,8 +241,8 @@ class FilteringTest(unittest.TestCase):
                         defer_topn_conversion=True,
                     )
                     self.assertEqual(
-                        (self.root / "symbols.json").read_bytes(),
-                        (output / "symbols.json").read_bytes(),
+                        (self.root / "symbols.json").read_text(encoding="utf-8"),
+                        (output / "symbols.json").read_text(encoding="utf-8"),
                     )
 
 

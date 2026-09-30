@@ -1,8 +1,11 @@
 // Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 
+#include <algorithm>
 #include <limits>
+#include <vector>
 
 #include <windows.h>
+#include <commctrl.h>
 
 #include <cxxime/status_window.h>
 #include <cxxime/window_position.h>
@@ -41,6 +44,53 @@ static POINT input_mode_center(HWND hwnd) {
         scale_status_metric(hwnd, 6) + scale_status_metric(hwnd, 28) / 2,
         scale_status_metric(hwnd, 6) + scale_status_metric(hwnd, 22) / 2,
     };
+}
+
+static void send_mouse_at_screen_point(HWND hwnd, UINT message, POINT point) {
+    ScreenToClient(hwnd, &point);
+    SendMessageW(hwnd, message, 0, MAKELPARAM(point.x, point.y));
+}
+
+static std::vector<HMONITOR> monitor_handles() {
+    std::vector<HMONITOR> monitors;
+    EnumDisplayMonitors(
+        nullptr, nullptr,
+        [](HMONITOR monitor, HDC, LPRECT, LPARAM data) -> BOOL {
+            reinterpret_cast<std::vector<HMONITOR>*>(data)->push_back(monitor);
+            return TRUE;
+        },
+        reinterpret_cast<LPARAM>(&monitors));
+    return monitors;
+}
+
+struct DpiInjection {
+    UINT values[3];
+    int submissions = 0;
+    int depth = 0;
+    int max_depth = 0;
+};
+
+static LRESULT CALLBACK inject_dpi_on_move(HWND hwnd, UINT message, WPARAM wp, LPARAM lp, UINT_PTR,
+                                           DWORD_PTR data) {
+    auto& injection = *reinterpret_cast<DpiInjection*>(data);
+    if (message != WM_WINDOWPOSCHANGED) {
+        return DefSubclassProc(hwnd, message, wp, lp);
+    }
+    ++injection.depth;
+    if (injection.depth > injection.max_depth) {
+        injection.max_depth = injection.depth;
+    }
+    const int index = injection.submissions++;
+    if (index < 3) {
+        RECT suggested = {};
+        GetWindowRect(hwnd, &suggested);
+        const UINT dpi = injection.values[index];
+        SendMessageW(hwnd, WM_DPICHANGED, MAKELPARAM(dpi, dpi),
+                     reinterpret_cast<LPARAM>(&suggested));
+    }
+    const LRESULT result = DefSubclassProc(hwnd, message, wp, lp);
+    --injection.depth;
+    return result;
 }
 
 // ============================================================
@@ -110,24 +160,6 @@ TEST(StatusWindow, ShowHidePreservesTopmostStyle) {
     window.destroy();
 }
 
-TEST(StatusWindow, DpiChangeNotifiesGeometryCallback) {
-    test::ScopedDpiAwarenessContext dpi_context;
-    cxxime::StatusWindow window;
-    ASSERT_TRUE(create_test_window(window));
-
-    int callback_count = 0;
-    window.set_geometry_changed_callback([&]() { ++callback_count; });
-
-    RECT suggested = {};
-    ASSERT_TRUE(window.get_window_rect(&suggested));
-    const UINT next_dpi = window.dpi() == 96 ? 120 : 96;
-    SendMessageW(window.hwnd_for_test(), WM_DPICHANGED, MAKELPARAM(next_dpi, next_dpi),
-                 reinterpret_cast<LPARAM>(&suggested));
-
-    ASSERT_EQ(callback_count, 1);
-    window.destroy();
-}
-
 // ============================================================
 // Position
 // ============================================================
@@ -179,7 +211,7 @@ TEST(StatusWindow, FullscreenRequiresCoveringTheEntireMonitor) {
     ASSERT_TRUE(!cxxime::rect_covers_monitor({}, monitor));
 }
 
-TEST(StatusWindow, AutoDockClampsCurrentPositionToWorkArea) {
+TEST(StatusWindow, RestoredPositionFitsTheWorkArea) {
     test::ScopedDpiAwarenessContext dpi_context;
 
     cxxime::StatusWindow window;
@@ -198,7 +230,8 @@ TEST(StatusWindow, AutoDockClampsCurrentPositionToWorkArea) {
 
     const int width = window_rect.right - window_rect.left;
     const int partial_x = monitor_info.rcWork.right - width / 2;
-    window.set_position(partial_x, monitor_info.rcWork.top);
+    ASSERT_TRUE(SetWindowPos(hwnd, nullptr, partial_x, monitor_info.rcWork.top, 0, 0,
+                             SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE));
     ASSERT_TRUE(GetWindowRect(hwnd, &window_rect));
     ASSERT_EQ(window_rect.left, partial_x);
 
@@ -208,7 +241,7 @@ TEST(StatusWindow, AutoDockClampsCurrentPositionToWorkArea) {
         ++callback_count;
         saved_position = {x, y};
     });
-    window.set_auto_dock(true);
+    window.set_position(partial_x, monitor_info.rcWork.top);
 
     ASSERT_TRUE(GetWindowRect(hwnd, &window_rect));
     ASSERT_EQ(window_rect.right, monitor_info.rcWork.right);
@@ -217,6 +250,306 @@ TEST(StatusWindow, AutoDockClampsCurrentPositionToWorkArea) {
     ASSERT_EQ(saved_position.y, window_rect.top);
 
     window.destroy();
+}
+
+TEST(StatusWindow, DragConstrainsPositionWithoutClickingAndSavesOnRelease) {
+    test::ScopedDpiAwarenessContext dpi_context;
+    const bool single_monitor = GetSystemMetrics(SM_CMONITORS) == 1;
+    cxxime::StatusWindow window;
+    ASSERT_TRUE(create_test_window(window));
+    const HWND hwnd = window.hwnd_for_test();
+    MONITORINFO info = {sizeof(info)};
+    ASSERT_TRUE(GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &info));
+    RECT rect = {};
+    ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+    const int width = rect.right - rect.left;
+    const int height = rect.bottom - rect.top;
+    const RECT work = info.rcWork;
+    const POINT start = {work.left + (work.right - work.left - width) / 2,
+                         work.top + (work.bottom - work.top - height) / 2};
+    struct DragCase {
+        POINT requested;
+        POINT expected;
+        POINT slide;
+        bool should_test;
+    };
+    const DragCase cases[] = {
+        // Always exercise ordinary dragging, including multi-screen auto-hide desktops.
+        {{start.x + width / 2, start.y}, {start.x + width / 2, start.y}, {0, height}, true},
+        {{work.left - width / 2, start.y},
+         {work.left, start.y},
+         {0, height},
+         single_monitor || work.left > info.rcMonitor.left},
+        {{work.right - width / 2, start.y},
+         {work.right - width, start.y},
+         {0, height},
+         single_monitor || work.right < info.rcMonitor.right},
+        {{start.x, work.top - height / 2},
+         {start.x, work.top},
+         {width, 0},
+         single_monitor || work.top > info.rcMonitor.top},
+        {{start.x, work.bottom - height / 2},
+         {start.x, work.bottom - height},
+         {width, 0},
+         single_monitor || work.bottom < info.rcMonitor.bottom},
+    };
+    int click_count = 0;
+    window.set_click_callback([&](cxxime::StatusButton) { ++click_count; });
+    int saved_count = 0;
+    POINT saved = {};
+    window.set_position_callback([&](int x, int y) {
+        ++saved_count;
+        saved = {x, y};
+    });
+    const POINT anchor = status_button_center(hwnd, 0);
+    for (const DragCase& item : cases) {
+        if (!item.should_test) {
+            continue;
+        }
+        window.set_position(start.x, start.y);
+        saved_count = 0;
+        send_mouse_at_screen_point(hwnd, WM_LBUTTONDOWN, {start.x + anchor.x, start.y + anchor.y});
+        send_mouse_at_screen_point(hwnd, WM_MOUSEMOVE,
+                                   {item.requested.x + anchor.x, item.requested.y + anchor.y});
+        ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+        ASSERT_EQ(rect.left, item.expected.x);
+        ASSERT_EQ(rect.top, item.expected.y);
+
+        const POINT slid_mouse = {item.requested.x + anchor.x + item.slide.x,
+                                  item.requested.y + anchor.y + item.slide.y};
+        send_mouse_at_screen_point(hwnd, WM_MOUSEMOVE, slid_mouse);
+        ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+        ASSERT_EQ(rect.left, item.expected.x + item.slide.x);
+        ASSERT_EQ(rect.top, item.expected.y + item.slide.y);
+        ASSERT_TRUE(rect.left >= work.left && rect.right <= work.right);
+        ASSERT_TRUE(rect.top >= work.top && rect.bottom <= work.bottom);
+        ASSERT_EQ(saved_count, 0);
+        send_mouse_at_screen_point(hwnd, WM_LBUTTONUP, slid_mouse);
+        ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+        ASSERT_EQ(click_count, 0);
+        ASSERT_EQ(saved_count, 1);
+        ASSERT_EQ(saved.x, rect.left);
+        ASSERT_EQ(saved.y, rect.top);
+    }
+}
+
+TEST(StatusWindow, LayoutChangesAvoidReservedArea) {
+    test::ScopedDpiAwarenessContext dpi_context;
+    cxxime::StatusWindow window;
+    ASSERT_TRUE(create_test_window(window));
+    const HWND hwnd = window.hwnd_for_test();
+    MONITORINFO info = {sizeof(info)};
+    ASSERT_TRUE(GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &info));
+    RECT rect = {};
+    ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+    const int width = rect.right - rect.left;
+    const int height = rect.bottom - rect.top;
+    const POINT start = {info.rcWork.left + (info.rcWork.right - info.rcWork.left - width) / 2,
+                         info.rcWork.top + (info.rcWork.bottom - info.rcWork.top - height) / 2};
+    POINT requested = start;
+    POINT expected = start;
+    RECT reserved = info.rcMonitor;
+    if (info.rcWork.bottom < info.rcMonitor.bottom) {
+        requested.y = info.rcWork.bottom - height / 2;
+        expected.y = info.rcWork.bottom - height;
+        reserved.top = info.rcWork.bottom;
+    } else if (info.rcWork.top > info.rcMonitor.top) {
+        requested.y = info.rcWork.top - height / 2;
+        expected.y = info.rcWork.top;
+        reserved.bottom = info.rcWork.top;
+    } else if (info.rcWork.left > info.rcMonitor.left) {
+        requested.x = info.rcWork.left - width / 2;
+        expected.x = info.rcWork.left;
+        reserved.right = info.rcWork.left;
+    } else if (info.rcWork.right < info.rcMonitor.right) {
+        requested.x = info.rcWork.right - width / 2;
+        expected.x = info.rcWork.right - width;
+        reserved.left = info.rcWork.right;
+    } else {
+        // Headless/auto-hide desktops may have no reserved work-area edge.
+        return;
+    }
+    // Derive the expected contact edge from the OS work area, not the positioning helper.
+    RECT overlap = {};
+
+    // Re-evaluate an existing position after work-area or monitor changes.
+    const UINT messages[] = {WM_SETTINGCHANGE, WM_DISPLAYCHANGE, WM_DPICHANGED};
+    for (UINT message : messages) {
+        ASSERT_TRUE(SetWindowPos(hwnd, nullptr, requested.x, requested.y, 0, 0,
+                                 SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE));
+        ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+        const WPARAM param =
+            message == WM_DPICHANGED ? MAKELPARAM(window.dpi(), window.dpi()) : SPI_SETWORKAREA;
+        SendMessageW(hwnd, message, param, reinterpret_cast<LPARAM>(&rect));
+        ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+        ASSERT_EQ(rect.left, expected.x);
+        ASSERT_EQ(rect.top, expected.y);
+        ASSERT_TRUE(!IntersectRect(&overlap, &rect, &reserved));
+    }
+}
+
+TEST(StatusWindow, NestedDpiChangesDoNotRecursivelyMoveOrPublishIntermediatePositions) {
+    test::ScopedDpiAwarenessContext dpi_context;
+    cxxime::StatusWindow window;
+    ASSERT_TRUE(create_test_window(window));
+    window.show();
+    const HWND hwnd = window.hwnd_for_test();
+    MONITORINFO info = {sizeof(info)};
+    ASSERT_TRUE(GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &info));
+    // At higher DPI, creation may already clamp the window to the bottom-right corner.
+    // Start elsewhere so the first submission produces a real position change.
+    window.set_position(info.rcWork.left, info.rcWork.top);
+    RECT initial = {};
+    ASSERT_TRUE(GetWindowRect(hwnd, &initial));
+    // Keep the requested rect within this monitor when choosing the placement target.
+    const POINT requested = {info.rcWork.right - (initial.right - initial.left),
+    info.rcWork.bottom - (initial.bottom - initial.top)};
+    ASSERT_TRUE(initial.left != requested.x || initial.top != requested.y);
+    const UINT dpi = window.dpi();
+    DpiInjection injection = {{dpi + 24, dpi, dpi + 48}};
+    ASSERT_TRUE(
+        SetWindowSubclass(hwnd, inject_dpi_on_move, 1, reinterpret_cast<DWORD_PTR>(&injection)));
+    int geometry_count = 0;
+    int position_count = 0;
+    POINT saved = {};
+    window.set_geometry_changed_callback([&]() { ++geometry_count; });
+    window.set_position_callback([&](int x, int y) {
+        ++position_count;
+        saved = {x, y};
+    });
+    window.set_position(requested.x, requested.y);
+    ASSERT_TRUE(RemoveWindowSubclass(hwnd, inject_dpi_on_move, 1));
+    RECT actual = {};
+    ASSERT_TRUE(GetWindowRect(hwnd, &actual));
+    ASSERT_EQ(injection.submissions, 4);
+    ASSERT_EQ(injection.max_depth, 1);
+    ASSERT_EQ(geometry_count, 1);
+    ASSERT_EQ(position_count, 1);
+    ASSERT_EQ(saved.x, actual.left);
+    ASSERT_EQ(saved.y, actual.top);
+    ASSERT_EQ(actual.right, info.rcWork.right);
+    ASSERT_EQ(actual.bottom, info.rcWork.bottom);
+    ASSERT_TRUE(actual.right - actual.left > initial.right - initial.left);
+    // There must be no pending DPI correction left for the next movement.
+    window.set_position(actual.left, actual.top);
+    ASSERT_EQ(geometry_count, 1);
+    ASSERT_EQ(position_count, 1);
+}
+
+TEST(StatusWindow, ReleaseUsesPointerMonitorInsteadOfWindowMajority) {
+    test::ScopedDpiAwarenessContext dpi_context;
+    const std::vector<HMONITOR> monitors = monitor_handles();
+    if (monitors.size() < 2) {
+        return;
+    }
+    cxxime::StatusWindow window;
+    ASSERT_TRUE(create_test_window(window));
+    const HWND hwnd = window.hwnd_for_test();
+    MONITORINFO source = {sizeof(source)};
+    MONITORINFO target = {sizeof(target)};
+    ASSERT_TRUE(GetMonitorInfoW(monitors[0], &source));
+    ASSERT_TRUE(GetMonitorInfoW(monitors[1], &target));
+    window.set_position(source.rcWork.left, source.rcWork.top);
+    const POINT anchor = status_button_center(hwnd, 0);
+    send_mouse_at_screen_point(hwnd, WM_LBUTTONDOWN,
+                               {source.rcWork.left + anchor.x, source.rcWork.top + anchor.y});
+    send_mouse_at_screen_point(hwnd, WM_MOUSEMOVE,
+                               {source.rcWork.left + anchor.x + 40, source.rcWork.top + anchor.y});
+    // The release event can contain a newer pointer position than the last move event.
+    const POINT release = {target.rcWork.left + (target.rcWork.right - target.rcWork.left) / 2,
+                           target.rcWork.top + (target.rcWork.bottom - target.rcWork.top) / 2};
+    send_mouse_at_screen_point(hwnd, WM_LBUTTONUP, release);
+    RECT actual = {};
+    ASSERT_TRUE(GetWindowRect(hwnd, &actual));
+    ASSERT_TRUE(actual.left >= target.rcWork.left && actual.right <= target.rcWork.right);
+    ASSERT_TRUE(actual.top >= target.rcWork.top && actual.bottom <= target.rcWork.bottom);
+}
+
+TEST(StatusWindow, DpiFallbackStaysOnTargetUntilPointerChangesScreens) {
+    test::ScopedDpiAwarenessContext dpi_context;
+    const std::vector<HMONITOR> monitors = monitor_handles();
+    // This integration test needs an ordinary vertical seam with room for the window.
+    for (HMONITOR left_handle : monitors) {
+        MONITORINFO left = {sizeof(left)};
+        ASSERT_TRUE(GetMonitorInfoW(left_handle, &left));
+        for (HMONITOR right_handle : monitors) {
+            MONITORINFO right = {sizeof(right)};
+            ASSERT_TRUE(GetMonitorInfoW(right_handle, &right));
+            if (left.rcMonitor.right != right.rcMonitor.left ||
+                left.rcWork.right != right.rcWork.left) {
+                continue;
+            }
+            cxxime::StatusWindow window;
+            ASSERT_TRUE(create_test_window(window));
+            window.set_position(left.rcWork.left, left.rcWork.top);
+            const HWND hwnd = window.hwnd_for_test();
+            RECT rect = {};
+            ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+            const int width = rect.right - rect.left;
+            const int height = rect.bottom - rect.top;
+            const int top = (std::max)(left.rcWork.top, right.rcWork.top);
+            const int bottom = (std::min)(left.rcWork.bottom, right.rcWork.bottom);
+            if (bottom - top < height * 4 || left.rcWork.right - left.rcWork.left < width * 2) {
+                continue;
+            }
+            const int seam = left.rcWork.right;
+            const int y = top + (bottom - top) / 2;
+            window.set_position(seam - width * 2, y);
+            const POINT anchor = status_button_center(hwnd, 3);
+            send_mouse_at_screen_point(hwnd, WM_LBUTTONDOWN,
+                                       {seam - width * 2 + anchor.x, y + anchor.y});
+            const UINT dpi = window.dpi();
+            DpiInjection injection = {{dpi + 24, dpi, dpi + 48}};
+            ASSERT_TRUE(SetWindowSubclass(hwnd, inject_dpi_on_move, 1,
+                                          reinterpret_cast<DWORD_PTR>(&injection)));
+            const POINT on_right = {seam + 1, y + anchor.y};
+            send_mouse_at_screen_point(hwnd, WM_MOUSEMOVE, on_right);
+            ASSERT_TRUE(RemoveWindowSubclass(hwnd, inject_dpi_on_move, 1));
+            ASSERT_EQ(injection.max_depth, 1);
+            // Repeating the same raw cross-screen request must not pull it back again.
+            send_mouse_at_screen_point(hwnd, WM_MOUSEMOVE, on_right);
+            ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+            ASSERT_TRUE(rect.left >= right.rcWork.left && rect.right <= right.rcWork.right);
+
+            const POINT on_left = {seam - 1, y + anchor.y};
+            send_mouse_at_screen_point(hwnd, WM_MOUSEMOVE, on_left);
+            ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+            ASSERT_TRUE(rect.left < seam && rect.right > seam);
+            send_mouse_at_screen_point(hwnd, WM_LBUTTONUP, on_left);
+            return;
+        }
+    }
+}
+
+TEST(StatusWindow, DpiChangeUsesRenderedSizeAndNotifiesGeometryOnce) {
+    test::ScopedDpiAwarenessContext dpi_context;
+    cxxime::StatusWindow window;
+    ASSERT_TRUE(create_test_window(window));
+    const HWND hwnd = window.hwnd_for_test();
+    MONITORINFO info = {sizeof(info)};
+    ASSERT_TRUE(GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &info));
+    RECT rect = {};
+    ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+    SendMessageW(hwnd, WM_DPICHANGED, MAKELPARAM(96, 96), reinterpret_cast<LPARAM>(&rect));
+    ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+    int callback_count = 0;
+    window.set_geometry_changed_callback([&]() { ++callback_count; });
+    const int width = rect.right - rect.left;
+    const int height = rect.bottom - rect.top;
+    const UINT old_dpi = 96;
+    const UINT next_dpi = 120;
+    // Windows scales the whole rect; the layout rounds its individual metrics.
+    const int suggested_width = MulDiv(width, next_dpi, old_dpi);
+    const int suggested_height = MulDiv(height, next_dpi, old_dpi);
+    RECT suggested = {info.rcWork.right - suggested_width, info.rcWork.bottom - suggested_height,
+                      info.rcWork.right, info.rcWork.bottom};
+    SendMessageW(hwnd, WM_DPICHANGED, MAKELPARAM(next_dpi, next_dpi),
+                 reinterpret_cast<LPARAM>(&suggested));
+    ASSERT_TRUE(GetWindowRect(hwnd, &rect));
+    ASSERT_TRUE(rect.right <= info.rcWork.right);
+    ASSERT_TRUE(rect.bottom <= info.rcWork.bottom);
+    ASSERT_TRUE(rect.right - rect.left != suggested_width);
+    ASSERT_EQ(callback_count, 1);
 }
 
 // ============================================================
@@ -260,28 +593,6 @@ TEST(StatusWindow, ClickWhenDisabled) {
     SendMessageW(window.hwnd_for_test(), WM_LBUTTONUP, 0, MAKELPARAM(point.x, point.y));
 
     ASSERT_EQ(click_count, 0);
-
-    window.destroy();
-}
-
-TEST(StatusWindow, DragVsClick) {
-    cxxime::StatusWindow window;
-    ASSERT_TRUE(create_test_window(window));
-
-    int click_count = 0;
-    int drag_count = 0;
-    window.set_click_callback([&](cxxime::StatusButton) { click_count++; });
-    window.set_position_callback([&](int, int) { drag_count++; });
-
-    // Simulate drag: move well past the DPI-scaled threshold before release.
-    const POINT point = status_button_center(window.hwnd_for_test(), 0);
-    const int drag_x = point.x + scale_status_metric(window.hwnd_for_test(), 100);
-    SendMessageW(window.hwnd_for_test(), WM_LBUTTONDOWN, 0, MAKELPARAM(point.x, point.y));
-    SendMessageW(window.hwnd_for_test(), WM_MOUSEMOVE, 0, MAKELPARAM(drag_x, point.y));
-    SendMessageW(window.hwnd_for_test(), WM_LBUTTONUP, 0, MAKELPARAM(drag_x, point.y));
-
-    ASSERT_EQ(click_count, 0);
-    ASSERT_EQ(drag_count, 1);
 
     window.destroy();
 }

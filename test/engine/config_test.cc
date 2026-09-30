@@ -227,6 +227,20 @@ TEST(Config, initial_state_round_trip) {
     ASSERT_TRUE(!loaded.initial_chinese_punct);
 }
 
+TEST(Config, obsolete_status_auto_dock_is_ignored) {
+    const char* json = R"({"status_window":{
+        "auto_dock":true,"enable":false,"x":120,"y":240,"show_on_startup":false
+    }})";
+    cxxime::Config loaded;
+    ASSERT_TRUE(loaded.load_json(json));
+    ASSERT_TRUE(!loaded.status_window.enable);
+    ASSERT_EQ(loaded.status_window.x, 120);
+    ASSERT_EQ(loaded.status_window.y, 240);
+    ASSERT_TRUE(!loaded.status_window.show_on_startup);
+    const auto saved = nlohmann::json::parse(loaded.to_user_json());
+    ASSERT_TRUE(!saved["status_window"].contains("auto_dock"));
+}
+
 TEST(Config, runtime_snapshot_round_trip) {
     cxxime::Config saved;
     saved.page_size = 7;
@@ -235,7 +249,6 @@ TEST(Config, runtime_snapshot_round_trip) {
     saved.theme = "dark";
     saved.inline_preedit = true;
     saved.status_window.enable = false;
-    saved.status_window.auto_dock = true;
     ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Ctrl+Alt+M",
                                                 &saved.input_mode_switch_shortcut));
     ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Ctrl+Shift+Space",
@@ -256,7 +269,6 @@ TEST(Config, runtime_snapshot_round_trip) {
     ASSERT_TRUE(loaded.theme == "dark");
     ASSERT_TRUE(loaded.inline_preedit);
     ASSERT_TRUE(!loaded.status_window.enable);
-    ASSERT_TRUE(loaded.status_window.auto_dock);
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.input_mode_switch_shortcut) ==
                 "Ctrl+Alt+M");
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.activate_ime_shortcut) ==

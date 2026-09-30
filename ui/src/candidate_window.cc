@@ -237,7 +237,7 @@ bool CandidateWindow::create(HWND owner, const Config& config) {
         render_ctx_.high_contrast = system_high_contrast_enabled();
         render_theme_ = theme_for_rendering(theme_, render_ctx_.high_contrast);
         if (config.render_backend != "gdi") set_render_backend(RenderBackend::D2D);
-        dpi_scale_ = GetDpiForWindow(hwnd_) / 96.0f;
+        dpi_scale_ = dpi_to_scale(GetDpiForWindow(hwnd_));
         if (dpi_scale_ <= 0.0f) {
             dpi_scale_ = 1.0f;
         }
@@ -321,7 +321,7 @@ bool CandidateWindow::refresh_dpi_scale() {
     if (!hwnd_)
         return false;
 
-    float next_scale = GetDpiForWindow(hwnd_) / 96.0f;
+    float next_scale = dpi_to_scale(GetDpiForWindow(hwnd_));
     if (next_scale <= 0.0f)
         next_scale = 1.0f;
     if (std::fabs(next_scale - dpi_scale_) < 0.01f)
@@ -332,11 +332,13 @@ bool CandidateWindow::refresh_dpi_scale() {
 }
 
 bool CandidateWindow::refresh_preedit_cursor_width() {
-    const UINT window_dpi = hwnd_ ? GetDpiForWindow(hwnd_) : 96;
+    const UINT window_dpi = hwnd_ ? GetDpiForWindow(hwnd_) : USER_DEFAULT_SCREEN_DPI;
     const int minimum_width =
-        (std::max)(1, MulDiv(kPreeditCursorMinimumWidthDips, static_cast<int>(window_dpi), 96));
+        (std::max)(1, MulDiv(kPreeditCursorMinimumWidthDips, static_cast<int>(window_dpi),
+                             USER_DEFAULT_SCREEN_DPI));
     int maximum_width = (std::max)(minimum_width, MulDiv(kPreeditCursorMaximumWidthDips,
-                                                         static_cast<int>(window_dpi), 96));
+                                                         static_cast<int>(window_dpi),
+                                                         USER_DEFAULT_SCREEN_DPI));
     const int display_width = monitor_display_width();
     if (display_width > 0) {
         maximum_width =
@@ -855,10 +857,12 @@ void CandidateWindow::update(const CandidatePage& page) {
     render_ctx_.preedit_corner_radius = (std::max)(0, cfg.preedit_highlight_corner);
     render_ctx_.preedit_border_width =
         (std::max)(0, cfg.preedit_highlight_border_width);
-    const int preedit_cursor_border_gap = (std::max)(
-        1, MulDiv(kPreeditCursorBorderGapDips, static_cast<int>(window_dpi), 96));
-    const int preedit_cursor_text_gap = (std::max)(
-        1, MulDiv(kPreeditCursorTextGapDips, static_cast<int>(window_dpi), 96));
+    const int preedit_cursor_border_gap =
+        (std::max)(1, MulDiv(kPreeditCursorBorderGapDips, static_cast<int>(window_dpi),
+                             USER_DEFAULT_SCREEN_DPI));
+    const int preedit_cursor_text_gap =
+        (std::max)(1, MulDiv(kPreeditCursorTextGapDips, static_cast<int>(window_dpi),
+                             USER_DEFAULT_SCREEN_DPI));
     const int preedit_cursor_slot_width =
         preedit_cursor_width_ + preedit_cursor_text_gap * 2;
     const int preedit_cursor_safe_inset =
@@ -1225,7 +1229,7 @@ LRESULT CALLBACK CandidateWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM
         return 0;
     case WM_DPICHANGED:
         if (self) {
-            float next_scale = HIWORD(wp) / 96.0f;
+            float next_scale = dpi_to_scale(HIWORD(wp));
             if (next_scale > 0.0f && std::fabs(next_scale - self->dpi_scale_) >= 0.01f) {
                 self->dpi_scale_ = next_scale;
                 RECT* suggested = reinterpret_cast<RECT*>(lp);

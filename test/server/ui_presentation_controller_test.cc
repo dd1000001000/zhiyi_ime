@@ -158,7 +158,6 @@ public:
         auto config = std::make_shared<cxxime::Config>();
         config->render_backend = "gdi";
         config->status_window.enable = true;
-        config->status_window.auto_dock = false;
         config->status_window.x = 200;
         config->status_window.y = 200;
         ASSERT_TRUE(

@@ -2,15 +2,16 @@
 
 #include <cxxime/status_window.h>
 
-#include <commctrl.h>
-#include <d2d1.h>
-#include <dwrite.h>
-#include <uxtheme.h>
 #include <algorithm>
 #include <cstring>
 #include <limits>
 #include <mutex>
 #include <vector>
+
+#include <commctrl.h>
+#include <d2d1.h>
+#include <dwrite.h>
+#include <uxtheme.h>
 
 // GDI+ SDK headers use unqualified min/max in namespace Gdiplus on older
 // Windows SDKs. The project defines NOMINMAX globally, so provide std::min/max
@@ -127,12 +128,18 @@ static POINT clamp_to_monitor_work_area(int x, int y, int width, int height,
     return clamp_window_position_to_work_area(x, y, width, height, monitor_info.rcWork);
 }
 
-static POINT recover_invisible_status_window(int x, int y, int width, int height) {
-    const RECT target = status_window_rect(x, y, width, height);
-    if (MonitorFromRect(&target, MONITOR_DEFAULTTONULL)) {
-        return {x, y};
-    }
-    return clamp_to_monitor_work_area(x, y, width, height);
+static std::vector<MONITORINFO> collect_monitors() {
+    std::vector<MONITORINFO> monitors;
+    const auto collect = [](HMONITOR monitor, HDC, LPRECT, LPARAM param) -> BOOL {
+        auto& output = *reinterpret_cast<std::vector<MONITORINFO>*>(param);
+        MONITORINFO info = {sizeof(info)};
+        if (GetMonitorInfoW(monitor, &info)) {
+            output.push_back(info);
+        }
+        return TRUE;
+    };
+    EnumDisplayMonitors(nullptr, nullptr, collect, reinterpret_cast<LPARAM>(&monitors));
+    return monitors;
 }
 
 // ============================================================
@@ -183,13 +190,13 @@ bool StatusWindow::create(const StatusTheme& theme) {
 
     if (!hwnd_) return false;
 
-    dpi_scale_ = GetDpiForWindow(hwnd_) / 96.0f;
+    dpi_scale_ = dpi_to_scale(GetDpiForWindow(hwnd_));
     if (dpi_scale_ <= 0.0f) {
         dpi_scale_ = 1.0f;
     }
     win_w_ = WindowWidth();
     win_h_ = WindowHeight();
-    POINT initial_position = recover_invisible_status_window(x, y, win_w_, win_h_);
+    POINT initial_position = clamp_to_monitor_work_area(x, y, win_w_, win_h_);
     SetWindowPos(hwnd_, nullptr, initial_position.x, initial_position.y, win_w_, win_h_,
                  SWP_NOZORDER | SWP_NOACTIVATE);
 
@@ -225,6 +232,10 @@ void StatusWindow::destroy() {
     is_tracking_ = false;
     is_dragging_ = false;
     layered_ready_ = false;
+    placement_in_progress_ = false;
+    pending_dpi_ = 0;
+    drag_monitor_ = nullptr;
+    fit_drag_to_monitor_ = false;
 
     if (gdiplus_initialized_) {
         shutdown_gdiplus();
@@ -303,19 +314,6 @@ void StatusWindow::set_enabled(bool enabled) {
     if (layered_ready_) RedrawLayered();
 }
 
-void StatusWindow::set_auto_dock(bool auto_dock) {
-    if (auto_dock_ == auto_dock) {
-        return;
-    }
-    auto_dock_ = auto_dock;
-    if (auto_dock_ && hwnd_) {
-        RECT window_rect = {};
-        if (GetWindowRect(hwnd_, &window_rect)) {
-            set_position(window_rect.left, window_rect.top);
-        }
-    }
-}
-
 // ============================================================
 // State
 // ============================================================
@@ -331,32 +329,78 @@ void StatusWindow::update_state(const ButtonState& state) {
 
 void StatusWindow::set_position(int x, int y) {
     if (hwnd_) {
-        const POINT position =
-            auto_dock_ ? clamp_to_monitor_work_area(x, y, win_w_, win_h_) : POINT{x, y};
-        ApplyPosition(x, y, position);
-    }
-}
-
-void StatusWindow::recover_if_invisible() {
-    if (hwnd_) {
-        RECT window_rect = {};
-        if (GetWindowRect(hwnd_, &window_rect)) {
-            const POINT position = recover_invisible_status_window(
-                window_rect.left, window_rect.top, window_rect.right - window_rect.left,
-                window_rect.bottom - window_rect.top);
-            ApplyPosition(window_rect.left, window_rect.top, position);
+        const RECT requested = status_window_rect(x, y, win_w_, win_h_);
+        const HMONITOR target = MonitorFromRect(&requested, MONITOR_DEFAULTTONEAREST);
+        if (PlaceWindow(x, y, target, false)) {
+            RECT actual = {};
+            if (GetWindowRect(hwnd_, &actual) && (actual.left != x || actual.top != y) &&
+                position_callback_) {
+                position_callback_(actual.left, actual.top);
+            }
         }
     }
 }
 
-void StatusWindow::ApplyPosition(int requested_x, int requested_y, POINT position) {
-    const bool position_adjusted = position.x != requested_x || position.y != requested_y;
-    const BOOL moved = SetWindowPos(hwnd_, nullptr, position.x, position.y, 0, 0,
-                                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-    if (moved && position_adjusted && position_callback_) {
-        position_callback_(position.x, position.y);
+bool StatusWindow::PlaceWindow(int x, int y, HMONITOR target_monitor, bool dragging) {
+    MONITORINFO target = {sizeof(target)};
+    if (!GetMonitorInfoW(target_monitor, &target) || placement_in_progress_) {
+        return false;
     }
-    if (layered_ready_) RedrawLayered();
+    const std::vector<MONITORINFO> monitors =
+        dragging ? collect_monitors() : std::vector<MONITORINFO>();
+    placement_in_progress_ = true;
+    bool dpi_changed = false;
+    const auto present = [&](bool fit_target) {
+        if (pending_dpi_) {
+            const UINT dpi = pending_dpi_;
+            pending_dpi_ = 0;
+            UpdateDpiResources(dpi);
+            dpi_changed = true;
+        }
+        const POINT position =
+            fit_target
+                ? clamp_window_position_to_work_area(x, y, win_w_, win_h_, target.rcWork)
+                : constrain_status_drag_position(x, y, win_w_, win_h_, monitors, target.rcWork);
+        // Keep native move/DPI notifications: UpdateLayeredWindow alone may move
+        // the surface without sending window-position messages.
+        if (!SetWindowPos(hwnd_, nullptr, position.x, position.y, win_w_, win_h_,
+                          SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW)) {
+            return false;
+        }
+        // Do not paint an intermediate size; the next stage consumes the DPI first.
+        return pending_dpi_ || !layered_ready_ || RedrawLayered();
+    };
+
+    const bool fit_target = !dragging || fit_drag_to_monitor_;
+    bool moved = present(fit_target);
+    if (moved && pending_dpi_) {
+        // Recalculate with the new rendered size, retaining this operation's target.
+        moved = present(fit_target);
+    }
+    if (moved && pending_dpi_) {
+        // Resizing crossed the DPI boundary again. End the ambiguity inside the
+        // pointer's screen, then apply that screen's DPI once, without reselecting it.
+        if (dragging) {
+            fit_drag_to_monitor_ = true;
+        }
+        moved = present(true);
+        if (moved && pending_dpi_) {
+            moved = present(true);
+        }
+    }
+    if (pending_dpi_) {
+        // A failed submission or a concurrent display change must not leak a DPI
+        // notification into the next operation or publish an unsettled position.
+        const UINT dpi = pending_dpi_;
+        pending_dpi_ = 0;
+        UpdateDpiResources(dpi);
+        moved = false;
+    }
+    placement_in_progress_ = false;
+    if (moved && dpi_changed && geometry_changed_callback_) {
+        geometry_changed_callback_();
+    }
+    return moved;
 }
 
 void StatusWindow::get_position(int& x, int& y) const {
@@ -417,7 +461,7 @@ LRESULT StatusWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
 
     case WM_LBUTTONUP:
-        EndTracking((short)LOWORD(lp), (short)HIWORD(lp));
+        OnLButtonUp((short)LOWORD(lp), (short)HIWORD(lp));
         return 0;
 
     case WM_RBUTTONUP:
@@ -428,38 +472,24 @@ LRESULT StatusWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return MA_NOACTIVATE;
 
     case WM_DPICHANGED: {
-        dpi_scale_ = HIWORD(wp) / 96.0f;
-        // Rebuild fonts
-        if (font_cn_) { DeleteObject(font_cn_); font_cn_ = nullptr; }
-        if (font_en_) { DeleteObject(font_en_); font_en_ = nullptr; }
-        if (font_icon_) { DeleteObject(font_icon_); font_icon_ = nullptr; }
-        CreateFonts();
-        // Recalculate window size
-        win_w_ = WindowWidth();
-        win_h_ = WindowHeight();
-        // Use system-suggested rect
-        RECT* rc = reinterpret_cast<RECT*>(lp);
-        int width = rc->right - rc->left;
-        int height = rc->bottom - rc->top;
-        POINT position = {rc->left, rc->top};
-        // Preserve free cross-monitor movement while the pointer owns the window position.
-        if (!is_dragging_) {
-            position = auto_dock_ ? clamp_to_monitor_work_area(rc->left, rc->top, width, height)
-                                  : POINT{rc->left, rc->top};
+        pending_dpi_ = HIWORD(wp);
+        if (placement_in_progress_) {
+            // The outer submission still owns the DIB. Rebuild only after it returns.
+            return 0;
         }
-        const BOOL moved = SetWindowPos(hwnd_, nullptr, position.x, position.y, width, height,
-                                        SWP_NOZORDER | SWP_NOACTIVATE);
-        if (!is_dragging_ && moved &&
-            (position.x != rc->left || position.y != rc->top) && position_callback_) {
-            position_callback_(position.x, position.y);
-        }
-        // Rebuild offscreen surface
-        CleanupLayeredSurface();
-        InitLayeredSurface();
-        if (use_d2d_) { CleanupD2D(); InitD2D(); }
-        RedrawLayered();
-        if (moved && geometry_changed_callback_) {
-            geometry_changed_callback_();
+        if (is_dragging_) {
+            PlaceWindow(drag_requested_.x, drag_requested_.y, drag_monitor_, true);
+        } else {
+            const RECT* suggested = reinterpret_cast<const RECT*>(lp);
+            const HMONITOR target = MonitorFromRect(suggested, MONITOR_DEFAULTTONEAREST);
+            if (PlaceWindow(suggested->left, suggested->top, target, false)) {
+                RECT actual = {};
+                if (GetWindowRect(hwnd_, &actual) &&
+                    (actual.left != suggested->left || actual.top != suggested->top) &&
+                    position_callback_) {
+                    position_callback_(actual.left, actual.top);
+                }
+            }
         }
         return 0;
     }
@@ -472,11 +502,7 @@ LRESULT StatusWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         RECT window_rect = {};
         if (GetWindowRect(hwnd_, &window_rect)) {
-            if (auto_dock_) {
-                set_position(window_rect.left, window_rect.top);
-            } else {
-                recover_if_invisible();
-            }
+            set_position(window_rect.left, window_rect.top);
         }
         return 0;
     }
@@ -512,8 +538,33 @@ LRESULT StatusWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 // ============================================================
 // Fonts (GDI+ fallback)
 // ============================================================
+void StatusWindow::UpdateDpiResources(UINT dpi) {
+    dpi_scale_ = dpi_to_scale(dpi);
+    if (font_cn_) {
+        DeleteObject(font_cn_);
+        font_cn_ = nullptr;
+    }
+    if (font_en_) {
+        DeleteObject(font_en_);
+        font_en_ = nullptr;
+    }
+    if (font_icon_) {
+        DeleteObject(font_icon_);
+        font_icon_ = nullptr;
+    }
+    CreateFonts();
+    win_w_ = WindowWidth();
+    win_h_ = WindowHeight();
+    CleanupLayeredSurface();
+    InitLayeredSurface();
+    if (use_d2d_) {
+        CleanupD2D();
+        InitD2D();
+    }
+}
+
 void StatusWindow::CreateFonts() {
-    const UINT dpi_y = GetDpiForWindow(hwnd_);
+    const UINT dpi_y = static_cast<UINT>(dpi_scale_ * USER_DEFAULT_SCREEN_DPI + 0.5f);
 
     auto make_font = [&](const wchar_t* name, int pt_size, int weight) {
         int height = -MulDiv(pt_size, dpi_y, 72);
@@ -571,7 +622,7 @@ void StatusWindow::InitD2D() {
     D2D1_RENDER_TARGET_PROPERTIES props = D2D1::RenderTargetProperties(
         D2D1_RENDER_TARGET_TYPE_DEFAULT,
         D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
-        96.0f, 96.0f);
+        USER_DEFAULT_SCREEN_DPI, USER_DEFAULT_SCREEN_DPI);
     hr = d2d_factory_->CreateDCRenderTarget(&props, &d2d_rt_);
     if (FAILED(hr)) return;
 
@@ -581,7 +632,7 @@ void StatusWindow::InitD2D() {
 
     // Layout rectangles use physical pixels, so keep the DC render target at
     // 96 DPI and scale DirectWrite's DIP font size exactly once here.
-    const float dpi = static_cast<float>(GetDpiForWindow(hwnd_));
+    const float dpi = dpi_scale_ * USER_DEFAULT_SCREEN_DPI;
 
     auto mkfmt = [&](const wchar_t* name, int pt, DWRITE_FONT_WEIGHT w) -> IDWriteTextFormat* {
         float sz = (float)pt * dpi / 72.0f;
@@ -937,8 +988,8 @@ void StatusWindow::PaintGdiplus() {
 // ============================================================
 // Layered window update
 // ============================================================
-void StatusWindow::RedrawLayered() {
-    if (!layered_ready_ || !hwnd_) return;
+bool StatusWindow::RedrawLayered() {
+    if (!layered_ready_ || !hwnd_) return false;
 
     // Render to offscreen surface
     if (use_d2d_) {
@@ -948,15 +999,19 @@ void StatusWindow::RedrawLayered() {
     }
 
     // Present via UpdateLayeredWindow
-    RECT rc;
-    GetWindowRect(hwnd_, &rc);
+    RECT rc = {};
+    if (!GetWindowRect(hwnd_, &rc)) {
+        return false;
+    }
     HDC screen_dc = GetDC(nullptr);
     BLENDFUNCTION bf = {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
     POINT ptSrc = {0, 0};
     SIZE sz = {win_w_, win_h_};
     POINT ptDst = {rc.left, rc.top};
-    UpdateLayeredWindow(hwnd_, screen_dc, &ptDst, &sz, layered_dc_, &ptSrc, 0, &bf, ULW_ALPHA);
+    const BOOL updated =
+        UpdateLayeredWindow(hwnd_, screen_dc, &ptDst, &sz, layered_dc_, &ptSrc, 0, &bf, ULW_ALPHA);
     ReleaseDC(nullptr, screen_dc);
+    return updated != FALSE;
 }
 
 // ============================================================
@@ -1022,6 +1077,9 @@ void StatusWindow::OnLButtonDown(int x, int y) {
     RECT rc;
     GetWindowRect(hwnd_, &rc);
     window_start_ = {rc.left, rc.top};
+    drag_requested_ = window_start_;
+    drag_monitor_ = MonitorFromPoint(screen_pt, MONITOR_DEFAULTTONEAREST);
+    fit_drag_to_monitor_ = false;
 
     is_tracking_ = true;
     is_dragging_ = false;
@@ -1062,8 +1120,6 @@ void StatusWindow::OnRButtonUp(int x, int y) {
     ShowContextMenu(pt.x, pt.y);
 }
 
-void StatusWindow::BeginTracking(int /*x*/, int /*y*/) {}
-
 void StatusWindow::ContinueTracking(int x, int y) {
     if (!is_tracking_) return;
 
@@ -1077,11 +1133,15 @@ void StatusWindow::ContinueTracking(int x, int y) {
     }
 
     if (is_dragging_) {
-        int new_x = window_start_.x + (screen_pt.x - track_start_.x);
-        int new_y = window_start_.y + (screen_pt.y - track_start_.y);
-        SetWindowPos(hwnd_, nullptr, new_x, new_y, 0, 0,
-                     SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-        if (layered_ready_) RedrawLayered();
+        drag_requested_ = {window_start_.x + (screen_pt.x - track_start_.x),
+                           window_start_.y + (screen_pt.y - track_start_.y)};
+        const HMONITOR monitor = MonitorFromPoint(screen_pt, MONITOR_DEFAULTTONEAREST);
+        if (monitor != drag_monitor_) {
+            // A DPI-boundary fallback stays settled until the pointer changes screens.
+            fit_drag_to_monitor_ = false;
+        }
+        drag_monitor_ = monitor;
+        PlaceWindow(drag_requested_.x, drag_requested_.y, drag_monitor_, true);
     } else {
         // Before drag threshold: update pressed button highlight
         int new_hover = HitTest(x, y);
@@ -1092,25 +1152,18 @@ void StatusWindow::ContinueTracking(int x, int y) {
     }
 }
 
-void StatusWindow::EndTracking(int x, int y) {
+void StatusWindow::OnLButtonUp(int x, int y) {
     if (is_dragging_) {
+        POINT screen_pt = {x, y};
+        ClientToScreen(hwnd_, &screen_pt);
+        const HMONITOR target_monitor = MonitorFromPoint(screen_pt, MONITOR_DEFAULTTONEAREST);
         RECT rc;
         GetWindowRect(hwnd_, &rc);
         is_dragging_ = false;
-        if (auto_dock_) {
-            HMONITOR target_monitor = MonitorFromRect(&rc, MONITOR_DEFAULTTONULL);
-            if (!target_monitor) {
-                POINT screen_pt = {x, y};
-                ClientToScreen(hwnd_, &screen_pt);
-                target_monitor = MonitorFromPoint(screen_pt, MONITOR_DEFAULTTONEAREST);
-            }
-            POINT position = clamp_to_monitor_work_area(
-                rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, target_monitor);
-            SetWindowPos(hwnd_, nullptr, position.x, position.y, 0, 0,
-                         SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        if (PlaceWindow(rc.left, rc.top, target_monitor, false) && GetWindowRect(hwnd_, &rc) &&
+            position_callback_) {
+            position_callback_(rc.left, rc.top);
         }
-        GetWindowRect(hwnd_, &rc);
-        if (position_callback_) position_callback_(rc.left, rc.top);
     } else {
         int idx = hovered_button_;
         if (idx >= 0 && is_enabled_ && click_callback_) {
@@ -1126,6 +1179,8 @@ void StatusWindow::EndTracking(int x, int y) {
     is_tracking_ = false;
     is_dragging_ = false;
     ReleaseCapture();
+    fit_drag_to_monitor_ = false;
+    drag_monitor_ = nullptr;
     if (layered_ready_) RedrawLayered();
 }
 

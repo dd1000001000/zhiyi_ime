@@ -67,8 +67,6 @@ public:
     UINT dpi() const;
 
     void set_enabled(bool enabled);
-    void set_auto_dock(bool auto_dock);
-    void recover_if_invisible();
 
     void update_state(const ButtonState& state);
     void set_position(int x, int y);
@@ -85,12 +83,14 @@ private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
     LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 
-    void RedrawLayered();
+    bool RedrawLayered();
+    void UpdateDpiResources(UINT dpi);
+    bool PlaceWindow(int x, int y, HMONITOR target_monitor, bool dragging);
     void OnLButtonDown(int x, int y);
+    void OnLButtonUp(int x, int y);
     void OnMouseMove(int x, int y);
     void OnMouseLeave();
     void OnRButtonUp(int x, int y);
-    void ApplyPosition(int requested_x, int requested_y, POINT position);
 
     // Rendering: D2D primary, GDI+ fallback — both render to layered_dc_
     void InitLayeredSurface();
@@ -113,9 +113,7 @@ private:
 
     // Drag: DPI-aware threshold to distinguish click from drag
     int drag_threshold() const { return Scaled(6); }
-    void BeginTracking(int x, int y);
     void ContinueTracking(int x, int y);
-    void EndTracking(int x, int y);
 
     // Layout constants (base values; actual rendering multiplied by dpi_scale_)
     static constexpr int BUTTON_COUNT = 4;            // Interactive buttons (excludes input mode)
@@ -170,14 +168,18 @@ private:
     ButtonState state_;
     int hovered_button_ = -1;
     bool is_enabled_ = true;
-    bool auto_dock_ = false;
     bool layered_ready_ = false;
+    bool placement_in_progress_ = false;
+    UINT pending_dpi_ = 0;
 
     // ── Drag state ────────────────────────────────────────────
     bool is_tracking_ = false;
     bool is_dragging_ = false;
     POINT track_start_ = {};
     POINT window_start_ = {};
+    POINT drag_requested_ = {};
+    HMONITOR drag_monitor_ = nullptr;
+    bool fit_drag_to_monitor_ = false;
 
     StatusButtonClickCallback click_callback_;
     StatusGeometryChangeCallback geometry_changed_callback_;

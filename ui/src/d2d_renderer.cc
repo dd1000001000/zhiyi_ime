@@ -62,7 +62,7 @@ bool D2DRenderer::initialize(HWND hwnd, const Theme& theme, UINT dpi) {
     // CandidateWindow computes layout and HWND size in physical pixels.
     // Keep D2D coordinates in the same pixel space; otherwise high-DPI render
     // targets interpret our rectangles as DIP and the content gets clipped.
-    render_target_->SetDpi(96.0f, 96.0f);
+    render_target_->SetDpi(USER_DEFAULT_SCREEN_DPI, USER_DEFAULT_SCREEN_DPI);
     render_target_->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &text_brush_);
     render_target_->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Gray), &comment_brush_);
     render_target_->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), &bg_brush_);

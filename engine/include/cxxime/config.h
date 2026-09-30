@@ -90,7 +90,6 @@ struct Config {
     // status_window
     struct StatusWindowConfig {
         bool enable = true;
-        bool auto_dock = false;
         int x = -1;
         int y = -1;
         bool show_on_startup = true;

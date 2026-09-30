@@ -328,8 +328,6 @@ bool EditorApp::load_config() {
     set_check(hInitialFullShape_, config_.initial_full_shape);
     update_preedit_type_enabled();
     set_check(hStatusWindow_, config_.status_window.enable);
-    set_check(hStatusAutoDock_, config_.status_window.auto_dock);
-    update_status_window_controls_enabled();
     load_diagnostics_controls();
 
     load_shortcut_controls();
@@ -375,7 +373,6 @@ void EditorApp::readback(HWND) {
     c.layout = (SendMessageW(hLayoutH_, BM_GETCHECK, 0, 0) == BST_CHECKED) ? "horizontal" : "vertical";
     c.render_backend = (SendMessageW(hRenderD2D_, BM_GETCHECK, 0, 0) == BST_CHECKED) ? "d2d" : "gdi";
     c.status_window.enable = get_check(hStatusWindow_);
-    c.status_window.auto_dock = get_check(hStatusAutoDock_);
     read_diagnostics_controls();
     c.layout_config = candidate_layout_from_edits();
 }

@@ -255,7 +255,6 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
     if (j.contains("status_window") && j["status_window"].is_object()) {
         auto& sw = j["status_window"];
         load_bool(sw, "enable", config.status_window.enable);
-        load_bool(sw, "auto_dock", config.status_window.auto_dock);
         load_int(sw, "x", config.status_window.x);
         load_int(sw, "y", config.status_window.y);
         load_bool(sw, "show_on_startup", config.status_window.show_on_startup);
@@ -502,7 +501,6 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["theme"] = config.theme;
 
     j["status_window"]["enable"] = config.status_window.enable;
-    j["status_window"]["auto_dock"] = config.status_window.auto_dock;
     j["status_window"]["x"] = config.status_window.x;
     j["status_window"]["y"] = config.status_window.y;
     j["status_window"]["show_on_startup"] = config.status_window.show_on_startup;

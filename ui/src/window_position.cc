@@ -168,6 +168,71 @@ POINT clamp_window_position_to_work_area(int x, int y, int width, int height,
     return {static_cast<LONG>(clamped_x), static_cast<LONG>(clamped_y)};
 }
 
+static POINT avoid_monitor_reserved_area(int x, int y, int width, int height,
+                                         const RECT& monitor_rect, const RECT& work_area) {
+    const long long right = static_cast<long long>(x) + (std::max)(width, 0);
+    const long long bottom = static_cast<long long>(y) + (std::max)(height, 0);
+    if (width <= 0 || height <= 0 || right <= monitor_rect.left || x >= monitor_rect.right ||
+        bottom <= monitor_rect.top || y >= monitor_rect.bottom) {
+        return {x, y};
+    }
+
+    const POINT clamped = clamp_window_position_to_work_area(x, y, width, height, work_area);
+    POINT position = {x, y};
+    if ((work_area.left > monitor_rect.left && x < work_area.left) ||
+        (work_area.right < monitor_rect.right && right > work_area.right)) {
+        position.x = clamped.x;
+    }
+    if ((work_area.top > monitor_rect.top && y < work_area.top) ||
+        (work_area.bottom < monitor_rect.bottom && bottom > work_area.bottom)) {
+        position.y = clamped.y;
+    }
+    return position;
+}
+
+POINT constrain_status_drag_position(int x, int y, int width, int height,
+                                     const std::vector<MONITORINFO>& monitors,
+                                     const RECT& target_work_area) {
+    // With no other screen to drag onto, keep the entire status window visible.
+    if (monitors.size() == 1) {
+        return clamp_window_position_to_work_area(x, y, width, height, monitors.front().rcWork);
+    }
+    LONG min_x = (std::numeric_limits<LONG>::min)();
+    LONG min_y = (std::numeric_limits<LONG>::min)();
+    LONG max_x = (std::numeric_limits<LONG>::max)();
+    LONG max_y = (std::numeric_limits<LONG>::max)();
+    // Derive every constraint from the same requested rect, never a previous correction.
+    for (const MONITORINFO& monitor : monitors) {
+        const POINT correction =
+            avoid_monitor_reserved_area(x, y, width, height, monitor.rcMonitor, monitor.rcWork);
+        if (correction.x < x) {
+            max_x = (std::min)(max_x, correction.x);
+        } else if (correction.x > x) {
+            min_x = (std::max)(min_x, correction.x);
+        }
+        if (correction.y < y) {
+            max_y = (std::min)(max_y, correction.y);
+        } else if (correction.y > y) {
+            min_y = (std::max)(min_y, correction.y);
+        }
+    }
+    if (min_x > max_x || min_y > max_y) {
+        return clamp_window_position_to_work_area(x, y, width, height, target_work_area);
+    }
+    const POINT position = {(std::max)(min_x, (std::min)(static_cast<LONG>(x), max_x)),
+                            (std::max)(min_y, (std::min)(static_cast<LONG>(y), max_y))};
+    // A correction may enter a previously untouched reserved edge. Use the same
+    // fixed target for this fallback, rather than letting monitor enumeration pick it.
+    for (const MONITORINFO& monitor : monitors) {
+        const POINT check = avoid_monitor_reserved_area(position.x, position.y, width, height,
+                                                        monitor.rcMonitor, monitor.rcWork);
+        if (check.x != position.x || check.y != position.y) {
+            return clamp_window_position_to_work_area(x, y, width, height, target_work_area);
+        }
+    }
+    return position;
+}
+
 CandidateWindowPlacement calculate_candidate_window_position(
     const RECT& caret_rect, int width, int height, int caret_gap, const RECT& monitor_rect,
     CandidatePlacementSide previous_side) {

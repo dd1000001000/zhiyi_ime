@@ -119,7 +119,6 @@ private:
     void apply_default_candidate_settings();
     cxxime::LayoutConfig candidate_layout_from_edits() const;
     void sync_candidate_controls_from_edits();
-    void update_status_window_controls_enabled();
     void show_candidate_preview_window();
     void hide_candidate_preview_window();
     void destroy_candidate_preview_window();
@@ -182,7 +181,6 @@ private:
     HWND hLayoutH_ = nullptr, hLayoutV_ = nullptr;
     HWND hRenderD2D_ = nullptr, hRenderGDI_ = nullptr;
     HWND hStatusWindow_ = nullptr;
-    HWND hStatusAutoDock_ = nullptr;
     HWND hLabelFontPt_ = nullptr;
 
     // Diagnostics panel

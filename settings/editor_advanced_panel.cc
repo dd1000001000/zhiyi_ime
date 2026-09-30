@@ -297,8 +297,6 @@ void EditorApp::apply_default_candidate_settings() {
     SendMessageW(hRenderD2D_, BM_SETCHECK, d2d ? BST_CHECKED : BST_UNCHECKED, 0);
     SendMessageW(hRenderGDI_, BM_SETCHECK, d2d ? BST_UNCHECKED : BST_CHECKED, 0);
     set_check(hStatusWindow_, defaults.status_window.enable);
-    set_check(hStatusAutoDock_, defaults.status_window.auto_dock);
-    update_status_window_controls_enabled();
 
     apply_candidate_layout_to_edits(defaults.layout_config);
 }

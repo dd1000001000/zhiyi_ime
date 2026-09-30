@@ -68,7 +68,6 @@
     "theme": "moon_light",
     "status_window": {
         "enable": true,
-        "auto_dock": false,
         "x": -1,
         "y": -1,
         "show_on_startup": true

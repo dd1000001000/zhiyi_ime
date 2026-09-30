@@ -6,6 +6,8 @@
 
 namespace cxxime {
 
+constexpr float dpi_to_scale(UINT dpi) { return static_cast<float>(dpi) / USER_DEFAULT_SCREEN_DPI; }
+
 class ScopedDpiAwarenessContext {
 public:
     explicit ScopedDpiAwarenessContext(DPI_AWARENESS_CONTEXT context)

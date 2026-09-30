@@ -86,8 +86,6 @@ void EditorApp::create_candidate_panel(HWND panel) {
     const int status_y = top + kRowH * 7;
     control_x = make_aligned_label(L"状态窗口:", column_one, label_width, status_y, panel);
     hStatusWindow_ = make_check(1107, L"显示", control_x, status_y, S(60), panel);
-    hStatusAutoDock_ =
-        make_check(1109, L"自动停靠", control_x + S(68), status_y, S(85), panel);
 
     const int preview_y = top + kRowH * 8;
     control_x = make_aligned_label(L"候选预览:", column_one, label_width, preview_y, panel);
@@ -152,10 +150,6 @@ bool EditorApp::handle_candidate_command(int control_id, int notification) {
         apply_candidate_control(control_id);
         return true;
     }
-    if (control_id == 1107 && notification == BN_CLICKED) {
-        update_status_window_controls_enabled();
-        return true;
-    }
     if (notification == BN_CLICKED && (control_id == 1105 || control_id == 1106)) {
         update_preview();
         return true;
@@ -191,10 +185,6 @@ bool EditorApp::handle_candidate_command(int control_id, int notification) {
         return true;
     }
     return false;
-}
-
-void EditorApp::update_status_window_controls_enabled() {
-    EnableWindow(hStatusAutoDock_, get_check(hStatusWindow_) ? TRUE : FALSE);
 }
 
 void EditorApp::show_candidate_preview_window() {

@@ -10,10 +10,65 @@
             "derive/un$/uen/",
             "derive/ui$/uei/",
             "derive/iu$/iou/",
-            "derive/([aeiou])ng$/$1gn/",
-            "derive/^([zcs])h/$1/",
-            "fuzz/^n(.*)/l$1/",
-            "derive/^(.*)eng$/$1en/"
+            "derive/([aeiou])ng$/$1gn/"
+        ],
+        "fuzzy_groups": [
+            {
+                "name": "z_zh",
+                "bit": 1,
+                "rules": [
+                    "fuzz/^zh/z/",
+                    "fuzz/^z([^h]|$)/zh$1/"
+                ]
+            },
+            {
+                "name": "c_ch",
+                "bit": 2,
+                "rules": [
+                    "fuzz/^ch/c/",
+                    "fuzz/^c([^h]|$)/ch$1/"
+                ]
+            },
+            {
+                "name": "s_sh",
+                "bit": 4,
+                "rules": [
+                    "fuzz/^sh/s/",
+                    "fuzz/^s([^h]|$)/sh$1/"
+                ]
+            },
+            {
+                "name": "n_l",
+                "bit": 8,
+                "rules": [
+                    "fuzz/^n/l/",
+                    "fuzz/^l/n/"
+                ]
+            },
+            {
+                "name": "an_ang",
+                "bit": 16,
+                "rules": [
+                    "fuzz/ang$/an/",
+                    "fuzz/an$/ang/"
+                ]
+            },
+            {
+                "name": "en_eng",
+                "bit": 32,
+                "rules": [
+                    "fuzz/eng$/en/",
+                    "fuzz/en$/eng/"
+                ]
+            },
+            {
+                "name": "in_ing",
+                "bit": 64,
+                "rules": [
+                    "fuzz/ing$/in/",
+                    "fuzz/in$/ing/"
+                ]
+            }
         ]
     }
 }

@@ -83,7 +83,8 @@ SyllableGraph Syllabifier::build_graph(const std::string& input,
         visited[pos] = 1;
 
         std::string_view remaining(input.data() + pos, input.size() - pos);
-        auto matches = spellings_.prefix_search(remaining, options.enable_fuzzy);
+        auto matches =
+            spellings_.prefix_search(remaining, options.enable_fuzzy, options.fuzzy_groups);
 
         for (auto& m : matches) {
             // The trie key is the raw input span. The canonical syllable may have a
@@ -118,7 +119,8 @@ SyllableGraph Syllabifier::build_graph(const std::string& input,
             }
             const std::string_view remaining(input.data() + position,
                                              end_position - position);
-            auto completions = spellings_.completion_search(remaining, options.enable_fuzzy);
+            auto completions = spellings_.completion_search(remaining, options.enable_fuzzy,
+                                                            options.fuzzy_groups);
             auto& edges = graph[position][end_position];
             for (const auto& completion : completions) {
                 if (completion.type >= kAbbreviation) {
@@ -262,19 +264,63 @@ SegmentResult Syllabifier::segment(const std::string& input, const QueryDeadline
     SegmentedPath current;
     uint32_t path_count = 0;
     uint32_t call_count = 0;
-    bool deadline_expired =
-        enumerate_paths(graph, 0, farthest, current, scored, deadline,
-                        options.collect_path_metadata,
-                        path_count, sorted_scratch, call_count);
+    bool deadline_expired = false;
+
+    // Pass 1: paths made of whole syllables only (normal and fuzzy spellings). Dense
+    // abbreviation graphs can produce thousands of paths, which would fill kMaxPaths before
+    // the DFS reaches a fuzzy branch (cen -> cheng); these few paths always fit.
+    SyllableGraph whole_syllables;
+    bool has_abbreviation = false;
+    for (const auto& [start, groups] : graph) {
+        for (const auto& [end, edges] : groups) {
+            for (const SyllableEdge& edge : edges) {
+                if (edge.type == kAbbreviation) {
+                    has_abbreviation = true;
+                } else {
+                    whole_syllables[start][end].push_back(edge);
+                }
+            }
+        }
+    }
+    if (has_abbreviation && !whole_syllables.empty()) {
+        deadline_expired = enumerate_paths(whole_syllables, 0, farthest, current, scored,
+                                           deadline, options.collect_path_metadata, path_count,
+                                           sorted_scratch, call_count);
+    }
+    // Pass 2: every path (duplicates of pass 1 are removed below), up to kMaxPaths in total.
+    if (!deadline_expired) {
+        deadline_expired =
+            enumerate_paths(graph, 0, farthest, current, scored, deadline,
+                            options.collect_path_metadata,
+                            path_count, sorted_scratch, call_count);
+    }
 
     if (deadline_expired) {
         result.deadline_exceeded = true;
         result.truncated = true;
     }
 
-    // Sort by quality: paths with higher credibility first (fewer abbreviations)
-    std::sort(scored.begin(), scored.end(),
-        [](const auto& a, const auto& b) {
+    // Sort by quality: all-normal paths, then paths with fuzzy spellings, then paths with
+    // abbreviations; higher credibility first within each class.
+    auto path_class = [](const SegmentedPath& path) {
+        int worst = 0;
+        for (const uint8_t type : path.spelling_types) {
+            if (type == kAbbreviation || type == kCompletionSpelling) {
+                return 2;
+            }
+            if (type == kFuzzySpelling) {
+                worst = 1;
+            }
+        }
+        return worst;
+    };
+    std::stable_sort(scored.begin(), scored.end(),
+        [&](const auto& a, const auto& b) {
+            const int class_a = path_class(a);
+            const int class_b = path_class(b);
+            if (class_a != class_b) {
+                return class_a < class_b;
+            }
             return a.credibility > b.credibility;
         });
 
@@ -294,6 +340,57 @@ SegmentResult Syllabifier::segment(const std::string& input, const QueryDeadline
     }
 
     return result;
+}
+
+bool Syllabifier::matches_without_fuzzy(const std::string& input,
+                                        const std::string& syllables) const {
+    if (input.empty() || syllables.empty()) {
+        return true;
+    }
+    std::vector<std::string> parts;
+    std::size_t begin = 0;
+    while (begin <= syllables.size()) {
+        std::size_t end = syllables.find(':', begin);
+        if (end == std::string::npos) {
+            end = syllables.size();
+        }
+        parts.push_back(syllables.substr(begin, end - begin));
+        begin = end + 1;
+    }
+
+    SyllabifierOptions options;
+    options.enable_fuzzy = false;
+    options.fuzzy_groups = 0;
+    options.enable_terminal_completion = true;
+    const SyllableGraph graph = build_graph(input, options);
+
+    // Input positions reachable after matching the first k syllables.
+    std::vector<std::size_t> positions = {0};
+    for (const std::string& syllable : parts) {
+        std::vector<std::size_t> next;
+        for (const std::size_t position : positions) {
+            if (position == input.size()) {
+                return true;  // the rest of the word continues past the typed input
+            }
+            const auto edges = graph.find(position);
+            if (edges == graph.end()) {
+                continue;
+            }
+            for (const auto& [end, group] : edges->second) {
+                for (const SyllableEdge& edge : group) {
+                    if (edge.syllable == syllable &&
+                        std::find(next.begin(), next.end(), end) == next.end()) {
+                        next.push_back(end);
+                    }
+                }
+            }
+        }
+        if (next.empty()) {
+            return false;
+        }
+        positions = std::move(next);
+    }
+    return std::find(positions.begin(), positions.end(), input.size()) != positions.end();
 }
 
 bool Syllabifier::has_fuzzy_path(const std::string& input,

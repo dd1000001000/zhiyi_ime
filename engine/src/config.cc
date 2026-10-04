@@ -45,6 +45,21 @@ static void load_keyboard_shortcut(Json& obj, const char* key, KeyboardShortcut&
     }
 }
 
+// Fuzzy pinyin pairs in the config file ("fuzzy_groups": ["z_zh", ...]).
+static const std::pair<uint8_t, const char*> kFuzzyGroupNames[] = {
+    {0x01, "z_zh"}, {0x02, "c_ch"}, {0x04, "s_sh"}, {0x08, "n_l"},
+    {0x10, "an_ang"}, {0x20, "en_eng"}, {0x40, "in_ing"},
+};
+
+static uint8_t fuzzy_group_bit(const std::string& name) {
+    for (const auto& [bit, group_name] : kFuzzyGroupNames) {
+        if (name == group_name) {
+            return bit;
+        }
+    }
+    return 0;
+}
+
 static int muted_text_color(int foreground, int background) {
     constexpr int foreground_weight = 3;
     constexpr int background_weight = 2;
@@ -179,6 +194,15 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_bool(e, "wubi_code_hint", config.wubi_code_hint);
         load_bool(e, "candidate_learning", config.candidate_learning);
         load_bool(e, "pinyin_initials", config.pinyin_initials);
+        load_bool(e, "fuzzy_pinyin", config.fuzzy_pinyin);
+        if (e.contains("fuzzy_groups") && e["fuzzy_groups"].is_array()) {
+            config.fuzzy_groups = 0;
+            for (const auto& name : e["fuzzy_groups"]) {
+                if (name.is_string()) {
+                    config.fuzzy_groups |= fuzzy_group_bit(name.get<std::string>());
+                }
+            }
+        }
     }
 
     if (j.contains("initial_state") && j["initial_state"].is_object()) {
@@ -467,6 +491,14 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["engine"]["wubi_code_hint"] = config.wubi_code_hint;
     j["engine"]["candidate_learning"] = config.candidate_learning;
     j["engine"]["pinyin_initials"] = config.pinyin_initials;
+    j["engine"]["fuzzy_pinyin"] = config.fuzzy_pinyin;
+    nlohmann::json groups = nlohmann::json::array();
+    for (const auto& [bit, name] : kFuzzyGroupNames) {
+        if (config.fuzzy_groups & bit) {
+            groups.push_back(name);
+        }
+    }
+    j["engine"]["fuzzy_groups"] = groups;
     j["engine"]["max_pinyin_length"] = kMaxInputCodeLength;
 
     j["initial_state"]["full_shape"] = config.initial_full_shape;

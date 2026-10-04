@@ -43,13 +43,15 @@ bool PinyinResourceSet::has_fuzzy_path(const std::string& input,
 }
 
 std::vector<SpellingMatch> PinyinResourceSet::prefix_search(std::string_view input,
-                                                            bool enable_fuzzy) const {
-    return spellings_.prefix_search(input, enable_fuzzy);
+                                                            bool enable_fuzzy,
+                                                            uint8_t fuzzy_groups) const {
+    return spellings_.prefix_search(input, enable_fuzzy, fuzzy_groups);
 }
 
 std::vector<SpellingMatch> PinyinResourceSet::completion_search(std::string_view input,
-                                                                bool enable_fuzzy) const {
-    return spellings_.completion_search(input, enable_fuzzy);
+                                                                bool enable_fuzzy,
+                                                                uint8_t fuzzy_groups) const {
+    return spellings_.completion_search(input, enable_fuzzy, fuzzy_groups);
 }
 
 } // namespace cxxime

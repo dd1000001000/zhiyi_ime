@@ -4,6 +4,7 @@
     "window.title": "知意输入法设置",
     "app.name": "知意输入法",
     "nav.general": "常规",
+    "nav.fuzzy": "模糊音",
     "nav.keys": "按键",
     "nav.dictionary": "词库",
     "nav.about": "关于",
@@ -28,6 +29,11 @@
     "general.page_size": "候选词数:",
     "general.language": "界面语言:",
     "general.follow_system": "跟随系统",
+
+    "fuzzy.enable": "启用模糊音",
+    "fuzzy.hint": "开启后，读音相近的词也会出现在候选里，并在词后用括号标出正确拼音，例如 中国(zhong guo)",
+    "fuzzy.initials": "声母",
+    "fuzzy.finals": "韵母",
 
     "keys.switch": "中英切换:",
     "keys.none": "不使用",

@@ -21,6 +21,19 @@ enum SpellingType {
     kCompletionSpelling = 3,
 };
 
+// Fuzzy pinyin groups. A fuzzy spelling records the groups it needs in the byte after its type
+// (SpellingEntry::padding); it is used only when all of them are enabled.
+enum FuzzyGroup : uint8_t {
+    kFuzzyZZh = 1 << 0,    // z = zh
+    kFuzzyCCh = 1 << 1,    // c = ch
+    kFuzzySSh = 1 << 2,    // s = sh
+    kFuzzyNL = 1 << 3,     // n = l
+    kFuzzyAnAng = 1 << 4,  // an = ang
+    kFuzzyEnEng = 1 << 5,  // en = eng
+    kFuzzyInIng = 1 << 6,  // in = ing
+};
+inline constexpr uint8_t kAllFuzzyGroups = 0x7F;
+
 struct SpellingMatch {
     std::string syllable;
     int type = kNormalSpelling;
@@ -51,7 +64,7 @@ struct SpellingEntry {
     uint32_t syllable_offset;
     uint32_t syllable_len;
     uint8_t type;
-    uint8_t padding;
+    uint8_t fuzzy_groups;  // FuzzyGroup bits this spelling needs (0: none; older files: 0)
     float credibility;
 };
 
@@ -75,14 +88,18 @@ public:
     bool has_spellings() const { return has_spelling_entries_; }
 
     // O(k) trie walk: returns all spellings where the stored key is a prefix of `prefix`.
+    // `fuzzy_groups`: enabled FuzzyGroup bits (used when enable_fuzzy).
     std::vector<SpellingMatch> prefix_search(std::string_view prefix,
-                                            bool enable_fuzzy = true) const;
+                                            bool enable_fuzzy = true,
+                                            uint8_t fuzzy_groups = kAllFuzzyGroups) const;
 
     // Returns spellings whose stored input key is strictly longer than and starts with `prefix`.
     std::vector<SpellingMatch> completion_search(std::string_view prefix,
-                                                 bool enable_fuzzy = true) const;
+                                                 bool enable_fuzzy = true,
+                                                 uint8_t fuzzy_groups = kAllFuzzyGroups) const;
 
-    // For tests: create a v2 trie binary file from entries
+    // For tests: create a v2 trie binary file from entries (input, syllable, type, credibility);
+    // FuzzyGroup bits go in bits 8-15 of the type.
     static bool create_test_trie(const std::string& path,
                                  const std::vector<std::tuple<std::string, std::string, int, float>>& entries);
 

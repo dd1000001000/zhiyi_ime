@@ -33,7 +33,8 @@ CompositionPresentation derive_composition_presentation(const CompositionState& 
                                                         const std::string& preferred_syllables,
                                                         bool terminal_completion,
                                                         bool enable_fuzzy,
-                                                        bool initials_only) {
+                                                        bool initials_only,
+                                                        uint8_t fuzzy_groups) {
     CompositionPresentation presentation;
     for (const auto& segment : state.converted_segments()) {
         presentation.logical_preedit += segment.text;
@@ -47,6 +48,7 @@ CompositionPresentation derive_composition_presentation(const CompositionState& 
     if (pinyin_resources && show_syllable_boundaries && !state.active().input.empty()) {
         SyllabifierOptions options;
         options.enable_fuzzy = enable_fuzzy;
+        options.fuzzy_groups = fuzzy_groups;
         options.initials_only = initials_only;
         options.enable_terminal_completion = terminal_completion;
         options.collect_path_metadata = true;

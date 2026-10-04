@@ -36,7 +36,17 @@ enum ControlId {
     kStyleKeyId,
     kLearningId = 1201,
     kClearLearningId,
+    kFuzzyEnabledId = 1301,
+    kFuzzyGroupFirstId = 1311,  // .. 1317, FuzzyGroup bit order
 };
+
+// Fuzzy pinyin pairs in FuzzyGroup bit order (engine/include/cxxime/spellings_index.h):
+// four initials (left column) and three finals (right column).
+const wchar_t* const kFuzzyGroupLabels[] = {
+    L"z = zh", L"c = ch", L"s = sh", L"n = l", L"an = ang", L"en = eng", L"in = ing",
+};
+constexpr int kFuzzyGroupCount = 7;
+constexpr int kFuzzyInitialCount = 4;
 
 constexpr char kLightTheme[] = "moon_light";
 constexpr char kDarkTheme[] = "moon_dark";
@@ -185,6 +195,28 @@ void EditorApp::create_general_panel(HWND panel) {
     }
 }
 
+void EditorApp::create_fuzzy_panel(HWND panel) {
+    const int x0 = kPanelPadLeft;
+    int y = kPanelPadTop;
+    hFuzzyEnabled_ = make_check(kFuzzyEnabledId, tr("fuzzy.enable"), x0, y, S(400), panel);
+    y += kRowH + S(4);
+
+    const int column_width = S(170);
+    const int indent = x0 + S(22);
+    make_label(tr("fuzzy.initials"), indent, y, panel);
+    make_label(tr("fuzzy.finals"), indent + column_width, y, panel);
+    y += kRowH;
+    for (int i = 0; i < kFuzzyGroupCount; ++i) {
+        const bool initial = i < kFuzzyInitialCount;
+        const int row = initial ? i : i - kFuzzyInitialCount;
+        hFuzzyGroups_[i] = make_check(kFuzzyGroupFirstId + i, kFuzzyGroupLabels[i],
+                                      indent + (initial ? 0 : column_width), y + row * kRowH,
+                                      column_width - S(10), panel);
+    }
+    y += kFuzzyInitialCount * kRowH + S(6);
+    make_hint(tr("fuzzy.hint"), x0, y, S(460), panel);
+}
+
 void EditorApp::create_keys_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     int y = kPanelPadTop;
@@ -248,6 +280,10 @@ void EditorApp::populate_controls() {
                                          : kDefaultStyleShortcut);
 
     set_check(hLearning_, config_.candidate_learning);
+    set_check(hFuzzyEnabled_, config_.fuzzy_pinyin);
+    for (int i = 0; i < kFuzzyGroupCount; ++i) {
+        set_check(hFuzzyGroups_[i], (config_.fuzzy_groups & (1 << i)) != 0);
+    }
     update_enabled_controls();
 }
 
@@ -266,6 +302,13 @@ bool EditorApp::read_controls(bool report_errors) {
                         : kAutoUiLanguage;
     apply_switch_key_choice(c, (std::max)(0, combo_index(hSwitchKey_)));
     c.candidate_learning = get_check(hLearning_);
+    c.fuzzy_pinyin = get_check(hFuzzyEnabled_);
+    c.fuzzy_groups = 0;
+    for (int i = 0; i < kFuzzyGroupCount; ++i) {
+        if (get_check(hFuzzyGroups_[i])) {
+            c.fuzzy_groups |= static_cast<uint8_t>(1 << i);
+        }
+    }
 
     KeyboardShortcut style_shortcut;
     if (get_check(hStyleEnabled_)) {
@@ -292,6 +335,11 @@ void EditorApp::update_enabled_controls() {
     EnableWindow(hFullPinyin_, pinyin);
     EnableWindow(hInitials_, pinyin);
     EnableWindow(hStyleKey_, get_check(hStyleEnabled_));
+    // The pairs keep their check marks but are grayed out while fuzzy pinyin is off.
+    const bool fuzzy = get_check(hFuzzyEnabled_);
+    for (HWND group : hFuzzyGroups_) {
+        EnableWindow(group, fuzzy);
+    }
 }
 
 bool EditorApp::handle_command(int control_id, int notification) {
@@ -299,6 +347,7 @@ bool EditorApp::handle_command(int control_id, int notification) {
     case kPinyinId:
     case kWubiId:
     case kStyleEnabledId:
+    case kFuzzyEnabledId:
         if (notification == BN_CLICKED) {
             update_enabled_controls();
         }

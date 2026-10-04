@@ -27,6 +27,8 @@ TEST(Config, defaults) {
     ASSERT_TRUE(!cfg.wubi_code_hint);
     ASSERT_TRUE(cfg.candidate_learning);
     ASSERT_TRUE(!cfg.pinyin_initials);
+    ASSERT_TRUE(!cfg.fuzzy_pinyin);
+    ASSERT_EQ(cfg.fuzzy_groups, 0x7F);
     ASSERT_EQ(cfg.ui_language, "auto");
     ASSERT_EQ(cfg.pinyin_scheme, "full_pinyin");
     ASSERT_TRUE(cfg.english_style_shortcut.enabled());
@@ -128,6 +130,8 @@ TEST(Config, json_round_trip_preserves_wubi_options_learning_and_styles) {
     saved.candidate_learning = false;
     saved.pinyin_initials = true;
     saved.ui_language = "en-US";
+    saved.fuzzy_pinyin = true;
+    saved.fuzzy_groups = 0x01 | 0x10;  // z=zh, an=ang
 
     cxxime::Config loaded;
     ASSERT_TRUE(loaded.load_json(saved.to_user_json()));
@@ -138,6 +142,12 @@ TEST(Config, json_round_trip_preserves_wubi_options_learning_and_styles) {
     ASSERT_TRUE(!loaded.candidate_learning);
     ASSERT_TRUE(loaded.pinyin_initials);
     ASSERT_EQ(loaded.ui_language, "en-US");
+    ASSERT_TRUE(loaded.fuzzy_pinyin);
+    ASSERT_EQ(loaded.fuzzy_groups, 0x11);
+
+    cxxime::Config named;
+    ASSERT_TRUE(named.load_json(R"({"engine":{"fuzzy_groups":["n_l","in_ing","unknown"]}})"));
+    ASSERT_EQ(named.fuzzy_groups, 0x08 | 0x40);
 }
 
 TEST(Config, json_round_trip_preserves_preedit_highlight_layout) {

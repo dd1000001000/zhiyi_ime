@@ -30,7 +30,7 @@ K_FUZZY_PENALTY = -0.6931471805599453    # log(0.5)
 _SCHEME_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 _SUPPORTED_SHUANGPIN_ALPHABET = frozenset("abcdefghijklmnopqrstuvwxyz;")
 _ROOT_FIELDS = {"scheme_id", "speller"}
-_FULL_PINYIN_FIELDS = {"type", "algebra"}
+_FULL_PINYIN_FIELDS = {"type", "algebra", "fuzzy_groups"}
 _SHUANGPIN_FIELDS = {
     "type",
     "alphabet",
@@ -51,6 +51,8 @@ class Spelling:
     syllable: str
     type: int = K_NORMAL
     credibility: float = 0.0
+    # Fuzzy pinyin groups (bits) this spelling needs; 0 when no fuzzy rule was involved.
+    groups: int = 0
 
     def __eq__(self, other):
         return isinstance(other, Spelling) and self.syllable == other.syllable
@@ -71,7 +73,7 @@ class Script(dict):
         if syllable not in self:
             self[syllable] = [Spelling(syllable, K_NORMAL, 0.0)]
 
-    def merge(self, key, rule_type, rule_credibility, spellings):
+    def merge(self, key, rule_type, rule_credibility, spellings, rule_groups=0):
         """Merge spellings under a new key — matches Script::Merge.
 
         For each spelling in the source list:
@@ -85,6 +87,7 @@ class Script(dict):
         for sp in spellings:
             new_type = max(rule_type, sp.type)
             new_cred = sp.credibility + rule_credibility
+            new_groups = sp.groups | rule_groups
             # Deduplicate: find existing entry with same syllable
             existing = None
             for e in target:
@@ -92,11 +95,16 @@ class Script(dict):
                     existing = e
                     break
             if existing:
-                # Keep better (lower) type and higher credibility
+                # Keep better (lower) type and higher credibility; of two derivations keep the
+                # one that needs fewer fuzzy groups (a better type wins outright).
+                if new_type < existing.type or (
+                        new_type == existing.type and
+                        bin(new_groups).count("1") < bin(existing.groups).count("1")):
+                    existing.groups = new_groups
                 existing.type = min(existing.type, new_type)
                 existing.credibility = max(existing.credibility, new_cred)
             else:
-                target.append(Spelling(sp.syllable, new_type, new_cred))
+                target.append(Spelling(sp.syllable, new_type, new_cred, new_groups))
 
 
 class SpellingRule:
@@ -264,9 +272,10 @@ class SpellingAlgebra:
                         # Keep original key
                         temp.merge(key, K_NORMAL, 0.0, spellings)
                     if rule.addition() and new_key:
-                        # Add transformed key with rule's type and penalty
+                        # Add transformed key with rule's type, penalty and fuzzy group
                         temp.merge(new_key, rule.rule_type(),
-                                   rule.credibility_delta(), spellings)
+                                   rule.credibility_delta(), spellings,
+                                   getattr(rule, "groups", 0))
                 else:
                     # Rule didn't match — keep unchanged
                     temp.merge(key, K_NORMAL, 0.0, spellings)
@@ -360,6 +369,15 @@ def validate_schema(schema):
             isinstance(definition, str) for definition in definitions
         ):
             raise ValueError("speller.algebra must be a string array")
+        groups = speller["fuzzy_groups"]
+        bits = [group.get("bit") for group in groups if isinstance(group, dict)]
+        if (not isinstance(groups, list) or len(bits) != len(groups) or
+                any(not isinstance(bit, int) or bit <= 0 or bit > 0x80 or bit & (bit - 1)
+                    for bit in bits) or len(set(bits)) != len(bits) or
+                any(not isinstance(group.get("rules"), list) or not group["rules"]
+                    for group in groups)):
+            raise ValueError("speller.fuzzy_groups must list {name, bit, rules} with "
+                             "distinct single-bit values")
     elif speller_type == "shuangpin":
         _require_exact_fields(speller, _SHUANGPIN_FIELDS, "speller")
     else:
@@ -382,6 +400,15 @@ def parse_rules_from_json(json_path):
         if rule is None:
             raise ValueError(f"failed to parse spelling rule: {definition}")
         rules.append(rule)
+    # Fuzzy pinyin pairs: each group's rules tag their spellings with the group's bit, so the
+    # engine can enable the pairs one by one (applied after the algebra above).
+    for group in schema["speller"]["fuzzy_groups"]:
+        for definition in group["rules"]:
+            rule = _parse_rule(definition)
+            if rule is None or rule.rule_type() != K_FUZZY:
+                raise ValueError(f"fuzzy group rules must be fuzz rules: {definition}")
+            rule.groups = group["bit"]
+            rules.append(rule)
     return rules
 
 
@@ -641,15 +668,17 @@ if __name__ == "__main__":
                 input TEXT NOT NULL,
                 syllable TEXT NOT NULL,
                 type INTEGER NOT NULL,
-                credibility REAL NOT NULL
+                credibility REAL NOT NULL,
+                fuzzy_groups INTEGER NOT NULL DEFAULT 0
             )
         """)
         rows = []
         for input_str, spellings_list in sorted(script.items()):
             for sp in spellings_list:
-                rows.append((input_str, sp.syllable, sp.type, sp.credibility))
+                rows.append((input_str, sp.syllable, sp.type, sp.credibility, sp.groups))
         cur.executemany(
-            "INSERT INTO spellings (input, syllable, type, credibility) VALUES (?, ?, ?, ?)",
+            "INSERT INTO spellings (input, syllable, type, credibility, fuzzy_groups) "
+            "VALUES (?, ?, ?, ?, ?)",
             rows)
         conn.commit()
         print(f"Wrote {len(rows)} spellings entries to {db_path}")

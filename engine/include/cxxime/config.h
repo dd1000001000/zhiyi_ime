@@ -56,6 +56,9 @@ struct Config {
     bool wubi_code_hint = false;  // Show the shortest remaining Wubi code in candidates.
     bool candidate_learning = true;   // self-learning: picked candidates move up
     bool pinyin_initials = false;     // pinyin style: full pinyin (false) or initials (true)
+    // Fuzzy pinyin: master switch and the enabled pairs (FuzzyGroup bits, spellings_index.h).
+    bool fuzzy_pinyin = false;
+    uint8_t fuzzy_groups = 0x7F;
 
     // Initial state for each newly created input session.
     bool initial_full_shape = false;

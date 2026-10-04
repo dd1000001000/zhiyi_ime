@@ -4,6 +4,7 @@
     "window.title": "Zhiyi IME Settings",
     "app.name": "Zhiyi IME",
     "nav.general": "General",
+    "nav.fuzzy": "Fuzzy pinyin",
     "nav.keys": "Keys",
     "nav.dictionary": "Dictionary",
     "nav.about": "About",
@@ -28,6 +29,11 @@
     "general.page_size": "Candidates:",
     "general.language": "Language:",
     "general.follow_system": "System default",
+
+    "fuzzy.enable": "Enable fuzzy pinyin",
+    "fuzzy.hint": "Words with a similar sound are offered too, with their correct pinyin in parentheses, e.g. 中国(zhong guo)",
+    "fuzzy.initials": "Initials",
+    "fuzzy.finals": "Finals",
 
     "keys.switch": "Chinese/English:",
     "keys.none": "None",

@@ -295,6 +295,43 @@ int main(int argc, char** argv) {
     }
     on.set_pinyin_initials(false);
 
+    // Fuzzy pinyin: every pair on vs only z=zh. Candidates reached only through a fuzzy
+    // spelling carry their correct pinyin as the comment, shown as "text(pinyin)".
+    auto fuzzy_config = [&](const char* name, const char* groups) {
+        char tmp[MAX_PATH];
+        GetTempPathA(MAX_PATH, tmp);
+        const std::string path = std::string(tmp) + name;
+        std::ofstream f(path, std::ios::binary);
+        f << "{\"engine\": {\"page_size\": 7, \"candidate_learning\": false, "
+          << "\"fuzzy_pinyin\": true, \"fuzzy_groups\": [" << groups << "]},\n"
+          << " \"laya\": {\"enable\": false}}\n";
+        return path;
+    };
+    cxxime::Engine fuzzy_all, fuzzy_zh;
+    if (fuzzy_all.initialize(dict, fuzzy_config("laya_smoke_fuzzy_all.json",
+            "\"z_zh\", \"c_ch\", \"s_sh\", \"n_l\", \"an_ang\", \"en_eng\", \"in_ing\"")) &&
+        fuzzy_zh.initialize(dict, fuzzy_config("laya_smoke_fuzzy_zh.json", "\"z_zh\""))) {
+        auto commented = [](cxxime::Engine& e) {
+            std::vector<std::string> out;
+            for (const auto& c : e.context().candidate_page().candidates)
+                out.push_back(c.comment.empty() ? c.text : c.text + "(" + c.comment + ")");
+            return out;
+        };
+        std::printf("\nfuzzy pinyin: off | all pairs | z=zh only\n");
+        for (const char* code : {"zongguo", "lihao", "xinfu", "censhi", "xiangang", "zhongguo"}) {
+            std::string line = std::string(code) + ":";
+            for (cxxime::Engine* e : {&off, &fuzzy_all, &fuzzy_zh}) {
+                e->clear();
+                type(*e, code, nullptr);
+                line += "  | " + join(e == &off ? page(*e) : commented(*e));
+                e->clear();
+            }
+            std::printf("  %s\n", line.c_str());
+        }
+        fuzzy_all.finalize();
+        fuzzy_zh.finalize();
+    }
+
     off.finalize();
     on.finalize();
     return 0;

@@ -12,7 +12,8 @@ from typing import Deque, Dict, List, Tuple
 MAGIC = b"CXSPL\x02\x00\x00"
 HEADER_FORMAT = "<8sIIIII"
 HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
-SPELLING_FORMAT = "<IIbxf"
+# syllable offset, syllable length, type, fuzzy groups, credibility
+SPELLING_FORMAT = "<IIbBf"
 CHILD_FORMAT = "<B3xI"
 
 
@@ -140,7 +141,8 @@ class PatriciaTrie:
                         SPELLING_FORMAT,
                         syllable_offset,
                         syllable_length,
-                        spelling_type,
+                        spelling_type & 0xFF,         # type in the low byte,
+                        (spelling_type >> 8) & 0xFF,  # fuzzy groups in the next one
                         credibility,
                     )
                 )
@@ -175,7 +177,9 @@ def build(database_path: str, output_path: str) -> int:
         print("  Warning: no spellings table, skipping")
         connection.close()
         return 0
-    cursor.execute("SELECT input, syllable, type, credibility FROM spellings")
+    columns = {row[1] for row in cursor.execute("PRAGMA table_info(spellings)")}
+    groups = "fuzzy_groups" if "fuzzy_groups" in columns else "0"
+    cursor.execute(f"SELECT input, syllable, type, credibility, {groups} FROM spellings")
     rows = cursor.fetchall()
     connection.close()
     if not rows:
@@ -183,8 +187,9 @@ def build(database_path: str, output_path: str) -> int:
         return 0
 
     trie = PatriciaTrie()
-    for input_code, syllable, spelling_type, credibility in rows:
-        trie.insert(input_code, syllable, spelling_type, credibility)
+    for input_code, syllable, spelling_type, credibility, fuzzy_groups in rows:
+        # The trie keeps (type | groups << 8) together; serialize() splits them again.
+        trie.insert(input_code, syllable, spelling_type | (fuzzy_groups << 8), credibility)
 
     data = trie.serialize()
     with open(output_path, "wb") as output:

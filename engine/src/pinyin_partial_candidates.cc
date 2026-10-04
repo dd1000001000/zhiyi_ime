@@ -291,6 +291,7 @@ void append_pinyin_partial_candidates(Dict& dict,
     const QueryDeadline* deadline = request.budget ? &request.budget->deadline : nullptr;
     SyllabifierOptions options;
     options.enable_fuzzy = pinyin_query_policy.enable_fuzzy;
+    options.fuzzy_groups = pinyin_query_policy.fuzzy_groups;
     options.enable_terminal_completion = shuangpin;
     options.collect_path_metadata = true;
     const SegmentResult segmented = pinyin_resources.segment(request.input, deadline, options);

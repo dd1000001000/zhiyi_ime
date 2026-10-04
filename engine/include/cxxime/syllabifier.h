@@ -55,6 +55,7 @@ bool pinyin_matches_initials(std::string_view input, std::string_view syllables)
 
 struct SyllabifierOptions {
     bool enable_fuzzy = true;
+    uint8_t fuzzy_groups = kAllFuzzyGroups;  // enabled FuzzyGroup bits
     // Initials mode: only one-letter spans (and zh/ch/sh) are syllables, as initials.
     bool initials_only = false;
     bool enable_terminal_completion = false;
@@ -80,6 +81,10 @@ public:
                           const SyllabifierOptions& options = {}) const;
     bool has_fuzzy_path(const std::string& input,
                         const SyllabifierOptions& options = {}) const;
+    // True when `syllables` ("zhong:guo") can be typed as `input` without fuzzy spellings
+    // (full syllables, initials, the last syllable unfinished; syllables after the end of the
+    // input are a dictionary continuation).
+    bool matches_without_fuzzy(const std::string& input, const std::string& syllables) const;
 
 private:
     friend class PinyinResourceSet;

@@ -13,7 +13,9 @@
         "wubi_restart_on_fifth_after_miss": true,
         "wubi_code_hint": false,
         "candidate_learning": true,
-        "pinyin_initials": false
+        "pinyin_initials": false,
+        "fuzzy_pinyin": false,
+        "fuzzy_groups": ["z_zh", "c_ch", "s_sh", "n_l", "an_ang", "en_eng", "in_ing"]
     },
     "initial_state": {
         "full_shape": false,

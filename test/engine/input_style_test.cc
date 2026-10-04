@@ -11,7 +11,9 @@
 #include <cxxime/engine.h>
 #include <cxxime/key_event.h>
 #include <cxxime/output_options.h>
+#include <cxxime/pinyin_resource.h>
 #include <cxxime/processor.h>
+#include <cxxime/spellings_index.h>
 #include <cxxime/syllabifier.h>
 
 #include "support/testutil.h"
@@ -56,6 +58,57 @@ TEST(PinyinInitials, full_syllables_and_other_lengths_do_not_match) {
     ASSERT_TRUE(!cxxime::pinyin_matches_initials("chg", "zhong:guo"));
     ASSERT_TRUE(!cxxime::pinyin_matches_initials("", "zhong"));
     ASSERT_TRUE(!cxxime::pinyin_matches_initials("z", ""));
+}
+
+TEST(FuzzyPinyin, spellings_need_their_groups_enabled) {
+    const std::string path = temp_file("zhiyi_fuzzy_groups.spellings");
+    constexpr int kFuzzy = cxxime::kFuzzySpelling;
+    ASSERT_TRUE(cxxime::SpellingsIndex::create_test_trie(path, {
+        {"zong", "zong", cxxime::kNormalSpelling, 0.0f},
+        {"zong", "zhong", kFuzzy | (cxxime::kFuzzyZZh << 8), -0.69f},
+        // cen -> cheng needs two pairs (c = ch, en = eng).
+        {"cen", "cheng", kFuzzy | ((cxxime::kFuzzyCCh | cxxime::kFuzzyEnEng) << 8), -1.39f},
+    }));
+    cxxime::SpellingsIndex index;
+    ASSERT_TRUE(index.load(path));
+    auto has = [&](const char* input, const char* syllable, bool fuzzy, uint8_t groups) {
+        for (const auto& match : index.prefix_search(input, fuzzy, groups)) {
+            if (match.syllable == syllable) {
+                return true;
+            }
+        }
+        return false;
+    };
+    ASSERT_TRUE(has("zong", "zong", false, 0));
+    ASSERT_TRUE(has("zong", "zhong", true, cxxime::kAllFuzzyGroups));
+    ASSERT_TRUE(has("zong", "zhong", true, cxxime::kFuzzyZZh));
+    ASSERT_TRUE(!has("zong", "zhong", true, cxxime::kFuzzyCCh));
+    ASSERT_TRUE(!has("zong", "zhong", false, cxxime::kAllFuzzyGroups));  // switched off
+    ASSERT_TRUE(has("cen", "cheng", true, cxxime::kFuzzyCCh | cxxime::kFuzzyEnEng));
+    ASSERT_TRUE(!has("cen", "cheng", true, cxxime::kFuzzyCCh));
+    index.unload();
+    DeleteFileA(path.c_str());
+}
+
+TEST(FuzzyPinyin, correct_pinyin_is_shown_only_for_fuzzy_matches) {
+    const std::string path = temp_file("zhiyi_fuzzy_annotation.spellings");
+    constexpr int kFuzzy = cxxime::kFuzzySpelling;
+    ASSERT_TRUE(cxxime::SpellingsIndex::create_test_trie(path, {
+        {"zhong", "zhong", cxxime::kNormalSpelling, 0.0f},
+        {"guo", "guo", cxxime::kNormalSpelling, 0.0f},
+        {"z", "zhong", cxxime::kAbbreviation, -0.69f},
+        {"g", "guo", cxxime::kAbbreviation, -0.69f},
+        {"zong", "zhong", kFuzzy | (cxxime::kFuzzyZZh << 8), -0.69f},
+    }));
+    auto resources = cxxime::PinyinResourceSet::create(
+        "full_pinyin", cxxime::PinyinSchemeKind::kFullPinyin, path);
+    ASSERT_TRUE(resources != nullptr);
+    ASSERT_TRUE(resources->matches_without_fuzzy("zhongguo", "zhong:guo"));
+    ASSERT_TRUE(resources->matches_without_fuzzy("zg", "zhong:guo"));
+    ASSERT_TRUE(resources->matches_without_fuzzy("zhong", "zhong:guo"));  // continuation
+    ASSERT_TRUE(!resources->matches_without_fuzzy("zongguo", "zhong:guo"));
+    resources.reset();
+    DeleteFileA(path.c_str());
 }
 
 TEST(InputStyle, shortcut_toggles_pinyin_style_in_chinese_and_english_style_in_english) {

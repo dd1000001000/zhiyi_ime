@@ -33,6 +33,7 @@ private:
     void destroy_controls();
     void rebuild_ui();  // after the UI language changed
     void create_general_panel(HWND panel);
+    void create_fuzzy_panel(HWND panel);
     void create_keys_panel(HWND panel);
     void create_dictionary_panel(HWND panel);
     void create_about_panel(HWND panel, int panel_width);
@@ -63,7 +64,7 @@ private:
     HWND make_hint(const wchar_t* text, int x, int y, int width, HWND parent);
     int panel_ = 0;
     cxxime::SettingsPanel initial_panel_ = cxxime::SettingsPanel::kInput;
-    static constexpr int kPanelCount = 4;
+    static constexpr int kPanelCount = 5;
     HWND hPanels_[kPanelCount] = {};
 
     // General
@@ -74,6 +75,10 @@ private:
     HWND hPageSize_ = nullptr;
     HWND hLanguage_ = nullptr;
     std::vector<UiLanguage> languages_;
+
+    // Fuzzy pinyin: master switch and one check box per pair (FuzzyGroup bit order)
+    HWND hFuzzyEnabled_ = nullptr;
+    HWND hFuzzyGroups_[7] = {};
 
     // Keys
     HWND hSwitchKey_ = nullptr;

@@ -28,11 +28,13 @@ namespace {
 constexpr int kDisabledTopnOverfetch = 16;
 // Keep fallback tiers aligned with scripts/build_pinyin_topn.py.
 constexpr int kExactCompleteBase = 100000000;
-constexpr int kFuzzyCompleteBase = 90000000;
+// Fuzzy pinyin treats both spellings of a pair as the same sound (xin = xing): fuzzy matches
+// share the exact tiers and frequency decides (fuzzy is only searched when the user enabled it).
+constexpr int kFuzzyCompleteBase = kExactCompleteBase;
 constexpr int kExactPrefixBase = 80000000;
 constexpr int kAbbreviationCompleteBase = 60000000;
 constexpr int kMixedCompleteBase = 50000000;
-constexpr int kFuzzyPrefixBase = 40000000;
+constexpr int kFuzzyPrefixBase = kExactPrefixBase;
 constexpr int kAbbreviationPrefixBase = 30000000;
 constexpr int kMixedPrefixBase = 20000000;
 constexpr int kMaxRankedSourceFrequency = 99999900;
@@ -177,6 +179,7 @@ void PinyinTranslator::bind_pinyin(std::shared_ptr<const PinyinResourceSet> reso
                                    PinyinQueryPolicy policy) {
     if (pinyin_resources_ == resources &&
         pinyin_query_policy_.enable_fuzzy == policy.enable_fuzzy &&
+        pinyin_query_policy_.fuzzy_groups == policy.fuzzy_groups &&
         pinyin_query_policy_.initials_only == policy.initials_only) {
         return;
     }
@@ -396,6 +399,40 @@ void PinyinTranslator::store_query_cache(const std::string& input, int page_inde
     query_cache_.push_back(std::move(entry));
 }
 
+// Fuzzy pinyin: a candidate that the typed letters reach only through a fuzzy spelling
+// (zong -> 中) shows its correct pinyin after the text: "中 (zhong)".
+SyllabifierOptions PinyinTranslator::fuzzy_options() const {
+    SyllabifierOptions options;
+    options.enable_fuzzy = pinyin_query_policy_.enable_fuzzy;
+    options.fuzzy_groups = pinyin_query_policy_.fuzzy_groups;
+    return options;
+}
+
+void PinyinTranslator::annotate_fuzzy_matches(const std::string& input,
+                                              std::vector<CandidateEntry>& entries, int begin,
+                                              int end) const {
+    if (!pinyin_query_policy_.enable_fuzzy || !pinyin_resources_ ||
+        pinyin_scheme() != PinyinSchemeKind::kFullPinyin) {
+        return;
+    }
+    for (int index = begin; index < end; ++index) {
+        Candidate& candidate = entries[index].candidate;
+        const auto* action = std::get_if<TextSelectionAction>(&entries[index].selection);
+        if (candidate.syllables.empty() || !entries[index].hint.empty() || !action ||
+            action->consumed_input_bytes == 0 || action->consumed_input_bytes > input.size()) {
+            continue;
+        }
+        const std::string typed = input.substr(0, action->consumed_input_bytes);
+        if (!pinyin_resources_->matches_without_fuzzy(typed, candidate.syllables)) {
+            // The entry hint is what the candidate window shows after the text.
+            std::string pinyin = candidate.syllables;
+            std::replace(pinyin.begin(), pinyin.end(), ':', ' ');
+            entries[index].hint = pinyin;
+            candidate.comment = std::move(pinyin);
+        }
+    }
+}
+
 void PinyinTranslator::keep_initials_matches(const std::string& pinyin,
                                              std::vector<Candidate>& candidates) const {
     if (!pinyin_query_policy_.initials_only) {
@@ -547,6 +584,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
             // Pass the deadline to the syllabifier for internal checks.
             SyllabifierOptions options;
             options.enable_fuzzy = pinyin_query_policy_.enable_fuzzy;
+            options.fuzzy_groups = pinyin_query_policy_.fuzzy_groups;
             options.enable_terminal_completion =
                 pinyin_scheme() == PinyinSchemeKind::kShuangpin;
             options.collect_path_metadata = true;
@@ -719,6 +757,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         !pinyin_query_policy_.initials_only) {
         SyllabifierOptions completion_options;
         completion_options.enable_fuzzy = pinyin_query_policy_.enable_fuzzy;
+        completion_options.fuzzy_groups = pinyin_query_policy_.fuzzy_groups;
         completion_options.enable_terminal_completion = true;
         completion_options.collect_path_metadata = true;
         auto completion_result = pinyin_resources_->segment(
@@ -967,10 +1006,14 @@ TranslationResult PinyinTranslator::translate(const TranslationRequest& request)
     }
 
     if (!request.policy.allow_partial_selection) {
+        const bool fuzzy_paths = pinyin_resources_ && pinyin_query_policy_.enable_fuzzy &&
+                                 pinyin_resources_->has_fuzzy_path(request.input, fuzzy_options());
         CandidatePage page = translate_page(
             request.input, request.page_index, request.page_size, request.trace,
-            request.budget, request.scratch, request.page_offset, false);
+            request.budget, request.scratch, request.page_offset, fuzzy_paths);
         result = make_translation_result(std::move(page), request.input.size());
+        annotate_fuzzy_matches(request.input, result.entries, 0,
+                               static_cast<int>(result.entries.size()));
         const bool incomplete = (request.trace &&
                                 (request.trace->deadline_exceeded ||
                                  request.trace->scan_budget_truncated ||
@@ -1001,7 +1044,7 @@ TranslationResult PinyinTranslator::translate(const TranslationRequest& request)
         static_cast<int>(kLeadingFullSpanCandidateCount + 1));
     const bool require_runtime_paths =
         pinyin_resources_ && pinyin_query_policy_.enable_fuzzy &&
-        pinyin_resources_->has_fuzzy_path(request.input);
+        pinyin_resources_->has_fuzzy_path(request.input, fuzzy_options());
     CandidatePage full = translate_page(request.input, 0, fetch_count, effective_request.trace,
                                         request.budget, request.scratch, 0,
                                         require_runtime_paths);
@@ -1071,6 +1114,9 @@ TranslationResult PinyinTranslator::translate(const TranslationRequest& request)
     result.page_offset = request.page_offset;
     result.page_size = request.page_size;
     const int available = static_cast<int>(merged.size());
+    const int page_begin = (std::min)(request.page_offset, available);
+    const int page_end = (std::min)(page_begin + request.page_size, available);
+    annotate_fuzzy_matches(request.input, merged, page_begin, page_end);
     const int begin = (std::min)(request.page_offset, available);
     const int end = (std::min)(begin + request.page_size, available);
     const int known_count = (std::max)(

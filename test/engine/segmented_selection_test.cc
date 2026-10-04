@@ -836,7 +836,9 @@ TEST(SegmentedSelection, natural_path_suppresses_abbreviation_noise_and_keeps_de
     DeleteFileA(spellings_path.c_str());
 }
 
-TEST(SegmentedSelection, exact_full_path_outranks_fuzzy_and_prefix_frequency) {
+// With fuzzy pinyin on, exact and fuzzy whole-input matches share a tier (frequency decides);
+// both outrank longer words that only start with the input.
+TEST(SegmentedSelection, fuzzy_full_path_ranks_with_exact_by_frequency_before_prefix) {
     const std::string dict_path = make_temp_file("sge");
     const std::string spellings_path = make_temp_file("sgz");
     ASSERT_TRUE(cxxime::Dict::create_test_dict(dict_path, {{"zong", "精确", 1},
@@ -861,13 +863,13 @@ TEST(SegmentedSelection, exact_full_path_outranks_fuzzy_and_prefix_frequency) {
 
     const cxxime::CandidatePage small_page = translator.translate_page("zong", 0, 2);
     ASSERT_EQ(small_page.candidates.size(), 2u);
-    ASSERT_EQ(small_page.candidates[0].text, "精确");
-    ASSERT_EQ(small_page.candidates[1].text, "模糊");
+    ASSERT_EQ(small_page.candidates[0].text, "模糊");
+    ASSERT_EQ(small_page.candidates[1].text, "精确");
 
     const cxxime::CandidatePage full_page = translator.translate_page("zong", 0, 10);
     ASSERT_EQ(full_page.candidates.size(), 5u);
-    ASSERT_EQ(full_page.candidates[0].text, "精确");
-    ASSERT_EQ(full_page.candidates[1].text, "模糊");
+    ASSERT_EQ(full_page.candidates[0].text, "模糊");
+    ASSERT_EQ(full_page.candidates[1].text, "精确");
     ASSERT_EQ(full_page.candidates[2].text, "长词一");
     ASSERT_EQ(full_page.candidates[3].text, "长词二");
     ASSERT_EQ(full_page.candidates[4].text, "长词三");
@@ -931,8 +933,9 @@ TEST(SegmentedSelection, complete_topn_hit_still_merges_fuzzy_full_candidates) {
     request.policy.allow_partial_selection = true;
     const cxxime::TranslationResult result = translator.translate(request);
     ASSERT_EQ(result.entries.size(), cxxime::kLeadingFullSpanCandidateCount);
-    ASSERT_EQ(result.entries[0].candidate.text, "exact");
-    ASSERT_EQ(result.entries[1].candidate.text, "fuzzy");
+    // Same tier for exact and fuzzy whole-input matches: the more frequent one comes first.
+    ASSERT_EQ(result.entries[0].candidate.text, "fuzzy");
+    ASSERT_EQ(result.entries[1].candidate.text, "exact");
 
     cache.unload();
     spellings.unload();

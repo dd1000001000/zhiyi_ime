@@ -294,7 +294,9 @@ void fill_session_presentation(const SessionEntry& entry, ProcessKeyResult& resu
         entry.resources.runtime && entry.resources.runtime->pinyin_resources().kind() ==
                                        cxxime::PinyinSchemeKind::kShuangpin,
         !entry.resources.runtime || entry.resources.runtime->pinyin_query_policy().enable_fuzzy,
-        entry.engine->pinyin_initials() && entry.engine->mode() == cxxime::InputMode::PINYIN);
+        entry.engine->pinyin_initials() && entry.engine->mode() == cxxime::InputMode::PINYIN,
+        entry.resources.runtime ? entry.resources.runtime->pinyin_query_policy().fuzzy_groups
+                                : cxxime::kAllFuzzyGroups);
     result.preedit = composition.display_preedit;
     result.preedit_cursor = composition.display_cursor_bytes;
     result.converted_prefix_bytes = composition.display_converted_prefix_bytes;

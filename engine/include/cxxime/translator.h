@@ -93,6 +93,12 @@ private:
     Dict* dict_ = nullptr;
     std::shared_ptr<const PinyinResourceSet> pinyin_resources_;
     PinyinQueryPolicy pinyin_query_policy_;
+    // Syllabifier options for the enabled fuzzy pinyin groups.
+    SyllabifierOptions fuzzy_options() const;
+    // Fuzzy pinyin: sets the correct pinyin as the comment of entries [begin, end) that the
+    // input reaches only through fuzzy spellings.
+    void annotate_fuzzy_matches(const std::string& input, std::vector<CandidateEntry>& entries,
+                                int begin, int end) const;
     // Initials mode: drops candidates whose syllables do not match `pinyin` as initials.
     void keep_initials_matches(const std::string& pinyin, std::vector<Candidate>& candidates) const;
     const ShortCodeCache* short_cache_ = nullptr;

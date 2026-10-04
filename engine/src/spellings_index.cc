@@ -103,10 +103,21 @@ void SpellingsIndex::unload() {
     node_offsets_.reset();
 }
 
+// A spelling is usable when it is not fuzzy (or fuzzy pinyin is on) and every fuzzy group it
+// needs is enabled. `allowed_groups` is 0 when fuzzy pinyin is off.
+static bool spelling_allowed(const char* spelling, bool enable_fuzzy, uint8_t allowed_groups) {
+    const uint8_t type = *(const uint8_t*)(spelling + 8);
+    const uint8_t needed = *(const uint8_t*)(spelling + 9);
+    if (!enable_fuzzy && type == kFuzzySpelling) {
+        return false;
+    }
+    return (needed & ~allowed_groups) == 0;
+}
+
 // v2 trie prefix search: O(k) walk
 static std::vector<SpellingMatch> trie_prefix_search(
     const char* nodes, const char* strings, const uint32_t* node_offsets,
-    uint32_t node_count, std::string_view prefix, bool enable_fuzzy) {
+    uint32_t node_count, std::string_view prefix, bool enable_fuzzy, uint8_t allowed_groups) {
 
     std::vector<SpellingMatch> results;
     const uint32_t prefix_len = (uint32_t)prefix.size();
@@ -133,7 +144,7 @@ static std::vector<SpellingMatch> trie_prefix_search(
         const char* sp = node + NODE_HEADER_SIZE;
         for (uint8_t i = 0; i < ns; ++i) {
             const int type = *(const uint8_t*)(sp + 8);
-            if (!enable_fuzzy && type == kFuzzySpelling) {
+            if (!spelling_allowed(sp, enable_fuzzy, allowed_groups)) {
                 sp += SPELLING_SIZE;
                 continue;
             }
@@ -172,7 +183,8 @@ static std::vector<SpellingMatch> trie_prefix_search(
 static void append_trie_completions(
     const char* nodes, const char* strings, const uint32_t* node_offsets,
     uint32_t node_count, uint32_t start_node, uint32_t start_key_length,
-    uint32_t prefix_length, bool enable_fuzzy, std::vector<SpellingMatch>* results) {
+    uint32_t prefix_length, bool enable_fuzzy, uint8_t allowed_groups,
+    std::vector<SpellingMatch>* results) {
     struct PendingNode {
         uint32_t index;
         uint32_t key_length;
@@ -193,7 +205,7 @@ static void append_trie_completions(
         if (current.key_length > prefix_length) {
             for (uint8_t i = 0; i < spelling_count; ++i) {
                 const int type = *(const uint8_t*)(spelling + 8);
-                if (!enable_fuzzy && type == kFuzzySpelling) {
+                if (!spelling_allowed(spelling, enable_fuzzy, allowed_groups)) {
                     spelling += SPELLING_SIZE;
                     continue;
                 }
@@ -225,7 +237,7 @@ static void append_trie_completions(
 
 static std::vector<SpellingMatch> trie_completion_search(
     const char* nodes, const char* strings, const uint32_t* node_offsets,
-    uint32_t node_count, std::string_view prefix, bool enable_fuzzy) {
+    uint32_t node_count, std::string_view prefix, bool enable_fuzzy, uint8_t allowed_groups) {
     std::vector<SpellingMatch> results;
     const uint32_t prefix_length = (uint32_t)prefix.size();
     uint32_t prefix_position = 0;
@@ -248,7 +260,7 @@ static std::vector<SpellingMatch> trie_completion_search(
         if (remaining <= key_length) {
             append_trie_completions(nodes, strings, node_offsets, node_count,
                 current_node, full_key_length, prefix_length, enable_fuzzy,
-                &results);
+                allowed_groups, &results);
             return results;
         }
         prefix_position = full_key_length;
@@ -272,25 +284,27 @@ static std::vector<SpellingMatch> trie_completion_search(
 }
 
 std::vector<SpellingMatch> SpellingsIndex::prefix_search(std::string_view prefix,
-                                                         bool enable_fuzzy) const {
+                                                         bool enable_fuzzy,
+                                                         uint8_t fuzzy_groups) const {
     if (!data_ || prefix.empty())
         return {};
 
     std::vector<SpellingMatch> results =
         trie_prefix_search(nodes_, strings_, node_offsets_.get(), node_count_, prefix,
-                           enable_fuzzy);
+                           enable_fuzzy, enable_fuzzy ? fuzzy_groups : 0);
 
     return results;
 }
 
 std::vector<SpellingMatch> SpellingsIndex::completion_search(std::string_view prefix,
-                                                             bool enable_fuzzy) const {
+                                                             bool enable_fuzzy,
+                                                             uint8_t fuzzy_groups) const {
     if (!data_ || prefix.empty())
         return {};
 
     std::vector<SpellingMatch> results =
         trie_completion_search(nodes_, strings_, node_offsets_.get(), node_count_, prefix,
-                               enable_fuzzy);
+                               enable_fuzzy, enable_fuzzy ? fuzzy_groups : 0);
     return results;
 }
 
@@ -404,8 +418,8 @@ bool SpellingsIndex::create_test_trie(const std::string& path,
             auto [so, sl] = intern(syll);
             node_data.append((const char*)&so, 4);
             node_data.append((const char*)&sl, 4);
-            node_data += (char)(uint8_t)stype;
-            node_data += '\0';
+            node_data += (char)(uint8_t)(stype & 0xFF);         // type
+            node_data += (char)(uint8_t)((stype >> 8) & 0xFF);  // fuzzy groups
             node_data.append((const char*)&cred, 4);
         }
 

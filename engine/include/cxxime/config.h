@@ -46,7 +46,8 @@ struct Config {
     std::string to_runtime_json() const;
 
     // engine
-    int page_size = 9;
+    // Candidates per page (settings: 3-10). Laya compares the first 2 * page_size candidates.
+    int page_size = 7;
     int input_mode = 0;  // Chinese input: 0=pinyin, 1=wubi (chosen in settings)
     std::string pinyin_scheme = "full_pinyin";  // full pinyin is the only scheme
     bool wubi_auto_commit = true;  // Auto-commit the only candidate at four codes.
@@ -101,7 +102,6 @@ struct Config {
         bool enable = true;
         std::string model_dir = "laya";        // relative to the server executable's directory
         std::string onnx = "laya.int8g.onnx";
-        int top_n = 7;            // candidates considered on the first page
         int min_candidates = 2;   // fewer comparable candidates: keep the translator's order
         int context_chars = 48;   // trailing committed characters fed to the model
         int threads = 4;          // ONNX Runtime intra-op threads

@@ -192,7 +192,6 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_bool(l, "enable", config.laya.enable);
         load_string(l, "model_dir", config.laya.model_dir);
         load_string(l, "onnx", config.laya.onnx);
-        load_int(l, "top_n", config.laya.top_n);
         load_int(l, "min_candidates", config.laya.min_candidates);
         load_int(l, "context_chars", config.laya.context_chars);
         load_int(l, "threads", config.laya.threads);
@@ -476,7 +475,6 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["enable"] = config.laya.enable;
     j["laya"]["model_dir"] = config.laya.model_dir;
     j["laya"]["onnx"] = config.laya.onnx;
-    j["laya"]["top_n"] = config.laya.top_n;
     j["laya"]["min_candidates"] = config.laya.min_candidates;
     j["laya"]["context_chars"] = config.laya.context_chars;
     j["laya"]["threads"] = config.laya.threads;

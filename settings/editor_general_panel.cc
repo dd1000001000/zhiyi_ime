@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cwchar>
+#include <string>
 
 #include <cxxime/keyboard_shortcut.h>
 #include <cxxime/lexicon_control.h>
@@ -29,6 +30,7 @@ enum ControlId {
     kFontMediumId,
     kFontLargeId,
     kLanguageId,
+    kPageSizeId,
     kSwitchKeyId = 1101,
     kStyleEnabledId,
     kStyleKeyId,
@@ -42,6 +44,8 @@ constexpr int kFontSmall = 12;
 constexpr int kFontMedium = 14;
 constexpr int kFontLarge = 17;
 constexpr KeyboardShortcut kDefaultStyleShortcut = {kKeyModifierControl, VK_SPACE};
+constexpr int kMinPageSize = 3;
+constexpr int kMaxPageSize = 10;
 
 // Chinese/English switch key choices (combo order) -> ascii_composer switch_key actions.
 enum SwitchKey { kSwitchShift = 0, kSwitchCtrl = 1, kSwitchNone = 2 };
@@ -132,7 +136,8 @@ HWND EditorApp::make_hint(const wchar_t* text, int x, int y, int width, HWND par
 void EditorApp::create_general_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     const int labels = label_width({"general.chinese_input", "general.pinyin_style",
-                                    "general.theme", "general.font_size", "general.language"});
+                                    "general.theme", "general.font_size", "general.page_size",
+                                    "general.language"});
     int y = kPanelPadTop;
     const int option_width = S(110);
     auto radios = [&](const char* label, std::initializer_list<std::pair<int, const char*>> items,
@@ -163,6 +168,13 @@ void EditorApp::create_general_panel(HWND panel) {
            {{kFontSmallId, "general.small"}, {kFontMediumId, "general.medium"},
             {kFontLargeId, "general.large"}},
            {&hFontSmall_, &hFontMedium_, &hFontLarge_});
+
+    const int page_x = make_aligned_label(tr("general.page_size"), x0, labels, y, panel);
+    hPageSize_ = make_combo(kPageSizeId, page_x, y, S(80), panel);
+    for (int count = kMinPageSize; count <= kMaxPageSize; ++count) {
+        combo_add(hPageSize_, std::to_wstring(count).c_str());
+    }
+    y += kRowH;
 
     const int combo_x = make_aligned_label(tr("general.language"), x0, labels, y, panel);
     hLanguage_ = make_combo(kLanguageId, combo_x, y, S(220), panel);
@@ -218,6 +230,9 @@ void EditorApp::populate_controls() {
     set_check(hFontMedium_, font > kFontSmall && font < kFontLarge);
     set_check(hFontLarge_, font >= kFontLarge);
 
+    combo_set_index(hPageSize_,
+                    std::clamp(config_.page_size, kMinPageSize, kMaxPageSize) - kMinPageSize);
+
     int language_index = 0;  // follow system
     for (size_t i = 0; i < languages_.size(); ++i) {
         if (languages_[i].code == config_.ui_language) {
@@ -244,6 +259,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.font_size = get_check(hFontSmall_) ? kFontSmall
                   : get_check(hFontLarge_) ? kFontLarge
                                            : kFontMedium;
+    c.page_size = std::clamp(combo_index(hPageSize_) + kMinPageSize, kMinPageSize, kMaxPageSize);
     const int language_index = combo_index(hLanguage_);
     c.ui_language = language_index > 0 && language_index <= static_cast<int>(languages_.size())
                         ? languages_[language_index - 1].code

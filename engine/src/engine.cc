@@ -66,8 +66,9 @@ static bool is_main_candidate_command(const KeyEvent& event, const Context& cont
         event.is_alt()) {
         return false;
     }
-    return (event.keycode >= '1' && event.keycode <= '9') || event.keycode == VK_OEM_MINUS ||
-           event.keycode == VK_OEM_PLUS;
+    return (event.keycode >= '1' && event.keycode <= '9') ||
+           (event.keycode == '0' && context.selectable_candidate_count() >= 10) ||
+           event.keycode == VK_OEM_MINUS || event.keycode == VK_OEM_PLUS;
 }
 
 static bool is_numpad_text_key(uint32_t keycode) {
@@ -999,6 +1000,16 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     request.page_index = page_index;
     request.page_offset = page_offset;
     request.page_size = candidate_limit > 0 ? candidate_limit : runtime_->config().page_size;
+    // Laya compares 2 * page_size candidates: the first pinyin page fetches that many and keeps
+    // page_size after reranking. (Later pages re-query from the start with a longer limit,
+    // rerank the same way and skip the candidates already shown.)
+    const int page_size = runtime_->config().page_size;
+    const bool laya_first_page = request.scheme == CompositionScheme::kPinyin &&
+                                 page_index == 0 && page_offset == 0 && candidate_limit <= 0 &&
+                                 runtime_->config().laya.enable;
+    if (laya_first_page) {
+        request.page_size = 2 * page_size;
+    }
     request.policy = translation_policy_;
     request.trace = trace_enabled_ ? &trace_ : nullptr;
     request.budget = &effective_budget;
@@ -1011,7 +1022,13 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     // so page 1 stays a permutation of the original first page.
     if (request.scheme == CompositionScheme::kPinyin && page_index == 0 && page_offset == 0) {
         LayaRerank::instance().apply(runtime_->config(), laya_context(state), request.input, result);
-        add_english_candidates(request.input, request.page_size, result);
+        if (laya_first_page && static_cast<int>(result.entries.size()) > page_size) {
+            result.entries.resize(page_size);
+            result.page_size = page_size;
+            result.extent = make_candidate_extent(result.extent.known_count, page_size,
+                                                  !result.extent.complete);
+        }
+        add_english_candidates(request.input, page_size, result);
         // Nothing matched (neither pinyin nor an English word): offer the typed text itself.
         const std::string& input = request.input;
         // Only for a completed query: a failed or degraded one keeps the engine's retry and

@@ -25,6 +25,7 @@
     "general.small": "小",
     "general.medium": "中",
     "general.large": "大",
+    "general.page_size": "候选词数:",
     "general.language": "界面语言:",
     "general.follow_system": "跟随系统",
 

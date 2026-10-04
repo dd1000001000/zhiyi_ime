@@ -238,7 +238,7 @@ void GdiRenderer::render(HDC hdc, const RECT& clip, const RenderContext& ctx) {
 
         // Label "N. "
         SetTextColor(target_dc, hl ? hl_text_color_ : label_color_);
-        std::wstring label = std::to_wstring(i + 1) + L".";
+        std::wstring label = candidate_label(i);
         DrawTextW(target_dc, label.c_str(), -1, const_cast<RECT*>(&cr.label_rect),
             DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 

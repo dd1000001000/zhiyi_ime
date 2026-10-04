@@ -16,7 +16,7 @@
 
 TEST(Config, defaults) {
     cxxime::Config cfg;
-    ASSERT_EQ(cfg.page_size, 9);
+    ASSERT_EQ(cfg.page_size, 7);
     ASSERT_EQ(cfg.font_size, 14);
     ASSERT_TRUE(cfg.font_name == "Microsoft YaHei UI");
     ASSERT_TRUE(cfg.layout == "horizontal");

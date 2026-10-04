@@ -277,7 +277,7 @@ void D2DRenderer::render(const RenderContext& ctx) {
             render_target_->FillRoundedRectangle(rr, hl ? highlight_brush_ : hover_brush_);
         }
         // Label
-        std::wstring label = std::to_wstring(i+1) + L".";
+        std::wstring label = candidate_label(i);
         D2D1_RECT_F lr = {(float)cr.label_rect.left, (float)cr.label_rect.top,
                           (float)cr.label_rect.right, (float)cr.label_rect.bottom};
         render_target_->DrawText(label.c_str(), (UINT32)label.length(), fmt_right_, lr,

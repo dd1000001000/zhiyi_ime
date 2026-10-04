@@ -25,6 +25,7 @@
     "general.small": "Small",
     "general.medium": "Medium",
     "general.large": "Large",
+    "general.page_size": "Candidates:",
     "general.language": "Language:",
     "general.follow_system": "System default",
 

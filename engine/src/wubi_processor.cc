@@ -54,9 +54,11 @@ ProcessResult WubiProcessor::process_key(const KeyEvent& event, Context& context
     }
 
     // Number keys 1-9: select candidate by index
-    if (vk >= '1' && vk <= '9') {
+    // 1-9 select the first nine candidates; 0 selects the tenth when the page has ten.
+    if ((vk >= '1' && vk <= '9') ||
+        (vk == '0' && context.is_composing() && context.selectable_candidate_count() >= 10)) {
         if (context.is_composing() && context.candidate_count() > 0) {
-            int index = vk - '1';
+            int index = vk == '0' ? 9 : vk - '1';
             if (index < context.selectable_candidate_count()) {
                 context.request_candidate_selection(index);
                 return ProcessResult::CANDIDATE_SELECTED;

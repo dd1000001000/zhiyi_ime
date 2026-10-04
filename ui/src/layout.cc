@@ -203,7 +203,7 @@ LayoutResult calculate_horizontal_layout(HDC hdc,
     int x = cfg.margin_x, y = cfg.margin_y;
 
     for (int i = 0; i < (int)candidates.size(); ++i) {
-        std::wstring label = std::to_wstring(i + 1) + L".";
+        std::wstring label = candidate_label(i);
         SIZE lsz = measure_wstr(hdc, hf, label);
         std::string comment = format_comment(candidates[i]);
         SIZE text_size = measure_wstr(hdc, hf, to_wstr(candidates[i].text));
@@ -307,7 +307,7 @@ LayoutResult calculate_vertical_layout(HDC hdc,
     // First pass: measure all to find widest label/text columns
     int widest_label = 0, widest_text = 0;
     for (int i = 0; i < (int)candidates.size(); ++i) {
-        std::wstring label = std::to_wstring(i + 1) + L".";
+        std::wstring label = candidate_label(i);
         int lw = measure_wstr(hdc, hf, label).cx;
         std::string comment = format_comment(candidates[i]);
         int tw = measure_wstr(hdc, hf, to_wstr(candidates[i].text)).cx +

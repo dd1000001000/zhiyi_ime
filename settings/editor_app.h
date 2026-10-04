@@ -71,6 +71,7 @@ private:
     HWND hFullPinyin_ = nullptr, hInitials_ = nullptr;
     HWND hLight_ = nullptr, hDark_ = nullptr;
     HWND hFontSmall_ = nullptr, hFontMedium_ = nullptr, hFontLarge_ = nullptr;
+    HWND hPageSize_ = nullptr;
     HWND hLanguage_ = nullptr;
     std::vector<UiLanguage> languages_;
 

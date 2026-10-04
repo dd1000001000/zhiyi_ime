@@ -178,7 +178,10 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     if (!head || head->consumed_input_bytes == 0 || head->consumed_input_bytes > input.size())
         return false;
     const size_t head_chars = laya::utf8_chars(result.entries[0].candidate.text).size();
-    const size_t limit = (std::min)(result.entries.size(), static_cast<size_t>((std::max)(2, lc.top_n)));
+    // The model compares the first 2 * page_size candidates (the engine fetches that many for
+    // the first page and shows page_size of them).
+    const size_t limit = (std::min)(result.entries.size(),
+                                    static_cast<size_t>((std::max)(2, 2 * config.page_size)));
     std::vector<size_t> idx;
     for (size_t i = 0; i < limit; ++i) {
         const TextSelectionAction* a = text_action(result.entries[i]);

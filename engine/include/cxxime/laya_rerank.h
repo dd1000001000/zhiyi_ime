@@ -29,7 +29,8 @@ class LayaRerank {
 public:
     static LayaRerank& instance();
 
-    // When the first page holds at least `config.laya.min_candidates` same-length candidates
+    // Looks at the first 2 * config.page_size entries. When they hold at least
+    // `config.laya.min_candidates` same-length candidates
     // covering the same input span as the first candidate, moves the model's pick among them to
     // the first slot (the others keep their order) and marks it `recommended`.
     // `input` is the raw pinyin the translator was queried with. Returns true if the order

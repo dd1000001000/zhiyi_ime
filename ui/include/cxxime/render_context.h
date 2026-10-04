@@ -14,6 +14,11 @@
 
 namespace cxxime {
 
+// Candidate label: "1." .. "9.", and "0." for the tenth (selected with the 0 key).
+inline std::wstring candidate_label(int index) {
+    return std::to_wstring((index + 1) % 10) + L".";
+}
+
 struct Color { uint8_t r, g, b, a; };
 
 struct Theme {

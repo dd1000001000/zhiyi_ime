@@ -433,6 +433,10 @@ def copy_config(host_diagnostics: bool) -> None:
     else:
         print("  WARNING: punctuation.json not found")
 
+    # English word list: completions in English word mode and exact words in Chinese mode.
+    shutil.copy2(os.path.join(DATA, "english.words.tsv"), data_dir)
+    print("  english.words.tsv")
+
 
 def prepare_dictionaries(workers: int) -> None:
     """Prepare the Pinyin and Wubi runtime dictionary bundle."""
@@ -784,6 +788,7 @@ def print_summary(config: str, include_x86_modules: bool, host_diagnostics: bool
     print("    settings_presets.json  Settings UI presets")
     print("    themes.json            Color themes")
     print("    punctuation.json       Punctuation mapping")
+    print("    english.words.tsv      English word list")
     print("    symbols.json           Symbol categories")
     print("    dictionary_manifest.json Dictionary bundle manifest")
     print("    pinyin.dict.bin        Pinyin binary dictionary (runtime)")

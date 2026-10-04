@@ -44,6 +44,7 @@ def check_required_files(
         os.path.join("data", "settings_presets.json"),
         os.path.join("data", "themes.json"),
         os.path.join("data", "punctuation.json"),
+        os.path.join("data", "english.words.tsv"),
         os.path.join("data", "symbols.json"),
     ]
     diagnostic_files = [

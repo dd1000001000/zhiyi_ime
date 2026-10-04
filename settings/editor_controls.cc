@@ -223,11 +223,11 @@ LRESULT CALLBACK PanelForwardProc(HWND window, UINT message, WPARAM wparam, LPAR
         SendMessageW(reinterpret_cast<HWND>(reference_data), WM_COMMAND, wparam, lparam);
         return 0;
     }
-    if (message == WM_NOTIFY) {
-        SendMessageW(reinterpret_cast<HWND>(reference_data), WM_NOTIFY, wparam, lparam);
-        return 0;
+    if (message == WM_NOTIFY) {  // the result matters for custom drawing
+        return SendMessageW(reinterpret_cast<HWND>(reference_data), WM_NOTIFY, wparam, lparam);
     }
-    if (message == WM_DRAWITEM || message == WM_CTLCOLORSTATIC || message == WM_CTLCOLORBTN) {
+    if (message == WM_DRAWITEM || message == WM_CTLCOLORSTATIC || message == WM_CTLCOLORBTN ||
+        message == WM_CTLCOLOREDIT || message == WM_CTLCOLORLISTBOX) {
         return SendMessageW(reinterpret_cast<HWND>(reference_data), message, wparam, lparam);
     }
     if (message == WM_NCDESTROY) {

@@ -176,21 +176,25 @@ void paint(HWND window, State* state) {
     HDC dc = BeginPaint(window, &ps);
     RECT rect;
     GetClientRect(window, &rect);
-    FillRect(dc, &rect, GetSysColorBrush(COLOR_WINDOW));
+    const UiColors& colors = ui_colors();
+    const bool dark = colors.dark;
+    FillRect(dc, &rect, control_brush());
 
     const bool focused = GetFocus() == window;
     const bool show_note = !state->capturing && state->notice.empty() && !state->note.empty() &&
                            state->choice.kind != KeyChoice::Kind::kNone;
     const bool warning = show_note && state->note_kind == KeyNote::kWarning;
     if (warning) {
-        HBRUSH yellow = CreateSolidBrush(RGB(255, 247, 214));
+        HBRUSH yellow = CreateSolidBrush(dark ? RGB(70, 56, 18) : RGB(255, 247, 214));
         FillRect(dc, &rect, yellow);
         DeleteObject(yellow);
     }
-    const COLORREF border = state->capturing ? RGB(0, 103, 192)
+    const COLORREF blue = dark ? RGB(96, 170, 255) : RGB(0, 103, 192);
+    const COLORREF red = dark ? RGB(255, 120, 108) : RGB(196, 43, 28);
+    const COLORREF border = state->capturing ? blue
                             : warning         ? RGB(222, 170, 40)
-                            : state->hover    ? RGB(120, 120, 120)
-                                              : RGB(170, 170, 170);
+                            : state->hover    ? (dark ? RGB(150, 150, 150) : RGB(120, 120, 120))
+                                              : (dark ? RGB(95, 95, 95) : RGB(170, 170, 170));
     const int thickness = state->capturing ? (std::max)(2, S(2)) : 1;
     HBRUSH border_brush = CreateSolidBrush(border);
     for (int i = 0; i < thickness; ++i) {
@@ -200,16 +204,16 @@ void paint(HWND window, State* state) {
     DeleteObject(border_brush);
 
     std::wstring text;
-    COLORREF color = GetSysColor(COLOR_WINDOWTEXT);
+    COLORREF color = colors.text;
     if (state->capturing) {
         text = state->message ? state->message : tr("keys.press");
-        color = state->message ? RGB(196, 43, 28) : RGB(0, 103, 192);
+        color = state->message ? red : blue;
     } else if (!state->notice.empty()) {
         text = state->notice;
-        color = RGB(196, 43, 28);
+        color = red;
     } else {
         text = key_choice_text(state->choice, tr("keys.none"));
-        if (state->choice.kind == KeyChoice::Kind::kNone) color = RGB(130, 130, 130);
+        if (state->choice.kind == KeyChoice::Kind::kNone) color = colors.hint;
     }
     HGDIOBJ old_font = SelectObject(dc, get_font());
     SetBkMode(dc, TRANSPARENT);
@@ -227,7 +231,7 @@ void paint(HWND window, State* state) {
         font.lfHeight = font.lfHeight * 4 / 5;
         HFONT small = CreateFontIndirectW(&font);
         SelectObject(dc, small);
-        SetTextColor(dc, warning ? RGB(150, 98, 0) : RGB(128, 128, 128));
+        SetTextColor(dc, warning ? (dark ? RGB(240, 190, 90) : RGB(150, 98, 0)) : colors.hint);
         RECT note_rect = {measured.right + S(10), rect.top, rect.right - S(6), rect.bottom};
         DrawTextW(dc, state->note.c_str(), -1, &note_rect,
                   DT_SINGLELINE | DT_VCENTER | DT_LEFT | DT_END_ELLIPSIS | DT_NOPREFIX);
@@ -237,6 +241,8 @@ void paint(HWND window, State* state) {
     SelectObject(dc, old_font);
     if (focused && !state->capturing) {
         RECT focus = {rect.left + 3, rect.top + 3, rect.right - 3, rect.bottom - 3};
+        SetTextColor(dc, colors.text);  // the dotted line takes the text color
+        SetBkColor(dc, colors.control);
         DrawFocusRect(dc, &focus);
     }
     EndPaint(window, &ps);

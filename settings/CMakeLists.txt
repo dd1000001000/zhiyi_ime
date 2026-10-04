@@ -8,6 +8,7 @@ add_executable(cxxime-settings WIN32
     editor_app_internal.h
     editor_controls.cc
     editor_general_panel.cc
+    editor_theme.cc
     editor_update_panel.cc
     hotkey_check.cc
     hotkey_check.h

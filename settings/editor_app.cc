@@ -203,6 +203,7 @@ void EditorApp::rebuild_ui() {
     destroy_controls();
     create_controls(hwnd_);
     populate_controls();
+    apply_ui_theme(ui_colors().dark, true);  // the new controls
     show_panel(panel);
     SendMessageW(hwnd_, WM_SETREDRAW, TRUE, 0);
     RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
@@ -367,26 +368,23 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         a->init_update();  // may open the Updates page
         a->create_controls(hwnd);
         a->populate_controls();
+        a->apply_ui_theme(ui_colors().dark, true);  // populate_controls() chose it
         a->show_panel(settings_panel_index(a->initial_panel_));
         if (a->config_.update_notify) {
             a->start_update_check(true);
         }
         return 0;
     case WM_CTLCOLORSTATIC:
-    case WM_CTLCOLORBTN: {
-        // White pages (panels, labels, radio and check boxes); hints in gray.
-        HDC dc = reinterpret_cast<HDC>(wp);
-        const HWND control = reinterpret_cast<HWND>(lp);
-        if (control == a->hFooter_) {
-            // Filled with the window color, so the old text goes when the language changes.
-            SetBkMode(dc, TRANSPARENT);
-            return reinterpret_cast<LRESULT>(GetSysColorBrush(COLOR_WINDOW));
-        }
-        if (std::find(a->hints_.begin(), a->hints_.end(), control) != a->hints_.end()) {
-            SetTextColor(dc, RGB(110, 110, 110));
-        }
-        SetBkColor(dc, GetSysColor(COLOR_WINDOW));
-        return reinterpret_cast<LRESULT>(GetSysColorBrush(COLOR_WINDOW));
+    case WM_CTLCOLORBTN:
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX:
+        // Pages in the window color (light or dark); hints in gray.
+        return a->control_colors(msg, reinterpret_cast<HDC>(wp), reinterpret_cast<HWND>(lp));
+    case WM_ERASEBKGND: {
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        FillRect(reinterpret_cast<HDC>(wp), &rect, window_brush());
+        return 1;
     }
     case WM_DPICHANGED: {
         g_dpi = static_cast<float>(LOWORD(wp)) / 96.0f;
@@ -439,11 +437,16 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
     }
-    case WM_NOTIFY:
+    case WM_NOTIFY: {
+        LRESULT result = 0;
+        if (a->draw_choice_button(lp, &result)) {
+            return result;
+        }
         if (a->handle_about_notify(lp)) {
             return 0;
         }
         break;
+    }
     case WM_MEASUREITEM:
         if (wp == kListId) {
             reinterpret_cast<LPMEASUREITEMSTRUCT>(lp)->itemHeight = S(40);
@@ -458,10 +461,10 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         HDC dc = dis->hDC;
         const RECT r = dis->rcItem;
-        FillRect(dc, &r, reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1));
+        FillRect(dc, &r, window_brush());
         const RECT hr = {r.left + 4, r.top + 3, r.right - 4, r.bottom - 3};
         if (dis->itemState & ODS_SELECTED) {
-            HBRUSH brush = CreateSolidBrush(RGB(0, 122, 215));
+            HBRUSH brush = CreateSolidBrush(ui_colors().selected);
             HGDIOBJ old_pen = SelectObject(dc, GetStockObject(NULL_PEN));
             HGDIOBJ old_brush = SelectObject(dc, brush);
             RoundRect(dc, hr.left, hr.top, hr.right, hr.bottom, 6, 6);
@@ -470,7 +473,7 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             DeleteObject(brush);
             SetTextColor(dc, RGB(255, 255, 255));
         } else {
-            SetTextColor(dc, RGB(60, 60, 60));
+            SetTextColor(dc, ui_colors().dark ? ui_colors().text : RGB(60, 60, 60));
         }
         SetBkMode(dc, TRANSPARENT);
         RECT tr_rect = {hr.left + 12, r.top, hr.right - 4, r.bottom};

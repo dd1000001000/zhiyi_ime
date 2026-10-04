@@ -28,6 +28,21 @@ extern int kLblW;
 extern int kCtlX;
 
 int S(int value);
+
+// Settings window colors, light or dark (editor_theme.cc; EditorApp::apply_ui_theme).
+struct UiColors {
+    bool dark;
+    COLORREF window;
+    COLORREF text;
+    COLORREF hint;
+    COLORREF control;   // edit and list boxes
+    COLORREF link;
+    COLORREF selected;  // the selected page in the list
+};
+const UiColors& ui_colors();
+void set_ui_dark(bool dark);
+HBRUSH window_brush();
+HBRUSH control_brush();
 void init_layout();
 HFONT get_font();
 

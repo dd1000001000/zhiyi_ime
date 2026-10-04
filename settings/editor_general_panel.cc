@@ -359,6 +359,7 @@ void EditorApp::populate_controls() {
     const bool dark = config_.theme == kDarkTheme;
     set_check(hLight_, !dark);
     set_check(hDark_, dark);
+    apply_ui_theme(dark);  // also after a change from the status bar
     const int font = config_.font_size;
     set_check(hFontSmall_, font <= kFontSmall);
     set_check(hFontMedium_, font > kFontSmall && font < kFontLarge);
@@ -509,6 +510,12 @@ void EditorApp::update_enabled_controls() {
 
 bool EditorApp::handle_command(int control_id, int notification) {
     switch (control_id) {
+    case kLightId:
+    case kDarkId:
+        if (notification == BN_CLICKED) {
+            apply_ui_theme(get_check(hDark_));  // shown at once; saved with the others
+        }
+        return true;
     case kPinyinId:
     case kWubiId:
     case kFuzzyEnabledId:

@@ -62,6 +62,10 @@ private:
 
     bool handle_command(int control_id, int notification);
     bool handle_about_notify(LPARAM notification);
+    // Light or dark window (editor_theme.cc), following the IME theme.
+    void apply_ui_theme(bool dark, bool force = false);
+    LRESULT control_colors(UINT message, HDC dc, HWND control);
+    bool draw_choice_button(LPARAM notification, LRESULT* result);
     // Updates (editor_update_panel.cc)
     void init_update();
     void show_update_state();

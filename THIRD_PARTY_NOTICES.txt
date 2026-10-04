@@ -218,6 +218,15 @@ is the multilingual Laya checkpoint fine-tuned with LoRA on Chinese pinyin and
 English completion data, exported to ONNX and quantized to int8.
 
 
+Microsoft Visual C++ Runtime
+----------------------------
+
+msvcp140.dll, msvcp140_1.dll, vcruntime140.dll and vcruntime140_1.dll are the
+Visual C++ runtime files ONNX Runtime needs, redistributed unmodified under the
+Microsoft Visual Studio license terms for distributable code.
+Copyright (c) Microsoft Corporation. All rights reserved.
+
+
 ONNX Runtime
 ------------
 

@@ -30,8 +30,10 @@ def write_install_payload(
         if include_x86_modules:
             root_files.append("zhiyi-ime-host-probe-x86.exe")
 
-    # Laya reranking: ONNX Runtime and the model are optional (the IME works without them).
-    for name in ("onnxruntime.dll", "onnxruntime_providers_shared.dll"):
+    # Laya reranking: ONNX Runtime, the Visual C++ runtime it needs, and the model are optional
+    # (the IME works without them).
+    for name in ("onnxruntime.dll", "onnxruntime_providers_shared.dll", "msvcp140.dll",
+                 "msvcp140_1.dll", "vcruntime140.dll", "vcruntime140_1.dll"):
         if os.path.isfile(os.path.join(dist_dir, name)):
             root_files.append(name)
 

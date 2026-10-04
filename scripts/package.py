@@ -341,12 +341,52 @@ def built_binary_path(build_dir: str, config: str, subdir: str, name: str) -> st
 
 LAYA_RUNTIME_DLLS = ("onnxruntime.dll", "onnxruntime_providers_shared.dll")
 LAYA_MODEL_FILES = ("laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json")
+# ONNX Runtime links the Visual C++ runtime dynamically (our binaries link it statically).
+# Shipped app-local beside onnxruntime.dll, so a machine without the redistributable, or with
+# an old one, still loads it (onnxruntime.dll is loaded with the application directory first).
+VC_RUNTIME_DLLS = ("msvcp140.dll", "msvcp140_1.dll", "vcruntime140.dll", "vcruntime140_1.dll")
+
+
+def find_vc_runtime_dir() -> str:
+    """The x64 Visual C++ runtime folder of the Visual Studio redistributables."""
+    roots = []
+    if os.environ.get("VCToolsRedistDir"):  # set by vcvarsall.bat
+        roots.append(os.environ["VCToolsRedistDir"])
+    vs_path = os.environ.get("VS_PATH") or os.environ.get("VSINSTALLDIR")
+    if vs_path:
+        redist = os.path.join(vs_path, "VC", "Redist", "MSVC")
+        if os.path.isdir(redist):
+            versions = sorted(
+                (entry.path for entry in os.scandir(redist)
+                 if entry.is_dir() and entry.name[:1].isdigit()),
+                key=lambda path: [int(part) for part in os.path.basename(path).split(".")
+                                  if part.isdigit()],
+                reverse=True)
+            roots.extend(versions)
+    for root in roots:
+        x64 = os.path.join(root, "x64")
+        if not os.path.isdir(x64):
+            continue
+        for entry in sorted(os.scandir(x64), key=lambda item: item.name, reverse=True):
+            if (entry.is_dir() and entry.name.startswith("Microsoft.VC") and
+                    entry.name.endswith(".CRT") and
+                    all(os.path.isfile(os.path.join(entry.path, n)) for n in VC_RUNTIME_DLLS)):
+                return entry.path
+    return ""
 
 
 def copy_laya_runtime(build_dir: str, config: str) -> None:
     """Copy ONNX Runtime and the Laya model (models/laya) beside zhiyi-server.exe."""
     for name in LAYA_RUNTIME_DLLS:
         copy_binary(build_dir, config, "server", name)
+    vc_runtime_dir = find_vc_runtime_dir()
+    if not vc_runtime_dir:
+        print("  ERROR: Visual C++ x64 runtime (VC\\Redist\\MSVC\\...\\x64\\Microsoft.VC*.CRT) "
+              "not found; ONNX Runtime needs it", file=sys.stderr)
+        sys.exit(1)
+    for name in VC_RUNTIME_DLLS:
+        shutil.copy2(os.path.join(vc_runtime_dir, name), os.path.join(DIST_DIR, name))
+        print(f"  {name} (from {vc_runtime_dir})")
     model_dir = os.path.join(ROOT, "models", "laya")
     if not all(os.path.isfile(os.path.join(model_dir, f)) for f in LAYA_MODEL_FILES):
         print("  WARNING: Laya model not found in models/laya (run scripts/fetch_model.py); "

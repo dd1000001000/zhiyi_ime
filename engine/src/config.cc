@@ -223,6 +223,9 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(l, "english_context_chars", config.laya.english_context_chars);
         if (l.contains("english_freq_weight") && l["english_freq_weight"].is_number())
             config.laya.english_freq_weight = l["english_freq_weight"].template get<double>();
+        if (l.contains("english_correction_weight") && l["english_correction_weight"].is_number())
+            config.laya.english_correction_weight =
+                l["english_correction_weight"].template get<double>();
     }
 
     if (j.contains("english") && j["english"].is_object()) {
@@ -235,6 +238,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(en, "completion_pool", config.english.completion_pool);
         load_int(en, "completion_count", config.english.completion_count);
         load_int(en, "min_score", config.english.min_score);
+        load_bool(en, "correction", config.english.correction);
+        load_int(en, "correction_count", config.english.correction_count);
     }
 
     if (j.contains("style") && j["style"].is_object()) {
@@ -513,6 +518,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["english"] = config.laya.english;
     j["laya"]["english_context_chars"] = config.laya.english_context_chars;
     j["laya"]["english_freq_weight"] = config.laya.english_freq_weight;
+    j["laya"]["english_correction_weight"] = config.laya.english_correction_weight;
 
     j["english"]["mixed_in_chinese"] = config.english.mixed_in_chinese;
     j["english"]["min_input"] = config.english.min_input;
@@ -522,6 +528,8 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["english"]["completion_pool"] = config.english.completion_pool;
     j["english"]["completion_count"] = config.english.completion_count;
     j["english"]["min_score"] = config.english.min_score;
+    j["english"]["correction"] = config.english.correction;
+    j["english"]["correction_count"] = config.english.correction_count;
 
     j["style"]["font_face"] = config.font_name;
     j["style"]["font_point"] = config.font_size;

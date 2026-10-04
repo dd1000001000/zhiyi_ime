@@ -307,8 +307,9 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         HDC dc = reinterpret_cast<HDC>(wp);
         const HWND control = reinterpret_cast<HWND>(lp);
         if (control == a->hFooter_) {
+            // Filled with the window color, so the old text goes when the language changes.
             SetBkMode(dc, TRANSPARENT);
-            return reinterpret_cast<LRESULT>(GetStockObject(NULL_BRUSH));
+            return reinterpret_cast<LRESULT>(GetSysColorBrush(COLOR_WINDOW));
         }
         if (std::find(a->hints_.begin(), a->hints_.end(), control) != a->hints_.end()) {
             SetTextColor(dc, RGB(110, 110, 110));

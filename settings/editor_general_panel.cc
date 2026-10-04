@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
-// Settings pages: General (Chinese input, pinyin style, theme, font size, UI language),
+// Settings pages: General (Chinese input, pinyin style, theme, font size, candidate count, UI
+// language, English spelling correction), Fuzzy pinyin,
 // Keys (Chinese/English switch, style switch shortcut) and Dictionary (self-learning).
 
 #include "editor_app.h"
@@ -31,6 +32,7 @@ enum ControlId {
     kFontLargeId,
     kLanguageId,
     kPageSizeId,
+    kEnglishCorrectionId,
     kSwitchKeyId = 1101,
     kStyleEnabledId,
     kStyleKeyId,
@@ -147,7 +149,7 @@ void EditorApp::create_general_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     const int labels = label_width({"general.chinese_input", "general.pinyin_style",
                                     "general.theme", "general.font_size", "general.page_size",
-                                    "general.language"});
+                                    "general.language", "general.english"});
     int y = kPanelPadTop;
     const int option_width = S(110);
     auto radios = [&](const char* label, std::initializer_list<std::pair<int, const char*>> items,
@@ -193,6 +195,13 @@ void EditorApp::create_general_panel(HWND panel) {
     for (const UiLanguage& language : languages_) {
         combo_add(hLanguage_, language.name.c_str());
     }
+    y += kRowH;
+
+    const int english_x = make_aligned_label(tr("general.english"), x0, labels, y, panel);
+    hEnglishCorrection_ = make_check(kEnglishCorrectionId, tr("general.english_correction"),
+                                     english_x, y, S(300), panel);
+    y += kRowH;
+    make_hint(tr("general.english_correction_hint"), english_x, y - S(6), S(380), panel);
 }
 
 void EditorApp::create_fuzzy_panel(HWND panel) {
@@ -272,6 +281,7 @@ void EditorApp::populate_controls() {
         }
     }
     combo_set_index(hLanguage_, language_index);
+    set_check(hEnglishCorrection_, config_.english.correction);
 
     combo_set_index(hSwitchKey_, switch_key_choice(config_));
     set_check(hStyleEnabled_, config_.english_style_shortcut.enabled());
@@ -300,6 +310,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.ui_language = language_index > 0 && language_index <= static_cast<int>(languages_.size())
                         ? languages_[language_index - 1].code
                         : kAutoUiLanguage;
+    c.english.correction = get_check(hEnglishCorrection_);
     apply_switch_key_choice(c, (std::max)(0, combo_index(hSwitchKey_)));
     c.candidate_learning = get_check(hLearning_);
     c.fuzzy_pinyin = get_check(hFuzzyEnabled_);

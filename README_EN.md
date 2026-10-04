@@ -24,7 +24,13 @@ leaves your computer.
   others keep their frequency order. About 30–40 ms per key on 4 CPU threads.
 - **Chinese input: pinyin or Wubi**, chosen in Settings. Pinyin offers full pinyin (initials are
   accepted too) and an initials mode where each letter is one character (`zgr` → 中国人).
+- **Fuzzy pinyin**: z=zh, c=ch, s=sh, n=l, an=ang, en=eng, in=ing, each pair switchable; a word found
+  through a fuzzy pair shows its correct pinyin, e.g. `zongguo` → 中国(zhong guo).
 - **English input**: words (completions while typing, digits select) or plain letters.
+- **English spelling correction**: misspelled words get their correct spelling as a candidate
+  (`teh` → the, `recieve` → receive, `beautf` → beautiful); the first candidate always stays what
+  you typed, nothing is replaced automatically. A correction picked twice takes the recommended
+  slot; a word committed as typed twice (`kubectl`) is no longer corrected and completes.
 - **Switch keys**: Shift switches Chinese/English; `Ctrl+Space` switches full pinyin / initials in
   Chinese pinyin mode and words / letters in English mode. Both are configurable; the status window
   shows the current style (拼 / 首 / 五, 英 / a).
@@ -32,7 +38,7 @@ leaves your computer.
   second.
 - **Case follows what you type**: `hel` → hello, `Hel` → Hello, `HEL` → HELLO.
 - **Simple settings**: General (Chinese input, pinyin style, light/dark theme, font size, 3–10
-  candidates per page, UI language), Keys, Dictionary (self-learning, clear learning data) and
+  candidates per page, UI language, English spelling correction), Fuzzy pinyin, Keys, Dictionary (self-learning, clear learning data) and
   About. Settings and the installer are in Chinese and English and follow the Windows language.
 - **Compact dictionary**: about 400k entries (every character plus common words); rare words can be
   typed character by character and are remembered by self-learning.

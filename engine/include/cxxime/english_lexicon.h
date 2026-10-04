@@ -15,7 +15,22 @@ struct EnglishWord {
     std::string text;   // case preserved, e.g. "README.md", "Los Angeles"
     int score = 0;      // 100 * Zipf frequency
     bool exact = false; // the typed code equals the word's code
+    // Spelling correction: weighted edit cost between the typed code and the word (0 for
+    // dictionary prefix matches). Learned corrections lower it (negative = bonus).
+    float cost = 0.0f;
+    bool corrected = false;
 };
+
+// Weighted edit cost of typing `typed` for `word` (both lowercase letters): adjacent QWERTY
+// keys and doubled letters are cheap, a wrong first letter is expensive. `prefix` compares
+// against the cheapest prefix of `word` (a word still being typed). Exposed for tests.
+float english_typing_cost(const std::string& typed, const std::string& word, bool prefix = false);
+
+// Corrections are ranked by Zipf frequency minus this many Zipf units per unit of typing cost.
+constexpr float kEnglishCostRankWeight = 3.0f;
+
+// Largest correction cost allowed for a typed code of `length` letters (0 = no correction).
+float english_correction_limit(std::size_t length);
 
 class EnglishLexicon {
 public:
@@ -31,6 +46,17 @@ public:
     // matches are kept when `include_rare_exact` is true.
     std::vector<EnglishWord> lookup(const std::string& code, int limit, int min_score,
                                     bool include_rare_exact = true) const;
+
+    // True when `code` (case-insensitive) is a word of the list / the start of one.
+    bool contains(const std::string& code) const;
+    bool has_prefix(const std::string& code) const;
+
+    // Spelling corrections for a misspelled code: plain words (no names or phrases) scoring at
+    // least `min_score` whose spelling is within english_correction_limit() of the code, best
+    // first (frequency minus a cost penalty). With `completions`, words whose beginning is
+    // within the limit count too (beautf -> beautiful); otherwise only whole words.
+    std::vector<EnglishWord> corrections(const std::string& code, int limit, int min_score,
+                                         bool completions) const;
 
 private:
     struct Entry {

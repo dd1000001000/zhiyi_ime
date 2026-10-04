@@ -16,6 +16,7 @@
 #include <cxxime/candidate_preference.h>
 #include <cxxime/diagnostics_config.h>
 #include <cxxime/disabled_system_lexicon.h>
+#include <cxxime/english_learning.h>
 #include <cxxime/dictionary_manifest.h>
 #include <cxxime/input_limits.h>
 #include <cxxime/logging.h>
@@ -486,6 +487,10 @@ bool SharedResources::load(const std::string& dict_path,
     } else if (!loaded_composition_learning->start()) {
         CXXIME_LOG(L"%s", L"SharedResources: composition learning worker disabled");
         loaded_composition_learning.reset();
+    }
+    // English word mode learning (corrections picked, words kept as typed); process-wide.
+    if (!cxxime::EnglishLearning::open_shared(cxxime::user_data_path("learning_english.json"))) {
+        CXXIME_LOG(L"%s", L"SharedResources: English learning file unreadable, starting empty");
     }
     auto loaded_runtime = cxxime::EngineRuntimeState::create(
         *loaded_config, dictionaries.dict, dictionaries.wubi_dict,
@@ -985,6 +990,11 @@ cxxime::IPCStatus SharedResources::clear_candidate_preferences(cxxime::UserDictK
         if (service && !service->clear_and_save()) {
             return cxxime::IPCStatus::ERR_UNKNOWN_COMMAND;
         }
+        // English word mode learning is cleared with it (one switch for all self-learning).
+        auto english = cxxime::EnglishLearning::shared();
+        if (english && !english->clear_and_save()) {
+            return cxxime::IPCStatus::ERR_UNKNOWN_COMMAND;
+        }
     }
     return cxxime::IPCStatus::OK;
 }
@@ -1193,7 +1203,8 @@ bool SharedResources::freeze_and_stop_composition_learning() {
             service = runtime->composition_learning_ptr();
         }
     }
-    return !service || service->freeze_and_stop();
+    const bool english_saved = cxxime::EnglishLearning::close_shared();
+    return (!service || service->freeze_and_stop()) && english_saved;
 }
 
 bool SessionManager::prepare_config(const std::shared_ptr<const cxxime::Config>& config,

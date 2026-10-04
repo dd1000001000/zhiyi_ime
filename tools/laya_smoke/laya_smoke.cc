@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <cxxime/engine.h>
+#include <cxxime/english_learning.h>
 #include <cxxime/key_event.h>
 #include <cxxime/laya_rerank.h>
 
@@ -330,6 +331,96 @@ int main(int argc, char** argv) {
         }
         fuzzy_all.finalize();
         fuzzy_zh.finalize();
+    }
+
+    // English spelling correction (english.correction) and what self-learning makes of the
+    // commits (EnglishLearning, here in a temporary file).
+    {
+        char tmp[MAX_PATH];
+        GetTempPathA(MAX_PATH, tmp);
+        const std::string learning_path = std::string(tmp) + "laya_smoke_learning_english.json";
+        DeleteFileA(learning_path.c_str());
+        cxxime::EnglishLearning::open_shared(learning_path);
+        const std::string config_path = std::string(tmp) + "laya_smoke_learn.json";
+        {
+            std::ofstream f(config_path, std::ios::binary);
+            f << "{\"engine\": {\"page_size\": 7, \"candidate_learning\": true},\n"
+              << " \"laya\": {\"enable\": true, \"model_dir\": \"" << json_escape_path(model_dir)
+              << "\"}}\n";
+        }
+        cxxime::Engine learn;
+        if (learn.initialize(dict, config_path)) {
+            learn.ascii_composer().set_ascii_mode(true);
+            auto show = [&](const std::string& word, double* ms) {
+                learn.clear();
+                for (const Key& k : keys_for(word)) {
+                    cxxime::KeyEvent ev;
+                    ev.keycode = k.vk;
+                    if (k.shift) ev.set_shift();
+                    auto t0 = std::chrono::steady_clock::now();
+                    learn.process_key(ev);
+                    if (ms) *ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                }
+                return join(marked_page(learn));
+            };
+            auto commit = [&](const std::string& keys) {
+                learn.clear();
+                for (const Key& k : keys_for(keys)) {
+                    cxxime::KeyEvent ev;
+                    ev.keycode = k.vk;
+                    if (k.shift) ev.set_shift();
+                    if (learn.process_key(ev) == cxxime::ProcessResult::COMMITTED)
+                        learn.take_commit_text_with_source();
+                }
+            };
+            auto pick = [&](const std::string& typed, const std::string& word) {
+                show(typed, nullptr);
+                auto p = page(learn);
+                for (size_t i = 0; i < p.size() && i < 9; ++i) {
+                    if (p[i] == word) {
+                        commit(typed + std::to_string(i + 1));
+                        return true;
+                    }
+                }
+                learn.clear();
+                return false;
+            };
+
+            std::printf("\nEnglish spelling correction (last key ms):\n");
+            std::vector<double> ms_list;
+            for (const char* code : {"teh", "Teh", "recieve", "adress", "wierd", "definately",
+                                     "beautf", "acomodate", "untill", "thier", "becuase",
+                                     "goverment", "seperate", "tommorow", "occured", "form",
+                                     "kubectl", "xyzzy"}) {
+                double ms = 0;
+                const std::string shown = show(code, &ms);
+                ms_list.push_back(ms);
+                std::printf("  %-11s %5.1f  %s\n", code, ms, shown.c_str());
+            }
+            std::sort(ms_list.begin(), ms_list.end());
+            std::printf("  last key median %.1f ms\n", ms_list[ms_list.size() / 2]);
+
+            std::printf("\nEnglish learning:\n");
+            std::printf("  teh before           %s\n", show("teh", nullptr).c_str());
+            pick("teh", "ten");
+            std::printf("  teh, ten picked once %s\n", show("teh", nullptr).c_str());
+            pick("teh", "ten");
+            std::printf("  ten picked twice     %s\n", show("teh", nullptr).c_str());
+            commit("teh\n");
+            commit("teh\n");
+            commit("teh\n");
+            std::printf("  teh kept 3 times     %s\n", show("teh", nullptr).c_str());
+            std::printf("  kubectk before       %s\n", show("kubectk", nullptr).c_str());
+            commit("kubectk\n");
+            std::printf("  kubectk kept once    %s\n", show("kubectk", nullptr).c_str());
+            commit("kubectk ");
+            std::printf("  kubectk kept twice   %s\n", show("kubectk", nullptr).c_str());
+            std::printf("  kub                  %s\n", show("kub", nullptr).c_str());
+            learn.clear();
+            learn.finalize();
+        }
+        cxxime::EnglishLearning::close_shared();
+        DeleteFileA(learning_path.c_str());
     }
 
     off.finalize();

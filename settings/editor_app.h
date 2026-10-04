@@ -74,6 +74,7 @@ private:
     HWND hFontSmall_ = nullptr, hFontMedium_ = nullptr, hFontLarge_ = nullptr;
     HWND hPageSize_ = nullptr;
     HWND hLanguage_ = nullptr;
+    HWND hEnglishCorrection_ = nullptr;
     std::vector<UiLanguage> languages_;
 
     // Fuzzy pinyin: master switch and one check box per pair (FuzzyGroup bit order)

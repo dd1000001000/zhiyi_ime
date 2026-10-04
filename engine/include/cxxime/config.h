@@ -112,6 +112,10 @@ struct Config {
         bool english = true;
         int english_context_chars = 96;    // English needs more characters for the same context
         double english_freq_weight = 0.0;  // weight of log P_freq next to log P_laya
+        // Spelling corrections: log10 P penalty per unit of typing cost (1 = a wrong letter
+        // costs a factor of 10), so the model does not prefer a correction over a completion
+        // of what was typed without a reason.
+        double english_correction_weight = 1.0;
     };
     LayaConfig laya;
 
@@ -131,6 +135,9 @@ struct Config {
         int completion_count = 6;       // completions shown after the typed text
         int completion_pool = 8;        // dictionary words reranked before choosing them
         int min_score = 300;            // 100 * Zipf; hides rare words (Zipf < 3.0)
+        // Spelling correction (teh -> the): candidates only, the typed text stays first.
+        bool correction = true;
+        int correction_count = 2;       // corrections among the shown words at most
     };
     EnglishConfig english;
 

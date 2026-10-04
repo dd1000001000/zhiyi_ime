@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <cxxime/ascii_composer.h>
 #include <cxxime/composition_learning.h>
@@ -129,6 +130,9 @@ private:
     std::optional<ProcessResult> process_english_key(const KeyEvent& event, const OutputOptions& opts);
     void refresh_english_candidates();
     ProcessResult commit_english(std::string text);
+    // Self-learning (EnglishLearning): `committed` is the word committed for `typed`.
+    void learn_english_commit(const std::string& typed, const std::string& committed);
+    std::vector<std::string> english_corrections_shown_;  // corrections on the current page
     bool english_composing_ = false;
     bool english_word_mode_ = true;
     bool pinyin_initials_ = false;

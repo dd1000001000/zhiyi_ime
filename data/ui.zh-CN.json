@@ -29,6 +29,9 @@
     "general.page_size": "候选词数:",
     "general.language": "界面语言:",
     "general.follow_system": "跟随系统",
+    "general.english": "英文单词:",
+    "general.english_correction": "拼写纠错",
+    "general.english_correction_hint": "打错时在候选里给出正确拼写，第一个候选仍是原文，不会自动替换",
 
     "fuzzy.enable": "启用模糊音",
     "fuzzy.hint": "开启后，读音相近的词也会出现在候选里，并在词后用括号标出正确拼音，例如 中国(zhong guo)",
@@ -44,7 +47,7 @@
     "keys.conflict": "输入方式切换键与“切换到知意输入法”的全局快捷键相同，请换一个。",
 
     "dictionary.learning": "自学习",
-    "dictionary.learning_hint": "常选的词会排到前面，连续选出的新词会被记住",
+    "dictionary.learning_hint": "常选的词会排到前面，连续选出的新词会被记住；英文会记住你选过的纠错和常打的新词",
     "dictionary.clear": "清除学习记录",
     "dictionary.clear_confirm": "清除全部学习记录？\n\n常选词的排序和自动记住的新词都会被删除，无法撤销。",
     "dictionary.clear_done": "学习记录已清除。",

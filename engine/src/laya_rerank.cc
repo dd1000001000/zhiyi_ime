@@ -261,6 +261,7 @@ bool LayaRerank::apply_english(const Config& config, const std::string& context,
     for (const auto& w : words) {
         texts.push_back(w.text);
         key += '\x1f' + w.text;
+        if (w.cost != 0.0f) key += '\x1e' + std::to_string(w.cost);  // learned bonuses change it
     }
 
     State& s = state();
@@ -279,10 +280,13 @@ bool LayaRerank::apply_english(const Config& config, const std::string& context,
             // Frequency prior: score = 100 * Zipf, so P_freq is proportional to 10^(score/100).
             // Normalizing it over the candidates only shifts every log P_freq by the same amount,
             // which does not change the order.
+            // Spelling corrections: the model was trained on completions of what was typed, so a
+            // correction pays for its typing cost (english_correction_weight * log10 per unit).
             std::vector<double> mixed(p.size());
             for (size_t i = 0; i < p.size(); ++i)
                 mixed[i] = std::log((std::max)(p[i], 1e-9f)) +
-                           lc.english_freq_weight * (words[i].score / 100.0) * std::log(10.0);
+                           lc.english_freq_weight * (words[i].score / 100.0) * std::log(10.0) -
+                           lc.english_correction_weight * words[i].cost * std::log(10.0);
             order.resize(p.size());
             std::iota(order.begin(), order.end(), size_t{0});
             std::stable_sort(order.begin(), order.end(),

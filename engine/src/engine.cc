@@ -13,6 +13,8 @@
 
 #include <cxxime/composition_learning.h>
 #include <cxxime/input_limits.h>
+#include <cxxime/english_candidates.h>
+#include <cxxime/english_learning.h>
 #include <cxxime/english_lexicon.h>
 #include <cxxime/laya_rerank.h>
 #include <cxxime/logging.h>
@@ -1091,25 +1093,6 @@ void Engine::add_english_candidates(const std::string& input, int page_size,
 
 namespace {
 
-// Applies the case pattern of what the user typed to a dictionary word:
-// "HEL" -> "HELLO", "Hel" -> "Hello", "hel" -> the dictionary form ("hello", "iPhone").
-std::string match_typed_case(const std::string& typed, const std::string& word) {
-    int letters = 0, upper = 0;
-    for (char c : typed) {
-        if (std::isalpha(static_cast<unsigned char>(c))) {
-            ++letters;
-            upper += std::isupper(static_cast<unsigned char>(c)) ? 1 : 0;
-        }
-    }
-    std::string out = word;
-    if (letters >= 2 && upper == letters) {
-        for (char& c : out) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    } else if (!typed.empty() && std::isupper(static_cast<unsigned char>(typed[0])) && !out.empty()) {
-        out[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(out[0])));
-    }
-    return out;
-}
-
 CandidateEntry make_english_entry(const std::string& text, const std::string& code, int score) {
     Candidate c;
     c.text = text;
@@ -1138,28 +1121,65 @@ void Engine::refresh_english_candidates() {
     // The typed text always comes first, so Space/1 commit exactly what was typed when no
     // dictionary word matches.
     result.entries.push_back(make_english_entry(typed, typed, 0));
+    english_corrections_shown_.clear();
     if (auto lexicon = EnglishLexicon::shared()) {
-        // Dictionary order (exact match first, then by frequency) in the typed case, as the
-        // model was trained; Laya then reorders the pool by context and frequency.
-        std::vector<EnglishWord> words;
-        const int pool = (std::max)(ec.completion_count, ec.completion_pool);
-        for (auto& w : lexicon->lookup(typed, (std::max)(0, pool), ec.min_score, true)) {
-            w.text = match_typed_case(typed, w.text);
-            const bool duplicate = std::any_of(words.begin(), words.end(),
-                                               [&](const EnglishWord& e) { return e.text == w.text; });
-            if (!duplicate) words.push_back(std::move(w));
+        // Dictionary order (exact match first, then by frequency; corrections and learned words
+        // merged in) in the typed case, as the model was trained; Laya then picks the word for
+        // the recommended slot by context.
+        const std::shared_ptr<EnglishLearning> learning =
+            runtime_->config().candidate_learning ? EnglishLearning::shared() : nullptr;
+        EnglishPool pool = build_english_pool(*lexicon, learning.get(), typed, ec);
+        std::vector<EnglishWord>& words = pool.words;
+        // The model was trained on completions of the typed letters and favours words sharing
+        // its beginning (thier -> this), so it does not choose among corrections: they keep
+        // their own order (frequency and typing cost) and only the best one competes with the
+        // completions. The others follow it.
+        std::vector<EnglishWord> later_corrections;
+        bool best_correction = false;
+        for (auto it = words.begin(); it != words.end();) {
+            if (it->corrected && best_correction) {
+                later_corrections.push_back(std::move(*it));
+                it = words.erase(it);
+            } else {
+                best_correction = best_correction || it->corrected;
+                ++it;
+            }
         }
-        const bool recommended = LayaRerank::instance().apply_english(
+        bool recommended = LayaRerank::instance().apply_english(
             runtime_->config(), laya_context(context_.composition()), typed, words);
+        if (!recommended && !words.empty() && words.front().corrected)
+            recommended = true;  // only corrections: the best one is the recommendation
+        if (!later_corrections.empty()) {
+            auto best = std::find_if(words.begin(), words.end(),
+                                     [](const EnglishWord& w) { return w.corrected; });
+            if (best != words.end()) ++best;
+            words.insert(best, std::make_move_iterator(later_corrections.begin()),
+                         std::make_move_iterator(later_corrections.end()));
+        }
+        if (!pool.learned_pick.empty()) {
+            // A correction picked again and again takes the recommended slot.
+            auto pick = std::find_if(words.begin(), words.end(),
+                                     [&](const EnglishWord& w) { return w.text == pool.learned_pick; });
+            if (pick != words.end()) {
+                std::rotate(words.begin(), pick, pick + 1);
+                recommended = true;
+            }
+        }
         if (recommended && !words.empty() && words.front().text == typed)
             result.entries.front().candidate.recommended = true;  // the pick is what was typed
         int shown = 0;
+        int corrections = 0;
         for (size_t i = 0; i < words.size(); ++i) {
             const auto& w = words[i];
             if (static_cast<int>(result.entries.size()) >= page_size || shown >= ec.completion_count) break;
             if (w.text == typed) continue;  // already first
+            if (w.corrected && corrections >= ec.correction_count) continue;
             result.entries.push_back(make_english_entry(w.text, typed, w.score));
             result.entries.back().candidate.recommended = recommended && i == 0;
+            if (w.corrected) {
+                ++corrections;
+                english_corrections_shown_.push_back(w.text);
+            }
             ++shown;
         }
     }
@@ -1167,6 +1187,34 @@ void Engine::refresh_english_candidates() {
     result.extent = make_candidate_extent(n, n, false);
     result.highlighted = 0;
     context_.update_translation(std::move(result));
+}
+
+void Engine::learn_english_commit(const std::string& typed, const std::string& committed) {
+    if (!runtime_ || !runtime_->config().candidate_learning) return;
+    const std::shared_ptr<EnglishLearning> learning = EnglishLearning::shared();
+    const std::shared_ptr<const EnglishLexicon> lexicon = EnglishLexicon::shared();
+    if (!learning || !lexicon) return;
+    auto lower = [](std::string s) {
+        for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        return s;
+    };
+    if (lower(committed) == lower(typed)) {
+        // The typed text as it is (or a learned word in its own case, e.g. useState).
+        learning->record_kept(committed,
+                              english_common_word(*lexicon, committed, runtime_->config().english));
+        return;
+    }
+    if (std::find(english_corrections_shown_.begin(), english_corrections_shown_.end(), committed) ==
+        english_corrections_shown_.end()) {
+        return;  // an ordinary completion
+    }
+    // Learn the dictionary form of the correction (the shown text is in the typed case).
+    for (const auto& w : lexicon->lookup(committed, 4, 0, true)) {
+        if (w.exact && lower(w.text) == lower(committed)) {
+            learning->record_correction(typed, w.text);
+            return;
+        }
+    }
 }
 
 ProcessResult Engine::commit_english(std::string text) {
@@ -1226,11 +1274,14 @@ std::optional<ProcessResult> Engine::process_english_key(const KeyEvent& event, 
         english_composing_ = false;
         return ProcessResult::ACCEPTED;
     case VK_RETURN:
+        learn_english_commit(typed, typed);
         return commit_english(typed);
     case VK_SPACE: {
         const int h = (std::max)(0, context_.translation().highlighted);
         const CandidateEntry* entry = context_.candidate_entry(h);
-        return commit_english((entry ? entry->candidate.text : typed) + " ");
+        const std::string word = entry ? entry->candidate.text : typed;
+        learn_english_commit(typed, word);
+        return commit_english(word + " ");
     }
     case VK_TAB:
         if (event.is_shift()) {
@@ -1264,12 +1315,18 @@ std::optional<ProcessResult> Engine::process_english_key(const KeyEvent& event, 
     // word, commit the word first with Space.
     if (vk >= '1' && vk <= '9' && !event.is_shift()) {
         const CandidateEntry* entry = context_.candidate_entry(static_cast<int>(vk - '1'));
-        if (entry) return commit_english(entry->candidate.text);
+        if (entry) {
+            learn_english_commit(typed, entry->candidate.text);
+            return commit_english(entry->candidate.text);
+        }
         return ProcessResult::ACCEPTED;
     }
     // Any other printable key (punctuation, 0, numpad, shifted digits): commit the typed text
     // and the character, so ordinary English typing is never blocked.
-    if (auto ch = normalize_ascii_key(event)) return commit_english(typed + *ch);
+    if (auto ch = normalize_ascii_key(event)) {
+        learn_english_commit(typed, typed);
+        return commit_english(typed + *ch);
+    }
     return ProcessResult::ACCEPTED;  // other non-text keys are ignored while a word is open
 }
 

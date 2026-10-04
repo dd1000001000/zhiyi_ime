@@ -29,6 +29,9 @@
     "general.page_size": "Candidates:",
     "general.language": "Language:",
     "general.follow_system": "System default",
+    "general.english": "English words:",
+    "general.english_correction": "Spelling correction",
+    "general.english_correction_hint": "Misspelled words get their correct spelling as a candidate; the first candidate stays what you typed",
 
     "fuzzy.enable": "Enable fuzzy pinyin",
     "fuzzy.hint": "Words with a similar sound are offered too, with their correct pinyin in parentheses, e.g. 中国(zhong guo)",
@@ -44,7 +47,7 @@
     "keys.conflict": "The style switch key is the same as the global \"switch to Zhiyi IME\" shortcut. Please choose another key.",
 
     "dictionary.learning": "Self-learning",
-    "dictionary.learning_hint": "Words you pick often move up, and new words you type are remembered",
+    "dictionary.learning_hint": "Words you pick often move up and new words are remembered; in English, the corrections you pick and the words you keep as typed",
     "dictionary.clear": "Clear learning data",
     "dictionary.clear_confirm": "Clear all learning data?\n\nThe learned candidate order and remembered words will be deleted. This cannot be undone.",
     "dictionary.clear_done": "Learning data cleared.",

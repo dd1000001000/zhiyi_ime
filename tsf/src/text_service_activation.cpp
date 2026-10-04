@@ -2,6 +2,7 @@
 
 #include "text_service.h"
 
+#include <iterator>
 #include <new>
 
 #include <cxxime/logging.h>
@@ -206,6 +207,7 @@ void TextService::_initialize_optional_activation_services() {
     cxxime_tsf::trace_activation_step("display_attribute", "complete", display_attribute_hr,
                                             false);
 
+    _register_switch_keys();
 
     cxxime_tsf::trace_activation_step("conversion_sink", "attempt", S_OK, false);
     _register_conversion_compartment_sink();
@@ -317,6 +319,61 @@ HRESULT TextService::_unregister_key_event_sink() {
     HRESULT hr = pKeystrokeMgr->UnadviseKeyEventSink(_clientId);
     pKeystrokeMgr->Release();
     return hr;
+}
+
+void TextService::_register_switch_keys() {
+    _unregister_switch_keys();
+    if (!_threadMgr) return;
+    ITfKeystrokeMgr* keystroke_mgr = nullptr;
+    if (FAILED(_threadMgr->QueryInterface(IID_ITfKeystrokeMgr,
+                                          reinterpret_cast<void**>(&keystroke_mgr)))) {
+        return;
+    }
+    const struct {
+        const GUID* guid;
+        cxxime::KeyboardShortcut key;
+        const wchar_t* description;
+    } keys[] = {
+        {&c_guidPreservedKeyAsciiToggle, _config.ascii_toggle_shortcut, L"Chinese/English"},
+        {&c_guidPreservedKeyStyle, _config.english_style_shortcut, L"Input style"},
+        {&c_guidPreservedKeyPunct, _config.punct_toggle_shortcut, L"Punctuation"},
+        {&c_guidPreservedKeyShape, _config.shape_toggle_shortcut, L"Full/half width"},
+    };
+    for (size_t i = 0; i < std::size(keys); ++i) {
+        if (!keys[i].key.enabled()) continue;
+        TF_PRESERVEDKEY preserved = {};
+        preserved.uVKey = keys[i].key.virtual_key;
+        if (keys[i].key.modifiers & cxxime::kKeyModifierControl) preserved.uModifiers |= TF_MOD_CONTROL;
+        if (keys[i].key.modifiers & cxxime::kKeyModifierAlt) preserved.uModifiers |= TF_MOD_ALT;
+        if (keys[i].key.modifiers & cxxime::kKeyModifierShift) preserved.uModifiers |= TF_MOD_SHIFT;
+        if (SUCCEEDED(keystroke_mgr->PreserveKey(_clientId, *keys[i].guid, &preserved,
+                                                 keys[i].description,
+                                                 static_cast<ULONG>(wcslen(keys[i].description))))) {
+            _preservedSwitchKeys[i] = keys[i].key;
+        }
+    }
+    keystroke_mgr->Release();
+}
+
+void TextService::_unregister_switch_keys() {
+    ITfKeystrokeMgr* keystroke_mgr = nullptr;
+    if (_threadMgr && SUCCEEDED(_threadMgr->QueryInterface(
+                          IID_ITfKeystrokeMgr, reinterpret_cast<void**>(&keystroke_mgr)))) {
+        const GUID* guids[] = {&c_guidPreservedKeyAsciiToggle, &c_guidPreservedKeyStyle,
+                               &c_guidPreservedKeyPunct, &c_guidPreservedKeyShape};
+        for (size_t i = 0; i < std::size(guids); ++i) {
+            if (!_preservedSwitchKeys[i].enabled()) continue;
+            TF_PRESERVEDKEY preserved = {};
+            preserved.uVKey = _preservedSwitchKeys[i].virtual_key;
+            const uint32_t m = _preservedSwitchKeys[i].modifiers;
+            if (m & cxxime::kKeyModifierControl) preserved.uModifiers |= TF_MOD_CONTROL;
+            if (m & cxxime::kKeyModifierAlt) preserved.uModifiers |= TF_MOD_ALT;
+            if (m & cxxime::kKeyModifierShift) preserved.uModifiers |= TF_MOD_SHIFT;
+            keystroke_mgr->UnpreserveKey(*guids[i], &preserved);
+        }
+        keystroke_mgr->Release();
+    }
+    for (auto& key : _preservedSwitchKeys) key = {};
 }
 
 bool TextService::_register_display_attribute_atom() {

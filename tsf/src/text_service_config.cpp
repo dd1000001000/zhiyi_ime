@@ -83,6 +83,7 @@ void TextService::_apply_config_snapshot() {
     }
 
     _inputIndicator.set_status_visible(_config.status_window.enable);
+    _register_switch_keys();  // the switch keys may have changed
     if (_localCandidateWindow) {
         _localCandidateWindow->set_config(_config);
     }

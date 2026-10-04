@@ -258,6 +258,10 @@ private:
     void _synchronize_activation_focus();
     HRESULT _register_key_event_sink();
     HRESULT _unregister_key_event_sink();
+    // The configured switch shortcuts are preserved keys, so system hotkeys (such as the
+    // Chinese IME/non-IME toggle on Ctrl+Space) cannot take them first.
+    void _register_switch_keys();
+    void _unregister_switch_keys();
     HRESULT _register_thread_mgr_event_sink();
     HRESULT _register_thread_focus_sink();
     void _unregister_thread_sinks();
@@ -438,6 +442,8 @@ private:
     CandidateUIElement* _candidateUiElement = nullptr;
     ReadingUIElement* _readingUiElement = nullptr;
     cxxime::Config _config;
+    // Registered preserved switch keys, in c_guidPreservedKey* order (disabled when unset).
+    cxxime::KeyboardShortcut _preservedSwitchKeys[4] = {};
     std::unique_ptr<cxxime::CandidateWindow> _localCandidateWindow;
     std::uint64_t _localCandidatePlacementTargetGeneration = 0;
     cxxime::ConfigGeneration _configGeneration;

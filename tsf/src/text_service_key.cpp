@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <iterator>
 
 #include <cxxime/diagnostics_config.h>
 #include <cxxime/logging.h>
@@ -416,11 +417,23 @@ bool TextService::_ProcessKeyUp(WPARAM wParam, LPARAM lParam) {
     return handled;
 }
 
-// No preserved keys are registered: the switch shortcuts are configurable and matched by the
-// engine.
-STDMETHODIMP TextService::OnPreservedKey(ITfContext*, REFGUID, BOOL* pfEaten) {
-    if (pfEaten) {
-        *pfEaten = FALSE;
+// A configured switch key: handled like any key down (the engine matches the shortcut); not
+// eaten when the engine does not use it (e.g. the style key in Wubi mode).
+STDMETHODIMP TextService::OnPreservedKey(ITfContext* pic, REFGUID rguid, BOOL* pfEaten) {
+    if (!pfEaten) {
+        return E_INVALIDARG;
+    }
+    *pfEaten = FALSE;
+    const GUID* keys[] = {&c_guidPreservedKeyAsciiToggle, &c_guidPreservedKeyStyle,
+                          &c_guidPreservedKeyPunct, &c_guidPreservedKeyShape};
+    for (size_t i = 0; i < std::size(keys); ++i) {
+        if (IsEqualGUID(rguid, *keys[i]) && _preservedSwitchKeys[i].enabled()) {
+            BOOL eaten = FALSE;
+            *pfEaten = _ProcessKeyEvent(pic, _preservedSwitchKeys[i].virtual_key, 0, &eaten)
+                           ? TRUE
+                           : FALSE;
+            break;
+        }
     }
     return S_OK;
 }

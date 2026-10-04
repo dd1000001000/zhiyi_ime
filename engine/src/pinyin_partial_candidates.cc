@@ -347,6 +347,11 @@ void append_pinyin_partial_candidates(Dict& dict,
             span_scan_budget_truncated = true;
         }
         for (auto& candidate : candidates) {
+            if (pinyin_query_policy.initials_only &&
+                !pinyin_matches_initials(request.input.substr(0, boundary.consumed),
+                                         candidate.syllables)) {
+                continue;
+            }
             if (!dict.is_system_entry_disabled(candidate.text)) {
                 merge_or_append_partial(partials, std::move(candidate), boundary.consumed,
                                         lookup_key, shuangpin,
@@ -361,6 +366,10 @@ void append_pinyin_partial_candidates(Dict& dict,
                 lookup_key, static_cast<int>(limits.max_candidates_per_range),
                 effective_budget, nullptr, &user_stats);
             for (auto& candidate : user_candidates) {
+                if (pinyin_query_policy.initials_only &&
+                    !pinyin_matches_initials(lookup_key, candidate.syllables)) {
+                    continue;
+                }
                 merge_or_append_partial(partials, std::move(candidate), boundary.consumed,
                                         lookup_key, shuangpin,
                                         request.input.size());

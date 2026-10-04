@@ -1,4 +1,6 @@
 // Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
+//
+// Modified by Zhiyi IME Contributors: translated strings, project links.
 
 #include "editor_app.h"
 
@@ -13,18 +15,18 @@ namespace cxxime {
 namespace settings {
 namespace {
 
-constexpr int kGiteeLinkId = 5002;
-constexpr int kGitHubLinkId = 5003;
+constexpr int kProjectLinkId = 5002;
+constexpr int kUpstreamLinkId = 5003;
 constexpr UINT kCopyLinkCommand = 1;
-constexpr wchar_t kGiteeUrl[] = L"https://gitee.com/shadowyuan/cxx-ime";
-constexpr wchar_t kGitHubUrl[] = L"https://github.com/deanxyuan/cxx-ime";
+constexpr wchar_t kProjectUrl[] = L"https://github.com/dd1000001000/zhiyi_ime";
+constexpr wchar_t kUpstreamUrl[] = L"https://github.com/deanxyuan/cxx-ime";
 
 const wchar_t* about_link_url(UINT_PTR control_id) {
     switch (control_id) {
-    case kGiteeLinkId:
-        return kGiteeUrl;
-    case kGitHubLinkId:
-        return kGitHubUrl;
+    case kProjectLinkId:
+        return kProjectUrl;
+    case kUpstreamLinkId:
+        return kUpstreamUrl;
     default:
         return nullptr;
     }
@@ -37,7 +39,6 @@ LRESULT CALLBACK AboutLinkProc(HWND window, UINT message, WPARAM wparam, LPARAM 
         if (!url) {
             return 0;
         }
-
         POINT position = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         if (position.x == -1 && position.y == -1) {
             RECT rect = {};
@@ -45,18 +46,17 @@ LRESULT CALLBACK AboutLinkProc(HWND window, UINT message, WPARAM wparam, LPARAM 
             position.x = rect.left;
             position.y = rect.bottom;
         }
-
         HWND owner = GetAncestor(window, GA_ROOT);
         HMENU menu = CreatePopupMenu();
         if (!menu) {
             return 0;
         }
-        AppendMenuW(menu, MF_STRING, kCopyLinkCommand, L"复制链接");
-        UINT command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
-                                      position.x, position.y, 0, owner, nullptr);
+        AppendMenuW(menu, MF_STRING, kCopyLinkCommand, tr("about.copy_link"));
+        const UINT command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
+                                            position.x, position.y, 0, owner, nullptr);
         DestroyMenu(menu);
         if (command == kCopyLinkCommand && !copy_text_to_clipboard(owner, url)) {
-            MessageBoxW(owner, L"复制链接失败。", L"知意输入法", MB_OK | MB_ICONERROR);
+            MessageBoxW(owner, tr("about.copy_failed"), tr("app.name"), MB_OK | MB_ICONERROR);
         }
         return 0;
     }
@@ -70,41 +70,36 @@ LRESULT CALLBACK AboutLinkProc(HWND window, UINT message, WPARAM wparam, LPARAM 
 
 void EditorApp::create_about_panel(HWND panel, int panel_width) {
     const int top = kPanelPadTop;
-    SetWindowSubclass(panel, PanelForwardProc, 5000, reinterpret_cast<DWORD_PTR>(hwnd_));
+    const int width = panel_width - kPanelPadLeft - S(8);
     hAboutTitleFont_ = CreateFontW(-S(kFontPt + 2), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                    DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                    CLEARTYPE_QUALITY, 0, L"Microsoft YaHei UI");
-    auto make_about_text = [&](const wchar_t* text, int y, int height, HFONT font) {
-        HWND control = CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_LEFT,
-                                       kPanelPadLeft, y, panel_width - kPanelPadLeft - S(8), height,
-                                       panel, nullptr, GetModuleHandle(nullptr), nullptr);
+    auto make_text = [&](const std::wstring& text, int y, int height, HFONT font) {
+        HWND control = CreateWindowExW(0, L"STATIC", text.c_str(), WS_CHILD | WS_VISIBLE | SS_LEFT,
+                                       kPanelPadLeft, y, width, height, panel, nullptr,
+                                       GetModuleHandle(nullptr), nullptr);
         SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
         return control;
     };
-    hAboutTitle_ = make_about_text(L"知意输入法", top, S(28), hAboutTitleFont_);
-    make_about_text(L"版本 " CXXIME_VERSION_WSTRING L" — GPL-3.0", top + kRowH, kCtrlH,
-                    get_font());
-    make_about_text(L"轻量 · 开源 · 懂上文的中英文输入法（Zhiyi IME）", top + kRowH * 2, kCtrlH,
-                    get_font());
-    HWND gitee_link = CreateWindowExW(
-        0, WC_LINK,
-        L"基于 CxxIME 修改（Apache License 2.0），原项目：",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP, kPanelPadLeft, top + kRowH * 3,
-        panel_width - kPanelPadLeft - S(8), kCtrlH, panel,
-        reinterpret_cast<HMENU>(static_cast<INT_PTR>(kGiteeLinkId)), GetModuleHandle(nullptr),
-        nullptr);
-    SendMessageW(gitee_link, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
-    SetWindowSubclass(gitee_link, AboutLinkProc, kGiteeLinkId, 0);
-    HWND github_link = CreateWindowExW(
-        0, WC_LINK,
-        L"<a "
-        L"href=\"https://github.com/deanxyuan/cxx-ime\">https://github.com/deanxyuan/cxx-ime</a>",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP, kPanelPadLeft, top + kRowH * 4,
-        panel_width - kPanelPadLeft - S(8), kCtrlH, panel,
-        reinterpret_cast<HMENU>(static_cast<INT_PTR>(kGitHubLinkId)), GetModuleHandle(nullptr),
-        nullptr);
-    SendMessageW(github_link, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
-    SetWindowSubclass(github_link, AboutLinkProc, kGitHubLinkId, 0);
+    auto make_link = [&](int id, const wchar_t* url, int y) {
+        const std::wstring markup = std::wstring(L"<a href=\"") + url + L"\">" + url + L"</a>";
+        HWND link = CreateWindowExW(0, WC_LINK, markup.c_str(), WS_CHILD | WS_VISIBLE | WS_TABSTOP,
+                                    kPanelPadLeft, y, width, kCtrlH, panel,
+                                    reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
+                                    GetModuleHandle(nullptr), nullptr);
+        SendMessageW(link, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
+        SetWindowSubclass(link, AboutLinkProc, id, 0);
+    };
+
+    hAboutTitle_ = make_text(tr("app.name"), top, S(28), hAboutTitleFont_);
+    make_text(std::wstring(tr("about.version")) + L" " CXXIME_VERSION_WSTRING L" · GPL-3.0",
+              top + kRowH, kCtrlH, get_font());
+    make_text(tr("about.tagline"), top + kRowH * 2, kCtrlH, get_font());
+    // Label and link on separate lines, so long labels in any language fit.
+    make_text(tr("about.project"), top + kRowH * 3, kCtrlH, get_font());
+    make_link(kProjectLinkId, kProjectUrl, top + kRowH * 4 - S(6));
+    make_text(tr("about.based_on"), top + kRowH * 5, kCtrlH, get_font());
+    make_link(kUpstreamLinkId, kUpstreamUrl, top + kRowH * 6 - S(6));
 }
 
 bool EditorApp::handle_about_notify(LPARAM notification) {
@@ -113,11 +108,10 @@ bool EditorApp::handle_about_notify(LPARAM notification) {
     if (!url) {
         return false;
     }
-
     if (header->code == NM_CLICK || header->code == NM_RETURN) {
         HINSTANCE result = ShellExecuteW(hwnd_, L"open", url, nullptr, nullptr, SW_SHOWNORMAL);
         if (reinterpret_cast<INT_PTR>(result) <= 32) {
-            MessageBoxW(hwnd_, L"无法打开项目主页。", L"知意输入法", MB_OK | MB_ICONERROR);
+            MessageBoxW(hwnd_, tr("about.open_failed"), tr("app.name"), MB_OK | MB_ICONERROR);
         }
         return true;
     }

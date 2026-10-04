@@ -107,69 +107,6 @@ TEST(PinyinRuntime, factory_rejects_mismatched_resource_and_dictionary_identity)
     DeleteFileA(spellings_path.c_str());
 }
 
-TEST(PinyinRuntime, shared_resources_keep_fuzzy_policy_per_engine) {
-    const std::string dict_path = runtime_temp_path("pdf");
-    const std::string spellings_path = runtime_temp_path("psf");
-    ASSERT_TRUE(cxxime::Dict::create_test_dict(dict_path,
-                                               {{"zong", "exact", 100}, {"zhong", "fuzzy", 1000}}));
-    ASSERT_TRUE(cxxime::SpellingsIndex::create_test_trie(
-        spellings_path, {{"zong", "zong", cxxime::kNormalSpelling, 0.0f},
-                         {"zong", "zhong", cxxime::kFuzzySpelling, -0.5f}}));
-
-    auto pinyin_dict = std::make_shared<cxxime::Dict>(cxxime::UserDictKind::PINYIN);
-    ASSERT_TRUE(pinyin_dict->open_dict(dict_path));
-    auto pinyin_resources = cxxime::PinyinResourceSet::create(
-        "full_pinyin", cxxime::PinyinSchemeKind::kFullPinyin, spellings_path);
-    ASSERT_TRUE(pinyin_resources != nullptr);
-
-    cxxime::Config fuzzy_config;
-    fuzzy_config.page_size = 10;
-    cxxime::Config exact_config = fuzzy_config;
-    exact_config.fuzzy_pinyin = false;
-    cxxime::Engine fuzzy_engine;
-    cxxime::Engine exact_engine;
-    ASSERT_TRUE(fuzzy_engine.initialize(
-        cxxime::EngineRuntimeState::create(fuzzy_config, pinyin_dict, nullptr, pinyin_resources)));
-    ASSERT_TRUE(exact_engine.initialize(
-        cxxime::EngineRuntimeState::create(exact_config, pinyin_dict, nullptr, pinyin_resources)));
-
-    fuzzy_engine.set_query_deadline_ms(0);
-    exact_engine.set_query_deadline_ms(0);
-    std::atomic<int> ready{0};
-    bool fuzzy_ok = true;
-    bool exact_ok = true;
-    auto query = [&](cxxime::Engine& engine, bool expect_fuzzy, bool& ok) {
-        for (int round = 0; round < 128; ++round) {
-            engine.clear();
-            engine.clear_query_cache();
-            ready.fetch_add(1);
-            while (ready.load() < (round + 1) * 2) {
-                std::this_thread::yield();
-            }
-            for (char character : std::string("zong")) {
-                cxxime::KeyEvent event;
-                event.keycode = static_cast<uint32_t>(character - 'a' + 'A');
-                ok = (engine.process_key(event) == cxxime::ProcessResult::ACCEPTED) && ok;
-            }
-            ok = has_candidate(engine, "exact") &&
-                 (has_candidate(engine, "fuzzy") == expect_fuzzy) && ok;
-        }
-    };
-    std::thread fuzzy_worker([&]() { query(fuzzy_engine, true, fuzzy_ok); });
-    std::thread exact_worker([&]() { query(exact_engine, false, exact_ok); });
-    fuzzy_worker.join();
-    exact_worker.join();
-    ASSERT_TRUE(fuzzy_ok);
-    ASSERT_TRUE(exact_ok);
-
-    fuzzy_engine.finalize();
-    exact_engine.finalize();
-    pinyin_dict->close();
-    pinyin_resources.reset();
-    DeleteFileA(dict_path.c_str());
-    DeleteFileA(spellings_path.c_str());
-}
-
 TEST(PinyinRuntime, composition_presentation_uses_the_query_fuzzy_policy) {
     const std::string spellings_path = runtime_temp_path("ppf");
     ASSERT_TRUE(cxxime::SpellingsIndex::create_test_trie(
@@ -206,30 +143,6 @@ TEST(PinyinRuntime, standalone_full_pinyin_without_spellings_uses_static_segment
     ASSERT_EQ(engine.get_commit_text(), "hello");
     engine.finalize();
     ASSERT_TRUE(DeleteFileA(dict_path.c_str()));
-}
-
-TEST(PinyinRuntime, standalone_shuangpin_without_spellings_fails_for_every_scheme) {
-    const std::string directory = runtime_temp_path("psm");
-    ASSERT_TRUE(DeleteFileA(directory.c_str()));
-    ASSERT_TRUE(CreateDirectoryA(directory.c_str(), nullptr));
-    const std::string dict_path = directory + "\\pinyin.dict.bin";
-    const std::string config_path = directory + "\\config.json";
-    ASSERT_TRUE(cxxime::Dict::create_test_dict(dict_path, {{"ni:hao", "hello", 100}}));
-    for (const char* scheme :
-         {"microsoft_shuangpin", "xiaohe_shuangpin", "ziranma_shuangpin", "sogou_shuangpin"}) {
-        cxxime::Config config;
-        config.pinyin_scheme = scheme;
-        {
-            std::ofstream output(config_path);
-            output << config.to_runtime_json();
-            ASSERT_TRUE(output.good());
-        }
-        cxxime::Engine engine;
-        ASSERT_TRUE(!engine.initialize(dict_path, config_path)) << scheme;
-    }
-    ASSERT_TRUE(DeleteFileA(config_path.c_str()));
-    ASSERT_TRUE(DeleteFileA(dict_path.c_str()));
-    ASSERT_TRUE(RemoveDirectoryA(directory.c_str()));
 }
 
 TEST(PinyinRuntime, engine_keeps_owned_dependencies_until_runtime_replacement_or_finalization) {

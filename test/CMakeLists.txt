@@ -47,7 +47,6 @@ add_cxxime_test(engine_test
         engine/pinyin_runtime_test.cc
         engine/pinyin_scheme_test.cc
         engine/pinyin_user_code_test.cc
-        engine/shuangpin_test.cc
         engine/engine_deadline_test.cc
         engine/composition_state_test.cc
         engine/user_data_merge_test.cc
@@ -258,34 +257,13 @@ add_cxxime_test(output_composer_test
     DEPS cxxime-engine
 )
 add_cxxime_test(engine_source_test SOURCES engine/engine_source_test.cc DEPS cxxime-engine)
+add_cxxime_test(input_style_test SOURCES engine/input_style_test.cc DEPS cxxime-engine)
 add_cxxime_test(symbol_input_test SOURCES engine/symbol_input_test.cc DEPS cxxime-engine)
 add_cxxime_test(symbol_table_test SOURCES engine/symbol_table_test.cc DEPS cxxime-engine)
-add_cxxime_test(system_lexicon_inspector_test
-    SOURCES settings/system_lexicon_inspector_test.cc
-    DEPS cxxime-engine cxxime-shared
-)
-target_sources(system_lexicon_inspector_test PRIVATE
-    ${CMAKE_SOURCE_DIR}/settings/pinyin_code_paths.cc
-    ${CMAKE_SOURCE_DIR}/settings/system_lexicon_inspector.cc
-)
-target_include_directories(system_lexicon_inspector_test PRIVATE
-    ${CMAKE_SOURCE_DIR}/settings
-)
-add_cxxime_test(lexicon_panel_model_test
-    SOURCES settings/lexicon_panel_model_test.cc
-    DEPS cxxime-engine cxxime-shared
-)
-target_sources(lexicon_panel_model_test PRIVATE
-    ${CMAKE_SOURCE_DIR}/settings/lexicon_panel_model.cc
-)
-target_include_directories(lexicon_panel_model_test PRIVATE
-    ${CMAKE_SOURCE_DIR}/settings
-)
 add_cxxime_test(wubi_engine_test
     SOURCES
         engine/wubi_engine_test.cc
         engine/wubi_engine_input_test.cc
-        engine/wubi_engine_mixed_test.cc
     DEPS cxxime-engine cxxime-test-wubi-index-data
 )
 add_cxxime_test(processor_pagination_test
@@ -352,7 +330,6 @@ add_cxxime_test(session_manager_integration_test
         server/session_manager_candidate_test.cc
         server/ipc_response_builder_test.cc
         server/session_manager_segmented_test.cc
-        server/session_manager_pinyin_scheme_test.cc
         server/session_manager_lexicon_test.cc
         server/session_manager_lifecycle_test.cc
         server/user_backup_service_test.cc
@@ -424,73 +401,6 @@ if(Python3_FOUND)
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/data/pinyin_topn_pipeline_test.py
                 --topn-builder $<TARGET_FILE:topn_builder>
-    )
-    add_test(
-        NAME pinyin_spelling_schema_test
-        COMMAND ${Python3_EXECUTABLE}
-                ${CMAKE_CURRENT_SOURCE_DIR}/data/pinyin_spelling_schema_test.py
-    )
-    set(SHUANGPIN_SCHEMA_FIXTURE
-        ${CMAKE_CURRENT_BINARY_DIR}/generated/pinyin.synthetic.spellings.bin
-    )
-    add_custom_command(
-        OUTPUT ${SHUANGPIN_SCHEMA_FIXTURE}
-        COMMAND ${Python3_EXECUTABLE}
-                ${CMAKE_CURRENT_SOURCE_DIR}/data/generate_shuangpin_schema_fixture.py
-                --schema
-                ${CMAKE_CURRENT_SOURCE_DIR}/data/pinyin.synthetic-shuangpin.schema.json
-                --syllable ni
-                --syllable hao
-                --output ${SHUANGPIN_SCHEMA_FIXTURE}
-        DEPENDS
-            ${CMAKE_CURRENT_SOURCE_DIR}/data/generate_shuangpin_schema_fixture.py
-            ${CMAKE_CURRENT_SOURCE_DIR}/data/pinyin.synthetic-shuangpin.schema.json
-            ${CMAKE_SOURCE_DIR}/data/tools/generate_pinyin_spellings.py
-            ${CMAKE_SOURCE_DIR}/data/tools/dict_builder/pinyin_spellings.py
-        VERBATIM
-    )
-    set(PRODUCTION_SHUANGPIN_SCHEMES microsoft xiaohe ziranma sogou)
-    set(PRODUCTION_SHUANGPIN_SCHEMA_FIXTURES)
-    foreach(SCHEME IN LISTS PRODUCTION_SHUANGPIN_SCHEMES)
-        string(TOUPPER ${SCHEME} SCHEME_UPPER)
-        set(${SCHEME_UPPER}_SHUANGPIN_SCHEMA_FIXTURE
-            ${CMAKE_CURRENT_BINARY_DIR}/generated/pinyin.${SCHEME}-shuangpin.spellings.bin
-        )
-        add_custom_command(
-            OUTPUT ${${SCHEME_UPPER}_SHUANGPIN_SCHEMA_FIXTURE}
-            COMMAND ${Python3_EXECUTABLE}
-                    ${CMAKE_CURRENT_SOURCE_DIR}/data/generate_shuangpin_schema_fixture.py
-                    --schema
-                    ${CMAKE_SOURCE_DIR}/data/schemas/pinyin.${SCHEME}-shuangpin.schema.json
-                    --dictionary-archive ${CMAKE_SOURCE_DIR}/data/pinyin.dict.db.zip
-                    --output ${${SCHEME_UPPER}_SHUANGPIN_SCHEMA_FIXTURE}
-            DEPENDS
-                ${CMAKE_CURRENT_SOURCE_DIR}/data/generate_shuangpin_schema_fixture.py
-                ${CMAKE_SOURCE_DIR}/data/schemas/pinyin.${SCHEME}-shuangpin.schema.json
-                ${CMAKE_SOURCE_DIR}/data/pinyin.dict.db.zip
-                ${CMAKE_SOURCE_DIR}/data/tools/generate_pinyin_spellings.py
-                ${CMAKE_SOURCE_DIR}/data/tools/dict_builder/pinyin_spellings.py
-            VERBATIM
-        )
-        list(APPEND PRODUCTION_SHUANGPIN_SCHEMA_FIXTURES
-            ${${SCHEME_UPPER}_SHUANGPIN_SCHEMA_FIXTURE}
-        )
-    endforeach()
-    add_custom_target(shuangpin_schema_fixture DEPENDS
-        ${SHUANGPIN_SCHEMA_FIXTURE}
-        ${PRODUCTION_SHUANGPIN_SCHEMA_FIXTURES}
-    )
-    add_cxxime_test(shuangpin_schema_runtime_test
-        SOURCES engine/shuangpin_schema_runtime_test.cc
-        DEPS cxxime-engine
-    )
-    add_dependencies(shuangpin_schema_runtime_test shuangpin_schema_fixture)
-    target_compile_definitions(shuangpin_schema_runtime_test PRIVATE
-        CXXIME_SYNTHETIC_SHUANGPIN_PATH="${SHUANGPIN_SCHEMA_FIXTURE}"
-        CXXIME_MICROSOFT_SHUANGPIN_PATH="${MICROSOFT_SHUANGPIN_SCHEMA_FIXTURE}"
-        CXXIME_XIAOHE_SHUANGPIN_PATH="${XIAOHE_SHUANGPIN_SCHEMA_FIXTURE}"
-        CXXIME_ZIRANMA_SHUANGPIN_PATH="${ZIRANMA_SHUANGPIN_SCHEMA_FIXTURE}"
-        CXXIME_SOGOU_SHUANGPIN_PATH="${SOGOU_SHUANGPIN_SCHEMA_FIXTURE}"
     )
     find_program(POWERSHELL_EXECUTABLE powershell)
     if(POWERSHELL_EXECUTABLE)

@@ -451,7 +451,8 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
         response.key_handled =
             r.result == cxxime::ProcessResult::SWITCH_INPUT_MODE ||
             r.result == cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED ||
-            r.result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE;
+            r.result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE ||
+            r.result == cxxime::ProcessResult::TOGGLE_PINYIN_STYLE;
 
         if (r.status == cxxime::IPCStatus::OK &&
             r.result == cxxime::ProcessResult::REJECTED) {

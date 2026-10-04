@@ -86,6 +86,9 @@ public:
     // English mode style: word completion (true) or letter-by-letter input (false).
     void set_english_word_mode(bool enabled) { english_word_mode_ = enabled; }
     bool english_word_mode() const { return english_word_mode_; }
+    // Pinyin style: full pinyin (false) or initials only (true). Rebuilds the pinyin pipeline.
+    void set_pinyin_initials(bool enabled);
+    bool pinyin_initials() const { return pinyin_initials_; }
 
     static std::string derive_spellings_path(const std::string& dict_path);
 
@@ -128,6 +131,7 @@ private:
     ProcessResult commit_english(std::string text);
     bool english_composing_ = false;
     bool english_word_mode_ = true;
+    bool pinyin_initials_ = false;
     KeyboardShortcut english_style_shortcut_;
 
     std::shared_ptr<const EngineRuntimeState> runtime_;
@@ -142,7 +146,6 @@ private:
     // Input mode
     InputMode mode_ = InputMode::PINYIN;
     TranslationPolicy translation_policy_;
-    KeyboardShortcut input_mode_switch_shortcut_;
     uint32_t handled_shortcut_key_ = 0;
 
     // Query trace (explicit ownership, not thread_local - see TraceContext constraints)

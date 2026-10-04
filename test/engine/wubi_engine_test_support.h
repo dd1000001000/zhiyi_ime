@@ -14,7 +14,6 @@
 
 #include <cxxime/engine.h>
 #include <cxxime/input_limits.h>
-#include <cxxime/mixed_translator.h>
 #include <cxxime/syllabifier.h>
 #include <cxxime/wubi_processor.h>
 #include <cxxime/wubi_translator.h>

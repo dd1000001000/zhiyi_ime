@@ -10,7 +10,6 @@
 #include <windows.h>
 
 #include <cxxime/dict.h>
-#include <cxxime/mixed_translator.h>
 #include <cxxime/short_code_cache.h>
 #include <cxxime/spellings_index.h>
 #include <cxxime/syllabifier.h>
@@ -226,63 +225,6 @@ TEST(DisabledSystemLexicon, pinyin_cache_and_learned_fallback_cannot_restore_dis
     dictionary.close();
     DeleteFileA(dictionary_path.c_str());
     DeleteFileA(disabled_path.c_str());
-    DeleteFileA(topn_path.c_str());
-}
-
-TEST(DisabledSystemLexicon, input_method_scopes_are_independent_in_mixed_mode) {
-    const std::string pinyin_dict_path = make_temp_path("dsp");
-    const std::string wubi_dict_path = make_temp_path("dsw");
-    const std::string pinyin_disabled_path = make_temp_path("dsp");
-    const std::string wubi_disabled_path = make_temp_path("dsw");
-    const std::string topn_path = make_temp_path("dst");
-    ASSERT_TRUE(cxxime::Dict::create_test_dict(
-        pinyin_dict_path, {{"aa", "拼音字典", 100}, {"aa", "同文词", 100}}));
-    ASSERT_TRUE(cxxime::Dict::create_test_dict(wubi_dict_path, {{"aa", "同文词", 1000}}));
-    ASSERT_TRUE(cxxime::test::create_test_topn(
-        topn_path, pinyin_dict_path,
-        {{"aa", {make_candidate("同文词", cxxime::CandidateOrigin::kSystem)}}}));
-
-    cxxime::Dict pinyin_dictionary{cxxime::UserDictKind::PINYIN};
-    cxxime::Dict wubi_dictionary{cxxime::UserDictKind::WUBI};
-    ASSERT_TRUE(pinyin_dictionary.open_dict(pinyin_dict_path));
-    ASSERT_TRUE(wubi_dictionary.open_dict(wubi_dict_path));
-    ASSERT_TRUE(pinyin_dictionary.load_disabled_system_entries(pinyin_disabled_path));
-    ASSERT_TRUE(wubi_dictionary.load_disabled_system_entries(wubi_disabled_path));
-    ASSERT_TRUE(pinyin_dictionary.disable_system_entry("同文词"));
-
-    cxxime::ShortCodeCache cache;
-    ASSERT_TRUE(cache.load(topn_path, pinyin_dictionary.candidate_store()));
-    cxxime::MixedTranslator translator;
-    translator.set_pinyin_dict(&pinyin_dictionary);
-    translator.set_wubi_dict(&wubi_dictionary);
-    translator.set_short_cache(&cache);
-
-    const auto pinyin_disabled = translator.translate_page("aa", 0, 10);
-    const auto wubi_candidate =
-        std::find_if(pinyin_disabled.candidates.begin(), pinyin_disabled.candidates.end(),
-                     [](const auto& candidate) { return candidate.text == "同文词"; });
-    ASSERT_TRUE(wubi_candidate != pinyin_disabled.candidates.end());
-    ASSERT_EQ(wubi_candidate->source, cxxime::CandidateSource::kWubi);
-
-    ASSERT_TRUE(wubi_dictionary.disable_system_entry("同文词"));
-    const auto both_disabled = translator.translate_page("aa", 0, 10);
-    ASSERT_TRUE(!contains_text(both_disabled, "同文词"));
-
-    ASSERT_TRUE(pinyin_dictionary.restore_system_entry("同文词"));
-    const auto wubi_disabled = translator.translate_page("aa", 0, 10);
-    const auto pinyin_candidate =
-        std::find_if(wubi_disabled.candidates.begin(), wubi_disabled.candidates.end(),
-                     [](const auto& candidate) { return candidate.text == "同文词"; });
-    ASSERT_TRUE(pinyin_candidate != wubi_disabled.candidates.end());
-    ASSERT_EQ(pinyin_candidate->source, cxxime::CandidateSource::kPinyin);
-
-    cache.unload();
-    pinyin_dictionary.close();
-    wubi_dictionary.close();
-    DeleteFileA(pinyin_dict_path.c_str());
-    DeleteFileA(wubi_dict_path.c_str());
-    DeleteFileA(pinyin_disabled_path.c_str());
-    DeleteFileA(wubi_disabled_path.c_str());
     DeleteFileA(topn_path.c_str());
 }
 

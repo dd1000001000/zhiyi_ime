@@ -176,7 +176,8 @@ void PinyinTranslator::set_dict(Dict* dict) {
 void PinyinTranslator::bind_pinyin(std::shared_ptr<const PinyinResourceSet> resources,
                                    PinyinQueryPolicy policy) {
     if (pinyin_resources_ == resources &&
-        pinyin_query_policy_.enable_fuzzy == policy.enable_fuzzy) {
+        pinyin_query_policy_.enable_fuzzy == policy.enable_fuzzy &&
+        pinyin_query_policy_.initials_only == policy.initials_only) {
         return;
     }
     pinyin_resources_ = std::move(resources);
@@ -395,6 +396,19 @@ void PinyinTranslator::store_query_cache(const std::string& input, int page_inde
     query_cache_.push_back(std::move(entry));
 }
 
+void PinyinTranslator::keep_initials_matches(const std::string& pinyin,
+                                             std::vector<Candidate>& candidates) const {
+    if (!pinyin_query_policy_.initials_only) {
+        return;
+    }
+    candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
+                                    [&](const Candidate& candidate) {
+                                        return !pinyin_matches_initials(pinyin,
+                                                                        candidate.syllables);
+                                    }),
+                     candidates.end());
+}
+
 CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int page_index,
                                                int page_size, QueryTrace* trace,
                                                const QueryBudget* budget, QueryScratch* scratch,
@@ -457,6 +471,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     if (pinyin_scheme() == PinyinSchemeKind::kFullPinyin && is_indexable_key(pinyin)) {
         fast = lookup_indexed_fast(pinyin, need, trace);
         remove_oversized_candidates(fast.candidates);
+        keep_initials_matches(pinyin, fast.candidates);
         if (finish_complete_fast_path()) {
             return page;
         }
@@ -700,7 +715,8 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
 
     // If valid full-syllable paths have no dictionary continuation, retry with
     // terminal syllable completion (for example, "ji" -> "jie").
-    if (live_path_indices.empty() && pinyin_resources_ && !deadline_hit) {
+    if (live_path_indices.empty() && pinyin_resources_ && !deadline_hit &&
+        !pinyin_query_policy_.initials_only) {
         SyllabifierOptions completion_options;
         completion_options.enable_fuzzy = pinyin_query_policy_.enable_fuzzy;
         completion_options.enable_terminal_completion = true;
@@ -874,6 +890,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     }
 
     remove_oversized_candidates(sorted);
+    keep_initials_matches(pinyin, sorted);
 
     if (pinyin_scheme() == PinyinSchemeKind::kFullPinyin && candidate_learning_enabled_) {
         dict_->apply_candidate_preferences(pinyin, CandidateSource::kPinyin, sorted, need);
@@ -883,6 +900,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         composition_learning_) {
         auto learned = composition_learning_->lookup_candidates(pinyin, need);
         dict_->filter_disabled_system_candidates(learned);
+        keep_initials_matches(pinyin, learned);
         for (auto& candidate : learned) {
             merge_candidate_by_score(sorted, std::move(candidate));
         }

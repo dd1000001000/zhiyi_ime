@@ -89,54 +89,6 @@ TEST(PreeditEdit, wubi_supports_insert_delete_and_boundaries) {
     verify_insert_delete_and_boundaries<cxxime::WubiProcessor>();
 }
 
-TEST(PreeditEdit, mixed_mode_uses_the_edited_buffer) {
-    ASSERT_TRUE(temp_path_initialized);
-    const std::string pinyin_path = make_temp_path("preedit_edit_mixed_pinyin.bin");
-    const std::string wubi_path = make_temp_path("preedit_edit_mixed_wubi.bin");
-    ASSERT_TRUE(cxxime::Dict::create_test_dict(pinyin_path, {{"a", "pinyin", 100}}));
-    ASSERT_TRUE(cxxime::Dict::create_test_dict(wubi_path, {{"a", "wubi", 100}}));
-
-    auto pinyin_dict = std::make_shared<cxxime::Dict>(cxxime::UserDictKind::PINYIN);
-    auto wubi_dict = std::make_shared<cxxime::Dict>(cxxime::UserDictKind::WUBI);
-    ASSERT_TRUE(pinyin_dict->open(pinyin_path));
-    ASSERT_TRUE(wubi_dict->open(wubi_path));
-    cxxime::Config config;
-    config.page_size = 1;
-    config.wubi_auto_commit = false;
-    cxxime::Engine engine;
-    ASSERT_TRUE(test::initialize_engine(engine, pinyin_dict, config, {}, wubi_dict));
-    engine.switch_mode(cxxime::InputMode::MIXED);
-
-    ASSERT_EQ(engine.process_key(make_key('A')), cxxime::ProcessResult::ACCEPTED);
-    const size_t candidate_count_before = engine.context().candidate_page().candidates.size();
-    ASSERT_TRUE(candidate_count_before > 0);
-    ASSERT_EQ(engine.process_key(make_key(VK_NEXT)), cxxime::ProcessResult::ACCEPTED);
-    const int page_offset_before = engine.context().page_offset();
-    ASSERT_GT(page_offset_before, 0);
-    ASSERT_EQ(engine.process_key(make_key(VK_LEFT)), cxxime::ProcessResult::ACCEPTED);
-    ASSERT_EQ(engine.context().preedit_cursor(), static_cast<size_t>(0));
-    ASSERT_EQ(engine.context().page_offset(), page_offset_before);
-    ASSERT_EQ(engine.context().candidate_page().candidates.size(), candidate_count_before);
-    ASSERT_EQ(engine.last_trace().exact_scan_count, 0u);
-    ASSERT_EQ(engine.last_trace().prefix_scan_count, 0u);
-    ASSERT_EQ(engine.last_trace().user_scan_count, 0u);
-    ASSERT_EQ(engine.last_trace().mixed_scan_count, 0u);
-
-    ASSERT_EQ(engine.process_key(make_key(VK_END)), cxxime::ProcessResult::ACCEPTED);
-    ASSERT_EQ(engine.process_key(make_key('B')), cxxime::ProcessResult::ACCEPTED);
-    ASSERT_EQ(engine.process_key(make_key('C')), cxxime::ProcessResult::ACCEPTED);
-    ASSERT_EQ(engine.process_key(make_key(VK_LEFT)), cxxime::ProcessResult::ACCEPTED);
-    ASSERT_EQ(engine.process_key(make_key('X')), cxxime::ProcessResult::ACCEPTED);
-    ASSERT_EQ(engine.context().active_input(), "abxc");
-    ASSERT_EQ(engine.context().preedit_cursor(), static_cast<size_t>(3));
-
-    engine.finalize();
-    pinyin_dict->close();
-    wubi_dict->close();
-    DeleteFileA(pinyin_path.c_str());
-    DeleteFileA(wubi_path.c_str());
-}
-
 TEST(PreeditEdit, temporary_ascii_uses_the_same_cursor_operations) {
     cxxime::AsciiComposer composer;
     cxxime::Context context;

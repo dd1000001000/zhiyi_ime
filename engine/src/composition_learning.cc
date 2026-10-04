@@ -618,6 +618,29 @@ bool CompositionLearningService::merge_contents_and_save(const std::string& impo
     return true;
 }
 
+bool CompositionLearningService::clear_and_save() {
+    if (!freeze_and_stop()) {
+        start();
+        return false;
+    }
+    std::string path;
+    {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        path = impl_->path;
+    }
+    bool saved = false;
+    if (!path.empty()) {
+        try {
+            saved = impl_->write_callback(path, serialize_records(RecordMap{}));
+        } catch (...) {
+            saved = false;
+        }
+    }
+    const bool loaded = saved && load(path);
+    const bool started = start();
+    return loaded && started;
+}
+
 std::vector<Candidate> CompositionLearningService::lookup_candidates(const std::string& code,
                                                                      std::size_t limit) const {
     std::shared_ptr<const PublishedSnapshot> snapshot;

@@ -6,7 +6,6 @@
 #include <json.hpp>
 #include <cxxime/dict.h>
 #include <cxxime/context.h>
-#include <cxxime/mixed_translator.h>
 #include <cxxime/processor.h>
 #include <cxxime/query_budget.h>
 #include <cxxime/query_scratch.h>
@@ -258,11 +257,6 @@ public:
         pinyin_.set_short_cache(&pinyin_dict_.short_cache());
 
         wubi_.set_dict(&wubi_dict_);
-
-        mixed_.set_pinyin_dict(&pinyin_dict_);
-        mixed_.set_wubi_dict(&wubi_dict_);
-        mixed_.bind_pinyin(pinyin_resources_, {});
-        mixed_.set_short_cache(&pinyin_dict_.short_cache());
     }
 
     ~QualityHarness() {
@@ -284,8 +278,6 @@ public:
             page = pinyin_.translate_page(q.input, 0, q.page_size, &trace, &budget, &scratch);
         } else if (q.mode == "wubi") {
             page = wubi_.translate_page(q.input, 0, q.page_size, &trace, &budget, &scratch);
-        } else if (q.mode == "mixed") {
-            page = mixed_.translate_page(q.input, 0, q.page_size, &trace, &budget, &scratch);
         } else {
             ASSERT_TRUE(false) << "unknown quality mode: " << q.mode;
         }
@@ -326,7 +318,6 @@ private:
     std::shared_ptr<const cxxime::PinyinResourceSet> pinyin_resources_;
     cxxime::PinyinTranslator pinyin_;
     cxxime::WubiTranslator wubi_;
-    cxxime::MixedTranslator mixed_;
 };
 
 class ScopedUserSetup {

@@ -12,11 +12,6 @@
 
 namespace cxxime {
 
-enum class MixedCandidatePreference {
-    kAuto,
-    kWubi,
-};
-
 struct LayoutConfig {
     int min_width = 160;
     int max_width = 0;
@@ -52,15 +47,14 @@ struct Config {
 
     // engine
     int page_size = 9;
-    int input_mode = 0;  // 0=pinyin, 1=wubi, 2=mixed
-    std::string pinyin_scheme = "full_pinyin";
-    bool fuzzy_pinyin = true;  // 模糊拼音开关
+    int input_mode = 0;  // Chinese input: 0=pinyin, 1=wubi (chosen in settings)
+    std::string pinyin_scheme = "full_pinyin";  // full pinyin is the only scheme
     bool wubi_auto_commit = true;  // Auto-commit the only candidate at four codes.
     bool wubi_commit_first_on_fifth_key = true;  // Commit the first choice before code 5.
     bool wubi_restart_on_fifth_after_miss = true;
     bool wubi_code_hint = false;  // Show the shortest remaining Wubi code in candidates.
-    bool candidate_learning = false;
-    MixedCandidatePreference mixed_candidate_preference = MixedCandidatePreference::kAuto;
+    bool candidate_learning = true;   // self-learning: picked candidates move up
+    bool pinyin_initials = false;     // pinyin style: full pinyin (false) or initials (true)
 
     // Initial state for each newly created input session.
     bool initial_full_shape = false;
@@ -75,7 +69,9 @@ struct Config {
     std::string preedit_type = "composition";
 
     // theme
-    std::string theme = "azure";
+    std::string theme = "moon_light";  // "moon_light" (light) or "moon_dark" (dark)
+    // Settings UI language: "auto" (follow Windows) or a data/ui.<code>.json code.
+    std::string ui_language = "auto";
 
     // layout (spacing and sizing)
     LayoutConfig layout_config;
@@ -84,7 +80,6 @@ struct Config {
     std::unordered_map<std::string, std::string> ascii_switch_key;
 
     // shortcuts
-    KeyboardShortcut input_mode_switch_shortcut;
     KeyboardShortcut activate_ime_shortcut;
     // Switches English mode between word completion and letter-by-letter input.
     KeyboardShortcut english_style_shortcut = {kKeyModifierControl, 0x20 /* VK_SPACE */};

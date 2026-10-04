@@ -293,7 +293,8 @@ void fill_session_presentation(const SessionEntry& entry, ProcessKeyResult& resu
         focused_input_bytes, decorate_pinyin_preedit, preferred_syllables,
         entry.resources.runtime && entry.resources.runtime->pinyin_resources().kind() ==
                                        cxxime::PinyinSchemeKind::kShuangpin,
-        !entry.resources.runtime || entry.resources.runtime->pinyin_query_policy().enable_fuzzy);
+        !entry.resources.runtime || entry.resources.runtime->pinyin_query_policy().enable_fuzzy,
+        entry.engine->pinyin_initials() && entry.engine->mode() == cxxime::InputMode::PINYIN);
     result.preedit = composition.display_preedit;
     result.preedit_cursor = composition.display_cursor_bytes;
     result.converted_prefix_bytes = composition.display_converted_prefix_bytes;
@@ -316,15 +317,8 @@ void fill_session_presentation(const SessionEntry& entry, ProcessKeyResult& resu
 }
 
 cxxime::InputMode next_input_mode(cxxime::InputMode mode) {
-    switch (mode) {
-    case cxxime::InputMode::PINYIN:
-        return cxxime::InputMode::WUBI;
-    case cxxime::InputMode::WUBI:
-        return cxxime::InputMode::MIXED;
-    case cxxime::InputMode::MIXED:
-    default:
-        return cxxime::InputMode::PINYIN;
-    }
+    return mode == cxxime::InputMode::PINYIN ? cxxime::InputMode::WUBI
+                                             : cxxime::InputMode::PINYIN;
 }
 
 bool load_spelling_resources(const cxxime::DictionaryManifest& manifest,
@@ -626,6 +620,7 @@ void SessionManager::reset_global_state(const SharedResourceSnapshot& resources)
         state.input_mode =
             static_cast<cxxime::InputMode>(resources.runtime->config().input_mode);
         state.english_words = resources.runtime->config().english.word_mode;
+        state.pinyin_initials = resources.runtime->config().pinyin_initials;
     }
     std::lock_guard<std::mutex> lock(state_mutex_);
     global_state_ = state;
@@ -656,6 +651,8 @@ void SessionManager::align_session_to_global(SessionEntry& entry) {
                                                   entry.engine->context());
     entry.engine->set_english_word_mode(state.english_words);
     entry.ime_status.set_english_words(state.english_words);
+    entry.engine->set_pinyin_initials(state.pinyin_initials);
+    entry.ime_status.set_pinyin_initials(state.pinyin_initials);
     entry.ime_status.set_chinese_mode(state.caps_lock ? false : entry.base_chinese_mode);
     entry.ime_status.set_caps_lock(state.caps_lock);
     entry.ime_status.set_full_shape(entry.full_shape);
@@ -971,9 +968,23 @@ cxxime::IPCStatus SharedResources::clear_candidate_preferences(cxxime::UserDictK
     auto dict = dict_for_kind(kind);
     if (!dict || !dict->is_open())
         return cxxime::IPCStatus::ERR_ENGINE_NOT_INITIALIZED;
-    return dict->clear_candidate_preferences_and_save()
-        ? cxxime::IPCStatus::OK
-        : cxxime::IPCStatus::ERR_UNKNOWN_COMMAND;
+    if (!dict->clear_candidate_preferences_and_save()) {
+        return cxxime::IPCStatus::ERR_UNKNOWN_COMMAND;
+    }
+    // Pinyin learning also includes the words built from consecutive picks.
+    if (kind == cxxime::UserDictKind::PINYIN) {
+        std::shared_ptr<cxxime::CompositionLearningService> service;
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            if (runtime) {
+                service = runtime->composition_learning_ptr();
+            }
+        }
+        if (service && !service->clear_and_save()) {
+            return cxxime::IPCStatus::ERR_UNKNOWN_COMMAND;
+        }
+    }
+    return cxxime::IPCStatus::OK;
 }
 
 cxxime::IPCStatus SharedResources::save_candidate_preferences(cxxime::UserDictKind kind) {
@@ -1499,6 +1510,9 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     } else if (result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE) {
         state.english_words = !state.english_words;
         shared_state_changed = true;
+    } else if (result == cxxime::ProcessResult::TOGGLE_PINYIN_STYLE) {
+        state.pinyin_initials = !state.pinyin_initials;
+        shared_state_changed = true;
     }
 
     if (shared_state_changed) {
@@ -1510,6 +1524,8 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
         persist_input_mode(ret.ime_status.input_mode);
     } else if (result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE) {
         persist_english_word_mode(ret.ime_status.english_words());
+    } else if (result == cxxime::ProcessResult::TOGGLE_PINYIN_STYLE) {
+        persist_pinyin_initials(ret.ime_status.pinyin_initials());
     }
 
     if (result == cxxime::ProcessResult::COMMITTED) {
@@ -1518,7 +1534,8 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
         ret.composing = engine.context().is_composing();
     } else if (result == cxxime::ProcessResult::TOGGLE_PUNCT
             || result == cxxime::ProcessResult::TOGGLE_SHAPE
-            || result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE) {
+            || result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE
+            || result == cxxime::ProcessResult::TOGGLE_PINYIN_STYLE) {
         ret.composing = engine.context().is_composing();
     } else if (result == cxxime::ProcessResult::SWITCH_INPUT_MODE) {
         ret.composing = false;
@@ -2000,6 +2017,14 @@ void SessionManager::persist_english_word_mode(bool enabled) {
     if (config_patch_handler_) {
         nlohmann::json patch;
         patch["english"]["word_mode"] = enabled;
+        config_patch_handler_(patch.dump());
+    }
+}
+
+void SessionManager::persist_pinyin_initials(bool enabled) {
+    if (config_patch_handler_) {
+        nlohmann::json patch;
+        patch["engine"]["pinyin_initials"] = enabled;
         config_patch_handler_(patch.dump());
     }
 }

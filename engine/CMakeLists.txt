@@ -31,7 +31,6 @@ add_library(cxxime-engine STATIC
     src/pinyin_translator.cc
     src/pinyin_processor.cc
     src/wubi_translator.cc
-    src/mixed_translator.cc
     src/wubi_processor.cc
     src/wubi_input_policy.cc
     src/config.cc

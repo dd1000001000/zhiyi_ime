@@ -231,6 +231,7 @@ private:
         bool caps_lock = false;
         cxxime::InputMode input_mode = cxxime::InputMode::PINYIN;
         bool english_words = true;  // English mode style (config english.word_mode)
+        bool pinyin_initials = false;  // Pinyin style (config engine.pinyin_initials)
     };
 
     cxxime::Engine* get_engine(uint32_t id);
@@ -245,6 +246,7 @@ private:
 
     void persist_input_mode(cxxime::InputMode mode);
     void persist_english_word_mode(bool enabled);
+    void persist_pinyin_initials(bool enabled);
 
     SharedResources shared_;
     std::unordered_map<uint32_t, std::shared_ptr<SessionEntry>> sessions_;

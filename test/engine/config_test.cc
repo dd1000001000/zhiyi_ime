@@ -20,15 +20,16 @@ TEST(Config, defaults) {
     ASSERT_EQ(cfg.font_size, 14);
     ASSERT_TRUE(cfg.font_name == "Microsoft YaHei UI");
     ASSERT_TRUE(cfg.layout == "horizontal");
-    ASSERT_TRUE(cfg.theme == "azure");
+    ASSERT_TRUE(cfg.theme == "moon_light");
     ASSERT_TRUE(cfg.wubi_auto_commit);
     ASSERT_TRUE(cfg.wubi_commit_first_on_fifth_key);
     ASSERT_TRUE(cfg.wubi_restart_on_fifth_after_miss);
     ASSERT_TRUE(!cfg.wubi_code_hint);
-    ASSERT_TRUE(!cfg.candidate_learning);
-    ASSERT_EQ(cfg.mixed_candidate_preference, cxxime::MixedCandidatePreference::kAuto);
+    ASSERT_TRUE(cfg.candidate_learning);
+    ASSERT_TRUE(!cfg.pinyin_initials);
+    ASSERT_EQ(cfg.ui_language, "auto");
     ASSERT_EQ(cfg.pinyin_scheme, "full_pinyin");
-    ASSERT_TRUE(!cfg.input_mode_switch_shortcut.enabled());
+    ASSERT_TRUE(cfg.english_style_shortcut.enabled());
     ASSERT_TRUE(!cfg.activate_ime_shortcut.enabled());
     ASSERT_TRUE(!cfg.initial_full_shape);
     ASSERT_TRUE(cfg.initial_chinese_punct);
@@ -82,11 +83,11 @@ TEST(Config, load_valid_json) {
         "wubi_commit_first_on_fifth_key": false,
         "wubi_restart_on_fifth_after_miss": false,
         "wubi_code_hint": true,
-        "candidate_learning": true,
-        "mixed_candidate_preference": "wubi"
+        "candidate_learning": false,
+        "pinyin_initials": true
         },
         "shortcuts": {
-            "input_mode_switch": "Ctrl+Shift+M",
+            "english_style": "Ctrl+Shift+M",
             "activate_ime": "Ctrl+Alt+C"
         },
         "style": {"font_face": "Arial", "font_point": 18},
@@ -104,11 +105,11 @@ TEST(Config, load_valid_json) {
     ASSERT_TRUE(!cfg.wubi_commit_first_on_fifth_key);
     ASSERT_TRUE(!cfg.wubi_restart_on_fifth_after_miss);
     ASSERT_TRUE(cfg.wubi_code_hint);
-    ASSERT_TRUE(cfg.candidate_learning);
-    ASSERT_EQ(cfg.mixed_candidate_preference, cxxime::MixedCandidatePreference::kWubi);
-    ASSERT_EQ(cfg.input_mode_switch_shortcut.modifiers,
+    ASSERT_TRUE(!cfg.candidate_learning);
+    ASSERT_TRUE(cfg.pinyin_initials);
+    ASSERT_EQ(cfg.english_style_shortcut.modifiers,
               cxxime::kKeyModifierControl | cxxime::kKeyModifierShift);
-    ASSERT_EQ(cfg.input_mode_switch_shortcut.virtual_key, static_cast<uint32_t>('M'));
+    ASSERT_EQ(cfg.english_style_shortcut.virtual_key, static_cast<uint32_t>('M'));
     ASSERT_EQ(cfg.activate_ime_shortcut.modifiers,
               cxxime::kKeyModifierControl | cxxime::kKeyModifierAlt);
     ASSERT_EQ(cfg.activate_ime_shortcut.virtual_key, static_cast<uint32_t>('C'));
@@ -118,14 +119,15 @@ TEST(Config, load_valid_json) {
     std::remove(path);
 }
 
-TEST(Config, json_round_trip_preserves_wubi_options_and_candidate_learning) {
+TEST(Config, json_round_trip_preserves_wubi_options_learning_and_styles) {
     cxxime::Config saved;
     saved.wubi_auto_commit = false;
     saved.wubi_commit_first_on_fifth_key = false;
     saved.wubi_restart_on_fifth_after_miss = false;
     saved.wubi_code_hint = true;
-    saved.candidate_learning = true;
-    saved.mixed_candidate_preference = cxxime::MixedCandidatePreference::kWubi;
+    saved.candidate_learning = false;
+    saved.pinyin_initials = true;
+    saved.ui_language = "en-US";
 
     cxxime::Config loaded;
     ASSERT_TRUE(loaded.load_json(saved.to_user_json()));
@@ -133,8 +135,9 @@ TEST(Config, json_round_trip_preserves_wubi_options_and_candidate_learning) {
     ASSERT_TRUE(!loaded.wubi_commit_first_on_fifth_key);
     ASSERT_TRUE(!loaded.wubi_restart_on_fifth_after_miss);
     ASSERT_TRUE(loaded.wubi_code_hint);
-    ASSERT_TRUE(loaded.candidate_learning);
-    ASSERT_EQ(loaded.mixed_candidate_preference, cxxime::MixedCandidatePreference::kWubi);
+    ASSERT_TRUE(!loaded.candidate_learning);
+    ASSERT_TRUE(loaded.pinyin_initials);
+    ASSERT_EQ(loaded.ui_language, "en-US");
 }
 
 TEST(Config, json_round_trip_preserves_preedit_highlight_layout) {
@@ -156,13 +159,16 @@ TEST(Config, json_round_trip_preserves_preedit_highlight_layout) {
     ASSERT_EQ(loaded.layout_config.preedit_highlight_border_width, 2);
 }
 
-TEST(Config, invalid_mixed_candidate_preference_falls_back_to_auto) {
+TEST(Config, former_mixed_input_mode_falls_back_to_pinyin) {
     cxxime::Config config;
-    ASSERT_TRUE(config.load_json(R"({"engine":{"mixed_candidate_preference":"unknown"}})"));
-    ASSERT_EQ(config.mixed_candidate_preference, cxxime::MixedCandidatePreference::kAuto);
+    ASSERT_TRUE(config.load_json(R"({"engine":{"input_mode":2}})"));
+    ASSERT_EQ(config.input_mode, 0);
+    ASSERT_TRUE(config.load_json(R"({"engine":{"input_mode":1}})"));
+    ASSERT_EQ(config.input_mode, 1);
 }
 
-TEST(Config, pinyin_scheme_round_trip_and_unknown_value_falls_back_to_full_pinyin) {
+TEST(Config, pinyin_scheme_is_always_full_pinyin) {
+    // Shuangpin schemes were removed; old configs fall back to full pinyin.
     const char* scheme_ids[] = {
         "full_pinyin",
         "microsoft_shuangpin",
@@ -175,11 +181,7 @@ TEST(Config, pinyin_scheme_round_trip_and_unknown_value_falls_back_to_full_pinyi
         const std::string json =
             std::string(R"({"engine":{"pinyin_scheme":")") + scheme_id + R"("}})";
         ASSERT_TRUE(config.load_json(json));
-        ASSERT_EQ(config.pinyin_scheme, scheme_id);
-
-        cxxime::Config loaded;
-        ASSERT_TRUE(loaded.load_json(config.to_user_json()));
-        ASSERT_EQ(loaded.pinyin_scheme, scheme_id);
+        ASSERT_EQ(config.pinyin_scheme, "full_pinyin");
     }
 
     cxxime::Config loaded;
@@ -190,8 +192,8 @@ TEST(Config, pinyin_scheme_round_trip_and_unknown_value_falls_back_to_full_pinyi
 TEST(Config, shortcut_validation_accepts_current_bindings_and_disables_invalid_ones) {
     cxxime::Config config;
     ASSERT_TRUE(
-        config.load_json(R"({"shortcuts":{"input_mode_switch":"M","activate_ime":"Shift+C"}})"));
-    ASSERT_TRUE(!config.input_mode_switch_shortcut.enabled());
+        config.load_json(R"({"shortcuts":{"english_style":"M","activate_ime":"Shift+C"}})"));
+    ASSERT_TRUE(!config.english_style_shortcut.enabled());
     ASSERT_TRUE(!config.activate_ime_shortcut.enabled());
 
     config = {};
@@ -206,13 +208,13 @@ TEST(Config, shortcut_validation_accepts_current_bindings_and_disables_invalid_o
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.activate_ime_shortcut) == "F4");
 }
 
-TEST(Config, conflicting_shortcuts_disable_input_mode_switch) {
+TEST(Config, conflicting_shortcuts_disable_style_switch) {
     cxxime::Config config;
     ASSERT_TRUE(config.load_json(R"({"shortcuts":{
-        "input_mode_switch":"Ctrl+Alt+C",
+        "english_style":"Ctrl+Alt+C",
         "activate_ime":"Ctrl+Alt+C"
     }})"));
-    ASSERT_TRUE(!config.input_mode_switch_shortcut.enabled());
+    ASSERT_TRUE(!config.english_style_shortcut.enabled());
     ASSERT_TRUE(config.activate_ime_shortcut.enabled());
 }
 
@@ -250,7 +252,7 @@ TEST(Config, runtime_snapshot_round_trip) {
     saved.inline_preedit = true;
     saved.status_window.enable = false;
     ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Ctrl+Alt+M",
-                                                &saved.input_mode_switch_shortcut));
+                                                &saved.english_style_shortcut));
     ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Ctrl+Shift+Space",
                                                 &saved.activate_ime_shortcut));
     saved.ascii_switch_key["Shift_L"] = "commit_code";
@@ -269,7 +271,7 @@ TEST(Config, runtime_snapshot_round_trip) {
     ASSERT_TRUE(loaded.theme == "dark");
     ASSERT_TRUE(loaded.inline_preedit);
     ASSERT_TRUE(!loaded.status_window.enable);
-    ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.input_mode_switch_shortcut) ==
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.english_style_shortcut) ==
                 "Ctrl+Alt+M");
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.activate_ime_shortcut) ==
                 "Ctrl+Shift+Space");
@@ -294,7 +296,7 @@ TEST(Config, built_in_themes_define_preedit_active_colors) {
     ASSERT_TRUE(file.is_open());
     const nlohmann::json themes = nlohmann::json::parse(file);
     ASSERT_TRUE(themes.contains("preset_color_schemes"));
-    ASSERT_EQ(themes["preset_color_schemes"].size(), 12u);
+    ASSERT_EQ(themes["preset_color_schemes"].size(), 2u);  // light and dark
     for (const auto& item : themes["preset_color_schemes"].items()) {
         ASSERT_TRUE(item.value().contains("preedit_active_back_color"));
         ASSERT_TRUE(item.value().contains("preedit_active_border_color"));

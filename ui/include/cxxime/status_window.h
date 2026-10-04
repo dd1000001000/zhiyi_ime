@@ -33,6 +33,7 @@ struct ButtonState {
     bool full_shape = false;
     bool chinese_punct = true;
     bool english_words = true;  // English mode: word completion ("英") or letters ("a")
+    bool pinyin_initials = false;  // Pinyin style: full pinyin ("拼") or initials ("首")
     InputMode input_mode = InputMode::PINYIN;
 };
 

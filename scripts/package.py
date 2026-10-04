@@ -437,6 +437,12 @@ def copy_config(host_diagnostics: bool) -> None:
     shutil.copy2(os.path.join(DATA, "english.words.tsv"), data_dir)
     print("  english.words.tsv")
 
+    # Settings UI languages (one file per language).
+    for name in sorted(os.listdir(DATA)):
+        if name.startswith("ui.") and name.endswith(".json"):
+            shutil.copy2(os.path.join(DATA, name), data_dir)
+            print(f"  {name}")
+
 
 def prepare_dictionaries(workers: int) -> None:
     """Prepare the Pinyin and Wubi runtime dictionary bundle."""
@@ -789,6 +795,7 @@ def print_summary(config: str, include_x86_modules: bool, host_diagnostics: bool
     print("    themes.json            Color themes")
     print("    punctuation.json       Punctuation mapping")
     print("    english.words.tsv      English word list")
+    print("    ui.<language>.json     Settings UI strings")
     print("    symbols.json           Symbol categories")
     print("    dictionary_manifest.json Dictionary bundle manifest")
     print("    pinyin.dict.bin        Pinyin binary dictionary (runtime)")

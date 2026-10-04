@@ -19,7 +19,7 @@ EngineRuntimeState::EngineRuntimeState(
     , pinyin_resources_(std::move(pinyin_resources))
     , symbol_table_(std::move(symbol_table))
     , composition_learning_(std::move(composition_learning))
-    , pinyin_query_policy_{config_.fuzzy_pinyin} {}
+    , pinyin_query_policy_{false} {}  // exact pinyin only (fuzzy pinyin was removed)
 
 std::shared_ptr<const EngineRuntimeState>
 EngineRuntimeState::create(Config config, std::shared_ptr<Dict> pinyin_dict,

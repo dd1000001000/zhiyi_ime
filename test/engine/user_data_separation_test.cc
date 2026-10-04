@@ -655,47 +655,4 @@ TEST(UserDataSeparation, symbols_and_composed_candidates_are_not_learned) {
     ASSERT_EQ(dictionary.candidate_preference_count(), static_cast<std::size_t>(0));
 }
 
-TEST(UserDataSeparation, mixed_input_records_the_selected_candidate_source) {
-    const std::string pinyin_path = make_temp_path("udp");
-    const std::string wubi_path = make_temp_path("udw");
-    ASSERT_TRUE(cxxime::Dict::create_test_dict(pinyin_path, {{"a", "拼音候选", 300}}));
-    ASSERT_TRUE(cxxime::Dict::create_test_dict(wubi_path, {{"a", "五笔候选", 300}}));
-
-    auto pinyin_dictionary = std::make_shared<cxxime::Dict>(cxxime::UserDictKind::PINYIN);
-    auto wubi_dictionary = std::make_shared<cxxime::Dict>(cxxime::UserDictKind::WUBI);
-    ASSERT_TRUE(pinyin_dictionary->open_dict(pinyin_path));
-    ASSERT_TRUE(wubi_dictionary->open_dict(wubi_path));
-
-    cxxime::Config config;
-    config.candidate_learning = true;
-    config.page_size = 10;
-    cxxime::Engine engine;
-    ASSERT_TRUE(test::initialize_engine(engine, pinyin_dictionary, config, {},
-                                        wubi_dictionary));
-    engine.switch_mode(cxxime::InputMode::MIXED);
-
-    cxxime::KeyEvent key;
-    key.keycode = 'A';
-    ASSERT_EQ(engine.process_key(key), cxxime::ProcessResult::ACCEPTED);
-    const int wubi_index = candidate_index(engine, cxxime::CandidateSource::kWubi);
-    ASSERT_GE(wubi_index, 0);
-    ASSERT_TRUE(engine.select_candidate(wubi_index));
-    ASSERT_EQ(wubi_dictionary->candidate_preference_count(), static_cast<std::size_t>(1));
-    ASSERT_EQ(pinyin_dictionary->candidate_preference_count(), static_cast<std::size_t>(0));
-    engine.get_commit_text();
-
-    ASSERT_EQ(engine.process_key(key), cxxime::ProcessResult::ACCEPTED);
-    const int pinyin_index = candidate_index(engine, cxxime::CandidateSource::kPinyin);
-    ASSERT_GE(pinyin_index, 0);
-    ASSERT_TRUE(engine.select_candidate(pinyin_index));
-    ASSERT_EQ(wubi_dictionary->candidate_preference_count(), static_cast<std::size_t>(1));
-    ASSERT_EQ(pinyin_dictionary->candidate_preference_count(), static_cast<std::size_t>(1));
-
-    engine.finalize();
-    pinyin_dictionary->close();
-    wubi_dictionary->close();
-    DeleteFileA(pinyin_path.c_str());
-    DeleteFileA(wubi_path.c_str());
-}
-
 RUN_ALL_TESTS()

@@ -26,11 +26,9 @@ struct ImeMenuItem {
 };
 
 inline constexpr ImeMenuItem kImeMenuItems[] = {
-    {ImeMenuCommand::kPinyin, L"纯拼音模式", false},
-    {ImeMenuCommand::kWubi, L"纯五笔模式", false},
-    {ImeMenuCommand::kMixed, L"五笔拼音混输", false},
-    {ImeMenuCommand::kDictionary, L"词库管理", true},
-    {ImeMenuCommand::kToggleStatusWindow, nullptr, false},
+    {ImeMenuCommand::kPinyin, L"拼音", false},
+    {ImeMenuCommand::kWubi, L"五笔", false},
+    {ImeMenuCommand::kToggleStatusWindow, nullptr, true},
     {ImeMenuCommand::kSettings, L"设置", false},
     {ImeMenuCommand::kAbout, L"关于", true},
 };
@@ -45,8 +43,7 @@ inline const wchar_t* ime_menu_item_label(const ImeMenuItem& item,
 
 inline bool ime_menu_command_checked(ImeMenuCommand command, InputMode input_mode) {
     return (command == ImeMenuCommand::kPinyin && input_mode == InputMode::PINYIN) ||
-           (command == ImeMenuCommand::kWubi && input_mode == InputMode::WUBI) ||
-           (command == ImeMenuCommand::kMixed && input_mode == InputMode::MIXED);
+           (command == ImeMenuCommand::kWubi && input_mode == InputMode::WUBI);
 }
 
 inline const ImeMenuItem* find_ime_menu_item(uint32_t command_id) {

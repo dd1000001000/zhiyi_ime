@@ -107,6 +107,7 @@ cxxime::ButtonState button_state_from_snapshot(const cxxime::UiPresentationSnaps
     state.full_shape = snapshot.ime_status.full_shape();
     state.chinese_punct = snapshot.ime_status.chinese_punct();
     state.english_words = snapshot.ime_status.english_words();
+    state.pinyin_initials = snapshot.ime_status.pinyin_initials();
     state.input_mode = snapshot.ime_status.input_mode;
     return state;
 }

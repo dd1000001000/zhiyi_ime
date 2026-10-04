@@ -48,8 +48,15 @@ struct SegmentResult {
     bool deadline_exceeded = false;
 };
 
+// Initials mode: true when `syllables` ("zhong:guo:ren") has exactly one syllable per typed
+// initial, each typed as its first letter or, for zh/ch/sh, as the two letters ("zgr" and
+// "zhgr" both match zhong:guo:ren).
+bool pinyin_matches_initials(std::string_view input, std::string_view syllables);
+
 struct SyllabifierOptions {
     bool enable_fuzzy = true;
+    // Initials mode: only one-letter spans (and zh/ch/sh) are syllables, as initials.
+    bool initials_only = false;
     bool enable_terminal_completion = false;
     bool collect_path_metadata = false;
 };

@@ -64,6 +64,8 @@ public:
     bool flush();
     bool freeze_and_stop();
     bool merge_contents_and_save(const std::string& imported, UserDataMergeResult* result);
+    // Forgets every learned word and saves the empty file (settings: clear learning data).
+    bool clear_and_save();
 
     std::vector<Candidate> lookup_candidates(const std::string& code,
                                              std::size_t limit) const;

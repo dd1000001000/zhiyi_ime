@@ -19,15 +19,6 @@ TEST(PinyinScheme, built_in_descriptors_are_stable) {
     const ExpectedScheme expected[] = {
         {"full_pinyin", cxxime::PinyinSchemeKind::kFullPinyin, "pinyin_spellings",
          "pinyin.spellings.bin", "ni'hao"},
-        {"microsoft_shuangpin", cxxime::PinyinSchemeKind::kShuangpin,
-         "pinyin_spellings_microsoft_shuangpin", "pinyin.microsoft-shuangpin.spellings.bin",
-         "ni'hk"},
-        {"xiaohe_shuangpin", cxxime::PinyinSchemeKind::kShuangpin,
-         "pinyin_spellings_xiaohe_shuangpin", "pinyin.xiaohe-shuangpin.spellings.bin", "ni'hc"},
-        {"ziranma_shuangpin", cxxime::PinyinSchemeKind::kShuangpin,
-         "pinyin_spellings_ziranma_shuangpin", "pinyin.ziranma-shuangpin.spellings.bin", "ni'hk"},
-        {"sogou_shuangpin", cxxime::PinyinSchemeKind::kShuangpin,
-         "pinyin_spellings_sogou_shuangpin", "pinyin.sogou-shuangpin.spellings.bin", "ni'hk"},
     };
 
     const auto& schemes = cxxime::built_in_pinyin_schemes();
@@ -40,7 +31,9 @@ TEST(PinyinScheme, built_in_descriptors_are_stable) {
         ASSERT_EQ(std::string(schemes[i].input_example), expected[i].input_example);
         ASSERT_TRUE(std::string(schemes[i].input_example).find('\'') != std::string::npos);
     }
+    // Full pinyin is the only scheme; removed shuangpin ids fall back to it.
     ASSERT_EQ(cxxime::normalize_pinyin_scheme_id("unknown"), "full_pinyin");
+    ASSERT_EQ(cxxime::normalize_pinyin_scheme_id("xiaohe_shuangpin"), "full_pinyin");
 }
 
 TEST(PinyinScheme, built_in_descriptors_are_complete_and_unique) {

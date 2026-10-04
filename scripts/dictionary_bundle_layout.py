@@ -1,11 +1,7 @@
 # Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 
-SHUANGPIN_SCHEME_NAMES = (
-    "microsoft",
-    "xiaohe",
-    "ziranma",
-    "sogou",
-)
+# Zhiyi IME supports full pinyin only (initials included); no shuangpin spelling tables.
+SHUANGPIN_SCHEME_NAMES = ()
 
 SHUANGPIN_MANIFEST_FILES = tuple(
     (

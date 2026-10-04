@@ -44,6 +44,8 @@ enum class ImeStatusFlag : uint32_t {
     CHINESE_PUNCT = 1u << 3,
     // English mode style: word completion (set) or plain letter-by-letter input (clear).
     ENGLISH_WORDS = 1u << 4,
+    // Chinese pinyin style: initials only (set) or full pinyin (clear).
+    PINYIN_INITIALS = 1u << 5,
 };
 
 constexpr uint32_t ime_status_flag(ImeStatusFlag flag) noexcept {
@@ -108,6 +110,14 @@ struct ImeStatus {
 
     void set_english_words(bool enabled) noexcept {
         set_flag(ImeStatusFlag::ENGLISH_WORDS, enabled);
+    }
+
+    bool pinyin_initials() const noexcept {
+        return has_flag(ImeStatusFlag::PINYIN_INITIALS);
+    }
+
+    void set_pinyin_initials(bool enabled) noexcept {
+        set_flag(ImeStatusFlag::PINYIN_INITIALS, enabled);
     }
 };
 

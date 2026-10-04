@@ -229,7 +229,6 @@ status=0 rtt=74us ascii=0 composing=1
 | `--json <path>` | 输出 JSONL trace |
 | `--help` | 帮助 |
 
-同目录的 `lexicon_bench` 用于系统词库操作基准（`--data <dir>` / `--repeat <n>` / `--help`）。
 基准回归脚本为 `scripts/check_query_bench.py`，详细说明见 `docs/observability.md`。
 
 ---

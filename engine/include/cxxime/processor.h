@@ -21,6 +21,8 @@ enum class ProcessResult {
     // English mode style shortcut (word completion <-> letter by letter); same KeyDown/KeyUp
     // handling as SWITCH_INPUT_MODE.
     TOGGLE_ENGLISH_STYLE,
+    // The same shortcut in Chinese pinyin mode: full pinyin <-> initials (首字母).
+    TOGGLE_PINYIN_STYLE,
 };
 
 // Abstract processor interface

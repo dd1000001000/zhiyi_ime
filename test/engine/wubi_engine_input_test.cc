@@ -348,7 +348,7 @@ TEST(WubiEngine, technical_symbols_use_inline_ascii_in_wubi_and_mixed_modes) {
     ASSERT_TRUE(wubi_dict->open(wubi_path));
     ASSERT_TRUE(test::apply_runtime(engine, pinyin_path, cxxime::Config{}, wubi_dict));
 
-    for (cxxime::InputMode mode : {cxxime::InputMode::WUBI, cxxime::InputMode::MIXED}) {
+    for (cxxime::InputMode mode : {cxxime::InputMode::WUBI}) {
         engine.clear();
         engine.switch_mode(mode);
         ASSERT_EQ(engine.process_key(make_key('C')), cxxime::ProcessResult::ACCEPTED);
@@ -457,32 +457,6 @@ TEST(WubiEngine, engine_wubi_fifth_key_empty_restart_can_be_disabled) {
     ASSERT_EQ(engine.process_key(make_key('E')), cxxime::ProcessResult::ACCEPTED);
     ASSERT_EQ(engine.context().active_input(), "zzzze");
     ASSERT_TRUE(engine.context().candidate_page().candidates.empty());
-
-    engine.finalize();
-    wubi_dict->close();
-    DeleteFileA(pinyin_path.c_str());
-    DeleteFileA(wubi_path.c_str());
-}
-
-TEST(WubiEngine, engine_mixed_fifth_key_does_not_restart_after_empty_four_code) {
-    std::string pinyin_path = make_temp_path("test_mixed_fifth_restart_pinyin.bin");
-    std::string wubi_path = make_temp_path("test_mixed_fifth_restart_wubi.bin");
-
-    ASSERT_TRUE(cxxime::Dict::create_test_dict(pinyin_path, {{"a", "拼", 100}}));
-    ASSERT_TRUE(cxxime::Dict::create_test_dict(wubi_path, {{"e", "新编码", 300}}));
-
-    cxxime::Engine engine;
-    ASSERT_TRUE(engine.initialize(pinyin_path));
-    auto wubi_dict = std::make_shared<cxxime::Dict>(cxxime::UserDictKind::WUBI);
-    ASSERT_TRUE(wubi_dict->open(wubi_path));
-    ASSERT_TRUE(test::apply_runtime(engine, pinyin_path, cxxime::Config{}, wubi_dict));
-    engine.switch_mode(cxxime::InputMode::MIXED);
-
-    for (int index = 0; index < 4; ++index) {
-        ASSERT_EQ(engine.process_key(make_key('Z')), cxxime::ProcessResult::ACCEPTED);
-    }
-    ASSERT_EQ(engine.process_key(make_key('E')), cxxime::ProcessResult::ACCEPTED);
-    ASSERT_EQ(engine.context().active_input(), "zzzze");
 
     engine.finalize();
     wubi_dict->close();

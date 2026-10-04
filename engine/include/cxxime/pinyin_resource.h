@@ -21,6 +21,8 @@ enum class PinyinSpellingRequirement {
 
 struct PinyinQueryPolicy {
     bool enable_fuzzy = true;
+    // Initials mode: every letter is the initial of one syllable (zh/ch/sh count as one).
+    bool initials_only = false;
 };
 
 class PinyinResourceSet final {

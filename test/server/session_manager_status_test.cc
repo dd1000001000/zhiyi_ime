@@ -319,32 +319,35 @@ TEST(SessionStatus, switch_input_mode_sets_target) {
     ASSERT_EQ(s1.input_mode, cxxime::InputMode::WUBI);
     ASSERT_EQ(s1.revision, (uint64_t)1);
 
+    // Mixed input was removed: a request for it (old clients) lands on pinyin.
     auto [st2, s2] = mgr.switch_input_mode(id, cxxime::InputMode::MIXED);
-    ASSERT_EQ(s2.input_mode, cxxime::InputMode::MIXED);
+    ASSERT_EQ(s2.input_mode, cxxime::InputMode::PINYIN);
     ASSERT_EQ(s2.revision, (uint64_t)2);
 
-    auto [st3, s3] = mgr.switch_input_mode(id, cxxime::InputMode::PINYIN);
-    ASSERT_EQ(s3.input_mode, cxxime::InputMode::PINYIN);
+    auto [st3, s3] = mgr.switch_input_mode(id, cxxime::InputMode::WUBI);
+    ASSERT_EQ(s3.input_mode, cxxime::InputMode::WUBI);
     ASSERT_EQ(s3.revision, (uint64_t)3);
 }
 
-TEST(SessionStatus, english_style_shortcut_toggles_shared_style_once_per_press) {
+TEST(SessionStatus, style_shortcut_toggles_shared_pinyin_style_once_per_press) {
     auto config = std::make_shared<cxxime::Config>();
     SessionManager mgr;
     ASSERT_TRUE(mgr.initialize(setup_test_dict(), config));
     uint32_t id = mgr.create_session();
     uint32_t other = mgr.create_session();
 
-    cxxime::KeyEvent shortcut;  // default Ctrl+Space
+    // Sessions start in Chinese pinyin mode, where the style shortcut (default Ctrl+Space)
+    // switches full pinyin / initials.
+    cxxime::KeyEvent shortcut;
     shortcut.keycode = VK_SPACE;
     shortcut.set_ctrl();
     auto first = mgr.process_key(id, shortcut);
-    ASSERT_EQ(first.result, cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE);
-    ASSERT_TRUE(!first.ime_status.english_words());
+    ASSERT_EQ(first.result, cxxime::ProcessResult::TOGGLE_PINYIN_STYLE);
+    ASSERT_TRUE(first.ime_status.pinyin_initials());
 
     auto repeated = mgr.process_key(id, shortcut);
     ASSERT_EQ(repeated.result, cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
-    ASSERT_TRUE(!repeated.ime_status.english_words());
+    ASSERT_TRUE(repeated.ime_status.pinyin_initials());
 
     shortcut.is_key_up = true;
     shortcut.modifiers = 0;
@@ -356,53 +359,13 @@ TEST(SessionStatus, english_style_shortcut_toggles_shared_style_once_per_press) 
     letter.keycode = 'N';
     letter.is_key_up = true;
     auto other_status = mgr.process_key(other, letter);
-    ASSERT_TRUE(!other_status.ime_status.english_words());
+    ASSERT_TRUE(other_status.ime_status.pinyin_initials());
 
     shortcut.is_key_up = false;
     shortcut.set_ctrl();
     auto second = mgr.process_key(id, shortcut);
-    ASSERT_EQ(second.result, cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE);
-    ASSERT_TRUE(second.ime_status.english_words());
-}
-
-TEST(SessionStatus, input_mode_shortcut_cycles_once_and_cancels_composition) {
-    auto config = std::make_shared<cxxime::Config>();
-    config->input_mode_switch_shortcut = {
-        cxxime::kKeyModifierControl | cxxime::kKeyModifierShift,
-        'M',
-    };
-    SessionManager mgr;
-    ASSERT_TRUE(mgr.initialize(setup_test_dict(), config));
-    uint32_t id = mgr.create_session();
-
-    cxxime::KeyEvent letter;
-    letter.keycode = 'N';
-    ASSERT_TRUE(mgr.process_key(id, letter).composing);
-
-    cxxime::KeyEvent shortcut;
-    shortcut.keycode = 'M';
-    shortcut.set_ctrl();
-    shortcut.set_shift();
-    auto first = mgr.process_key(id, shortcut);
-    ASSERT_EQ(first.result, cxxime::ProcessResult::SWITCH_INPUT_MODE);
-    ASSERT_EQ(first.ime_status.input_mode, cxxime::InputMode::WUBI);
-    ASSERT_TRUE(!first.composing);
-    ASSERT_TRUE(first.commit_text.empty());
-
-    auto repeated = mgr.process_key(id, shortcut);
-    ASSERT_EQ(repeated.result, cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
-    ASSERT_EQ(repeated.ime_status.input_mode, cxxime::InputMode::WUBI);
-
-    shortcut.is_key_up = true;
-    shortcut.modifiers = 0;
-    auto released = mgr.process_key(id, shortcut);
-    ASSERT_EQ(released.result, cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
-
-    shortcut.is_key_up = false;
-    shortcut.set_ctrl();
-    shortcut.set_shift();
-    auto second = mgr.process_key(id, shortcut);
-    ASSERT_EQ(second.ime_status.input_mode, cxxime::InputMode::MIXED);
+    ASSERT_EQ(second.result, cxxime::ProcessResult::TOGGLE_PINYIN_STYLE);
+    ASSERT_TRUE(!second.ime_status.pinyin_initials());
 }
 
 TEST(SessionStatus, input_mode_shortcut_is_disabled_by_default) {
@@ -437,14 +400,6 @@ TEST(SessionStatus, unrelated_config_update_preserves_pending_input_mode) {
     auto [unrelated_status, after_unrelated] = mgr.get_ime_status(id);
     ASSERT_EQ(unrelated_status, cxxime::IPCStatus::OK);
     ASSERT_EQ(after_unrelated.input_mode, cxxime::InputMode::WUBI);
-
-    auto changed_config = std::make_shared<cxxime::Config>(*unrelated_config);
-    changed_config->input_mode = static_cast<int>(cxxime::InputMode::MIXED);
-    mgr.apply_config(changed_config);
-
-    auto [changed_status, after_changed] = mgr.get_ime_status(id);
-    ASSERT_EQ(changed_status, cxxime::IPCStatus::OK);
-    ASSERT_EQ(after_changed.input_mode, cxxime::InputMode::MIXED);
 }
 
 TEST(SessionStatus, sync_caps_lock_sets_current_state) {

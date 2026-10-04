@@ -284,10 +284,9 @@ TEST(SessionIntegration, segmented_preedit_focuses_wubi_and_mixed_wubi_candidate
     constexpr uint64_t kCapabilities = cxxime::kClientCapabilitySegmentedSelection |
                                        cxxime::kClientCapabilitySegmentedPreeditPresentation;
 
-    for (cxxime::InputMode mode : {cxxime::InputMode::WUBI, cxxime::InputMode::MIXED}) {
+    for (cxxime::InputMode mode : {cxxime::InputMode::WUBI}) {
         auto config = std::make_shared<cxxime::Config>();
         config->input_mode = static_cast<int>(mode);
-        config->mixed_candidate_preference = cxxime::MixedCandidatePreference::kWubi;
         SessionManager manager;
         ASSERT_TRUE(manager.initialize(dict_path, config));
         const uint32_t id = manager.create_session(kCapabilities);

@@ -107,7 +107,6 @@ TEST(SymbolInput, works_in_all_input_modes) {
     const cxxime::InputMode modes[] = {
         cxxime::InputMode::PINYIN,
         cxxime::InputMode::WUBI,
-        cxxime::InputMode::MIXED,
     };
     for (cxxime::InputMode mode : modes) {
         fixture.engine().clear();
@@ -128,7 +127,7 @@ TEST(SymbolInput, every_published_symbol_can_be_paged_and_committed_in_all_modes
     cxxime::SymbolTable table;
     ASSERT_TRUE(table.load(std::string(CXXIME_DATA_DIR) + "symbols.json"));
     const cxxime::InputMode modes[] = {
-        cxxime::InputMode::PINYIN, cxxime::InputMode::WUBI, cxxime::InputMode::MIXED,
+        cxxime::InputMode::PINYIN, cxxime::InputMode::WUBI,
     };
     for (const auto mode : modes) {
         fixture.engine().switch_mode(mode);

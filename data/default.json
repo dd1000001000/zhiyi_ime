@@ -1,20 +1,19 @@
 {
     "schema": {
-        "name": "CxxIME",
+        "name": "Zhiyi IME",
         "version": "1.0",
-        "description": "CxxIME default configuration"
+        "description": "Zhiyi IME default configuration"
     },
     "engine": {
         "page_size": 7,
         "max_pinyin_length": 64,
         "pinyin_scheme": "full_pinyin",
-        "fuzzy_pinyin": true,
         "wubi_auto_commit": true,
         "wubi_commit_first_on_fifth_key": true,
         "wubi_restart_on_fifth_after_miss": true,
         "wubi_code_hint": false,
-        "candidate_learning": false,
-        "mixed_candidate_preference": "auto"
+        "candidate_learning": true,
+        "pinyin_initials": false
     },
     "initial_state": {
         "full_shape": false,
@@ -55,17 +54,19 @@
     "ascii_composer": {
         "switch_key": {
             "Shift_L": "code",
-            "Shift_R": "set_ascii_mode",
+            "Shift_R": "code",
             "Control_L": "noop",
             "Control_R": "noop",
             "Caps_Lock": "clear"
         }
     },
     "shortcuts": {
-        "input_mode_switch": "disabled",
         "activate_ime": "disabled"
     },
     "theme": "moon_light",
+    "ui": {
+        "language": "auto"
+    },
     "status_window": {
         "enable": true,
         "x": -1,

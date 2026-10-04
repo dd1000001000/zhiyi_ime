@@ -99,7 +99,7 @@ std::wstring process_image_path(DWORD process_id) {
 HWND find_settings_window(const std::wstring& path) {
     HWND previous = nullptr;
     for (;;) {
-        HWND window = FindWindowExW(nullptr, previous, kSettingsWindowClass, kSettingsWindowTitle);
+        HWND window = FindWindowExW(nullptr, previous, kSettingsWindowClass, nullptr);
         if (!window) {
             return nullptr;
         }

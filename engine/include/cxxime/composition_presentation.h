@@ -33,7 +33,8 @@ CompositionPresentation derive_composition_presentation(const CompositionState& 
                                                         bool show_syllable_boundaries,
                                                         const std::string& preferred_syllables = {},
                                                         bool terminal_completion = false,
-                                                        bool enable_fuzzy = true);
+                                                        bool enable_fuzzy = true,
+                                                        bool initials_only = false);
 
 } // namespace cxxime
 

@@ -279,6 +279,22 @@ int main(int argc, char** argv) {
                 en_on, en_total, en_ms.empty() ? 0.0 : en_ms[en_ms.size() / 2]);
     off.ascii_composer().set_ascii_mode(false);
     on.ascii_composer().set_ascii_mode(false);
+    // Pinyin style: full pinyin (initials may be mixed in) vs initials only (every letter is one
+    // syllable's initial; zh/ch/sh count as one).
+    std::printf("\npinyin style: full / initials\n");
+    for (const char* code : {"zgr", "jt", "xian", "nh", "zhgr", "bjdx", "wmyq"}) {
+        std::string line = std::string(code) + ":";
+        for (bool initials : {false, true}) {
+            on.set_pinyin_initials(initials);
+            on.clear();
+            type(on, code, nullptr);
+            line += std::string(initials ? "  | initials " : "  full ") + join(page(on));
+            on.clear();
+        }
+        std::printf("  %s\n", line.c_str());
+    }
+    on.set_pinyin_initials(false);
+
     off.finalize();
     on.finalize();
     return 0;

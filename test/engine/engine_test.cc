@@ -273,6 +273,7 @@ TEST(Engine, candidate_order_stays_stable_when_candidate_learning_is_disabled) {
     auto dict = std::make_shared<cxxime::Dict>(cxxime::UserDictKind::PINYIN);
     ASSERT_TRUE(dict->open(dict_path, user_path));
     cxxime::Config config;
+    config.candidate_learning = false;  // self-learning is on by default
     cxxime::Engine engine;
     ASSERT_TRUE(test::initialize_engine(engine, dict, config));
 

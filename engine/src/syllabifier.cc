@@ -10,6 +10,53 @@
 
 namespace cxxime {
 
+namespace {
+
+// Initials mode: a syllable span is one letter, or one of the two-letter initials zh/ch/sh.
+bool is_initial_span(std::string_view input, size_t length) {
+    if (length == 1) {
+        return true;
+    }
+    return length == 2 && input[1] == 'h' &&
+           (input[0] == 'z' || input[0] == 'c' || input[0] == 's');
+}
+
+bool match_initials(std::string_view input, const std::vector<std::string_view>& syllables,
+                    size_t input_pos, size_t syllable_index) {
+    if (syllable_index == syllables.size()) {
+        return input_pos == input.size();
+    }
+    const std::string_view syllable = syllables[syllable_index];
+    if (input_pos >= input.size() || syllable.empty() || input[input_pos] != syllable[0]) {
+        return false;
+    }
+    if (match_initials(input, syllables, input_pos + 1, syllable_index + 1)) {
+        return true;
+    }
+    return syllable.size() >= 2 && syllable[1] == 'h' && input_pos + 1 < input.size() &&
+           input[input_pos + 1] == 'h' && is_initial_span(syllable, 2) &&
+           match_initials(input, syllables, input_pos + 2, syllable_index + 1);
+}
+
+}  // namespace
+
+bool pinyin_matches_initials(std::string_view input, std::string_view syllables) {
+    if (input.empty() || syllables.empty()) {
+        return false;
+    }
+    std::vector<std::string_view> parts;
+    size_t begin = 0;
+    while (begin <= syllables.size()) {
+        size_t end = syllables.find(':', begin);
+        if (end == std::string_view::npos) {
+            end = syllables.size();
+        }
+        parts.push_back(syllables.substr(begin, end - begin));
+        begin = end + 1;
+    }
+    return parts.size() <= input.size() && match_initials(input, parts, 0, 0);
+}
+
 Syllabifier::Syllabifier(const SpellingsIndex& spellings)
     : spellings_(spellings) {}
 
@@ -44,6 +91,9 @@ SyllableGraph Syllabifier::build_graph(const std::string& input,
             if (m.input_key_len == 0 || m.input_key_len > remaining.size()) {
                 continue;
             }
+            if (options.initials_only && !is_initial_span(remaining, m.input_key_len)) {
+                continue;
+            }
             const size_t end_pos = pos + m.input_key_len;
             if (end_pos > input.size())
                 continue;
@@ -59,7 +109,7 @@ SyllableGraph Syllabifier::build_graph(const std::string& input,
         }
     }
 
-    if (options.enable_terminal_completion) {
+    if (options.enable_terminal_completion && !options.initials_only) {
         static constexpr float kCompletionPenalty = -0.69314718f;
         const size_t end_position = input.size();
         for (size_t position = 0; position < end_position; ++position) {

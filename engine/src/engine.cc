@@ -16,7 +16,6 @@
 #include <cxxime/english_lexicon.h>
 #include <cxxime/laya_rerank.h>
 #include <cxxime/logging.h>
-#include <cxxime/mixed_translator.h>
 #include <cxxime/output_composer.h>
 #include <cxxime/pinyin_resource.h>
 #include <cxxime/pinyin_scheme.h>
@@ -137,8 +136,8 @@ bool Engine::initialize(std::shared_ptr<const EngineRuntimeState> runtime) {
     }
     auto previous_runtime = std::move(runtime_);
     runtime_ = std::move(runtime);
-    rebuild_pipeline(InputMode::PINYIN, true);
     init_per_session(runtime_->config());
+    rebuild_pipeline(InputMode::PINYIN, true);
     return true;
 }
 
@@ -155,9 +154,9 @@ bool Engine::apply_runtime_state(std::shared_ptr<const EngineRuntimeState> runti
 
 void Engine::init_per_session(const Config& config) {
     ascii_composer_.load_config(config);
-    input_mode_switch_shortcut_ = config.input_mode_switch_shortcut;
     english_style_shortcut_ = config.english_style_shortcut;
     english_word_mode_ = config.english.word_mode;
+    pinyin_initials_ = config.pinyin_initials;
     // Start loading the Laya model in the background so it is ready by the first keystroke.
     LayaRerank::instance().preload(config);
 }
@@ -275,23 +274,17 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         event.keycode != handled_shortcut_key_) {
         handled_shortcut_key_ = 0;
     }
-    if (!event.is_key_up && input_mode_switch_shortcut_.matches(event)) {
-        if (handled_shortcut_key_ == 0) {
-            handled_shortcut_key_ = event.keycode;
-            reset_composition_state();
-            record_total_us(trace_, total_start, trace_enabled_);
-            return ProcessResult::SWITCH_INPUT_MODE;
-        }
-        record_total_us(trace_, total_start, trace_enabled_);
-        return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
-    }
-    // English style (word completion / letter by letter). A word being typed stays open and
-    // is finished as usual; the new style applies from the next word.
-    if (!event.is_key_up && english_style_shortcut_.matches(event)) {
+    // Style shortcut: in English mode word completion <-> letter by letter (a word being typed
+    // stays open; the new style applies from the next word); in Chinese pinyin mode full
+    // pinyin <-> initials. Not used in Wubi mode.
+    const bool pinyin_style_key = opts.chinese_mode && mode_ == InputMode::PINYIN;
+    if (!event.is_key_up && english_style_shortcut_.matches(event) &&
+        (!opts.chinese_mode || pinyin_style_key)) {
         record_total_us(trace_, total_start, trace_enabled_);
         if (handled_shortcut_key_ == 0) {
             handled_shortcut_key_ = event.keycode;
-            return ProcessResult::TOGGLE_ENGLISH_STYLE;
+            return pinyin_style_key ? ProcessResult::TOGGLE_PINYIN_STYLE
+                                    : ProcessResult::TOGGLE_ENGLISH_STYLE;
         }
         return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
     }
@@ -1412,13 +1405,7 @@ bool Engine::dispatch_candidate_selection(int index, const QueryDeadline& deadli
 }
 
 CompositionScheme Engine::scheme_for_mode(InputMode mode) {
-    if (mode == InputMode::WUBI) {
-        return CompositionScheme::kWubi;
-    }
-    if (mode == InputMode::MIXED) {
-        return CompositionScheme::kMixed;
-    }
-    return CompositionScheme::kPinyin;
+    return mode == InputMode::WUBI ? CompositionScheme::kWubi : CompositionScheme::kPinyin;
 }
 
 void Engine::set_sentence_composition_enabled(bool enabled) {
@@ -1438,6 +1425,16 @@ void Engine::switch_mode(InputMode mode) {
     rebuild_pipeline(mode);
 }
 
+void Engine::set_pinyin_initials(bool enabled) {
+    if (pinyin_initials_ == enabled) {
+        return;
+    }
+    pinyin_initials_ = enabled;
+    if (mode_ == InputMode::PINYIN) {
+        rebuild_pipeline(mode_, true);
+    }
+}
+
 void Engine::rebuild_pipeline(InputMode mode, bool force) {
     if (!runtime_) {
         return;
@@ -1445,10 +1442,10 @@ void Engine::rebuild_pipeline(InputMode mode, bool force) {
     Dict& pinyin_dict = runtime_->pinyin_dict();
     Dict* wubi_dict = runtime_->wubi_dict();
     const Config& config = runtime_->config();
-    const PinyinResourceSet& pinyin_resources = runtime_->pinyin_resources();
 
-    // Fall back to pinyin when the optional Wubi dictionary is unavailable.
-    if ((mode == InputMode::WUBI || mode == InputMode::MIXED) && !wubi_dict)
+    // Chinese input is pinyin or Wubi (mixed input was removed). Fall back to pinyin when the
+    // optional Wubi dictionary is unavailable.
+    if (mode != InputMode::WUBI || !wubi_dict)
         mode = InputMode::PINYIN;
 
     if (!force && mode == mode_) return;
@@ -1457,34 +1454,18 @@ void Engine::rebuild_pipeline(InputMode mode, bool force) {
 
     mode_ = mode;
     context_.set_ime_scheme(scheme_for_mode(mode_));
-    const PinyinSchemeKind pinyin_scheme = pinyin_resources.kind();
     if (mode == InputMode::WUBI) {
         processor_ = std::make_unique<WubiProcessor>();
         auto wubi_trans = std::make_unique<WubiTranslator>();
         wubi_trans->set_dict(wubi_dict);
         translator_ = std::move(wubi_trans);
-    } else if (mode == InputMode::MIXED) {
-        auto pinyin_processor = std::make_unique<PinyinProcessor>();
-        pinyin_processor->set_shuangpin_enabled(pinyin_scheme == PinyinSchemeKind::kShuangpin);
-        processor_ = std::move(pinyin_processor);
-        auto mixed_trans = std::make_unique<MixedTranslator>();
-        mixed_trans->set_pinyin_dict(&pinyin_dict);
-        mixed_trans->set_wubi_dict(wubi_dict);
-        mixed_trans->bind_pinyin(runtime_->pinyin_resources_ptr(),
-                                 runtime_->pinyin_query_policy());
-        if (pinyin_dict.has_short_cache()) {
-            mixed_trans->set_short_cache(&pinyin_dict.short_cache());
-        }
-        mixed_trans->set_candidate_preference(config.mixed_candidate_preference);
-        translator_ = std::move(mixed_trans);
     } else {
-        auto pinyin_processor = std::make_unique<PinyinProcessor>();
-        pinyin_processor->set_shuangpin_enabled(pinyin_scheme == PinyinSchemeKind::kShuangpin);
-        processor_ = std::move(pinyin_processor);
+        processor_ = std::make_unique<PinyinProcessor>();
         auto pinyin_trans = std::make_unique<PinyinTranslator>();
         pinyin_trans->set_dict(&pinyin_dict);
-        pinyin_trans->bind_pinyin(runtime_->pinyin_resources_ptr(),
-                                  runtime_->pinyin_query_policy());
+        PinyinQueryPolicy policy = runtime_->pinyin_query_policy();
+        policy.initials_only = pinyin_initials_;
+        pinyin_trans->bind_pinyin(runtime_->pinyin_resources_ptr(), policy);
         if (pinyin_dict.has_short_cache()) {
             pinyin_trans->set_short_cache(&pinyin_dict.short_cache());
         }

@@ -320,7 +320,8 @@ void StatusWindow::set_enabled(bool enabled) {
 void StatusWindow::update_state(const ButtonState& state) {
     if (state_.chinese_mode == state.chinese_mode && state_.caps_lock == state.caps_lock &&
         state_.full_shape == state.full_shape && state_.chinese_punct == state.chinese_punct &&
-        state_.english_words == state.english_words && state_.input_mode == state.input_mode) {
+        state_.english_words == state.english_words && state_.input_mode == state.input_mode &&
+        state_.pinyin_initials == state.pinyin_initials) {
         return;
     }
     state_ = state;
@@ -675,16 +676,11 @@ static Color blend(Color base, Color overlay, float alpha) {
     };
 }
 
-static const wchar_t* input_mode_text(InputMode mode) {
-    switch (mode) {
-    case InputMode::PINYIN:
-        return L"拼";
-    case InputMode::WUBI:
+static const wchar_t* input_mode_text(InputMode mode, bool pinyin_initials) {
+    if (mode == InputMode::WUBI) {
         return L"五";
-    case InputMode::MIXED:
-        return L"混";
     }
-    return L"拼";
+    return pinyin_initials ? L"首" : L"拼";
 }
 
 static Color input_mode_color(const StatusTheme& theme, InputMode mode, bool enabled) {
@@ -855,7 +851,8 @@ void StatusWindow::PaintD2D() {
 
     // 2. Input mode label integrated into the window background
     const Color mode_text_color = input_mode_color(theme_, state_.input_mode, is_enabled_);
-    draw_text(GetInputModeRect(), input_mode_text(state_.input_mode), d2d_font_cn_, mode_text_color);
+    draw_text(GetInputModeRect(), input_mode_text(state_.input_mode, state_.pinyin_initials),
+              d2d_font_cn_, mode_text_color);
 
     // 3. Buttons (shared draw info)
     std::vector<ButtonDrawInfo> buttons;
@@ -939,7 +936,8 @@ void StatusWindow::PaintGdiplus() {
         SetTextColor(layered_dc_, RGB(mode_text_color.r, mode_text_color.g, mode_text_color.b));
         SelectObject(layered_dc_, font_cn_);
         RECT mode_rect = GetInputModeRect();
-        DrawTextW(layered_dc_, input_mode_text(state_.input_mode), -1, &mode_rect,
+        DrawTextW(layered_dc_, input_mode_text(state_.input_mode, state_.pinyin_initials), -1,
+                  &mode_rect,
                   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
 

@@ -45,23 +45,6 @@ static void load_keyboard_shortcut(Json& obj, const char* key, KeyboardShortcut&
     }
 }
 
-static const char* mixed_candidate_preference_name(MixedCandidatePreference preference) {
-    switch (preference) {
-    case MixedCandidatePreference::kWubi:
-        return "wubi";
-    case MixedCandidatePreference::kAuto:
-    default:
-        return "auto";
-    }
-}
-
-static MixedCandidatePreference parse_mixed_candidate_preference(const std::string& value) {
-    if (value == "wubi") {
-        return MixedCandidatePreference::kWubi;
-    }
-    return MixedCandidatePreference::kAuto;
-}
-
 static int muted_text_color(int foreground, int background) {
     constexpr int foreground_weight = 3;
     constexpr int background_weight = 2;
@@ -181,14 +164,13 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         if (config.page_size > 100) config.page_size = 100;
         load_int(e, "input_mode", config.input_mode);
         if (config.input_mode < 0) config.input_mode = 0;
-        if (config.input_mode > 2) config.input_mode = 2;
+        if (config.input_mode > 1) config.input_mode = 0;  // former mixed mode: pinyin
         load_string(e, "pinyin_scheme", config.pinyin_scheme);
         if (!find_pinyin_scheme(config.pinyin_scheme)) {
             CXXIME_LOG(L"Config: unknown pinyin scheme '%S', falling back to full Pinyin",
                        config.pinyin_scheme.c_str());
         }
         config.pinyin_scheme = normalize_pinyin_scheme_id(config.pinyin_scheme);
-        load_bool(e, "fuzzy_pinyin", config.fuzzy_pinyin);
         load_bool(e, "wubi_auto_commit", config.wubi_auto_commit);
         load_bool(e, "wubi_commit_first_on_fifth_key",
                   config.wubi_commit_first_on_fifth_key);
@@ -196,11 +178,7 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
                   config.wubi_restart_on_fifth_after_miss);
         load_bool(e, "wubi_code_hint", config.wubi_code_hint);
         load_bool(e, "candidate_learning", config.candidate_learning);
-        std::string mixed_candidate_preference =
-            mixed_candidate_preference_name(config.mixed_candidate_preference);
-        load_string(e, "mixed_candidate_preference", mixed_candidate_preference);
-        config.mixed_candidate_preference =
-            parse_mixed_candidate_preference(mixed_candidate_preference);
+        load_bool(e, "pinyin_initials", config.pinyin_initials);
     }
 
     if (j.contains("initial_state") && j["initial_state"].is_object()) {
@@ -278,6 +256,9 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
     }
 
     load_string(j, "theme", config.theme);
+    if (j.contains("ui") && j["ui"].is_object()) {
+        load_string(j["ui"], "language", config.ui_language);
+    }
 
     if (j.contains("status_window") && j["status_window"].is_object()) {
         auto& sw = j["status_window"];
@@ -298,21 +279,13 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
 
     if (j.contains("shortcuts") && j["shortcuts"].is_object()) {
         auto& shortcuts = j["shortcuts"];
-        load_keyboard_shortcut(shortcuts, "input_mode_switch",
-                               config.input_mode_switch_shortcut,
-                               is_valid_input_mode_shortcut);
         load_keyboard_shortcut(shortcuts, "activate_ime", config.activate_ime_shortcut,
                                is_valid_activate_ime_shortcut);
         load_keyboard_shortcut(shortcuts, "english_style", config.english_style_shortcut,
                                is_valid_input_mode_shortcut);
-        if (config.input_mode_switch_shortcut.enabled() &&
-            config.input_mode_switch_shortcut == config.activate_ime_shortcut) {
-            config.input_mode_switch_shortcut = {};
-        }
-        // The other shortcuts win over an identical English style shortcut.
+        // The IME activation shortcut wins over an identical English style shortcut.
         if (config.english_style_shortcut.enabled() &&
-            (config.english_style_shortcut == config.input_mode_switch_shortcut ||
-             config.english_style_shortcut == config.activate_ime_shortcut)) {
+            config.english_style_shortcut == config.activate_ime_shortcut) {
             config.english_style_shortcut = {};
         }
     }
@@ -487,7 +460,6 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["engine"]["page_size"] = config.page_size;
     j["engine"]["input_mode"] = config.input_mode;
     j["engine"]["pinyin_scheme"] = normalize_pinyin_scheme_id(config.pinyin_scheme);
-    j["engine"]["fuzzy_pinyin"] = config.fuzzy_pinyin;
     j["engine"]["wubi_auto_commit"] = config.wubi_auto_commit;
     j["engine"]["wubi_commit_first_on_fifth_key"] =
         config.wubi_commit_first_on_fifth_key;
@@ -495,8 +467,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
         config.wubi_restart_on_fifth_after_miss;
     j["engine"]["wubi_code_hint"] = config.wubi_code_hint;
     j["engine"]["candidate_learning"] = config.candidate_learning;
-    j["engine"]["mixed_candidate_preference"] =
-        mixed_candidate_preference_name(config.mixed_candidate_preference);
+    j["engine"]["pinyin_initials"] = config.pinyin_initials;
     j["engine"]["max_pinyin_length"] = kMaxInputCodeLength;
 
     j["initial_state"]["full_shape"] = config.initial_full_shape;
@@ -554,6 +525,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
         config.layout_config.preedit_highlight_border_width;
 
     j["theme"] = config.theme;
+    j["ui"]["language"] = config.ui_language;
 
     j["status_window"]["enable"] = config.status_window.enable;
     j["status_window"]["x"] = config.status_window.x;
@@ -580,8 +552,6 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     ac["switch_key"] = sk;
     j["ascii_composer"] = ac;
 
-    j["shortcuts"]["input_mode_switch"] =
-        keyboard_shortcut_string(config.input_mode_switch_shortcut);
     j["shortcuts"]["activate_ime"] = keyboard_shortcut_string(config.activate_ime_shortcut);
     j["shortcuts"]["english_style"] = keyboard_shortcut_string(config.english_style_shortcut);
 

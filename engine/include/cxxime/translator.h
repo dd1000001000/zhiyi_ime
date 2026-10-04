@@ -93,6 +93,8 @@ private:
     Dict* dict_ = nullptr;
     std::shared_ptr<const PinyinResourceSet> pinyin_resources_;
     PinyinQueryPolicy pinyin_query_policy_;
+    // Initials mode: drops candidates whose syllables do not match `pinyin` as initials.
+    void keep_initials_matches(const std::string& pinyin, std::vector<Candidate>& candidates) const;
     const ShortCodeCache* short_cache_ = nullptr;
     PinyinSegmentor segmentor_;
 

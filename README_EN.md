@@ -49,6 +49,7 @@ python scripts\fetch_onnxruntime.py   :: ONNX Runtime 1.30.0 -> third_party\onnx
 python scripts\fetch_model.py         :: Laya model (~260 MB, GitHub release) -> models\laya\
 build_laya.bat                        :: Ninja Release build into build\
 build_laya.bat test                   :: unit tests
+package_laya.bat                      :: installer (needs NSIS 3.x) into ..\output\
 ```
 
 Requires Windows 10/11 x64, Visual Studio 2022 or newer (C++ workload), CMake 3.15+ and Python 3.10+.

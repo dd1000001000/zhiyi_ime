@@ -292,7 +292,7 @@ def build_x86_platform_modules(
         skip_tools=True,
         generator=generator,
         platform="Win32",
-        target="zhiyi-platform-modules",
+        target="cxxime-platform-modules",
         jobs=jobs,
         host_diagnostics=host_diagnostics,
     )

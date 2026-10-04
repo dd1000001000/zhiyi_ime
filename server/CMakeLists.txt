@@ -35,9 +35,11 @@ target_link_libraries(cxxime-server PRIVATE
 )
 
 # Laya: ONNX Runtime DLLs and (when present) the model next to the server executable.
-add_custom_command(TARGET cxxime-server POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LAYA_ORT_RUNTIME_FILES} $<TARGET_FILE_DIR:cxxime-server>
-)
+if(LAYA_ORT_RUNTIME_FILES)
+    add_custom_command(TARGET cxxime-server POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LAYA_ORT_RUNTIME_FILES} $<TARGET_FILE_DIR:cxxime-server>
+    )
+endif()
 set(LAYA_MODEL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/models/laya CACHE PATH "Laya model directory (laya.int8g.onnx, tokenizer.json, rl_agent_config.json)")
 if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/laya.int8g.onnx)
     # Copied by a file-level rule (not POST_BUILD), so replacing the model updates the copy

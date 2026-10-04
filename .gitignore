@@ -58,3 +58,6 @@ __pycache__/
 *.pyc
 # Model training / evaluation (kept private: code and data are not published)
 /bench/
+
+# Update signing keys (scripts/update_signing.py) never go into the repository
+*.pem

@@ -659,4 +659,14 @@ TEST(Config, settings_presets_layouts) {
     ASSERT_EQ(presets["recommended"]["vertical"]["candidate_spacing"].get<int>(), 4);
 }
 
+TEST(Config, update_reminder_switch) {
+    cxxime::Config config;
+    ASSERT_TRUE(config.update_notify);  // on by default
+    ASSERT_TRUE(config.load_user_json(R"({"update":{"notify":false}})"));
+    ASSERT_TRUE(!config.update_notify);
+    cxxime::Config loaded;
+    ASSERT_TRUE(loaded.load_json(config.to_user_json()));
+    ASSERT_TRUE(!loaded.update_notify);
+}
+
 RUN_ALL_TESTS()

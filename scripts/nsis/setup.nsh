@@ -45,7 +45,29 @@ Function ChooseInstallerLanguage
             StrCpy $LANGUAGE ${LANG_ENGLISH}
         ${EndIf}
     ${EndIf}
-    !insertmacro MUI_LANGDLL_DISPLAY
+    ${If} $UpdateMode != 1  ; an update keeps the language
+        !insertmacro MUI_LANGDLL_DISPLAY
+    ${EndIf}
+FunctionEnd
+
+; Update mode (/UPDATE): started by Settings > Updates after the user chose to update. No
+; questions before installing (language, folder and privacy choices stay as they are).
+Function SkipPageInUpdateMode
+    ${If} $UpdateMode == 1
+        Abort
+    ${EndIf}
+FunctionEnd
+
+; Update mode: settings opens again, not elevated (through Explorer), and reports the update
+; (update-state.json). The finish page stays only when programs or a restart are still needed.
+Function FinishPagePre
+    ${If} $UpdateMode == 1
+        Exec '"$WINDIR\explorer.exe" "$INSTDIR\zhiyi-settings.exe"'
+        StrCmp $InstallLockNotice "1" finish_page_pre_show
+        IfRebootFlag finish_page_pre_show
+        Abort
+        finish_page_pre_show:
+    ${EndIf}
 FunctionEnd
 
 ; User experience improvement program, two tiers (docs\privacy.md): the program (basic
@@ -69,6 +91,9 @@ Function LoadExperienceProgram
 FunctionEnd
 
 Function ExperiencePage
+    ${If} $UpdateMode == 1
+        Abort
+    ${EndIf}
     !insertmacro MUI_HEADER_TEXT "$(L_109)" "$(L_110)"
     nsDialogs::Create 1018
     Pop $0
@@ -129,6 +154,9 @@ Function ExperiencePageLeave
 FunctionEnd
 
 Function ApplyExperienceProgram
+    ${If} $UpdateMode == 1
+        Return
+    ${EndIf}
     StrCpy $0 "off"
     ${If} $ExperienceProgram == ${BST_CHECKED}
         StrCpy $0 "on"
@@ -148,6 +176,9 @@ FunctionEnd
 ; settings follow Windows and Windows already gives that language). Not fatal.
 Function ApplyInstallerLanguage
     WriteRegStr HKLM "${UNINSTALL_KEY}" "InstallerLanguage" "$LANGUAGE"
+    ${If} $UpdateMode == 1
+        Return
+    ${EndIf}
     StrCpy $0 "en-US"
     ${If} $LANGUAGE == ${LANG_SIMPCHINESE}
         StrCpy $0 "zh-CN"
@@ -176,6 +207,12 @@ Function .onInit
     ${GetOptions} $0 "/ALLOWDOWNGRADE" $1
     ${IfNot} ${Errors}
         StrCpy $AllowDowngrade 1
+    ${EndIf}
+    StrCpy $UpdateMode 0
+    ClearErrors
+    ${GetOptions} $0 "/UPDATE" $1
+    ${IfNot} ${Errors}
+        StrCpy $UpdateMode 1
     ${EndIf}
     StrCpy $InitialServerWasRunning 0
     StrCpy $TransactionServerWasRunning ""

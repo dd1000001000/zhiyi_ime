@@ -1,0 +1,112 @@
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
+//
+// Updates from GitHub Releases. The settings program checks when it opens (Config::update_notify)
+// or on request (Settings > Updates); nothing else in the IME uses the network.
+//
+// Every release has two extra assets next to the installer (scripts/update_signing.py):
+//   latest.json      {"version", "file", "url", "size", "sha256", "published", "notes": {lang}}
+//   latest.json.sig  base64 ECDSA P-256 signature (r || s) over the exact bytes of latest.json
+// The public key is built in (update_public_key.inc); the private key never leaves the release
+// machine. An installer is started only when the manifest signature and its SHA-256 match.
+#ifndef CXXIME_UPDATE_H_
+#define CXXIME_UPDATE_H_
+
+#include <atomic>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <string>
+
+#include <windows.h>
+
+namespace cxxime {
+namespace update {
+
+inline constexpr char kReleaseBase[] =
+    "https://github.com/dd1000001000/zhiyi_ime/releases/latest/download/";
+inline constexpr char kDownloadPrefix[] =
+    "https://github.com/dd1000001000/zhiyi_ime/releases/download/";
+inline constexpr wchar_t kReleasesPage[] =
+    L"https://github.com/dd1000001000/zhiyi_ime/releases/latest";
+// Development only: another base URL for latest.json and the installers (e.g. a local server,
+// http allowed on 127.0.0.1 / localhost). The signature is still checked with the built-in key.
+inline constexpr wchar_t kTestBaseVariable[] = L"ZHIYI_UPDATE_TEST_BASE";
+
+struct Manifest {
+    std::string version;
+    std::string file;  // installer file name, e.g. zhiyi-v0.6.3-setup.exe
+    std::string url;
+    std::uint64_t size = 0;
+    std::string sha256;  // lowercase hex
+    std::string published;
+    std::map<std::string, std::string> notes;  // UI language -> release notes
+
+    // The notes in `language`, else English, else any.
+    std::string notes_for(const std::string& language) const;
+};
+
+// Parses latest.json. False when a field is missing or unsafe: the installer must be a file
+// named like zhiyi-v<version>-setup.exe under `download_prefix`.
+bool parse_manifest(const std::string& text, const std::string& download_prefix,
+                    Manifest* manifest);
+
+// True when `candidate` is a release (not a pre-release) newer than `current`.
+bool is_newer_release(const std::string& candidate, const std::string& current);
+
+// ECDSA P-256 / SHA-256 signature check; `public_key_base64` is X || Y (64 bytes).
+bool verify_signature(const std::string& data, const std::string& signature_base64,
+                      const std::string& public_key_base64);
+const std::string& builtin_public_key();
+
+// SHA-256 of a file (lowercase hex); false when it cannot be read.
+bool sha256_file(HANDLE file, std::string* hex);
+bool sha256_file(const std::wstring& path, std::string* hex);
+
+enum class Status {
+    kOk,
+    kNotFound,      // no release information (HTTP 404)
+    kNetwork,       // no connection, timeout, HTTP error
+    kInvalid,       // bad manifest or signature, or installer hash mismatch
+    kDisk,          // the installer could not be written
+    kCancelled,
+};
+
+struct CheckResult {
+    Status status = Status::kNetwork;
+    Manifest manifest;
+    bool newer = false;
+};
+
+// Downloads and verifies latest.json (blocking; run on a worker thread).
+CheckResult check_latest(const std::string& current_version);
+
+// Downloads the installer into `directory` (resumed from a .part file), then checks size and
+// SHA-256. `progress(done, total)` is called as data arrives; `cancel` stops the download.
+using Progress = std::function<void(std::uint64_t done, std::uint64_t total)>;
+Status download_installer(const Manifest& manifest, const std::wstring& directory,
+                          const Progress& progress, const std::atomic<bool>* cancel,
+                          std::wstring* path);
+
+// Checks the installer again with the file locked against writes, then starts it elevated in
+// update mode (/UPDATE). ERROR_CANCELLED in *error when the user declined the UAC prompt.
+bool launch_installer(const std::wstring& path, const std::string& sha256, HWND owner,
+                      DWORD* error);
+
+// %USERPROFILE%\zhiyi\updates (created).
+std::wstring download_directory();
+// Deletes downloaded installers except `keep` (a file name; empty: all).
+void clean_downloads(const std::wstring& directory, const std::wstring& keep = {});
+
+// %USERPROFILE%\zhiyi\update-state.json: a version the user skipped, and the version being
+// installed (so the next settings start can say it was updated).
+struct State {
+    std::string skipped_version;
+    std::string pending_version;
+};
+State read_state(const std::wstring& path = {});
+bool write_state(const State& state, const std::wstring& path = {});
+
+}  // namespace update
+}  // namespace cxxime
+
+#endif  // CXXIME_UPDATE_H_

@@ -129,9 +129,15 @@ Var ExperienceProgram
 Var ExperienceCheckbox
 Var CollectInput
 Var CollectInputCheckbox
+Var UpdateMode
 
+; Update mode (/UPDATE, from Settings > Updates) goes straight to the installation
+; (SkipPageInUpdateMode, nsis\setup.nsh).
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipPageInUpdateMode
 !insertmacro MUI_PAGE_WELCOME
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipPageInUpdateMode
 !insertmacro MUI_PAGE_LICENSE "license.txt"
+!define MUI_PAGE_CUSTOMFUNCTION_PRE SkipPageInUpdateMode
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE ValidateInstallDirectory
 !insertmacro MUI_PAGE_DIRECTORY
 ; User experience improvement program (opt-in; nsis\setup.nsh).
@@ -141,6 +147,7 @@ Page custom ExperiencePage ExperiencePageLeave
 !define MUI_FINISHPAGE_RUN "$INSTDIR\zhiyi-settings.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "$(L_001)"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
+!define MUI_PAGE_CUSTOMFUNCTION_PRE FinishPagePre
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishPageShow
 !insertmacro MUI_PAGE_FINISH
 UninstPage custom un.ConfirmPage un.ConfirmPageLeave

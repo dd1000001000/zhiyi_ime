@@ -89,15 +89,6 @@ int label_width(std::initializer_list<const char*> keys) {
     return width + S(8);
 }
 
-HWND make_button(int id, const wchar_t* text, int x, int y, int width, HWND parent) {
-    HWND control = CreateWindowExW(0, L"BUTTON", text, WS_CHILD | WS_VISIBLE | WS_TABSTOP, x, y,
-                                   width, S(28), parent,
-                                   reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
-                                   GetModuleHandle(nullptr), nullptr);
-    SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
-    return control;
-}
-
 bool switch_action_enabled(const Config& config, const char* key) {
     const auto found = config.ascii_switch_key.find(key);
     return found != config.ascii_switch_key.end() && found->second != "noop";
@@ -390,6 +381,7 @@ void EditorApp::populate_controls() {
     set_check(hLearning_, config_.candidate_learning);
     set_check(hExperience_, config_.experience_program);
     set_check(hCollectInput_, config_.experience_program && config_.collect_input);
+    set_check(hUpdateNotify_, config_.update_notify);
     set_check(hFuzzyEnabled_, config_.fuzzy_pinyin);
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
         set_check(hFuzzyGroups_[i], (config_.fuzzy_groups & (1 << i)) != 0);
@@ -415,6 +407,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.candidate_learning = get_check(hLearning_);
     c.experience_program = get_check(hExperience_);
     c.collect_input = c.experience_program && get_check(hCollectInput_);
+    c.update_notify = get_check(hUpdateNotify_);
     c.fuzzy_pinyin = get_check(hFuzzyEnabled_);
     c.fuzzy_groups = 0;
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
@@ -569,7 +562,7 @@ bool EditorApp::handle_command(int control_id, int notification) {
         }
         return true;
     default:
-        return false;
+        return handle_update_command(control_id, notification);
     }
 }
 

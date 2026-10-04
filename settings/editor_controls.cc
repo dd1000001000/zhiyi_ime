@@ -73,6 +73,15 @@ int make_aligned_label(const wchar_t* text, int x, int width, int y, HWND parent
     return x + width + S(8);
 }
 
+HWND make_button(int id, const wchar_t* text, int x, int y, int width, HWND parent) {
+    HWND control = CreateWindowExW(0, L"BUTTON", text, WS_CHILD | WS_VISIBLE | WS_TABSTOP, x, y,
+                                   width, S(28), parent,
+                                   reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
+                                   GetModuleHandle(nullptr), nullptr);
+    SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
+    return control;
+}
+
 HWND make_edit(int id, int x, int y, int width, HWND parent) {
     HWND edit =
         CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",

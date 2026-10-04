@@ -103,6 +103,7 @@ nlohmann::json settings_of(const Config& c) {
     s["render_backend"] = c.render_backend;
     s["layout"] = c.layout;
     s["collect_input"] = c.collect_input;
+    s["update_notify"] = c.update_notify;
     nlohmann::json keys;
     keys["ascii_toggle"] = keyboard_shortcut_string(c.ascii_toggle_shortcut);
     keys["style"] = keyboard_shortcut_string(c.english_style_shortcut);

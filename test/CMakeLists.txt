@@ -299,6 +299,10 @@ add_cxxime_test(installer_ui_language_test
     SOURCES installer/installer_ui_language_test.cc
     DEPS cxxime-installer-lock
 )
+add_cxxime_test(update_test
+    SOURCES update/update_test.cc
+    DEPS cxxime-update
+)
 add_cxxime_test(installer_version_test
     SOURCES installer/installer_version_test.cc
     DEPS cxxime-installer-lock

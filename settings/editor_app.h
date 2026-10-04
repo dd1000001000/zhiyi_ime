@@ -7,6 +7,9 @@
 #ifndef CXXIME_SETTINGS_EDITOR_APP_H_
 #define CXXIME_SETTINGS_EDITOR_APP_H_
 
+#include <atomic>
+#include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -15,6 +18,7 @@
 
 #include <cxxime/config.h>
 #include <cxxime/settings_route.h>
+#include <cxxime/update.h>
 
 #include "i18n.h"
 
@@ -40,6 +44,7 @@ private:
     void open_log_folder();
     void delete_experience_log();
     void on_privacy_check(int control_id);
+    void create_update_panel(HWND panel);
     void create_about_panel(HWND panel, int panel_width);
     void show_panel(int idx);
     void release_fonts();
@@ -57,6 +62,16 @@ private:
 
     bool handle_command(int control_id, int notification);
     bool handle_about_notify(LPARAM notification);
+    // Updates (editor_update_panel.cc)
+    void init_update();
+    void show_update_state();
+    void start_update_check(bool automatic);
+    void on_update_checked(bool automatic, const update::CheckResult& result);
+    void show_update_prompt();
+    void start_update_download();
+    void on_update_downloaded(const std::wstring& path, update::Status status);
+    bool handle_update_command(int control_id, int notification);
+    bool handle_update_message(UINT message, WPARAM wparam, LPARAM lparam);
     void update_enabled_controls();
     void clear_learning_data();
     void set_switch_key_boxes(const cxxime::Config& config);
@@ -75,7 +90,7 @@ private:
     HWND make_hint(const wchar_t* text, int x, int y, int width, HWND parent, int lines = 2);
     int panel_ = 0;
     cxxime::SettingsPanel initial_panel_ = cxxime::SettingsPanel::kInput;
-    static constexpr int kPanelCount = 6;
+    static constexpr int kPanelCount = 7;
     HWND hPanels_[kPanelCount] = {};
 
     // General
@@ -104,6 +119,26 @@ private:
     // Privacy
     HWND hExperience_ = nullptr;
     HWND hCollectInput_ = nullptr;
+
+    // Updates
+    HWND hUpdateNotify_ = nullptr;
+    HWND hCheckUpdate_ = nullptr;
+    HWND hUpdateStatus_ = nullptr;
+    HWND hNewVersion_ = nullptr;
+    HWND hReleaseLink_ = nullptr;
+    HWND hReleaseNotes_ = nullptr;
+    HWND hInstallUpdate_ = nullptr;
+    HWND hInstallHint_ = nullptr;
+    HWND hUpdateProgress_ = nullptr;
+    enum class UpdateBusy { kNone, kChecking, kDownloading };
+    UpdateBusy update_busy_ = UpdateBusy::kNone;
+    std::wstring update_status_;
+    bool have_update_ = false;
+    bool update_prompted_ = false;  // the reminder is shown once per start
+    update::Manifest update_manifest_;
+    std::uint64_t update_done_ = 0;
+    std::uint64_t update_total_ = 0;
+    std::shared_ptr<std::atomic<bool>> update_cancel_;
 
     cxxime::Config config_;
     cxxime::Config loaded_config_;  // the files as last read or written

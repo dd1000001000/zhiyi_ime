@@ -69,6 +69,9 @@
         "experience_program": false,
         "collect_input": false
     },
+    "update": {
+        "notify": true
+    },
     "theme": "moon_light",
     "ui": {
         "language": "auto"

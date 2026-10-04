@@ -29,6 +29,8 @@ const wchar_t* about_link_url(UINT_PTR control_id) {
         return kUpstreamUrl;
     case kPrivacyDocLinkId:
         return tr("privacy.doc_url");  // the document in the UI language
+    case kReleaseLinkId:
+        return update::kReleasesPage;
     default:
         return nullptr;
     }

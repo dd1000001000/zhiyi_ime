@@ -29,7 +29,7 @@ to `experience.1.jsonl` (only that one old file is kept). Every record has `t` (
 | Record | Written | Contents |
 |---|---|---|
 | `start` | when the background service starts | `version` IME version; `windows` Windows version number; `cpu_count` logical CPUs; `memory_gb` memory size (GB) |
-| `config` | when first enabled and when settings change | `settings`: Chinese input (pinyin / Wubi), pinyin scheme, initials mode, fuzzy pinyin and its pairs, self-learning, candidates per page, font size, theme, interface language, recommendation model on/off, English spelling correction, English word mode, renderer, horizontal / vertical layout, whether input collection is allowed, the 4 switch keys and the tap Shift / Ctrl setting |
+| `config` | when first enabled and when settings change | `settings`: Chinese input (pinyin / Wubi), pinyin scheme, initials mode, fuzzy pinyin and its pairs, self-learning, candidates per page, font size, theme, interface language, recommendation model on/off, English spelling correction, English word mode, renderer, horizontal / vertical layout, whether input collection is allowed, the update reminder switch, the 4 switch keys and the tap Shift / Ctrl setting |
 | `health` | checked every 30 minutes, written only after errors or when the recommendation model state changes | `errors` responses that could not be built (the key then reaches the program unhandled); `laya` recommendation model state (off / ready / failed) |
 
 Tier 1 does **not** include anything you type, any keys, the programs you use, or usage counts.
@@ -74,6 +74,15 @@ latest inference time.
 - **Password fields**: Windows turns the IME off in password fields, so those keys never reach it.
 - Identity information such as user name, computer name, IP address or hardware serial numbers,
   and full file paths.
+
+## Update check (not part of this program)
+
+"Tell me when a new version is available" in Settings > Updates (on by default, setting
+`update.notify`) downloads the version information of the latest release (`latest.json`) from
+GitHub when Settings opens; "Check for updates" downloads it too. This is a plain file download:
+**no IME data or records are sent**; GitHub sees only the visitor's IP address and the program
+version (User-Agent). The installer is downloaded only after "Update now", and is started only
+after its signature and SHA-256 are verified.
 
 ## Developer diagnostics (not part of this program)
 

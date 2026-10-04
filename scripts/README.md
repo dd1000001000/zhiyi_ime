@@ -24,11 +24,27 @@ python scripts\package.py --output-dir <path>
 
 修改词典源数据、符号清单、候选排序或索引格式后，正式打包不得使用 `--skip-dict`。
 
+## 发布更新（设置 > 更新）
+
+设置程序从 GitHub 最新 Release 读取 `latest.json` 和 `latest.json.sig`，签名正确、安装包
+SHA-256 一致才会安装（`update/include/cxxime/update.h`）。
+
+1. 修改 `VERSION`，在 `docs/release-notes/<版本>.zh-CN.md` 和 `<版本>.en-US.md` 写更新说明（可选）。
+2. `python scripts\package.py`：签名密钥存在时，在输出目录生成 `latest.json` 和 `latest.json.sig`。
+3. 在 GitHub 新建 Release，标签为 `v<版本>`（例如 `v0.6.3`），上传安装包、`latest.json`、
+   `latest.json.sig` 三个文件，发布为正式版本（不是 Pre-release），它就成为 latest。
+
+签名私钥默认在 `%USERPROFILE%\.zhiyi-release\update-signing.pem`（或环境变量
+`ZHIYI_UPDATE_KEY`），**不能提交到仓库，并且要备份**：丢失后只能发布一个需要用户手动安装、
+内置新公钥（`update_signing.py pubkey`）的版本。只在新机器上第一次使用时运行
+`python scripts\update_signing.py genkey`。
+
 ## 脚本职责
 
 | 脚本 | 职责 |
 |------|------|
 | `package.py` | 完整构建和发布打包入口 |
+| `update_signing.py` | 更新签名密钥，生成并签名 `latest.json` |
 | `dictionary_bundle_layout.py` | 运行时词典文件、manifest 角色及双拼变体的共享清单 |
 | `prepare_dictionary_bundle.py` | 并行准备拼音、五笔运行时词典并生成 manifest |
 | `build_pinyin_topn.py` | 生成供 `topn_builder` 使用的拼音 Top-N 中间索引 |

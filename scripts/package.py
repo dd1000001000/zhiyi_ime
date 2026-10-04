@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 from dictionary_bundle_layout import PINYIN_SPELLING_FILES
 from install_payload import write_install_payload
@@ -805,6 +806,20 @@ def build_nsis(
         print(f"  Installer created: {dest}")
     else:
         raise RuntimeError("NSIS completed without producing the expected installer")
+    if not host_diagnostics:
+        write_update_manifest(dest, output_dir)
+
+
+def write_update_manifest(installer: str, output_dir: str) -> None:
+    """latest.json and latest.json.sig for Settings > Updates (scripts/update_signing.py)."""
+    import update_signing
+
+    key = update_signing.default_key_path()
+    if not key.is_file():
+        print(f"  No update signing key ({key}): latest.json not written")
+        return
+    manifest = update_signing.write_manifest(Path(installer), VERSION, Path(output_dir), key)
+    print(f"  Update manifest: {manifest} (+ .sig); upload both with the installer")
 
 
 def print_summary(config: str, include_x86_modules: bool, host_diagnostics: bool) -> None:

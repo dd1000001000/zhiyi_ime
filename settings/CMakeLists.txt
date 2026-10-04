@@ -8,6 +8,7 @@ add_executable(cxxime-settings WIN32
     editor_app_internal.h
     editor_controls.cc
     editor_general_panel.cc
+    editor_update_panel.cc
     hotkey_check.cc
     hotkey_check.h
     i18n.cc
@@ -39,6 +40,7 @@ target_link_libraries(cxxime-settings PRIVATE
     cxxime-ipc
     cxxime-shared
     cxxime-ui
+    cxxime-update
     comctl32.lib
     imm32.lib
 )

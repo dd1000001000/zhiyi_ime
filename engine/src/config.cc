@@ -347,6 +347,9 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_bool(j["privacy"], "collect_input", config.collect_input);
     }
     if (!config.experience_program) config.collect_input = false;  // needs the first tier
+    if (j.contains("update") && j["update"].is_object()) {
+        load_bool(j["update"], "notify", config.update_notify);
+    }
 
     bool switch_keys_loaded = true;
     if (j.contains("shortcuts") && j["shortcuts"].is_object()) {
@@ -648,6 +651,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["shortcuts"]["shape_toggle"] = keyboard_shortcut_string(config.shape_toggle_shortcut);
     j["privacy"]["experience_program"] = config.experience_program;
     j["privacy"]["collect_input"] = config.collect_input && config.experience_program;
+    j["update"]["notify"] = config.update_notify;
 
     return j;
 }

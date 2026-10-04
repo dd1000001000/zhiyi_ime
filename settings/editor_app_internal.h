@@ -13,6 +13,7 @@ namespace settings {
 
 inline constexpr int kFontPt = 14;
 inline constexpr int kNavFontPt = kFontPt + 1;
+inline constexpr int kUpdatePanel = 5;  // page index of Updates
 
 extern float g_dpi;
 extern HFONT g_hFont;
@@ -40,7 +41,9 @@ HWND make_check(int id, const wchar_t* text, int x, int y, int width, HWND paren
 // A web link (opened in the browser; right-click copies it). Its address comes from
 // web_link_url(id).
 constexpr int kPrivacyDocLinkId = 5004;  // docs/privacy*.md on GitHub (ui string privacy.doc_url)
+constexpr int kReleaseLinkId = 5005;     // the latest release on GitHub (update::kReleasesPage)
 HWND make_web_link(int id, const wchar_t* text, int x, int y, int width, HWND parent);
+HWND make_button(int id, const wchar_t* text, int x, int y, int width, HWND parent);
 HWND make_radio(int id, const wchar_t* text, int x, int y, int width, HWND parent, bool group);
 void combo_add(HWND combo, const wchar_t* text);
 void combo_sel(HWND combo, const wchar_t* text);

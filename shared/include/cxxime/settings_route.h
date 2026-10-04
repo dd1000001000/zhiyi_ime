@@ -16,6 +16,7 @@ enum class SettingsPanel : uint32_t {
     kDiagnostics = 5,
     kAbout = 6,
     kBackup = 7,
+    kUpdate = 8,
 };
 
 inline constexpr wchar_t kSettingsWindowTitle[] = L"知意输入法设置";

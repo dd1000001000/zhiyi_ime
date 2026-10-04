@@ -28,8 +28,8 @@ constexpr int kOkId = 2001;
 constexpr int kCancelId = 2002;
 constexpr int kApplyId = 2003;
 
-const char* const kPanelKeys[] = {"nav.general", "nav.fuzzy",   "nav.keys",
-                                  "nav.dictionary", "nav.privacy", "nav.about"};
+const char* const kPanelKeys[] = {"nav.general", "nav.fuzzy",   "nav.keys",  "nav.dictionary",
+                                  "nav.privacy", "nav.update", "nav.about"};
 
 UINT settings_navigate_message() {
     static const UINT message = RegisterWindowMessageW(cxxime::kSettingsNavigateMessage);
@@ -44,8 +44,10 @@ int settings_panel_index(cxxime::SettingsPanel panel) {
         return 3;
     case cxxime::SettingsPanel::kDiagnostics:
         return 4;
+    case cxxime::SettingsPanel::kUpdate:
+        return kUpdatePanel;
     case cxxime::SettingsPanel::kAbout:
-        return 5;
+        return 6;
     default:
         return 0;
     }
@@ -66,7 +68,7 @@ int EditorApp::run(HINSTANCE hInst, float dpiScale, cxxime::SettingsPanel initia
     app.initial_panel_ = initialPanel;
 
     INITCOMMONCONTROLSEX icc = {sizeof(icc),
-                                ICC_STANDARD_CLASSES | ICC_LINK_CLASS};
+                                ICC_STANDARD_CLASSES | ICC_LINK_CLASS | ICC_PROGRESS_CLASS};
     InitCommonControlsEx(&icc);
 
     WNDCLASSEXW wc = {};
@@ -158,7 +160,8 @@ void EditorApp::create_controls(HWND window) {
     create_keys_panel(hPanels_[2]);
     create_dictionary_panel(hPanels_[3]);
     create_privacy_panel(hPanels_[4]);
-    create_about_panel(hPanels_[5], panel_width);
+    create_update_panel(hPanels_[kUpdatePanel]);
+    create_about_panel(hPanels_[6], panel_width);
 
     const struct {
         int id;
@@ -186,6 +189,7 @@ void EditorApp::destroy_controls() {
         child = next;
     }
     hList_ = hFooter_ = hAboutTitle_ = nullptr;
+    hUpdateStatus_ = nullptr;  // show_update_state() waits for the new page
     hints_.clear();
     for (HWND& panel : hPanels_) {
         panel = nullptr;
@@ -259,6 +263,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(candidate_learning);
     KEEP_PAGE_EDIT(experience_program);
     KEEP_PAGE_EDIT(collect_input);
+    KEEP_PAGE_EDIT(update_notify);
     KEEP_PAGE_EDIT(fuzzy_pinyin);
     KEEP_PAGE_EDIT(fuzzy_groups);
 #undef KEEP_PAGE_EDIT
@@ -340,6 +345,9 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (!a) return DefWindowProcW(hwnd, msg, wp, lp);
 
     const UINT navigate_message = settings_navigate_message();
+    if (a->handle_update_message(msg, wp, lp)) {
+        return 0;
+    }
     if (navigate_message != 0 && msg == navigate_message) {
         a->refresh_config();
         a->show_panel(settings_panel_index(static_cast<cxxime::SettingsPanel>(wp)));
@@ -356,9 +364,13 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         a->ui_language_ = resolve_ui_language(a->config_.ui_language);
         load_ui_strings(a->ui_language_);
+        a->init_update();  // may open the Updates page
         a->create_controls(hwnd);
         a->populate_controls();
         a->show_panel(settings_panel_index(a->initial_panel_));
+        if (a->config_.update_notify) {
+            a->start_update_check(true);
+        }
         return 0;
     case WM_CTLCOLORSTATIC:
     case WM_CTLCOLORBTN: {

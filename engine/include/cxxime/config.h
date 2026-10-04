@@ -60,6 +60,9 @@ struct Config {
     // privacy.collect_input (needs the first) also logs usage statistics and the input itself.
     bool experience_program = false;
     bool collect_input = false;
+    // update.notify: the settings program checks GitHub for a new version when it opens and
+    // offers to install it (settings/update_page; the Update page can always check by hand).
+    bool update_notify = true;
     bool pinyin_initials = false;     // pinyin style: full pinyin (false) or initials (true)
     // Fuzzy pinyin: master switch and the enabled pairs (FuzzyGroup bits, spellings_index.h).
     bool fuzzy_pinyin = false;

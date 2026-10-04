@@ -47,7 +47,7 @@ New-Item -ItemType Directory -Force -Path ([IO.Path]::GetDirectoryName($reportPa
 
 $index = Join-Path $outputPath "pinyin.topn.bin"
 
-"CxxIME Top-N index comparison" | Out-File -LiteralPath $reportPath -Encoding utf8
+"Zhiyi IME Top-N index comparison" | Out-File -LiteralPath $reportPath -Encoding utf8
 "timestamp=$([DateTime]::Now.ToString('o'))" |
     Out-File -LiteralPath $reportPath -Append -Encoding utf8
 "os=$([Environment]::OSVersion.VersionString)" |

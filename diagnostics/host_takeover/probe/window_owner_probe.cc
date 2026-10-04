@@ -14,7 +14,7 @@
 namespace cxxime_probe {
 namespace {
 
-constexpr wchar_t kWindowOwnerProbeClass[] = L"CxxImeWindowOwnerProbeWindow";
+constexpr wchar_t kWindowOwnerProbeClass[] = L"ZhiyiImeWindowOwnerProbeWindow";
 
 WindowOwnerProbe* g_active_probe = nullptr;
 
@@ -140,7 +140,7 @@ bool WindowOwnerProbe::initialize(HINSTANCE instance) {
     }
 
     hwnd_ = CreateWindowExW(
-        WS_EX_TOOLWINDOW, kWindowOwnerProbeClass, L"CxxIME Window Owner Probe",
+        WS_EX_TOOLWINDOW, kWindowOwnerProbeClass, L"Zhiyi IME Window Owner Probe",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, CW_USEDEFAULT, CW_USEDEFAULT,
         560, 180, nullptr, nullptr, instance_, this);
     if (!hwnd_) {

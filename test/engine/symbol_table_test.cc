@@ -79,7 +79,7 @@ TEST(SymbolTable, every_published_category_has_candidates) {
 }
 
 TEST(SymbolTable, failed_reload_clears_previous_data) {
-    const std::string invalid_path = temp_file_path("cxxime_invalid_symbols.json");
+    const std::string invalid_path = temp_file_path("zhiyi_invalid_symbols.json");
     {
         std::ofstream file(invalid_path, std::ios::binary | std::ios::trunc);
         file << "{\"version\":1,\"categories\":[]}";

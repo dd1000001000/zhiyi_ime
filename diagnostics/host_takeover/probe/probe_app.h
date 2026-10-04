@@ -13,7 +13,7 @@
 
 namespace cxxime_probe {
 
-inline constexpr wchar_t kWindowClass[] = L"CxxImeHostProbeWindow";
+inline constexpr wchar_t kWindowClass[] = L"ZhiyiImeHostProbeWindow";
 inline constexpr int kGateCheckboxId = 1001;
 inline constexpr int kOriginalUiCheckboxId = 1002;
 inline constexpr int kConversionHotKeyId = 1003;

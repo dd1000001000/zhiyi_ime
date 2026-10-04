@@ -121,5 +121,6 @@ void fill_process_response(const ProcessKeyResult& result, cxxime::IPCResponse* 
             response->status = cxxime::IPCStatus::ERR_ENGINE_PROCESS_FAILED;
             return;
         }
+        if (item.recommended) response->candidate_recommended_mask |= 1u << index;
     }
 }

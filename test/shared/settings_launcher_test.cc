@@ -6,17 +6,17 @@
 #include "support/testutil.h"
 
 TEST(SettingsLauncher, accepts_absolute_install_location) {
-    const wchar_t value[] = L"C:\\Program Files\\CxxIME\\0.5.0\\";
+    const wchar_t value[] = L"C:\\Program Files\\ZhiyiIME\\0.5.0\\";
     std::wstring path;
     ASSERT_TRUE(cxxime::build_registered_settings_path(value, sizeof(value), &path));
-    ASSERT_EQ(path, std::wstring(L"C:\\Program Files\\CxxIME\\0.5.0\\cxxime-settings.exe"));
+    ASSERT_EQ(path, std::wstring(L"C:\\Program Files\\ZhiyiIME\\0.5.0\\zhiyi-settings.exe"));
 }
 
 TEST(SettingsLauncher, accepts_drive_root) {
     const wchar_t value[] = L"D:\\";
     std::wstring path;
     ASSERT_TRUE(cxxime::build_registered_settings_path(value, sizeof(value), &path));
-    ASSERT_EQ(path, std::wstring(L"D:\\cxxime-settings.exe"));
+    ASSERT_EQ(path, std::wstring(L"D:\\zhiyi-settings.exe"));
 }
 
 TEST(SettingsLauncher, rejects_embedded_or_extra_nulls) {
@@ -29,9 +29,9 @@ TEST(SettingsLauncher, rejects_embedded_or_extra_nulls) {
 }
 
 TEST(SettingsLauncher, rejects_invalid_registry_strings) {
-    const wchar_t relative[] = L"CxxIME\\0.5.0";
-    const wchar_t drive_relative[] = L"C:CxxIME";
-    const wchar_t unc[] = L"\\\\server\\CxxIME";
+    const wchar_t relative[] = L"ZhiyiIME\\0.5.0";
+    const wchar_t drive_relative[] = L"C:ZhiyiIME";
+    const wchar_t unc[] = L"\\\\server\\ZhiyiIME";
     const wchar_t separators[] = L"\\\\";
     const wchar_t unterminated[] = {L'C', L':', L'\\'};
     std::wstring path;
@@ -45,12 +45,12 @@ TEST(SettingsLauncher, rejects_invalid_registry_strings) {
 }
 
 TEST(SettingsLauncher, compares_normalized_paths_case_insensitively) {
-    ASSERT_TRUE(cxxime::settings_paths_equal(L"C:\\Program Files\\CxxIME\\0.5.0\\x.exe",
-                                             L"c:\\program files\\cxxime\\0.5.0\\x.exe"));
-    ASSERT_TRUE(cxxime::settings_paths_equal(L"C:\\Program Files\\CxxIME\\.\\x.exe",
-                                             L"C:\\Program Files\\CxxIME\\x.exe"));
-    ASSERT_TRUE(!cxxime::settings_paths_equal(L"C:\\CxxIME\\stable\\x.exe",
-                                              L"C:\\CxxIME\\preview\\x.exe"));
+    ASSERT_TRUE(cxxime::settings_paths_equal(L"C:\\Program Files\\ZhiyiIME\\0.5.0\\x.exe",
+                                             L"c:\\program files\\zhiyiime\\0.5.0\\x.exe"));
+    ASSERT_TRUE(cxxime::settings_paths_equal(L"C:\\Program Files\\ZhiyiIME\\.\\x.exe",
+                                             L"C:\\Program Files\\ZhiyiIME\\x.exe"));
+    ASSERT_TRUE(!cxxime::settings_paths_equal(L"C:\\ZhiyiIME\\stable\\x.exe",
+                                              L"C:\\ZhiyiIME\\preview\\x.exe"));
 }
 
 RUN_ALL_TESTS()

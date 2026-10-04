@@ -16,6 +16,7 @@
 
 #include "dpi_awareness.h"
 #include "gdi_renderer.h"
+#include "sparkle.h"
 
 namespace cxxime {
 
@@ -31,6 +32,7 @@ constexpr int kPreeditCursorBorderGapDips = 1;
 constexpr int kPreeditCursorTextGapDips = 1;
 constexpr int kPreeditCursorIdleAccentPercent = 65;
 constexpr UINT_PTR kPreeditCursorEmphasisTimerId = 1;
+constexpr UINT_PTR kSparkleTimerId = 2;
 constexpr UINT kPreeditCursorEmphasisDurationMs = 160;
 constexpr int kCandidateCaretGapPx = 4;
 
@@ -224,12 +226,12 @@ bool CandidateWindow::create(HWND owner, const Config& config) {
     wc.cbSize = sizeof(wc);
     wc.lpfnWndProc = WndProc;
     wc.hInstance = GetModuleHandle(nullptr);
-    wc.lpszClassName = L"CxxIMECandidateWindow";
+    wc.lpszClassName = L"ZhiyiIMECandidateWindow";
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     RegisterClassExW(&wc);
     ScopedDpiAwarenessContext dpi_context(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     hwnd_ = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-                            L"CxxIMECandidateWindow", L"", WS_POPUP, 0, 0, 300, 30,
+                            L"ZhiyiIMECandidateWindow", L"", WS_POPUP, 0, 0, 300, 30,
                             owner, nullptr, GetModuleHandle(nullptr), this);
     if (hwnd_) {
         SetWindowLongPtrW(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
@@ -752,9 +754,45 @@ void CandidateWindow::update(const CandidatePresentationPage& presentation) {
         Candidate candidate;
         candidate.text = item.text;
         candidate.comment = item.hint;
+        candidate.recommended = item.recommended;
         page.candidates.push_back(std::move(candidate));
     }
     update(page);
+}
+
+void CandidateWindow::update_sparkle(const CandidatePage& page) {
+    std::string text;
+    for (const Candidate& c : page.candidates) {
+        if (c.recommended) {
+            text = c.text;
+            break;
+        }
+    }
+    if (text == sparkle_text_) return;
+    sparkle_text_ = text;
+    if (text.empty() || !hwnd_) {
+        if (hwnd_) KillTimer(hwnd_, kSparkleTimerId);
+        sparkle_animating_ = false;
+        render_ctx_.sparkle_t = -1.0f;
+        return;
+    }
+    sparkle_start_ms_ = GetTickCount64();
+    sparkle_animating_ = SetTimer(hwnd_, kSparkleTimerId, kSparkleFrameMs, nullptr) != 0;
+    render_ctx_.sparkle_t = sparkle_animating_ ? 0.0f : -1.0f;
+}
+
+void CandidateWindow::tick_sparkle() {
+    const unsigned long long elapsed = GetTickCount64() - sparkle_start_ms_;
+    if (!sparkle_animating_ || elapsed >= kSparkleDurationMs) {
+        KillTimer(hwnd_, kSparkleTimerId);
+        sparkle_animating_ = false;
+        render_ctx_.sparkle_t = -1.0f;
+    } else {
+        render_ctx_.sparkle_t = static_cast<float>(elapsed) / 1000.0f;
+    }
+    for (const auto& cr : candidate_rects_) {
+        if (cr.recommended) InvalidateRect(hwnd_, &cr.highlight_rect, FALSE);
+    }
 }
 
 void CandidateWindow::update(const CandidatePage& page) {
@@ -768,6 +806,7 @@ void CandidateWindow::update(const CandidatePage& page) {
         recreate_renderers_for_dpi();
 
     page_ = page;
+    update_sparkle(page);
     candidate_rects_.clear();
 
     // Apply DPI scaling to pixel values (like Weasel's Layout constructor)
@@ -1009,6 +1048,7 @@ void CandidateWindow::update(const CandidatePage& page) {
             cr.text_rect.top += preedit_h;        cr.text_rect.bottom += preedit_h;
             cr.comment_rect.top += preedit_h;     cr.comment_rect.bottom += preedit_h;
             cr.highlight_rect.top += preedit_h;   cr.highlight_rect.bottom += preedit_h;
+            cr.mark_rect.top += preedit_h;        cr.mark_rect.bottom += preedit_h;
         }
         int preedit_w = x + cfg.margin_x;
         if (cfg.max_width > 0) {
@@ -1219,6 +1259,10 @@ LRESULT CALLBACK CandidateWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM
     case WM_NCHITTEST: return HTCLIENT;  // prevent resize cursor at edges
     case WM_ERASEBKGND: return 1;
     case WM_TIMER:
+        if (self && wp == kSparkleTimerId) {
+            self->tick_sparkle();
+            return 0;
+        }
         if (self && wp == kPreeditCursorEmphasisTimerId) {
             const RECT cursor_rect = self->render_ctx_.preedit_cursor_rect;
             self->clear_preedit_cursor_emphasis();

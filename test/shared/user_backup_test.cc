@@ -20,7 +20,7 @@ namespace {
 std::wstring backup_path(const wchar_t* suffix) {
     wchar_t directory[MAX_PATH] = {};
     GetTempPathW(MAX_PATH, directory);
-    return std::wstring(directory) + L"cxxime-user-backup-" +
+    return std::wstring(directory) + L"zhiyi-user-backup-" +
            std::to_wstring(GetCurrentProcessId()) + suffix;
 }
 
@@ -82,7 +82,7 @@ std::size_t find_zip_entry_name(const std::string& bytes, const std::string& pat
 } // namespace
 
 TEST(UserBackup, round_trips_manifest_and_selected_components) {
-    const std::wstring path = backup_path(L"-roundtrip.cxxime-backup");
+    const std::wstring path = backup_path(L"-roundtrip.zhiyi-backup");
     DeleteFileW(path.c_str());
     const std::vector<cxxime::UserBackupEntry> entries = {
         {cxxime::UserBackupComponent::kSettings, "config/settings.json", "{}\n"},
@@ -108,7 +108,7 @@ TEST(UserBackup, round_trips_manifest_and_selected_components) {
 }
 
 TEST(UserBackup, rejects_unknown_paths_and_tampered_contents) {
-    const std::wstring path = backup_path(L"-tampered.cxxime-backup");
+    const std::wstring path = backup_path(L"-tampered.zhiyi-backup");
     unsigned long error = ERROR_SUCCESS;
     ASSERT_TRUE(!cxxime::write_user_backup_archive(
         path, {{cxxime::UserBackupComponent::kSettings, "../default.json", "{}"}}, nullptr,
@@ -138,7 +138,7 @@ TEST(UserBackup, rejects_unknown_paths_and_tampered_contents) {
 }
 
 TEST(UserBackup, rejects_oversized_manifest_and_corrupt_empty_entries) {
-    const std::wstring path = backup_path(L"-limits.cxxime-backup");
+    const std::wstring path = backup_path(L"-limits.zhiyi-backup");
     unsigned long error = ERROR_SUCCESS;
     ASSERT_TRUE(write_raw_archive(path, {{"manifest.json", std::string(64 * 1024 + 1, ' ')}}));
     cxxime::UserBackupArchive restored;

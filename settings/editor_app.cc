@@ -124,7 +124,7 @@ void EditorApp::create_controls(HWND window) {
                                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                CLEARTYPE_QUALITY, 0, L"Microsoft YaHei UI");
     hFooter_ = CreateWindowExW(
-        0, L"STATIC", L"CxxIME 输入法", WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE, 0,
+        0, L"STATIC", L"知意输入法", WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE, 0,
         footer_y, kListW, footer_height, window, nullptr, GetModuleHandle(nullptr), nullptr);
     SendMessageW(hFooter_, WM_SETFONT, reinterpret_cast<WPARAM>(hFooterFont_), TRUE);
 
@@ -231,7 +231,7 @@ bool EditorApp::load_config() {
         std::wstring message = source;
         message += L"加载失败。\n\n";
         message += path_for_display(path);
-        MessageBoxW(hwnd_, message.c_str(), L"CxxIME 设置", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, message.c_str(), L"知意输入法设置", MB_OK | MB_ICONERROR);
     };
 
     if (!config_.load(default_path)) {
@@ -389,7 +389,7 @@ bool EditorApp::save_config() {
         const wchar_t* message = error_code == ERROR_HOTKEY_ALREADY_REGISTERED
             ? L"全局快捷键已被其他程序占用，配置未保存。"
             : L"后台服务未能保存并应用配置。";
-        MessageBoxW(hwnd_, message, L"CxxIME 设置", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, message, L"知意输入法设置", MB_OK | MB_ICONERROR);
         return false;
     }
     return true;
@@ -415,7 +415,7 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     case WM_CTLCOLORSTATIC: {
         wchar_t txt[64]; GetWindowTextW((HWND)lp, txt, 64);
-        if (wcscmp(txt, L"CxxIME 输入法") == 0) {
+        if (wcscmp(txt, L"知意输入法") == 0) {
             SetBkMode((HDC)wp, TRANSPARENT);
             return (LRESULT)GetStockObject(NULL_BRUSH);
         }
@@ -424,12 +424,12 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     case kDiagnosticsCompleteMessage:
         if (wp == 0) {
             MessageBoxW(hwnd,
-                        L"诊断包导出完成。请检查桌面的 cxxime-diagnostics-*.zip。",
-                        L"CxxIME", MB_OK | MB_ICONINFORMATION);
+                        L"诊断包导出完成。请检查桌面的 zhiyi-diagnostics-*.zip。",
+                        L"知意输入法", MB_OK | MB_ICONINFORMATION);
         } else {
             MessageBoxW(hwnd,
                         L"诊断导出已结束，但脚本返回失败。请查看打开的 PowerShell 窗口输出。",
-                        L"CxxIME", MB_OK | MB_ICONERROR);
+                        L"知意输入法", MB_OK | MB_ICONERROR);
         }
         return 0;
     case kDiagnosticsCleanupCompleteMessage:

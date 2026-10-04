@@ -112,7 +112,7 @@ CandidateReadback read_candidate_list(HIMC himc) {
 
 void trace_legacy_inquire(DWORD system_info_flags, bool valid_arguments) {
     cxxime::write_host_trace("legacy", "runtime.component_status", {
-        {"name", "cxxime.ime"},
+        {"name", "zhiyi.ime"},
         {"result", "loaded_and_called"},
     });
     auto fields = callback_fields(nullptr, "ImeInquire");

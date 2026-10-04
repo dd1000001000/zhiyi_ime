@@ -37,7 +37,7 @@ bool EditorApp::save_candidate_order(const std::vector<ManualCandidateOrderEntry
         const wchar_t* message = result.error_code == ERROR_REVISION_MISMATCH
                                      ? L"候选顺序已在其他位置更新，请刷新后重试。"
                                      : L"保存候选顺序失败。";
-        MessageBoxW(hwnd_, message, L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, message, L"知意输入法", MB_OK | MB_ICONERROR);
         query_lexicon_entries(false);
         return false;
     }
@@ -137,7 +137,7 @@ void EditorApp::remove_candidate_order_pin() {
 void EditorApp::reset_candidate_order() {
     if (current_lexicon_resource() != LexiconResource::kManualCandidateOrder ||
         candidateOrderCode_.empty() ||
-        MessageBoxW(hwnd_, L"恢复此编码的默认候选顺序？", L"CxxIME", MB_YESNO | MB_ICONWARNING) !=
+        MessageBoxW(hwnd_, L"恢复此编码的默认候选顺序？", L"知意输入法", MB_YESNO | MB_ICONWARNING) !=
             IDYES) {
         return;
     }
@@ -149,7 +149,7 @@ void EditorApp::reset_candidate_order() {
         const wchar_t* message = result.error_code == ERROR_REVISION_MISMATCH
                                      ? L"候选顺序已在其他位置更新，请刷新后重试。"
                                      : L"恢复默认候选顺序失败。";
-        MessageBoxW(hwnd_, message, L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, message, L"知意输入法", MB_OK | MB_ICONERROR);
     }
     query_lexicon_entries(false);
 }

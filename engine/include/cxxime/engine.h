@@ -3,6 +3,7 @@
 #ifndef CXXIME_ENGINE_H_
 #define CXXIME_ENGINE_H_
 
+#include <optional>
 #include <atomic>
 #include <memory>
 #include <string>
@@ -82,6 +83,10 @@ public:
     void switch_mode(InputMode mode);
     InputMode mode() const { return mode_; }
 
+    // English mode style: word completion (true) or letter-by-letter input (false).
+    void set_english_word_mode(bool enabled) { english_word_mode_ = enabled; }
+    bool english_word_mode() const { return english_word_mode_; }
+
     static std::string derive_spellings_path(const std::string& dict_path);
 
 private:
@@ -107,6 +112,23 @@ private:
                               const QueryDeadline& deadline);
     void apply_commit_learning_plan();
     static CompositionScheme scheme_for_mode(InputMode mode);
+
+    // Laya reranking: committed text of this session (context for the model) and the text
+    // already confirmed inside the current composition.
+    void remember_commit(const std::string& text);
+    std::string laya_context(const CompositionState& state) const;
+    std::string laya_history_;
+    // English words mixed into the first pinyin page (config.english.mixed_in_chinese).
+    void add_english_candidates(const std::string& input, int page_size, TranslationResult& result) const;
+    // English (ASCII) mode word completion (config.english.completion_in_ascii): letters build
+    // a word, candidates = the typed text + completions; 1-9 select, Space commits the
+    // highlighted candidate plus a space, Enter commits the typed text.
+    std::optional<ProcessResult> process_english_key(const KeyEvent& event, const OutputOptions& opts);
+    void refresh_english_candidates();
+    ProcessResult commit_english(std::string text);
+    bool english_composing_ = false;
+    bool english_word_mode_ = true;
+    KeyboardShortcut english_style_shortcut_;
 
     std::shared_ptr<const EngineRuntimeState> runtime_;
 

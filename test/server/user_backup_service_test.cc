@@ -51,7 +51,7 @@ TEST(UserBackupService, exports_and_imports_settings_and_user_lexicon) {
     ASSERT_TRUE(writer.submit(cxxime::UserConfigMutationKind::kMergePatch,
                               R"({"status_window":{"enable":true}})", &runtime, &error));
     UserBackupService service(&manager, &writer);
-    const std::string backup = make_temp_path("user-backup-service.cxxime-backup");
+    const std::string backup = make_temp_path("user-backup-service.zhiyi-backup");
     DeleteFileA(backup.c_str());
     const std::uint32_t components =
         cxxime::user_backup_component_flag(cxxime::UserBackupComponent::kSettings) |
@@ -146,7 +146,7 @@ TEST(UserBackupService, imports_other_data_when_one_config_section_is_rejected) 
         },
         []() {}));
     UserBackupService service(&manager, &writer);
-    const std::string backup = make_temp_path("user-backup-best-effort.cxxime-backup");
+    const std::string backup = make_temp_path("user-backup-best-effort.zhiyi-backup");
     DeleteFileA(backup.c_str());
     const std::uint32_t components =
         cxxime::user_backup_component_flag(cxxime::UserBackupComponent::kSettings) |

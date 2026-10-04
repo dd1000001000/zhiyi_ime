@@ -14,11 +14,11 @@ def read_installer_sources(errors: list[str], dist_dir: str, nsi_path: str) -> s
     text = read_text(nsi_path)
     include_names = re.findall(r'!include\s+"nsis\\([^"\\]+\.nsh)"', text)
     if not include_names:
-        add_error(errors, "cxxime-setup.nsi: no project NSIS includes found")
+        add_error(errors, "zhiyi-setup.nsi: no project NSIS includes found")
         return text
 
     if len(include_names) != len(set(include_names)):
-        add_error(errors, "cxxime-setup.nsi: duplicate project NSIS include")
+        add_error(errors, "zhiyi-setup.nsi: duplicate project NSIS include")
 
     include_dir = os.path.join(dist_dir, "nsis")
     actual_names: set[str] = set()
@@ -45,7 +45,7 @@ def find_section(errors: list[str], text: str, section_name: str) -> str:
     start = text.find(f'Section "{section_name}"')
     end = text.find("SectionEnd", start)
     if start < 0 or end < 0:
-        add_error(errors, f"cxxime-setup.nsi: missing {label}")
+        add_error(errors, f"zhiyi-setup.nsi: missing {label}")
         return ""
     return text[start:end]
 
@@ -57,7 +57,7 @@ def check_installer_script(
     manifest_files: list[str],
     host_diagnostics: bool,
 ) -> None:
-    nsi_path = os.path.join(dist_dir, "cxxime-setup.nsi")
+    nsi_path = os.path.join(dist_dir, "zhiyi-setup.nsi")
     if not require_file(errors, nsi_path, dist_dir):
         return
 

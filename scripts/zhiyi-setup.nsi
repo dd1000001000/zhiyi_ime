@@ -6,27 +6,27 @@ Unicode true
 !include "Win\WinError.nsh"
 !include "x64.nsh"
 
-!define PRODUCT "CxxIME"
-!define PUBLISHER "CxxIME Contributors"
-!define CLSID "{B7E1E5A2-8F3D-4A9C-B6E7-2C4D8F1A3B5E}"
-!define UNINSTALL_KEY "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CxxIME"
+!define PRODUCT "知意输入法"
+!define PUBLISHER "知意输入法 Contributors"
+!define CLSID "{4EAC2DF0-F298-453E-BD4A-B4B3D3579718}"
+!define UNINSTALL_KEY "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyiIME"
 !define RUN_KEY "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 !define TSF_INPROC_KEY "SOFTWARE\Classes\CLSID\${CLSID}\InprocServer32"
 !define TSF_TIP_KEY "SOFTWARE\Microsoft\CTF\TIP\${CLSID}"
-!define INSTALL_MARKER ".cxxime-install-complete"
-!define TRANSACTION_MARKER ".cxxime-install-transaction"
-!define TRANSACTION_TEMP ".cxxime-install-transaction.tmp"
-!define RUNTIME_MARKER ".cxxime-install-runtime"
-!define RUNTIME_TEMP ".cxxime-install-runtime.tmp"
-!define SYSTEM_IME_UPDATE_MARKER ".cxxime-ime-update"
-!define SYSTEM_IME_REMOVE_MARKER ".cxxime-ime-remove-pending"
-!define LEGACY_SYSTEM_IME_X64_PENDING ".cxxime-ime-x64.pending"
-!define LEGACY_SYSTEM_IME_X86_PENDING ".cxxime-ime-x86.pending"
-!define LEGACY_INSTALL_STATE_MARKER ".cxxime-install-state"
-!define LEGACY_INSTALL_STATE_TEMP ".cxxime-install-state.tmp"
-!define LEGACY_UNINSTALL_DEFERRED_MARKER ".cxxime-uninstall-pending"
-!define UNINSTALL_TRANSACTION_MARKER ".cxxime-uninstall-transaction"
-!define UNINSTALL_TRANSACTION_TEMP ".cxxime-uninstall-transaction.tmp"
+!define INSTALL_MARKER ".zhiyi-install-complete"
+!define TRANSACTION_MARKER ".zhiyi-install-transaction"
+!define TRANSACTION_TEMP ".zhiyi-install-transaction.tmp"
+!define RUNTIME_MARKER ".zhiyi-install-runtime"
+!define RUNTIME_TEMP ".zhiyi-install-runtime.tmp"
+!define SYSTEM_IME_UPDATE_MARKER ".zhiyi-ime-update"
+!define SYSTEM_IME_REMOVE_MARKER ".zhiyi-ime-remove-pending"
+!define LEGACY_SYSTEM_IME_X64_PENDING ".zhiyi-ime-x64.pending"
+!define LEGACY_SYSTEM_IME_X86_PENDING ".zhiyi-ime-x86.pending"
+!define LEGACY_INSTALL_STATE_MARKER ".zhiyi-install-state"
+!define LEGACY_INSTALL_STATE_TEMP ".zhiyi-install-state.tmp"
+!define LEGACY_UNINSTALL_DEFERRED_MARKER ".zhiyi-uninstall-pending"
+!define UNINSTALL_TRANSACTION_MARKER ".zhiyi-uninstall-transaction"
+!define UNINSTALL_TRANSACTION_TEMP ".zhiyi-uninstall-transaction.tmp"
 !define MOVEFILE_REPLACE_WRITE_THROUGH 0x9
 !define MOVEFILE_DELAY_UNTIL_REBOOT 0x4
 !define MOVEFILE_REPLACE_DELAY_UNTIL_REBOOT 0x5
@@ -40,11 +40,11 @@ Unicode true
 
 Name "${PRODUCT} ${VERSION}"
 !ifdef HOST_DIAGNOSTICS
-    OutFile "cxxime-v${VERSION}-host-diag-setup.exe"
+    OutFile "zhiyi-v${VERSION}-host-diag-setup.exe"
 !else
-    OutFile "cxxime-v${VERSION}-setup.exe"
+    OutFile "zhiyi-v${VERSION}-setup.exe"
 !endif
-InstallDir "$PROGRAMFILES\CxxIME"
+InstallDir "$PROGRAMFILES\ZhiyiIME"
 RequestExecutionLevel admin
 SetCompressor lzma
 ShowInstDetails show
@@ -52,14 +52,14 @@ ShowUninstDetails show
 
 VIProductVersion "${VERSION_NUMERIC}"
 VIAddVersionKey /LANG=2052 "CompanyName" "${PUBLISHER}"
-VIAddVersionKey /LANG=2052 "FileDescription" "CxxIME 安装程序"
+VIAddVersionKey /LANG=2052 "FileDescription" "知意输入法安装程序"
 VIAddVersionKey /LANG=2052 "FileVersion" "${VERSION_NUMERIC}"
-VIAddVersionKey /LANG=2052 "LegalCopyright" "Copyright (c) 2026 CxxIME Contributors"
+VIAddVersionKey /LANG=2052 "LegalCopyright" "Copyright (c) 2026 知意输入法 Contributors; based on 知意输入法 (Apache-2.0)"
 VIAddVersionKey /LANG=2052 "ProductName" "${PRODUCT}"
 VIAddVersionKey /LANG=2052 "ProductVersion" "${VERSION}"
 
-!define MUI_ICON "cxxime.ico"
-!define MUI_UNICON "cxxime.ico"
+!define MUI_ICON "zhiyi.ico"
+!define MUI_UNICON "zhiyi.ico"
 
 Var ExistingInstall
 Var RegisteredInstallDir
@@ -126,15 +126,15 @@ Var UninstallCleanupWarning
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_NOREBOOTSUPPORT
-!define MUI_FINISHPAGE_RUN "$INSTDIR\cxxime-settings.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "启动 CxxIME 设置"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\zhiyi-settings.exe"
+!define MUI_FINISHPAGE_RUN_TEXT "启动知意输入法设置"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishPageShow
 !insertmacro MUI_PAGE_FINISH
 UninstPage custom un.ConfirmPage un.ConfirmPageLeave
 !insertmacro MUI_UNPAGE_INSTFILES
 !define MUI_UNTEXT_FINISH_INFO_REBOOT \
-    "CxxIME 已卸载。少量正在使用的程序文件将在下次重新启动 Windows 后自动删除。"
+    "知意输入法已卸载。少量正在使用的程序文件将在下次重新启动 Windows 后自动删除。"
 !define MUI_FINISHPAGE_NOREBOOTSUPPORT
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.FinishPageShow
 !insertmacro MUI_UNPAGE_FINISH
@@ -152,9 +152,9 @@ Section "Install"
     SetRegView 64
     SetShellVarContext all
     InitPluginsDir
-    StrCpy $LifecycleResultPath "$PLUGINSDIR\cxxime-lifecycle.ini"
+    StrCpy $LifecycleResultPath "$PLUGINSDIR\zhiyi-lifecycle.ini"
     SetOutPath "$PLUGINSDIR"
-    File /oname=cxxime-installer-helper.exe "cxxime-installer-helper.exe"
+    File /oname=zhiyi-installer-helper.exe "zhiyi-installer-helper.exe"
 
     Call CheckInstallVersion
     Call UpgradeLegacyInstall
@@ -183,14 +183,14 @@ Section "Install"
     Call ReleaseInputProcessor
     Call StopServer
     StrCmp $ServerStopResult "0" install_server_stopped
-        StrCpy $FailureMessage "无法确认 CxxIME 后台已终止，未继续覆盖文件。"
+        StrCpy $FailureMessage "无法确认知意输入法后台已终止，未继续覆盖文件。"
         Goto install_failed_before_swap
     install_server_stopped:
     Call RecoverInterruptedInstall
     Pop $0
     StrCmp $0 "1" install_recovery_ready
         StrCmp $FailureMessage "" 0 install_failed_recovery
-        StrCpy $FailureMessage "无法安全恢复上一次未完成的 CxxIME 安装。"
+        StrCpy $FailureMessage "无法安全恢复上一次未完成的知意输入法安装。"
         Goto install_failed_recovery
 
     install_recovery_ready:
@@ -218,12 +218,12 @@ Section "Install"
     ClearErrors
     RMDir "$StageDir"
     IfFileExists "$StageDir" 0 install_stage_path_ready
-        StrCpy $FailureMessage "CxxIME 更新目录中仍有未完成的安装文件。"
+        StrCpy $FailureMessage "知意输入法更新目录中仍有未完成的安装文件。"
         Goto install_failed_before_swap
     install_stage_path_ready:
     CreateDirectory "$StageDir"
     IfErrors 0 install_stage_directory_ready
-        StrCpy $FailureMessage "无法创建 CxxIME 更新目录。"
+        StrCpy $FailureMessage "无法创建知意输入法更新目录。"
         Goto install_failed_before_swap
     install_stage_directory_ready:
 
@@ -231,7 +231,7 @@ Section "Install"
 
     WriteUninstaller "$StageDir\uninstall.exe"
     IfErrors 0 install_stage_ready
-        StrCpy $FailureMessage "无法解压 CxxIME 安装文件。"
+        StrCpy $FailureMessage "无法解压知意输入法安装文件。"
         Goto install_failed_before_swap
 
     install_stage_ready:
@@ -247,7 +247,7 @@ Section "Install"
     ClearErrors
     Rename "$StageDir" "$INSTDIR"
     IfErrors 0 install_stage_swapped
-        StrCpy $FailureMessage "无法启用新的 CxxIME 文件。"
+        StrCpy $FailureMessage "无法启用新的知意输入法文件。"
         Goto install_failed_after_transaction
 
     install_stage_swapped:
@@ -300,17 +300,17 @@ Section "Install"
     StrCmp $0 "1" install_system_ime_committed
         IfSilent install_system_ime_warning_silent
             MessageBox MB_ICONEXCLAMATION \
-                "CxxIME ${VERSION} 已安装，但系统 IME 模块未能完成更新。$\r$\n$\r$\n$FailureMessage$\r$\n$\r$\n\
+                "知意输入法 ${VERSION} 已安装，但系统 IME 模块未能完成更新。$\r$\n$\r$\n$FailureMessage$\r$\n$\r$\n\
                 安装状态已保留，后续运行安装程序时会再次尝试。"
         install_system_ime_warning_silent:
         DetailPrint "$FailureMessage"
     install_system_ime_committed:
-    CreateDirectory "$PROFILE\cxxime"
-    IfFileExists "$PROFILE\cxxime\default.json" install_user_config_ready
-        CopyFiles /SILENT /FILESONLY "$INSTDIR\data\default.json" "$PROFILE\cxxime"
+    CreateDirectory "$PROFILE\zhiyi"
+    IfFileExists "$PROFILE\zhiyi\default.json" install_user_config_ready
+        CopyFiles /SILENT /FILESONLY "$INSTDIR\data\default.json" "$PROFILE\zhiyi"
     install_user_config_ready:
     Call CreateInstallShortcuts
-    DetailPrint "CxxIME ${VERSION} 安装已完成。"
+    DetailPrint "知意输入法 ${VERSION} 安装已完成。"
     Goto install_done
 
     install_failed_untrusted_base:
@@ -340,21 +340,21 @@ Section "Install"
     Call RestartInstalledServer
     Call CleanupRuntimeSnapshotAfterServerRestore
     StrCmp $ServerRestartResult "2" 0 install_failed_before_swap_report_ready
-        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\nCxxIME 后台未能自动恢复，请检查占用进程或手动启动 CxxIME。"
+        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n知意输入法后台未能自动恢复，请检查占用进程或手动启动知意输入法。"
     install_failed_before_swap_report_ready:
     IfSilent install_failed_silent
-        MessageBox MB_ICONSTOP "$FailureMessage$\r$\n$\r$\n已安装的 CxxIME 文件未发生变化。"
+        MessageBox MB_ICONSTOP "$FailureMessage$\r$\n$\r$\n已安装的知意输入法文件未发生变化。"
         Goto install_failed_abort
 
     install_failed_after_transaction:
     StrCpy $InstallStateVerified 0
-    nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" force-stop-server "$INSTDIR\cxxime-server.exe"'
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" force-stop-server "$INSTDIR\zhiyi-server.exe"'
     Pop $0
     Call RollbackInstall
     Pop $0
     StrCmp $0 "1" install_rollback_complete
         StrCpy $FailureMessage \
-            "$FailureMessage$\r$\n$\r$\n自动回滚未能完成。请重新运行安装程序后再使用 CxxIME。"
+            "$FailureMessage$\r$\n$\r$\n自动回滚未能完成。请重新运行安装程序后再使用知意输入法。"
         Goto install_failed_silent_or_message
     install_rollback_complete:
         Call VerifyRestoredInstall
@@ -362,7 +362,7 @@ Section "Install"
         StrCmp $0 "1" install_rollback_verified
             Goto install_failed_silent_or_message
         install_rollback_verified:
-        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n已恢复 CxxIME 安装前的状态。"
+        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n已恢复知意输入法安装前的状态。"
         Goto install_failed_silent_or_message
 
     install_failed_recovery:
@@ -373,7 +373,7 @@ Section "Install"
     Call RestartInstalledServer
     Call CleanupRuntimeSnapshotAfterServerRestore
     StrCmp $ServerRestartResult "2" 0 install_failed_restart_report_ready
-        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\nCxxIME 后台未能自动恢复，请检查占用进程或手动启动 CxxIME。"
+        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n知意输入法后台未能自动恢复，请检查占用进程或手动启动知意输入法。"
     install_failed_restart_report_ready:
     IfSilent install_failed_silent
         MessageBox MB_ICONSTOP "$FailureMessage"
@@ -400,15 +400,15 @@ Section "Uninstall"
     SetRegView 64
     SetShellVarContext all
     InitPluginsDir
-    StrCpy $LifecycleResultPath "$PLUGINSDIR\cxxime-lifecycle.ini"
+    StrCpy $LifecycleResultPath "$PLUGINSDIR\zhiyi-lifecycle.ini"
     SetOutPath "$PLUGINSDIR"
-    File /oname=cxxime-installer-helper.exe "cxxime-installer-helper.exe"
-    StrCpy $LockReportPath "$PLUGINSDIR\cxxime-locks.txt"
+    File /oname=zhiyi-installer-helper.exe "zhiyi-installer-helper.exe"
+    StrCpy $LockReportPath "$PLUGINSDIR\zhiyi-locks.txt"
 
     Call un.ReleaseInputProcessor
     Call un.StopServer
     StrCmp $UninstallServerStopResult "0" un_server_stopped
-        DetailPrint "CxxIME 后台仍在退出；相关程序文件将在 Windows 重启后删除。"
+        DetailPrint "知意输入法后台仍在退出；相关程序文件将在 Windows 重启后删除。"
     un_server_stopped:
     Call un.CheckFileLocks
     Call un.ValidateInstallLifecycle
@@ -437,14 +437,14 @@ Section "Uninstall"
     Pop $0
     StrCmp $0 "1" un_rollback_complete
         StrCpy $FailureMessage \
-            "$FailureMessage$\r$\n$\r$\n自动回滚未能完成。请重新运行卸载程序后再使用 CxxIME。"
+            "$FailureMessage$\r$\n$\r$\n自动回滚未能完成。请重新运行卸载程序后再使用知意输入法。"
         Call un.FailAndRestart
     un_rollback_complete:
-    StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n已恢复卸载前的 CxxIME 状态。"
+    StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n已恢复卸载前的知意输入法状态。"
     Call un.FailAndRestart
 
     un_remove_registry:
-    DeleteRegValue HKLM "${RUN_KEY}" "CxxIMEServer"
+    DeleteRegValue HKLM "${RUN_KEY}" "ZhiyiIMEServer"
     DeleteRegKey HKLM "${UNINSTALL_KEY}"
     DeleteRegKey HKLM "SOFTWARE\Classes\CLSID\${CLSID}"
     DeleteRegKey HKLM "SOFTWARE\Microsoft\CTF\TIP\${CLSID}"
@@ -456,14 +456,14 @@ Section "Uninstall"
     ReadRegStr $0 HKLM "${UNINSTALL_KEY}" "DisplayName"
     IfErrors un_uninstall_registry_removed
         StrCpy $FailureMessage \
-            "无法删除 CxxIME 卸载注册表项。请重新运行卸载程序。"
+            "无法删除知意输入法卸载注册表项。请重新运行卸载程序。"
         Goto un_rollback_failure
     un_uninstall_registry_removed:
     ClearErrors
-    ReadRegStr $0 HKLM "${RUN_KEY}" "CxxIMEServer"
+    ReadRegStr $0 HKLM "${RUN_KEY}" "ZhiyiIMEServer"
     IfErrors un_run_registry_removed
         StrCpy $FailureMessage \
-            "无法删除 CxxIME 启动注册表项。请重新运行卸载程序。"
+            "无法删除知意输入法启动注册表项。请重新运行卸载程序。"
         Goto un_rollback_failure
     un_run_registry_removed:
 
@@ -471,7 +471,7 @@ Section "Uninstall"
     Pop $0
     StrCmp $0 "1" +2
         StrCpy $UninstallCleanupWarning 1
-    RMDir /r "$SMPROGRAMS\CxxIME"
+    RMDir /r "$SMPROGRAMS\知意输入法"
     Call un.CommitInstallLifecycle
     Pop $0
     StrCmp $0 "1" +2
@@ -491,7 +491,7 @@ Section "Uninstall"
     ${If} $UninstallRemoveUserData == ${BST_CHECKED}
         StrCpy $UninstallUserDataDirSuffix $UninstallUserDataDir 7 -7
         ${If} $UninstallUserDataDir != ""
-        ${AndIf} $UninstallUserDataDirSuffix == "\cxxime"
+        ${AndIf} $UninstallUserDataDirSuffix == "\zhiyi"
             RMDir /r "$UninstallUserDataDir"
         ${EndIf}
     ${EndIf}

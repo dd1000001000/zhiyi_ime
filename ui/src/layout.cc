@@ -209,7 +209,8 @@ LayoutResult calculate_horizontal_layout(HDC hdc,
         SIZE text_size = measure_wstr(hdc, hf, to_wstr(candidates[i].text));
         SIZE comment_size = measure_wstr(hdc, hf, to_wstr(comment));
 
-        int label_w = lsz.cx, text_w = text_size.cx + comment_size.cx + text_slack;
+        const int mark_w = candidates[i].recommended ? recommendation_mark_width(rh) : 0;
+        int label_w = lsz.cx, text_w = text_size.cx + comment_size.cx + text_slack + mark_w;
         int total_w = label_w + cfg.hilite_spacing + text_w;
 
         // Non-first candidate doesn't fit → stop (first candidate always added)
@@ -220,6 +221,7 @@ LayoutResult calculate_horizontal_layout(HDC hdc,
         cr.index = i;
         cr.text = candidates[i].text;
         cr.comment = std::move(comment);
+        cr.recommended = candidates[i].recommended;
         cr.label_rect = {x, y, x + label_w, y + rh};
         int text_left = x + label_w + cfg.hilite_spacing;
         cr.text_rect = {text_left, y, text_left + text_size.cx + text_slack, y + rh};
@@ -229,7 +231,9 @@ LayoutResult calculate_horizontal_layout(HDC hdc,
                             y + rh};
         }
 
-        RECT bounds = {cr.label_rect.left, y, candidate_content_right(cr), y + rh};
+        const int content_right = candidate_content_right(cr);
+        cr.mark_rect = {content_right, y, content_right + mark_w, y + rh};
+        RECT bounds = {cr.label_rect.left, y, content_right + mark_w, y + rh};
         cr.highlight_rect = bounds;
         InflateRect(&cr.highlight_rect, cfg.hilite_padding_x, cfg.hilite_padding_y);
 
@@ -255,14 +259,19 @@ LayoutResult calculate_horizontal_layout(HDC hdc,
                 cr.comment_rect.left = cr.text_rect.left + width;
                 cr.comment_rect.right = cr.comment_rect.left + comment_width + text_slack;
             }
-            cr.highlight_rect.right = candidate_content_right(cr) + cfg.hilite_padding_x;
+            const int mark_w = cr.mark_rect.right - cr.mark_rect.left;
+            cr.mark_rect.left = candidate_content_right(cr);
+            cr.mark_rect.right = cr.mark_rect.left + mark_w;
+            cr.highlight_rect.right = cr.mark_rect.right + cfg.hilite_padding_x;
         }
     }
 
     // Final width: last candidate's right edge + margin, capped to max_w
     int content_w = cfg.margin_x;
     if (!result.rects.empty())
-        content_w = candidate_content_right(result.rects.back()) + cfg.candidate_spacing;
+        content_w = (std::max)(candidate_content_right(result.rects.back()),
+                               static_cast<int>(result.rects.back().mark_rect.right)) +
+                    cfg.candidate_spacing;
     result.width = content_w + cfg.margin_x;
     if (result.width > max_w) result.width = max_w;
     if (result.width < min_w) result.width = min_w;
@@ -302,7 +311,8 @@ LayoutResult calculate_vertical_layout(HDC hdc,
         int lw = measure_wstr(hdc, hf, label).cx;
         std::string comment = format_comment(candidates[i]);
         int tw = measure_wstr(hdc, hf, to_wstr(candidates[i].text)).cx +
-                 measure_wstr(hdc, hf, to_wstr(comment)).cx + text_slack;
+                 measure_wstr(hdc, hf, to_wstr(comment)).cx + text_slack +
+                 (candidates[i].recommended ? recommendation_mark_width(rh) : 0);
         if (lw > widest_label) widest_label = lw;
         if (tw > widest_text) widest_text = tw;
     }
@@ -324,6 +334,7 @@ LayoutResult calculate_vertical_layout(HDC hdc,
         cr.index = i;
         cr.text = candidates[i].text;
         cr.comment = format_comment(candidates[i]);
+        cr.recommended = candidates[i].recommended;
         cr.label_rect = {cfg.margin_x, y, cfg.margin_x + widest_label, y + rh};
         int text_width = measure_wstr(hdc, hf, to_wstr(cr.text)).cx;
         int text_right = cr.comment.empty() ? text_x + widest_text
@@ -336,6 +347,11 @@ LayoutResult calculate_vertical_layout(HDC hdc,
                                text_x + text_width + comment_width + text_slack, y + rh};
         }
 
+        if (cr.recommended) {
+            const int right = cr.comment.empty() ? text_x + text_width + text_slack
+                                                 : static_cast<int>(cr.comment_rect.right);
+            cr.mark_rect = {right, y, right + recommendation_mark_width(rh), y + rh};
+        }
         RECT bounds = {cr.label_rect.left, y, text_x + widest_text, y + rh};
         cr.highlight_rect = bounds;
         InflateRect(&cr.highlight_rect, cfg.hilite_padding_x, cfg.hilite_padding_y);

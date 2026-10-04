@@ -53,7 +53,7 @@ std::wstring backup_file_name() {
     SYSTEMTIME time = {};
     GetLocalTime(&time);
     wchar_t name[80] = {};
-    swprintf_s(name, L"CxxIME-backup-%04u%02u%02u-%02u%02u.cxxime-backup", time.wYear, time.wMonth,
+    swprintf_s(name, L"ZhiyiIME-backup-%04u%02u%02u-%02u%02u.zhiyi-backup", time.wYear, time.wMonth,
                time.wDay, time.wHour, time.wMinute);
     return name;
 }
@@ -208,7 +208,7 @@ bool EditorApp::handle_backup_command(int control_id, int notification) {
 void EditorApp::export_user_backup() {
     const std::uint32_t components = selected_backup_components(false);
     if (components == 0) {
-        MessageBoxW(hwnd_, L"请至少选择一项备份内容。", L"CxxIME", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(hwnd_, L"请至少选择一项备份内容。", L"知意输入法", MB_OK | MB_ICONINFORMATION);
         return;
     }
     std::wstring file = backup_file_name();
@@ -216,10 +216,10 @@ void EditorApp::export_user_backup() {
     wcscpy_s(buffer.data(), buffer.size(), file.c_str());
     OPENFILENAMEW dialog = {sizeof(dialog)};
     dialog.hwndOwner = hwnd_;
-    dialog.lpstrFilter = L"CxxIME 备份 (*.cxxime-backup)\0*.cxxime-backup\0所有文件 (*.*)\0*.*\0";
+    dialog.lpstrFilter = L"知意输入法备份 (*.zhiyi-backup)\0*.zhiyi-backup\0所有文件 (*.*)\0*.*\0";
     dialog.lpstrFile = buffer.data();
     dialog.nMaxFile = static_cast<DWORD>(buffer.size());
-    dialog.lpstrDefExt = L"cxxime-backup";
+    dialog.lpstrDefExt = L"zhiyi-backup";
     dialog.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_EXPLORER;
     if (GetSaveFileNameW(&dialog)) {
         if ((has_component(components, UserBackupComponent::kSettings) ||
@@ -236,7 +236,7 @@ void EditorApp::select_user_backup() {
     std::array<wchar_t, 32768> buffer = {};
     OPENFILENAMEW dialog = {sizeof(dialog)};
     dialog.hwndOwner = hwnd_;
-    dialog.lpstrFilter = L"CxxIME 备份 (*.cxxime-backup)\0*.cxxime-backup\0所有文件 (*.*)\0*.*\0";
+    dialog.lpstrFilter = L"知意输入法备份 (*.zhiyi-backup)\0*.zhiyi-backup\0所有文件 (*.*)\0*.*\0";
     dialog.lpstrFile = buffer.data();
     dialog.nMaxFile = static_cast<DWORD>(buffer.size());
     dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER;
@@ -256,7 +256,7 @@ void EditorApp::select_user_backup() {
 void EditorApp::import_user_backup() {
     const std::uint32_t components = selected_backup_components(true);
     if (selectedBackupPath_.empty() || components == 0) {
-        MessageBoxW(hwnd_, L"请至少选择一项导入内容。", L"CxxIME", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(hwnd_, L"请至少选择一项导入内容。", L"知意输入法", MB_OK | MB_ICONINFORMATION);
         return;
     }
     run_user_backup_operation(UserBackupOperation::kImport, selectedBackupPath_, components);
@@ -306,7 +306,7 @@ void EditorApp::handle_backup_complete(LPARAM completion_data) {
     set_backup_controls_enabled(true);
     if (!completion->result.succeeded) {
         std::wstring message = L"操作失败：" + error_message(completion->result.error_code);
-        MessageBoxW(hwnd_, message.c_str(), L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, message.c_str(), L"知意输入法", MB_OK | MB_ICONERROR);
         return;
     }
     if (completion->operation == UserBackupOperation::kInspect) {
@@ -326,7 +326,7 @@ void EditorApp::handle_backup_complete(LPARAM completion_data) {
     }
     if (completion->operation == UserBackupOperation::kExport) {
         const std::wstring message = L"备份已导出到：\n" + path_for_display(completion->path);
-        MessageBoxW(hwnd_, message.c_str(), L"CxxIME", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(hwnd_, message.c_str(), L"知意输入法", MB_OK | MB_ICONINFORMATION);
         return;
     }
     if (has_component(completion->components, UserBackupComponent::kSettings) ||
@@ -340,7 +340,7 @@ void EditorApp::handle_backup_complete(LPARAM completion_data) {
         message << L"，跳过 " << completion->result.skipped_count << L" 项";
     }
     message << L"。";
-    MessageBoxW(hwnd_, message.str().c_str(), L"CxxIME", MB_OK | MB_ICONINFORMATION);
+    MessageBoxW(hwnd_, message.str().c_str(), L"知意输入法", MB_OK | MB_ICONINFORMATION);
 }
 
 } // namespace settings

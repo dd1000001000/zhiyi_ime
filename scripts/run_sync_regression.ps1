@@ -23,7 +23,7 @@ $Root = Split-Path -Parent $ScriptDir
 $ReportsDir = Join-Path $Root "reports"
 $Config = "Release"
 
-Write-Host "=== CxxIME Sync Regression ==="
+Write-Host "=== ZhiyiIME Sync Regression ==="
 Write-Host "  Build:     $BuildDir"
 Write-Host "  Data:      $DataDir"
 Write-Host "  Repeat:    $Repeat"

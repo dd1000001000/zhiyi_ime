@@ -23,7 +23,7 @@
 // ============================================================
 static const std::wstring& test_pipe_name() {
     static const std::wstring pipe_name =
-        L"\\\\.\\pipe\\CxxIME-Test-" + std::to_wstring(GetCurrentProcessId());
+        L"\\\\.\\pipe\\ZhiyiIME-Test-" + std::to_wstring(GetCurrentProcessId());
     return pipe_name;
 }
 
@@ -76,13 +76,13 @@ static bool raw_round_trip(const std::vector<uint8_t>& request,
 // ============================================================
 
 TEST(Protocol, pipe_names_are_scoped_once_per_user) {
-    ASSERT_TRUE(wcscmp(cxxime::IPC_PIPE_BASE_NAME, L"\\\\.\\pipe\\CxxIME") == 0);
-    ASSERT_TRUE(wcscmp(cxxime::CONTROL_PIPE_BASE_NAME, L"\\\\.\\pipe\\CxxIME-Control") == 0);
+    ASSERT_TRUE(wcscmp(cxxime::IPC_PIPE_BASE_NAME, L"\\\\.\\pipe\\ZhiyiIME") == 0);
+    ASSERT_TRUE(wcscmp(cxxime::CONTROL_PIPE_BASE_NAME, L"\\\\.\\pipe\\ZhiyiIME-Control") == 0);
     const std::wstring input = cxxime::make_user_pipe_name(cxxime::IPC_PIPE_BASE_NAME);
     const std::wstring control = cxxime::make_user_pipe_name(cxxime::CONTROL_PIPE_BASE_NAME);
 
-    ASSERT_TRUE(input.size() >= 6 && input.substr(input.size() - 6) == L"CxxIME");
-    ASSERT_TRUE(control.size() >= 14 && control.substr(control.size() - 14) == L"CxxIME-Control");
+    ASSERT_TRUE(input.size() >= 8 && input.substr(input.size() - 8) == L"ZhiyiIME");
+    ASSERT_TRUE(control.size() >= 16 && control.substr(control.size() - 16) == L"ZhiyiIME-Control");
     ASSERT_TRUE(input != control);
     ASSERT_TRUE(cxxime::make_user_pipe_name(input) == input);
     ASSERT_TRUE(cxxime::make_user_pipe_name(L"relative-name") == L"relative-name");
@@ -265,16 +265,19 @@ TEST(Protocol, ime_status_flags_are_independent) {
     ASSERT_TRUE(!status.caps_lock());
     ASSERT_TRUE(!status.full_shape());
     ASSERT_TRUE(status.chinese_punct());
+    ASSERT_TRUE(status.english_words());
 
     status.set_chinese_mode(false);
     status.set_caps_lock(true);
     status.set_full_shape(true);
     status.set_chinese_punct(false);
+    status.set_english_words(false);
 
     ASSERT_TRUE(!status.chinese_mode());
     ASSERT_TRUE(status.caps_lock());
     ASSERT_TRUE(status.full_shape());
     ASSERT_TRUE(!status.chinese_punct());
+    ASSERT_TRUE(!status.english_words());
     ASSERT_EQ(status.flags,
               cxxime::ime_status_flag(cxxime::ImeStatusFlag::CAPS_LOCK) |
               cxxime::ime_status_flag(cxxime::ImeStatusFlag::FULL_SHAPE));

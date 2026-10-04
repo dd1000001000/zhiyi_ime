@@ -23,7 +23,7 @@ std::string temp_path(const char* filename) {
 } // namespace
 
 TEST(WubiPrefixQuery, ranking_is_independent_of_query_limit) {
-    const std::string dict_path = temp_path("cxxime_wubi_indexed_ranking.bin");
+    const std::string dict_path = temp_path("zhiyi_wubi_indexed_ranking.bin");
     const std::string index_path = dict_path + ".idx";
     const std::string user_path = dict_path + ".user.tsv";
     const std::vector<std::tuple<std::string, std::string, int>> entries = {
@@ -64,7 +64,7 @@ TEST(WubiPrefixQuery, ranking_is_independent_of_query_limit) {
 }
 
 TEST(WubiPrefixQuery, disabled_filter_has_a_fixed_posting_scan_bound) {
-    const std::string dict_path = temp_path("cxxime_wubi_disabled_bound.bin");
+    const std::string dict_path = temp_path("zhiyi_wubi_disabled_bound.bin");
     const std::string index_path = dict_path + ".idx";
     const std::string user_path = dict_path + ".user.tsv";
     const std::string disabled_path = dict_path + ".disabled.tsv";

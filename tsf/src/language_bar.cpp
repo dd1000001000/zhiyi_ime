@@ -133,8 +133,8 @@ STDMETHODIMP CLangBarItemButton::Show(BOOL fShow) {
 STDMETHODIMP CLangBarItemButton::GetTooltipString(BSTR* pbstrToolTip) {
     if (!pbstrToolTip)
         return E_INVALIDARG;
-    const wchar_t* tip = _caps_lock ? L"CxxIME - Caps Lock"
-                                    : (_chinese_mode ? L"CxxIME - 中文" : L"CxxIME - English");
+    const wchar_t* tip = _caps_lock ? L"知意 - Caps Lock"
+                                    : (_chinese_mode ? L"知意 - 中文" : L"知意 - English");
     *pbstrToolTip = SysAllocString(tip);
     return S_OK;
 }
@@ -219,7 +219,7 @@ STDMETHODIMP CLangBarItemButton::GetIcon(HICON* phIcon) {
 STDMETHODIMP CLangBarItemButton::GetText(BSTR* pbstrText) {
     if (!pbstrText)
         return E_INVALIDARG;
-    *pbstrText = SysAllocString(L"CxxIME");
+    *pbstrText = SysAllocString(L"知意输入法");
     return S_OK;
 }
 

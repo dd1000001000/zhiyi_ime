@@ -21,7 +21,7 @@ namespace {
 
 const std::wstring& compatibility_pipe_name() {
     static const std::wstring pipe_name =
-        L"\\\\.\\pipe\\CxxIME-Compatibility-" + std::to_wstring(GetCurrentProcessId());
+        L"\\\\.\\pipe\\ZhiyiIME-Compatibility-" + std::to_wstring(GetCurrentProcessId());
     return pipe_name;
 }
 

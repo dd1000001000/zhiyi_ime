@@ -1,6 +1,6 @@
 Function un.StopServer
     StrCpy $UninstallServerStopResult 0
-    nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" server-running "$INSTDIR\cxxime-server.exe"'
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" server-running "$INSTDIR\zhiyi-server.exe"'
     Pop $0
     StrCmp $0 "1" un_stop_server_done
     StrCmp $0 "0" un_server_found
@@ -8,7 +8,7 @@ Function un.StopServer
         Return
     un_server_found:
     StrCpy $UninstallServerWasRunning 1
-    nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" stop-server "$INSTDIR\cxxime-server.exe"'
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" stop-server "$INSTDIR\zhiyi-server.exe"'
     Pop $0
     StrCmp $0 "0" un_stop_server_wait_start
         StrCpy $UninstallServerStopResult 2
@@ -17,14 +17,14 @@ Function un.StopServer
     StrCpy $1 0
     un_stop_server_wait:
         Sleep 100
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" server-running "$INSTDIR\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" server-running "$INSTDIR\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "1" un_stop_server_done
         StrCmp $0 "2" un_stop_server_failed
         IntOp $1 $1 + 1
         IntCmp $1 30 un_stop_server_force un_stop_server_wait un_stop_server_force
     un_stop_server_force:
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" force-stop-server "$INSTDIR\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" force-stop-server "$INSTDIR\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "0" un_stop_server_force_wait
         Goto un_stop_server_failed
@@ -32,7 +32,7 @@ Function un.StopServer
         StrCpy $1 0
     un_stop_server_force_poll:
         Sleep 100
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" server-running "$INSTDIR\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" server-running "$INSTDIR\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "1" un_stop_server_done
         StrCmp $0 "2" un_stop_server_failed
@@ -46,8 +46,8 @@ FunctionEnd
 
 Function un.RestartInstalledServer
     StrCmp $UninstallServerWasRunning "1" 0 un_restart_installed_server_done
-    IfFileExists "$INSTDIR\cxxime-server.exe" 0 un_restart_installed_server_done
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" start-server "$INSTDIR\cxxime-server.exe"'
+    IfFileExists "$INSTDIR\zhiyi-server.exe" 0 un_restart_installed_server_done
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" start-server "$INSTDIR\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "0" un_restart_server_wait_start
         Goto un_restart_server_failed
@@ -55,22 +55,22 @@ Function un.RestartInstalledServer
         StrCpy $1 0
     un_restart_server_wait:
         Sleep 100
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" server-running "$INSTDIR\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" server-running "$INSTDIR\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "0" un_restart_installed_server_done
         IntOp $1 $1 + 1
         IntCmp $1 30 un_restart_server_failed un_restart_server_wait un_restart_server_failed
     un_restart_server_failed:
-        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\nCxxIME 后台恢复启动失败。"
+        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n知意输入法后台恢复启动失败。"
     un_restart_installed_server_done:
 FunctionEnd
 
 Function un.ReleaseInputProcessor
-    nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" release'
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" release'
     Pop $0
     Sleep 500
     StrCmp $0 "0" un_release_input_processor_done
-        DetailPrint "CxxIME TSF 释放请求失败，继续检查文件占用。"
+        DetailPrint "知意输入法 TSF 释放请求失败，继续检查文件占用。"
     un_release_input_processor_done:
 FunctionEnd
 
@@ -90,19 +90,19 @@ Function un.ReadLockReport
     un_lock_report_done:
     ${If} $LockReportText == ""
         StrCpy $LockReportText \
-            "Windows 无法提供正在使用 CxxIME 的应用程序详情。"
+            "Windows 无法提供正在使用知意输入法的应用程序详情。"
     ${EndIf}
 FunctionEnd
 
 Function un.CheckFileLocks
     Delete "$LockReportPath"
     nsExec::ExecToStack \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" query --report "$LockReportPath" \
-        "$INSTDIR\cxxime_tsf_x64.dll" "$INSTDIR\cxxime_tsf_x86.dll" \
-        "$INSTDIR\cxxime_ime_x64.ime" "$INSTDIR\cxxime_ime_x86.ime" \
-        "$INSTDIR\cxxime-resources.dll" "$INSTDIR\cxxime-server.exe" \
-        "$INSTDIR\cxxime-settings.exe" "$INSTDIR\uninstall.exe" \
-        "$WINDIR\System32\cxxime.ime" "$SYSDIR\cxxime.ime"'
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" query --report "$LockReportPath" \
+        "$INSTDIR\zhiyi_tsf_x64.dll" "$INSTDIR\zhiyi_tsf_x86.dll" \
+        "$INSTDIR\zhiyi_ime_x64.ime" "$INSTDIR\zhiyi_ime_x86.ime" \
+        "$INSTDIR\zhiyi-resources.dll" "$INSTDIR\zhiyi-server.exe" \
+        "$INSTDIR\zhiyi-settings.exe" "$INSTDIR\uninstall.exe" \
+        "$WINDIR\System32\zhiyi.ime" "$SYSDIR\zhiyi.ime"'
     Pop $0
     Pop $1
     StrCmp $0 "0" un_lock_done

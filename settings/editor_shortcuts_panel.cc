@@ -20,6 +20,7 @@ static_assert(kKeyModifierControl == HOTKEYF_CONTROL,
 static_assert(kKeyModifierAlt == HOTKEYF_ALT,
               "Shortcut modifier values must match hotkey control");
 constexpr KeyboardShortcut kSuggestedInputModeShortcut = {0, VK_F4};
+constexpr KeyboardShortcut kSuggestedEnglishStyleShortcut = {kKeyModifierControl, VK_SPACE};
 constexpr KeyboardShortcut kSuggestedActivateImeShortcut = {
     kKeyModifierControl | kKeyModifierAlt,
     'M',
@@ -139,7 +140,7 @@ void EditorApp::create_shortcuts_panel(HWND panel) {
     SendMessageW(hInputModeSwitchKey_, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
 
     control_x =
-        make_aligned_label(L"切换到 CxxIME:", kPanelPadLeft, label_width, top + 6 * kRowH, panel);
+        make_aligned_label(L"切换到知意输入法:", kPanelPadLeft, label_width, top + 6 * kRowH, panel);
     hActivateImeHotkeyEnabled_ =
         make_check(1307, L"启用", control_x, top + 6 * kRowH, S(62), panel);
     hActivateImeHotkey_ = CreateWindowExW(
@@ -147,10 +148,19 @@ void EditorApp::create_shortcuts_panel(HWND panel) {
         top + 6 * kRowH, S(232), kCtrlH, panel, reinterpret_cast<HMENU>(static_cast<INT_PTR>(1308)),
         GetModuleHandle(nullptr), nullptr);
     SendMessageW(hActivateImeHotkey_, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
+
+    control_x =
+        make_aligned_label(L"英文单词/字母:", kPanelPadLeft, label_width, top + 7 * kRowH, panel);
+    hEnglishStyleEnabled_ = make_check(1309, L"启用", control_x, top + 7 * kRowH, S(62), panel);
+    hEnglishStyleKey_ = CreateWindowExW(
+        WS_EX_CLIENTEDGE, HOTKEY_CLASSW, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP, control_x + S(68),
+        top + 7 * kRowH, S(232), kCtrlH, panel, reinterpret_cast<HMENU>(static_cast<INT_PTR>(1310)),
+        GetModuleHandle(nullptr), nullptr);
+    SendMessageW(hEnglishStyleKey_, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
 }
 
 bool EditorApp::handle_shortcuts_command(int control_id, int notification) {
-    if (control_id != 1305 && control_id != 1307) {
+    if (control_id != 1305 && control_id != 1307 && control_id != 1309) {
         return false;
     }
     if (notification == BN_CLICKED) {
@@ -174,6 +184,10 @@ void EditorApp::load_shortcut_controls() {
     set_shortcut_control(hActivateImeHotkey_, config_.activate_ime_shortcut.enabled()
                              ? config_.activate_ime_shortcut
                              : kSuggestedActivateImeShortcut);
+    set_check(hEnglishStyleEnabled_, config_.english_style_shortcut.enabled());
+    set_shortcut_control(hEnglishStyleKey_, config_.english_style_shortcut.enabled()
+                             ? config_.english_style_shortcut
+                             : kSuggestedEnglishStyleShortcut);
     update_shortcut_controls_enabled();
 }
 
@@ -193,7 +207,7 @@ bool EditorApp::read_shortcut_controls() {
             MessageBoxW(hwnd_,
                         L"输入模式快捷键可使用 F1-F11，或使用 Ctrl/Alt（可同时搭配 "
                         L"Shift）与字母、数字、常用标点或 Space 组合。",
-                        L"CxxIME 设置", MB_OK | MB_ICONERROR);
+                        L"知意输入法设置", MB_OK | MB_ICONERROR);
             return false;
         }
     }
@@ -206,29 +220,45 @@ bool EditorApp::read_shortcut_controls() {
             MessageBoxW(hwnd_,
                         L"全局快捷键可使用 F1-F11，或使用 Ctrl/Alt（可同时搭配 "
                         L"Shift）与字母、数字、常用标点或 Space 组合。",
-                        L"CxxIME 设置", MB_OK | MB_ICONERROR);
+                        L"知意输入法设置", MB_OK | MB_ICONERROR);
             return false;
         }
     }
-    if (input_mode_shortcut.enabled() && input_mode_shortcut == activate_ime_shortcut) {
-        MessageBoxW(hwnd_, L"两个快捷键不能使用相同的按键组合。", L"CxxIME 设置",
+    KeyboardShortcut english_style_shortcut;
+    if (get_check(hEnglishStyleEnabled_)) {
+        english_style_shortcut = shortcut_from_control(hEnglishStyleKey_);
+        if (!english_style_shortcut.enabled() ||
+            !is_valid_input_mode_shortcut(english_style_shortcut)) {
+            MessageBoxW(hwnd_,
+                        L"英文单词/字母切换键可使用 F1-F11，或使用 Ctrl/Alt（可同时搭配 "
+                        L"Shift）与字母、数字、常用标点或 Space 组合。",
+                        L"知意输入法设置", MB_OK | MB_ICONERROR);
+            return false;
+        }
+    }
+    if ((input_mode_shortcut.enabled() && input_mode_shortcut == activate_ime_shortcut) ||
+        (english_style_shortcut.enabled() && (english_style_shortcut == input_mode_shortcut ||
+                                              english_style_shortcut == activate_ime_shortcut))) {
+        MessageBoxW(hwnd_, L"快捷键之间不能使用相同的按键组合。", L"知意输入法设置",
                     MB_OK | MB_ICONERROR);
         return false;
     }
     if (activate_ime_shortcut != config_.activate_ime_shortcut &&
         !activate_ime_shortcut_is_available(hwnd_, activate_ime_shortcut)) {
-        MessageBoxW(hwnd_, L"该全局快捷键已被其他程序占用。", L"CxxIME 设置",
+        MessageBoxW(hwnd_, L"该全局快捷键已被其他程序占用。", L"知意输入法设置",
                     MB_OK | MB_ICONERROR);
         return false;
     }
     config_.input_mode_switch_shortcut = input_mode_shortcut;
     config_.activate_ime_shortcut = activate_ime_shortcut;
+    config_.english_style_shortcut = english_style_shortcut;
     return true;
 }
 
 void EditorApp::update_shortcut_controls_enabled() {
     EnableWindow(hInputModeSwitchKey_, get_check(hInputModeSwitchEnabled_));
     EnableWindow(hActivateImeHotkey_, get_check(hActivateImeHotkeyEnabled_));
+    EnableWindow(hEnglishStyleKey_, get_check(hEnglishStyleEnabled_));
 }
 
 } // namespace settings

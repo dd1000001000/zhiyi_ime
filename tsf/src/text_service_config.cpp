@@ -11,7 +11,7 @@
 
 namespace {
 
-constexpr wchar_t kConfigWindowClass[] = L"CxxIME.Config.Dispatch";
+constexpr wchar_t kConfigWindowClass[] = L"ZhiyiIME.Config.Dispatch";
 
 bool register_config_window_class(WNDPROC window_proc) {
     WNDCLASSEXW window_class = {};

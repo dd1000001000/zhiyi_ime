@@ -37,9 +37,9 @@ target_link_libraries(cxxime-ime-host-probe PRIVATE
 )
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(CXXIME_PROBE_OUTPUT_NAME "cxxime-ime-host-probe-x64")
+    set(CXXIME_PROBE_OUTPUT_NAME "zhiyi-ime-host-probe-x64")
 elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    set(CXXIME_PROBE_OUTPUT_NAME "cxxime-ime-host-probe-x86")
+    set(CXXIME_PROBE_OUTPUT_NAME "zhiyi-ime-host-probe-x86")
 else()
     message(FATAL_ERROR "Unsupported Probe target pointer size: ${CMAKE_SIZEOF_VOID_P}")
 endif()
@@ -50,7 +50,7 @@ set_target_properties(cxxime-ime-host-probe PROPERTIES
 
 cxxime_add_version_resource(
     cxxime-ime-host-probe
-    "CxxIME Host Candidate Probe"
+    "知意输入法 宿主探测工具"
     "${CXXIME_PROBE_OUTPUT_NAME}.exe"
     VFT_APP
 )

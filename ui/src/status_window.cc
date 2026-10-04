@@ -159,7 +159,7 @@ bool StatusWindow::create(const StatusTheme& theme) {
 
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(wc);
-    wc.lpszClassName = L"CxxIMEStatusWindow";
+    wc.lpszClassName = L"ZhiyiIMEStatusWindow";
     if (!GetClassInfoExW(GetModuleHandle(nullptr), wc.lpszClassName, &wc)) {
         wc.style = CS_HREDRAW | CS_VREDRAW;
         wc.lpfnWndProc = WndProc;
@@ -181,8 +181,8 @@ bool StatusWindow::create(const StatusTheme& theme) {
     ScopedDpiAwarenessContext dpi_context(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     hwnd_ = CreateWindowExW(
         WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_LAYERED,
-        L"CxxIMEStatusWindow",
-        L"CxxIME Status",
+        L"ZhiyiIMEStatusWindow",
+        L"Zhiyi IME Status",
         WS_POPUP,
         x, y, win_w_, win_h_,
         nullptr, nullptr, GetModuleHandle(nullptr), this
@@ -320,7 +320,7 @@ void StatusWindow::set_enabled(bool enabled) {
 void StatusWindow::update_state(const ButtonState& state) {
     if (state_.chinese_mode == state.chinese_mode && state_.caps_lock == state.caps_lock &&
         state_.full_shape == state.full_shape && state_.chinese_punct == state.chinese_punct &&
-        state_.input_mode == state.input_mode) {
+        state_.english_words == state.english_words && state_.input_mode == state.input_mode) {
         return;
     }
     state_ = state;
@@ -729,12 +729,13 @@ void StatusWindow::ComputeButtonDrawInfo(std::vector<ButtonDrawInfo>& out) {
     // Three function buttons
     bool show_chinese_punct = effective_chinese_punct(state_);
     const wchar_t* texts[] = {
-        state_.caps_lock ? L"A" : (state_.chinese_mode ? L"中" : L"英"),
+        state_.caps_lock ? L"A"
+                         : (state_.chinese_mode ? L"中" : (state_.english_words ? L"英" : L"a")),
         state_.full_shape ? L"全" : L"半",
         show_chinese_punct ? L"。" : L".",
     };
     int fond_indices[] = {
-        state_.caps_lock ? 1 : 0,
+        (state_.caps_lock || (!state_.chinese_mode && !state_.english_words)) ? 1 : 0,
         0,
         show_chinese_punct ? 0 : 1,
     };

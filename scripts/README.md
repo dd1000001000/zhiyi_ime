@@ -42,7 +42,7 @@ python scripts\package.py --output-dir <path>
 | `run_sync_regression.bat` | 在 cmd 中运行同步和数据回归检查 |
 | `run_sync_regression.ps1` | 在 PowerShell 中运行同步和数据回归检查 |
 | `collect_diagnostics.ps1` | 收集已安装版本的诊断信息 |
-| `cxxime-setup.nsi` | NSIS 安装与卸载流程入口 |
+| `zhiyi-setup.nsi` | NSIS 安装与卸载流程入口 |
 | `nsis/` | NSIS 初始化、事务、锁检查、TSF 注册和文件处理模块 |
 
 ## 词典打包阶段

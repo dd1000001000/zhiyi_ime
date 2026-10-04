@@ -27,7 +27,7 @@ Function un.LoadTransactionState
     Return
 
     un_transaction_state_invalid:
-    StrCpy $FailureMessage "先前的 CxxIME 卸载事务不完整或无效。"
+    StrCpy $FailureMessage "先前的知意输入法卸载事务不完整或无效。"
     Push 0
 FunctionEnd
 
@@ -57,14 +57,14 @@ Function un.WriteTransactionState
     FileClose $0
     un_write_transaction_failed:
     Delete "$INSTDIR\${UNINSTALL_TRANSACTION_TEMP}"
-    StrCpy $FailureMessage "无法写入 CxxIME 卸载事务。"
+    StrCpy $FailureMessage "无法写入知意输入法卸载事务。"
     Push 0
     Return
 
     un_commit_transaction_failed:
     Delete "$INSTDIR\${UNINSTALL_TRANSACTION_TEMP}"
     StrCpy $FailureMessage \
-        "无法提交 CxxIME 卸载事务（Win32 错误 $1）。"
+        "无法提交知意输入法卸载事务（Win32 错误 $1）。"
     Push 0
 FunctionEnd
 
@@ -72,21 +72,21 @@ Function un.SnapshotTsfRegistration
     StrCpy $UninstallTsfX64Registered 0
     StrCpy $UninstallTsfX86Registered 0
 
-    IfFileExists "$INSTDIR\cxxime_tsf_x64.dll" 0 un_snapshot_tsf_x86
+    IfFileExists "$INSTDIR\zhiyi_tsf_x64.dll" 0 un_snapshot_tsf_x86
         SetRegView 64
         ClearErrors
         ReadRegStr $0 HKLM "${TSF_INPROC_KEY}" ""
         ${IfNot} ${Errors}
-        ${AndIf} $0 == "$INSTDIR\cxxime_tsf_x64.dll"
+        ${AndIf} $0 == "$INSTDIR\zhiyi_tsf_x64.dll"
             StrCpy $UninstallTsfX64Registered 1
         ${EndIf}
     un_snapshot_tsf_x86:
-    IfFileExists "$INSTDIR\cxxime_tsf_x86.dll" 0 un_snapshot_tsf_done
+    IfFileExists "$INSTDIR\zhiyi_tsf_x86.dll" 0 un_snapshot_tsf_done
         SetRegView 32
         ClearErrors
         ReadRegStr $0 HKLM "${TSF_INPROC_KEY}" ""
         ${IfNot} ${Errors}
-        ${AndIf} $0 == "$INSTDIR\cxxime_tsf_x86.dll"
+        ${AndIf} $0 == "$INSTDIR\zhiyi_tsf_x86.dll"
             StrCpy $UninstallTsfX86Registered 1
         ${EndIf}
     un_snapshot_tsf_done:
@@ -114,7 +114,7 @@ Function un.PrepareTransaction
 
     un_prepare_install_incomplete:
     StrCpy $FailureMessage \
-        "CxxIME 安装尚未完成。请重新运行安装程序后再卸载。"
+        "知意输入法安装尚未完成。请重新运行安装程序后再卸载。"
     Push 0
 FunctionEnd
 
@@ -131,7 +131,7 @@ FunctionEnd
 
 Function un.UnregisterInstalledTsf
     StrCmp $UninstallTsfX86Registered "1" 0 un_unregister_installed_x64_path
-    StrCpy $2 "$INSTDIR\cxxime_tsf_x86.dll"
+    StrCpy $2 "$INSTDIR\zhiyi_tsf_x86.dll"
     IfFileExists "$2" 0 un_unregister_installed_x86_missing
         nsExec::ExecToStack '"$SYSDIR\regsvr32.exe" /u /s "$2"'
         Pop $0
@@ -143,7 +143,7 @@ Function un.UnregisterInstalledTsf
 
     un_unregister_installed_x64_path:
     StrCmp $UninstallTsfX64Registered "1" 0 un_unregister_installed_done
-    StrCpy $2 "$INSTDIR\cxxime_tsf_x64.dll"
+    StrCpy $2 "$INSTDIR\zhiyi_tsf_x64.dll"
     IfFileExists "$2" 0 un_unregister_installed_x64_missing
         nsExec::ExecToStack '"$WINDIR\Sysnative\regsvr32.exe" /u /s "$2"'
         Pop $0
@@ -175,38 +175,38 @@ Function un.RemoveSystemIme
         un_remove_system_ime_after_pending
     StrCpy $2 0
     ClearErrors
-    Delete /REBOOTOK "$WINDIR\Sysnative\cxxime.ime"
+    Delete /REBOOTOK "$WINDIR\Sysnative\zhiyi.ime"
     IfErrors un_remove_system_ime_failed
-    IfFileExists "$WINDIR\Sysnative\cxxime.ime" 0 +2
+    IfFileExists "$WINDIR\Sysnative\zhiyi.ime" 0 +2
         StrCpy $2 1
     ClearErrors
-    Delete /REBOOTOK "$SYSDIR\cxxime.ime"
+    Delete /REBOOTOK "$SYSDIR\zhiyi.ime"
     IfErrors un_remove_system_ime_failed
-    IfFileExists "$SYSDIR\cxxime.ime" 0 +2
+    IfFileExists "$SYSDIR\zhiyi.ime" 0 +2
         StrCpy $2 1
     StrCmp $2 "1" un_remove_system_ime_deferred
         Delete "$InstallBaseDir\${SYSTEM_IME_REMOVE_MARKER}"
         Push 1
         Return
     un_remove_system_ime_after_pending:
-    IfFileExists "$WINDIR\Sysnative\cxxime.ime" un_queue_system_ime_x64_delete
+    IfFileExists "$WINDIR\Sysnative\zhiyi.ime" un_queue_system_ime_x64_delete
         System::Call 'kernel32::CopyFileW(\
-            w "$INSTDIR\cxxime_ime_x64.ime", \
-            w "$WINDIR\Sysnative\cxxime.ime", i 0) i .r0'
+            w "$INSTDIR\zhiyi_ime_x64.ime", \
+            w "$WINDIR\Sysnative\zhiyi.ime", i 0) i .r0'
         StrCmp $0 "0" un_remove_system_ime_failed
     un_queue_system_ime_x64_delete:
     System::Call 'kernel32::MoveFileExW(\
-        w "$WINDIR\Sysnative\cxxime.ime", p 0, \
+        w "$WINDIR\Sysnative\zhiyi.ime", p 0, \
         i ${MOVEFILE_DELAY_UNTIL_REBOOT}) i .r0 ?e'
     StrCmp $0 "0" un_remove_system_ime_failed
-    IfFileExists "$SYSDIR\cxxime.ime" un_queue_system_ime_x86_delete
+    IfFileExists "$SYSDIR\zhiyi.ime" un_queue_system_ime_x86_delete
         System::Call 'kernel32::CopyFileW(\
-            w "$INSTDIR\cxxime_ime_x86.ime", \
-            w "$SYSDIR\cxxime.ime", i 0) i .r0'
+            w "$INSTDIR\zhiyi_ime_x86.ime", \
+            w "$SYSDIR\zhiyi.ime", i 0) i .r0'
         StrCmp $0 "0" un_remove_system_ime_failed
     un_queue_system_ime_x86_delete:
     System::Call 'kernel32::MoveFileExW(\
-        w "$SYSDIR\cxxime.ime", p 0, \
+        w "$SYSDIR\zhiyi.ime", p 0, \
         i ${MOVEFILE_DELAY_UNTIL_REBOOT}) i .r0 ?e'
     StrCmp $0 "0" un_remove_system_ime_failed
     IfFileExists "$InstallBaseDir\${LEGACY_SYSTEM_IME_X64_PENDING}" 0 +2

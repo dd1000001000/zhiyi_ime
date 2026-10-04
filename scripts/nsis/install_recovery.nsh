@@ -89,14 +89,14 @@ Function LoadTransactionState
     Return
 
     transaction_state_invalid:
-    StrCpy $FailureMessage "先前的 CxxIME 安装事务不完整或无效。"
+    StrCpy $FailureMessage "先前的知意输入法安装事务不完整或无效。"
     Push 0
 FunctionEnd
 
 Function UnregisterTransactionTsf
-    IfFileExists "$TransactionDir\cxxime_tsf_x86.dll" 0 unregister_transaction_x64
+    IfFileExists "$TransactionDir\zhiyi_tsf_x86.dll" 0 unregister_transaction_x64
         nsExec::ExecToStack \
-            '"$SYSDIR\regsvr32.exe" /u /s "$TransactionDir\cxxime_tsf_x86.dll"'
+            '"$SYSDIR\regsvr32.exe" /u /s "$TransactionDir\zhiyi_tsf_x86.dll"'
         Pop $0
         Pop $1
         StrCmp $0 "0" unregister_transaction_x64
@@ -104,9 +104,9 @@ Function UnregisterTransactionTsf
             Push 0
             Return
     unregister_transaction_x64:
-    IfFileExists "$TransactionDir\cxxime_tsf_x64.dll" 0 unregister_transaction_done
+    IfFileExists "$TransactionDir\zhiyi_tsf_x64.dll" 0 unregister_transaction_done
         nsExec::ExecToStack \
-            '"$WINDIR\Sysnative\regsvr32.exe" /u /s "$TransactionDir\cxxime_tsf_x64.dll"'
+            '"$WINDIR\Sysnative\regsvr32.exe" /u /s "$TransactionDir\zhiyi_tsf_x64.dll"'
         Pop $0
         Pop $1
         StrCmp $0 "0" unregister_transaction_done
@@ -172,12 +172,12 @@ Function RecoverTransaction
         Push 0
         Return
     transaction_cleanup_done:
-    DetailPrint "已恢复先前的 CxxIME 安装状态。"
+    DetailPrint "已恢复先前的知意输入法安装状态。"
     Push 1
     Return
 
     transaction_recovery_failed:
-    StrCpy $FailureMessage "无法恢复先前的 CxxIME 程序文件。"
+    StrCpy $FailureMessage "无法恢复先前的知意输入法程序文件。"
     Push 0
 FunctionEnd
 
@@ -206,7 +206,7 @@ Function RecoverInterruptedInstall
     Goto recover_remove_uncommitted_stage
     recover_uninstall_transaction_pending:
         StrCpy $FailureMessage \
-            "上一次 CxxIME 卸载尚未完成。请先重新运行已安装的卸载程序。"
+            "上一次知意输入法卸载尚未完成。请先重新运行已安装的卸载程序。"
         Push 0
         Return
 
@@ -221,6 +221,6 @@ Function RecoverInterruptedInstall
     Return
 
     recover_staged_cleanup_failed:
-    StrCpy $FailureMessage "无法清理已完成安装留下的 CxxIME 文件。"
+    StrCpy $FailureMessage "无法清理已完成安装留下的知意输入法文件。"
     Push 0
 FunctionEnd

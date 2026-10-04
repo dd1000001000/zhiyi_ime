@@ -209,6 +209,33 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_bool(initial, "chinese_punct", config.initial_chinese_punct);
     }
 
+    if (j.contains("laya") && j["laya"].is_object()) {
+        auto& l = j["laya"];
+        load_bool(l, "enable", config.laya.enable);
+        load_string(l, "model_dir", config.laya.model_dir);
+        load_string(l, "onnx", config.laya.onnx);
+        load_int(l, "top_n", config.laya.top_n);
+        load_int(l, "min_candidates", config.laya.min_candidates);
+        load_int(l, "context_chars", config.laya.context_chars);
+        load_int(l, "threads", config.laya.threads);
+        load_bool(l, "english", config.laya.english);
+        load_int(l, "english_context_chars", config.laya.english_context_chars);
+        if (l.contains("english_freq_weight") && l["english_freq_weight"].is_number())
+            config.laya.english_freq_weight = l["english_freq_weight"].template get<double>();
+    }
+
+    if (j.contains("english") && j["english"].is_object()) {
+        auto& en = j["english"];
+        load_bool(en, "mixed_in_chinese", config.english.mixed_in_chinese);
+        load_int(en, "min_input", config.english.min_input);
+        load_int(en, "position_in_pinyin", config.english.position_in_pinyin);
+        load_bool(en, "completion_in_ascii", config.english.completion_in_ascii);
+        load_bool(en, "word_mode", config.english.word_mode);
+        load_int(en, "completion_pool", config.english.completion_pool);
+        load_int(en, "completion_count", config.english.completion_count);
+        load_int(en, "min_score", config.english.min_score);
+    }
+
     if (j.contains("style") && j["style"].is_object()) {
         auto& s = j["style"];
         load_string(s, "font_face", config.font_name);
@@ -276,9 +303,17 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
                                is_valid_input_mode_shortcut);
         load_keyboard_shortcut(shortcuts, "activate_ime", config.activate_ime_shortcut,
                                is_valid_activate_ime_shortcut);
+        load_keyboard_shortcut(shortcuts, "english_style", config.english_style_shortcut,
+                               is_valid_input_mode_shortcut);
         if (config.input_mode_switch_shortcut.enabled() &&
             config.input_mode_switch_shortcut == config.activate_ime_shortcut) {
             config.input_mode_switch_shortcut = {};
+        }
+        // The other shortcuts win over an identical English style shortcut.
+        if (config.english_style_shortcut.enabled() &&
+            (config.english_style_shortcut == config.input_mode_switch_shortcut ||
+             config.english_style_shortcut == config.activate_ime_shortcut)) {
+            config.english_style_shortcut = {};
         }
     }
 }
@@ -445,9 +480,9 @@ bool Config::load_themes(const std::string& path) {
 
 static nlohmann::json build_config_json(const Config& config, bool include_diagnostics) {
     nlohmann::json j;
-    j["schema"]["name"] = "CxxIME";
+    j["schema"]["name"] = "知意输入法";
     j["schema"]["version"] = "1.0";
-    j["schema"]["description"] = "CxxIME default configuration";
+    j["schema"]["description"] = "Zhiyi IME default configuration";
 
     j["engine"]["page_size"] = config.page_size;
     j["engine"]["input_mode"] = config.input_mode;
@@ -466,6 +501,26 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
 
     j["initial_state"]["full_shape"] = config.initial_full_shape;
     j["initial_state"]["chinese_punct"] = config.initial_chinese_punct;
+
+    j["laya"]["enable"] = config.laya.enable;
+    j["laya"]["model_dir"] = config.laya.model_dir;
+    j["laya"]["onnx"] = config.laya.onnx;
+    j["laya"]["top_n"] = config.laya.top_n;
+    j["laya"]["min_candidates"] = config.laya.min_candidates;
+    j["laya"]["context_chars"] = config.laya.context_chars;
+    j["laya"]["threads"] = config.laya.threads;
+    j["laya"]["english"] = config.laya.english;
+    j["laya"]["english_context_chars"] = config.laya.english_context_chars;
+    j["laya"]["english_freq_weight"] = config.laya.english_freq_weight;
+
+    j["english"]["mixed_in_chinese"] = config.english.mixed_in_chinese;
+    j["english"]["min_input"] = config.english.min_input;
+    j["english"]["position_in_pinyin"] = config.english.position_in_pinyin;
+    j["english"]["completion_in_ascii"] = config.english.completion_in_ascii;
+    j["english"]["word_mode"] = config.english.word_mode;
+    j["english"]["completion_pool"] = config.english.completion_pool;
+    j["english"]["completion_count"] = config.english.completion_count;
+    j["english"]["min_score"] = config.english.min_score;
 
     j["style"]["font_face"] = config.font_name;
     j["style"]["font_point"] = config.font_size;
@@ -528,6 +583,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["shortcuts"]["input_mode_switch"] =
         keyboard_shortcut_string(config.input_mode_switch_shortcut);
     j["shortcuts"]["activate_ime"] = keyboard_shortcut_string(config.activate_ime_shortcut);
+    j["shortcuts"]["english_style"] = keyboard_shortcut_string(config.english_style_shortcut);
 
     return j;
 }

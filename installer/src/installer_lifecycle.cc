@@ -39,7 +39,7 @@ bool prepare_install_lifecycle(const std::wstring& root, const std::wstring& reg
     }
     if (!state.prepared.empty()) {
         const std::wstring previous_target = generation_path(normalized_root, state.prepared);
-        const std::wstring transaction = previous_target + L"\\.cxxime-install-transaction";
+        const std::wstring transaction = previous_target + L"\\.zhiyi-install-transaction";
         if (GetFileAttributesW(transaction.c_str()) != INVALID_FILE_ATTRIBUTES) {
             set_error(error_code, ERROR_BUSY);
             return false;
@@ -193,7 +193,7 @@ bool validate_uninstall_lifecycle(const std::wstring& root, const std::wstring& 
     }
     if (!state.prepared.empty()) {
         const std::wstring prepared_target = generation_path(normalized_root, state.prepared);
-        const std::wstring transaction = prepared_target + L"\\.cxxime-install-transaction";
+        const std::wstring transaction = prepared_target + L"\\.zhiyi-install-transaction";
         if (GetFileAttributesW(transaction.c_str()) != INVALID_FILE_ATTRIBUTES) {
             set_error(error_code, ERROR_BUSY);
             return false;

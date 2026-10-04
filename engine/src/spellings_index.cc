@@ -3,6 +3,7 @@
 #include <cxxime/spellings_index.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstring>
 
 #include <windows.h>
@@ -68,12 +69,23 @@ bool SpellingsIndex::load(const std::string& bin_path) {
     // Build offset table
     node_offsets_ = std::make_unique<uint32_t[]>(node_count_);
     const char* p = nodes_;
+    const char* const end = data_ + data_size_;
     for (uint32_t i = 0; i < node_count_; ++i) {
+        if (p < data_ || end - p < (std::ptrdiff_t)NODE_HEADER_SIZE) {
+            CXXIME_LOG(L"SpellingsIndex::load node table out of bounds");
+            unload();
+            return false;
+        }
         node_offsets_[i] = (uint32_t)(p - nodes_);
         uint8_t ns = *(const uint8_t*)(p + 8);
         uint8_t nc = *(const uint8_t*)(p + 9);
         has_spelling_entries_ = has_spelling_entries_ || ns != 0;
         p += NODE_HEADER_SIZE + ns * SPELLING_SIZE + nc * CHILD_SIZE;
+        if (p > end) {
+            CXXIME_LOG(L"SpellingsIndex::load node table out of bounds");
+            unload();
+            return false;
+        }
     }
 
     CXXIME_LOG(L"SpellingsIndex::load v2 trie nodes=%u", node_count_);
@@ -421,7 +433,8 @@ bool SpellingsIndex::create_test_trie(const std::string& path,
     memcpy(hdr, SPELLINGS_MAGIC_V2, 8);
     uint32_t ver = 2;
     memcpy(hdr + 8, &ver, 4);
-    uint32_t nc = (uint32_t)nodes.size();
+    // Only reachable nodes are serialized (splitting leaves the replaced node orphaned).
+    uint32_t nc = (uint32_t)order.size();
     uint32_t sdsize = (uint32_t)string_data.size();
     memcpy(hdr + 12, &nc, 4);
     memcpy(hdr + 16, &sdsize, 4);

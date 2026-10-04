@@ -1,5 +1,5 @@
 @echo off
-rem Benchmark script for CxxIME query performance
+rem Benchmark script for ZhiyiIME query performance
 rem Usage: benchmark.bat [repeat_count]
 
 setlocal

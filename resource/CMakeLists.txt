@@ -11,13 +11,13 @@ set_source_files_properties(cxxime-resources.rc PROPERTIES
 set_target_properties(cxxime-resources PROPERTIES
     LINKER_LANGUAGE C
     LINK_FLAGS "/NOENTRY"
-    OUTPUT_NAME "cxxime-resources"
+    OUTPUT_NAME "zhiyi-resources"
     SUFFIX ".dll"
 )
 
 cxxime_add_version_resource(
     cxxime-resources
-    "CxxIME Resource Library"
-    "cxxime-resources.dll"
+    "知意输入法 资源库"
+    "zhiyi-resources.dll"
     VFT_DLL
 )

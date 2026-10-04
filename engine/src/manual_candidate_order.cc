@@ -19,7 +19,7 @@
 namespace cxxime {
 namespace {
 
-constexpr const char* kHeader = "# cxxime-candidate-order format=1";
+constexpr const char* kHeader = "# zhiyi-candidate-order format=1";
 constexpr std::size_t kMaxEntries = 100000;
 constexpr std::size_t kMaxFileSize = 16 * 1024 * 1024;
 

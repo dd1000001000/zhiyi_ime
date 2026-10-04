@@ -18,7 +18,7 @@ namespace {
 std::string test_user_config_path(const char* suffix) {
     char directory[MAX_PATH] = {};
     GetTempPathA(MAX_PATH, directory);
-    return std::string(directory) + "cxxime-config-write-" + std::to_string(GetCurrentProcessId()) +
+    return std::string(directory) + "zhiyi-config-write-" + std::to_string(GetCurrentProcessId()) +
            "-" + suffix + ".json";
 }
 

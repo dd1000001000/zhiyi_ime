@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 #
-# CxxIME packaging script — builds, prepares dictionaries, and creates installer.
+# ZhiyiIME packaging script — builds, prepares dictionaries, and creates installer.
 #
 # Usage:
 #   python scripts/package.py                # Release build + package
@@ -292,7 +292,7 @@ def build_x86_platform_modules(
         skip_tools=True,
         generator=generator,
         platform="Win32",
-        target="cxxime-platform-modules",
+        target="zhiyi-platform-modules",
         jobs=jobs,
         host_diagnostics=host_diagnostics,
     )
@@ -347,33 +347,33 @@ def copy_binaries(
     host_diagnostics: bool,
 ) -> None:
     """Copy built binaries to dist."""
-    copy_binary(build_dir, config, "tsf", "cxxime_tsf_x64.dll")
-    copy_binary(build_dir, config, "legacy_ime", "cxxime_ime_x64.ime")
+    copy_binary(build_dir, config, "tsf", "zhiyi_tsf_x64.dll")
+    copy_binary(build_dir, config, "legacy_ime", "zhiyi_ime_x64.ime")
     if host_diagnostics:
         copy_binary(
             build_dir,
             config,
             "diagnostics/host_takeover/probe",
-            "cxxime-ime-host-probe-x64.exe",
+            "zhiyi-ime-host-probe-x64.exe",
         )
     if include_x86_modules:
-        copy_binary(x86_build_dir, config, "tsf", "cxxime_tsf_x86.dll")
-        copy_binary(x86_build_dir, config, "legacy_ime", "cxxime_ime_x86.ime")
+        copy_binary(x86_build_dir, config, "tsf", "zhiyi_tsf_x86.dll")
+        copy_binary(x86_build_dir, config, "legacy_ime", "zhiyi_ime_x86.ime")
         if host_diagnostics:
             copy_binary(
                 x86_build_dir,
                 config,
                 "diagnostics/host_takeover/probe",
-                "cxxime-ime-host-probe-x86.exe",
+                "zhiyi-ime-host-probe-x86.exe",
             )
-    copy_binary(build_dir, config, "resource", "cxxime-resources.dll")
-    copy_binary(build_dir, config, "server", "cxxime-server.exe")
-    copy_binary(build_dir, config, "settings", "cxxime-settings.exe")
+    copy_binary(build_dir, config, "resource", "zhiyi-resources.dll")
+    copy_binary(build_dir, config, "server", "zhiyi-server.exe")
+    copy_binary(build_dir, config, "settings", "zhiyi-settings.exe")
     copy_binary(
         build_dir,
         config,
         "installer",
-        "cxxime-installer-helper.exe",
+        "zhiyi-installer-helper.exe",
     )
 
 
@@ -478,16 +478,16 @@ def check_debug_crt(config: str) -> None:
     has_debug = False
 
     for name in [
-        "cxxime_tsf_x64.dll",
-        "cxxime_tsf_x86.dll",
-        "cxxime_ime_x64.ime",
-        "cxxime_ime_x86.ime",
-        "cxxime-ime-host-probe-x64.exe",
-        "cxxime-ime-host-probe-x86.exe",
-        "cxxime-resources.dll",
-        "cxxime-server.exe",
-        "cxxime-settings.exe",
-        "cxxime-installer-helper.exe",
+        "zhiyi_tsf_x64.dll",
+        "zhiyi_tsf_x86.dll",
+        "zhiyi_ime_x64.ime",
+        "zhiyi_ime_x86.ime",
+        "zhiyi-ime-host-probe-x64.exe",
+        "zhiyi-ime-host-probe-x86.exe",
+        "zhiyi-resources.dll",
+        "zhiyi-server.exe",
+        "zhiyi-settings.exe",
+        "zhiyi-installer-helper.exe",
     ]:
         path = os.path.join(DIST_DIR, name)
         if not os.path.isfile(path):
@@ -646,12 +646,12 @@ def copy_installer_scripts(config: str, host_diagnostics: bool) -> None:
         print("  export_host_trace.ps1")
 
     # NSIS template and function includes.
-    shutil.copy2(os.path.join(SCRIPTS, "cxxime-setup.nsi"), DIST_DIR)
+    shutil.copy2(os.path.join(SCRIPTS, "zhiyi-setup.nsi"), DIST_DIR)
     shutil.copy2(
-        os.path.join(ROOT, "resource", "cxxime.ico"),
-        os.path.join(DIST_DIR, "cxxime.ico"),
+        os.path.join(ROOT, "resource", "zhiyi.ico"),
+        os.path.join(DIST_DIR, "zhiyi.ico"),
     )
-    print("  cxxime.ico")
+    print("  zhiyi.ico")
     nsis_source_dir = os.path.join(SCRIPTS, "nsis")
     nsis_dist_dir = os.path.join(DIST_DIR, "nsis")
     os.makedirs(nsis_dist_dir, exist_ok=True)
@@ -709,7 +709,7 @@ def build_nsis(
         raise RuntimeError("makensis was not found; install NSIS 3.x or add it to PATH")
 
     print(f"  Using NSIS: {makensis}")
-    nsi_file = os.path.join(DIST_DIR, "cxxime-setup.nsi")
+    nsi_file = os.path.join(DIST_DIR, "zhiyi-setup.nsi")
     cmd = [
         makensis,
         "/INPUTCHARSET",
@@ -727,8 +727,8 @@ def build_nsis(
     # Move installer to output
     os.makedirs(output_dir, exist_ok=True)
     suffix = "-host-diag" if host_diagnostics else ""
-    installer = os.path.join(DIST_DIR, f"cxxime-v{VERSION}{suffix}-setup.exe")
-    dest = os.path.join(output_dir, f"cxxime-v{VERSION}{suffix}-setup.exe")
+    installer = os.path.join(DIST_DIR, f"zhiyi-v{VERSION}{suffix}-setup.exe")
+    dest = os.path.join(output_dir, f"zhiyi-v{VERSION}{suffix}-setup.exe")
     if os.path.isfile(installer):
         shutil.move(installer, dest)
         print(f"  Installer created: {dest}")
@@ -745,19 +745,19 @@ def print_summary(config: str, include_x86_modules: bool, host_diagnostics: bool
     print(f"Distribution:  {DIST_DIR}")
     print()
     print("Contents:")
-    print("  cxxime_tsf_x64.dll       64-bit TSF text service DLL")
-    print("  cxxime_ime_x64.ime       64-bit legacy IMM IME module")
+    print("  zhiyi_tsf_x64.dll       64-bit TSF text service DLL")
+    print("  zhiyi_ime_x64.ime       64-bit legacy IMM IME module")
     if host_diagnostics:
-        print("  cxxime-ime-host-probe-x64.exe 64-bit host takeover Probe")
+        print("  zhiyi-ime-host-probe-x64.exe 64-bit host takeover Probe")
     if include_x86_modules:
-        print("  cxxime_tsf_x86.dll       32-bit TSF text service DLL")
-        print("  cxxime_ime_x86.ime       32-bit legacy IMM IME module")
+        print("  zhiyi_tsf_x86.dll       32-bit TSF text service DLL")
+        print("  zhiyi_ime_x86.ime       32-bit legacy IMM IME module")
         if host_diagnostics:
-            print("  cxxime-ime-host-probe-x86.exe 32-bit host takeover Probe")
-    print("  cxxime-resources.dll     Stable input profile resources")
-    print("  cxxime-server.exe        Background server process")
-    print("  cxxime-settings.exe      Configuration editor")
-    print("  cxxime-installer-helper.exe  Installer lock preflight")
+            print("  zhiyi-ime-host-probe-x86.exe 32-bit host takeover Probe")
+    print("  zhiyi-resources.dll     Stable input profile resources")
+    print("  zhiyi-server.exe        Background server process")
+    print("  zhiyi-settings.exe      Configuration editor")
+    print("  zhiyi-installer-helper.exe  Installer lock preflight")
     print("  data/")
     print("    default.json           Default configuration")
     print("    settings_presets.json  Settings UI presets")
@@ -786,7 +786,7 @@ def print_summary(config: str, include_x86_modules: bool, host_diagnostics: bool
     print("  collect_diagnostics.ps1  Diagnostics collector")
     if host_diagnostics:
         print("  export_host_trace.ps1    Host trace exporter")
-    print("  cxxime-setup.nsi         NSIS script")
+    print("  zhiyi-setup.nsi         NSIS script")
     print("  license.txt              License")
     print("  THIRD_PARTY_NOTICES.txt  Third-party notices")
     print("  licenses/                Third-party data licenses")
@@ -794,7 +794,7 @@ def print_summary(config: str, include_x86_modules: bool, host_diagnostics: bool
 
 def main():
     parser = argparse.ArgumentParser(
-        description="CxxIME packaging - build, prepare dicts, create installer"
+        description="Zhiyi IME packaging - build, prepare dicts, create installer"
     )
     parser.add_argument(
         "--debug", action="store_true",
@@ -888,7 +888,7 @@ def main():
         if not args.skip_x86_tsf:
             verify_prebuilt_host_mode(x86_build_dir, args.host_diag)
 
-    print(f"=== CxxIME Packager v{VERSION} ({config}) ===")
+    print(f"=== Zhiyi IME Packager v{VERSION} ({config}) ===")
     total_start = time.perf_counter()
     timings: list[tuple[str, float]] = []
 

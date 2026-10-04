@@ -16,6 +16,7 @@ enum class CandidateSource {
     kPinyin,
     kWubi,
     kSymbol,
+    kEnglish,  // Laya: English word candidates (EnglishLexicon)
 };
 
 enum class CandidateOrigin {
@@ -37,6 +38,8 @@ struct Candidate {
     int source_frequency = 0;  // Raw dictionary frequency when ranking uses a derived score.
     // Canonical input used to query this candidate when it differs from the user's raw keys.
     std::string input_code;
+    // Picked by the Laya model as the best continuation (shown with a sparkle mark).
+    bool recommended = false;
 };
 
 enum class CandidateExtentState : std::uint32_t {

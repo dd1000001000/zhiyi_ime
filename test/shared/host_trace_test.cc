@@ -14,10 +14,10 @@
 TEST(HostTrace, writes_versioned_jsonl_without_text_payload) {
     wchar_t temp_root[MAX_PATH] = {};
     ASSERT_TRUE(GetTempPathW(ARRAYSIZE(temp_root), temp_root) > 0);
-    const std::wstring directory = std::wstring(temp_root) + L"cxxime-host-trace-" +
+    const std::wstring directory = std::wstring(temp_root) + L"zhiyi-host-trace-" +
                                    std::to_wstring(GetCurrentProcessId());
     CreateDirectoryW(directory.c_str(), nullptr);
-    ASSERT_TRUE(SetEnvironmentVariableW(L"CXXIME_HOST_TRACE_DIR", directory.c_str()) != FALSE);
+    ASSERT_TRUE(SetEnvironmentVariableW(L"ZHIYIIME_HOST_TRACE_DIR", directory.c_str()) != FALSE);
 
     cxxime::DiagnosticsConfig diagnostics;
     diagnostics.trace_mode = cxxime::DiagnosticTraceMode::kNormal;
@@ -54,7 +54,7 @@ TEST(HostTrace, writes_versioned_jsonl_without_text_payload) {
     ASSERT_TRUE(!record.contains("text"));
     ASSERT_TRUE(!record.contains("candidates"));
 
-    SetEnvironmentVariableW(L"CXXIME_HOST_TRACE_DIR", nullptr);
+    SetEnvironmentVariableW(L"ZHIYIIME_HOST_TRACE_DIR", nullptr);
     DeleteFileW(path.c_str());
     RemoveDirectoryW(directory.c_str());
 }

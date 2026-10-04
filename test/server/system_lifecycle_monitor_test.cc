@@ -13,7 +13,7 @@
 namespace {
 
 HWND create_test_window() {
-    return CreateWindowExW(0, L"STATIC", L"CxxIME lifecycle test", WS_OVERLAPPED,
+    return CreateWindowExW(0, L"STATIC", L"Zhiyi IME lifecycle test", WS_OVERLAPPED,
                            CW_USEDEFAULT, CW_USEDEFAULT, 100, 100, nullptr, nullptr,
                            GetModuleHandleW(nullptr), nullptr);
 }

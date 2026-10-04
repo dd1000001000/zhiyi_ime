@@ -91,7 +91,7 @@ int find_server_process(const std::wstring& expected_path, DWORD* process_id) {
     }
     while (found) {
         DWORD process_session = 0;
-        if (_wcsicmp(entry.szExeFile, L"cxxime-server.exe") == 0) {
+        if (_wcsicmp(entry.szExeFile, L"zhiyi-server.exe") == 0) {
             if (!ProcessIdToSessionId(entry.th32ProcessID, &process_session)) {
                 if (process_gone_error(GetLastError())) {
                     found = Process32NextW(snapshot, &entry) != FALSE;
@@ -101,7 +101,7 @@ int find_server_process(const std::wstring& expected_path, DWORD* process_id) {
                 return 2;
             }
         }
-        if (_wcsicmp(entry.szExeFile, L"cxxime-server.exe") == 0 &&
+        if (_wcsicmp(entry.szExeFile, L"zhiyi-server.exe") == 0 &&
             process_session == session_id) {
             HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
                                          entry.th32ProcessID);

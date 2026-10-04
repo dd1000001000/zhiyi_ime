@@ -247,6 +247,7 @@ void TextService::_publish_ui_presentation() {
     for (std::uint32_t index = 0; index < snapshot.candidate_page.count; ++index) {
         const cxxime::CandidatePresentationItem& candidate = page.items[index];
         cxxime::UiCandidate& target = snapshot.candidate_page.candidates[index];
+        if (candidate.recommended) snapshot.candidate_recommended_mask |= 1u << index;
         copy_packet_text(target.text, sizeof(target.text), &target.text_length, candidate.text);
         copy_packet_text(target.hint, sizeof(target.hint), &target.hint_length, candidate.hint);
     }

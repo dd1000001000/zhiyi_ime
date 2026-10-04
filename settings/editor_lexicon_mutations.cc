@@ -121,25 +121,25 @@ void EditorApp::add_lexicon_entry() {
     const std::string text = edit_text_utf8(hLexiconText_);
     const std::string form_code = edit_text_utf8(hLexiconCode_);
     if (text.empty() || form_code.empty()) {
-        MessageBoxW(hwnd_, L"请输入词语和编码。", L"CxxIME", MB_OK | MB_ICONWARNING);
+        MessageBoxW(hwnd_, L"请输入词语和编码。", L"知意输入法", MB_OK | MB_ICONWARNING);
         return;
     }
     std::string code;
     std::string syllables;
     if (!normalize_lexicon_entry_code(current_user_dict_kind(), form_code, &code, &syllables)) {
-        MessageBoxW(hwnd_, L"请输入有效的全拼、当前方案双拼或五笔编码。", L"CxxIME",
+        MessageBoxW(hwnd_, L"请输入有效的全拼、当前方案双拼或五笔编码。", L"知意输入法",
                     MB_OK | MB_ICONWARNING);
         return;
     }
     if (selectedLexiconHasUser_ && text == wstr_to_utf8(selectedLexiconText_) &&
         code == wstr_to_utf8(selectedLexiconCode_)) {
-        MessageBoxW(hwnd_, L"当前用户词已经存在。", L"CxxIME", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(hwnd_, L"当前用户词已经存在。", L"知意输入法", MB_OK | MB_ICONINFORMATION);
         return;
     }
     LexiconControlClient client;
     LexiconControlResult result;
     if (!client.add_entry(current_user_dict_kind(), text, code, &result, syllables)) {
-        MessageBoxW(hwnd_, L"新增词条失败。", L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, L"新增词条失败。", L"知意输入法", MB_OK | MB_ICONERROR);
         return;
     }
     clear_lexicon_entry_form();
@@ -149,7 +149,7 @@ void EditorApp::add_lexicon_entry() {
 void EditorApp::add_lexicon_entry_to_both() {
     const std::string text = edit_text_utf8(hLexiconText_);
     if (!is_valid_user_dict_text(text)) {
-        MessageBoxW(hwnd_, L"请输入有效的词语。", L"CxxIME", MB_OK | MB_ICONWARNING);
+        MessageBoxW(hwnd_, L"请输入有效的词语。", L"知意输入法", MB_OK | MB_ICONWARNING);
         return;
     }
     const std::string form_code = edit_text_utf8(hLexiconCode_);
@@ -158,7 +158,7 @@ void EditorApp::add_lexicon_entry_to_both() {
     if (!form_code.empty() &&
         !normalize_lexicon_entry_code(current_user_dict_kind(), form_code, &current_code,
                                       &current_syllables)) {
-        MessageBoxW(hwnd_, L"请输入有效的编码。", L"CxxIME", MB_OK | MB_ICONWARNING);
+        MessageBoxW(hwnd_, L"请输入有效的编码。", L"知意输入法", MB_OK | MB_ICONWARNING);
         return;
     }
     if (!lexiconQueryService_ || lexiconBatchAddRunning_) {
@@ -238,7 +238,7 @@ void EditorApp::handle_lexicon_batch_add_complete(LPARAM completion_data) {
                                      : L"部分用户词未添加，输入内容已保留");
     }
     if (!all_satisfied) {
-        MessageBoxW(hwnd_, message.c_str(), L"CxxIME", MB_OK | MB_ICONWARNING);
+        MessageBoxW(hwnd_, message.c_str(), L"知意输入法", MB_OK | MB_ICONWARNING);
     }
 }
 
@@ -249,13 +249,13 @@ void EditorApp::save_lexicon_entry() {
     const std::string text = edit_text_utf8(hLexiconText_);
     const std::string form_code = edit_text_utf8(hLexiconCode_);
     if (text.empty() || form_code.empty()) {
-        MessageBoxW(hwnd_, L"请输入词语和编码。", L"CxxIME", MB_OK | MB_ICONWARNING);
+        MessageBoxW(hwnd_, L"请输入词语和编码。", L"知意输入法", MB_OK | MB_ICONWARNING);
         return;
     }
     std::string code;
     std::string syllables;
     if (!normalize_lexicon_entry_code(current_user_dict_kind(), form_code, &code, &syllables)) {
-        MessageBoxW(hwnd_, L"请输入有效的全拼、当前方案双拼或五笔编码。", L"CxxIME",
+        MessageBoxW(hwnd_, L"请输入有效的全拼、当前方案双拼或五笔编码。", L"知意输入法",
                     MB_OK | MB_ICONWARNING);
         return;
     }
@@ -263,7 +263,7 @@ void EditorApp::save_lexicon_entry() {
     LexiconControlResult result;
     if (!client.replace_entry(current_user_dict_kind(), wstr_to_utf8(selectedLexiconText_),
                               wstr_to_utf8(selectedLexiconCode_), text, code, &result, syllables)) {
-        MessageBoxW(hwnd_, L"保存修改失败，可能存在相同的用户词条。", L"CxxIME",
+        MessageBoxW(hwnd_, L"保存修改失败，可能存在相同的用户词条。", L"知意输入法",
                     MB_OK | MB_ICONERROR);
         return;
     }
@@ -293,7 +293,7 @@ void EditorApp::delete_lexicon_entries() {
         message += retained;
         message += L" 个仅系统词不会受影响。";
     }
-    if (MessageBoxW(hwnd_, message.c_str(), L"CxxIME", MB_YESNO | MB_ICONWARNING) != IDYES) {
+    if (MessageBoxW(hwnd_, message.c_str(), L"知意输入法", MB_YESNO | MB_ICONWARNING) != IDYES) {
         return;
     }
     LexiconControlClient client;
@@ -302,7 +302,7 @@ void EditorApp::delete_lexicon_entries() {
                              ? client.delete_preferences(current_user_dict_kind(), entries, &result)
                              : client.delete_entries(current_user_dict_kind(), entries, &result);
     if (!deleted) {
-        MessageBoxW(hwnd_, L"删除词条失败。", L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, L"删除词条失败。", L"知意输入法", MB_OK | MB_ICONERROR);
         return;
     }
     clear_lexicon_entry_form();
@@ -323,7 +323,7 @@ void EditorApp::disable_or_restore_system_entry() {
     if (!succeeded) {
         MessageBoxW(hwnd_,
                     selectedLexiconSystemDisabled_ ? L"恢复系统词失败。" : L"隐藏系统词失败。",
-                    L"CxxIME", MB_OK | MB_ICONERROR);
+                    L"知意输入法", MB_OK | MB_ICONERROR);
         return;
     }
     query_lexicon_entries(false);

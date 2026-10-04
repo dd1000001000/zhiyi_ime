@@ -17,9 +17,9 @@ Function SnapshotPreviousState
     StrCpy $OldRunPresent 0
     StrCpy $OldRunValue ""
 
-    IfFileExists "$StateInstallDir\cxxime_tsf_x64.dll" 0 +2
+    IfFileExists "$StateInstallDir\zhiyi_tsf_x64.dll" 0 +2
         StrCpy $OldTsfX64Present 1
-    IfFileExists "$StateInstallDir\cxxime_tsf_x86.dll" 0 +2
+    IfFileExists "$StateInstallDir\zhiyi_tsf_x86.dll" 0 +2
         StrCpy $OldTsfX86Present 1
 
     ${If} $OldTsfX64Present == 1
@@ -27,7 +27,7 @@ Function SnapshotPreviousState
         ClearErrors
         ReadRegStr $0 HKLM "${TSF_INPROC_KEY}" ""
         ${IfNot} ${Errors}
-        ${AndIf} $0 == "$StateInstallDir\cxxime_tsf_x64.dll"
+        ${AndIf} $0 == "$StateInstallDir\zhiyi_tsf_x64.dll"
             StrCpy $OldTsfX64Registered 1
         ${EndIf}
     ${EndIf}
@@ -36,7 +36,7 @@ Function SnapshotPreviousState
         ClearErrors
         ReadRegStr $0 HKLM "${TSF_INPROC_KEY}" ""
         ${IfNot} ${Errors}
-        ${AndIf} $0 == "$StateInstallDir\cxxime_tsf_x86.dll"
+        ${AndIf} $0 == "$StateInstallDir\zhiyi_tsf_x86.dll"
             StrCpy $OldTsfX86Registered 1
         ${EndIf}
     ${EndIf}
@@ -60,7 +60,7 @@ Function SnapshotPreviousState
         StrCpy $OldUninstallPresent 1
     ${EndIf}
     ClearErrors
-    ReadRegStr $OldRunValue HKLM "${RUN_KEY}" "CxxIMEServer"
+    ReadRegStr $OldRunValue HKLM "${RUN_KEY}" "ZhiyiIMEServer"
     ${IfNot} ${Errors}
         StrCpy $OldRunPresent 1
     ${EndIf}
@@ -106,14 +106,14 @@ Function WriteTransactionState
     FileClose $0
     transaction_state_write_failed:
     Delete "$StageDir\${TRANSACTION_TEMP}"
-    StrCpy $FailureMessage "无法写入 CxxIME 安装事务。"
+    StrCpy $FailureMessage "无法写入知意输入法安装事务。"
     Push 0
     Return
 
     transaction_state_commit_failed:
     Delete "$StageDir\${TRANSACTION_TEMP}"
     StrCpy $FailureMessage \
-        "无法提交 CxxIME 安装事务（Win32 错误 $1）。"
+        "无法提交知意输入法安装事务（Win32 错误 $1）。"
     Push 0
 FunctionEnd
 
@@ -124,7 +124,7 @@ Function PrepareSystemImeUpdate
     Return
 
     prepare_system_ime_failed:
-    StrCpy $FailureMessage "无法记录 CxxIME 系统 IME 更新状态。"
+    StrCpy $FailureMessage "无法记录知意输入法系统 IME 更新状态。"
     Push 0
 FunctionEnd
 
@@ -152,37 +152,37 @@ Function CopyNewSystemIme
     Delete "$4"
     Delete "$5"
     System::Call 'kernel32::CopyFileW(\
-        w "$INSTDIR\cxxime_ime_x64.ime", \
-        w "$WINDIR\Sysnative\cxxime.ime", \
+        w "$INSTDIR\zhiyi_ime_x64.ime", \
+        w "$WINDIR\Sysnative\zhiyi.ime", \
         i 0) i .r0'
     ${If} $0 == 0
     ${OrIf} $2 == 1
         System::Call 'kernel32::CopyFileW(\
-            w "$INSTDIR\cxxime_ime_x64.ime", \
+            w "$INSTDIR\zhiyi_ime_x64.ime", \
             w "$4", \
             i 0) i .r0'
         StrCmp $0 "0" install_system_ime_x64_failed
         System::Call 'kernel32::MoveFileExW(\
             w "$4", \
-            w "$WINDIR\Sysnative\cxxime.ime", \
+            w "$WINDIR\Sysnative\zhiyi.ime", \
             i ${MOVEFILE_REPLACE_DELAY_UNTIL_REBOOT}) i .r0 ?e'
         StrCmp $0 "0" install_system_ime_x64_failed
         SetRebootFlag true
     ${EndIf}
     System::Call 'kernel32::CopyFileW(\
-        w "$INSTDIR\cxxime_ime_x86.ime", \
-        w "$SYSDIR\cxxime.ime", \
+        w "$INSTDIR\zhiyi_ime_x86.ime", \
+        w "$SYSDIR\zhiyi.ime", \
         i 0) i .r0'
     ${If} $0 == 0
     ${OrIf} $2 == 1
         System::Call 'kernel32::CopyFileW(\
-            w "$INSTDIR\cxxime_ime_x86.ime", \
+            w "$INSTDIR\zhiyi_ime_x86.ime", \
             w "$5", \
             i 0) i .r0'
         StrCmp $0 "0" install_system_ime_x86_failed
         System::Call 'kernel32::MoveFileExW(\
             w "$5", \
-            w "$SYSDIR\cxxime.ime", \
+            w "$SYSDIR\zhiyi.ime", \
             i ${MOVEFILE_REPLACE_DELAY_UNTIL_REBOOT}) i .r0 ?e'
         StrCmp $0 "0" install_system_ime_x86_failed
         SetRebootFlag true
@@ -207,7 +207,7 @@ Function CopyNewSystemIme
     Return
 
     install_system_ime_marker_failed:
-    StrCpy $FailureMessage "无法完成 CxxIME 系统 IME 更新状态。"
+    StrCpy $FailureMessage "无法完成知意输入法系统 IME 更新状态。"
     Push 0
     Return
     install_system_ime_x64_failed:

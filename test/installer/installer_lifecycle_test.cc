@@ -17,7 +17,7 @@ constexpr wchar_t kGenerationPrefix[] = L"0.5.0.";
 std::wstring test_root(const wchar_t* suffix) {
     wchar_t directory[MAX_PATH] = {};
     GetTempPathW(MAX_PATH, directory);
-    return std::wstring(directory) + L"cxxime-lifecycle-" + std::to_wstring(GetCurrentProcessId()) +
+    return std::wstring(directory) + L"zhiyi-lifecycle-" + std::to_wstring(GetCurrentProcessId()) +
            suffix;
 }
 
@@ -71,10 +71,10 @@ TEST(InstallerLifecycle, persists_prepared_target_and_allocates_unique_generatio
 
     const std::wstring first_target = result.install_target;
     create_directory(first_target);
-    write_file(first_target + L"\\cxxime-server.exe");
+    write_file(first_target + L"\\zhiyi-server.exe");
     write_file(first_target + L"\\install-manifest.json",
-               R"({"format":"cxxime-install-manifest","version":1,)"
-               R"("files":["cxxime-server.exe"]})");
+               R"({"format":"zhiyi-install-manifest","version":1,)"
+               R"("files":["zhiyi-server.exe"]})");
     ASSERT_TRUE(
         cxxime::installer::commit_install_lifecycle(root, first_target, L"", &result, &error));
     ASSERT_TRUE(cxxime::installer::get_prepared_install_target(root, &persisted, &error));
@@ -99,15 +99,15 @@ TEST(InstallerLifecycle, manifest_drives_cleanup_and_preserves_unknown_files) {
     create_directory(root);
     create_directory(root + L"\\0.5.0");
     write_file(root + L"\\0.5.0\\install-manifest.json",
-               R"({"format":"cxxime-install-manifest","version":1,"files":[]})");
+               R"({"format":"zhiyi-install-manifest","version":1,"files":[]})");
     create_directory(root + L"\\0.4.0");
     create_directory(root + L"\\0.4.0\\licenses");
     write_file(root + L"\\0.4.0\\owned.dll");
     write_file(root + L"\\0.4.0\\licenses\\owned.txt");
-    write_file(root + L"\\0.4.0\\.cxxime-install-transaction");
+    write_file(root + L"\\0.4.0\\.zhiyi-install-transaction");
     write_file(root + L"\\0.4.0\\unknown.txt");
     write_file(root + L"\\0.4.0\\install-manifest.json",
-               R"({"format":"cxxime-install-manifest","version":1,)"
+               R"({"format":"zhiyi-install-manifest","version":1,)"
                R"("files":["owned.dll","licenses/owned.txt"]})");
 
     cxxime::installer::InstallLifecycleResult result;
@@ -117,7 +117,7 @@ TEST(InstallerLifecycle, manifest_drives_cleanup_and_preserves_unknown_files) {
     ASSERT_EQ(result.unknown_files, 1U);
     ASSERT_TRUE(GetFileAttributesW((root + L"\\0.4.0\\owned.dll").c_str()) ==
                 INVALID_FILE_ATTRIBUTES);
-    ASSERT_TRUE(GetFileAttributesW((root + L"\\0.4.0\\.cxxime-install-transaction").c_str()) ==
+    ASSERT_TRUE(GetFileAttributesW((root + L"\\0.4.0\\.zhiyi-install-transaction").c_str()) ==
                 INVALID_FILE_ATTRIBUTES);
     ASSERT_TRUE(GetFileAttributesW((root + L"\\0.4.0\\unknown.txt").c_str()) !=
                 INVALID_FILE_ATTRIBUTES);
@@ -130,7 +130,7 @@ TEST(InstallerLifecycle, invalid_retired_manifest_does_not_block_install) {
     create_directory(root);
     create_directory(root + L"\\0.4.0");
     write_file(root + L"\\0.4.0\\install-manifest.json",
-               R"({"format":"cxxime-install-manifest","version":1,)"
+               R"({"format":"zhiyi-install-manifest","version":1,)"
                R"("files":["../outside.txt"]})");
 
     cxxime::installer::InstallLifecycleResult result;
@@ -158,7 +158,7 @@ TEST(InstallerLifecycle, commit_requires_complete_active_payload) {
 
     create_directory(target);
     write_file(target + L"\\install-manifest.json",
-               R"({"format":"cxxime-install-manifest","version":1,)"
+               R"({"format":"zhiyi-install-manifest","version":1,)"
                R"("files":["owned.dll"]})");
     ASSERT_TRUE(!cxxime::installer::commit_install_lifecycle(root, target, L"", &result, &error));
     ASSERT_EQ(error, static_cast<unsigned long>(ERROR_FILE_NOT_FOUND));
@@ -173,7 +173,7 @@ TEST(InstallerLifecycle, missing_active_manifest_allows_repair_target) {
     remove_tree(root);
     create_directory(root);
     create_directory(active);
-    write_file(active + L"\\cxxime-server.exe");
+    write_file(active + L"\\zhiyi-server.exe");
 
     cxxime::installer::InstallLifecycleResult result;
     unsigned long error = ERROR_SUCCESS;
@@ -191,7 +191,7 @@ TEST(InstallerLifecycle, corrupt_state_allows_repair_target) {
     create_directory(root + L"\\maintenance");
     create_directory(active);
     write_file(active + L"\\install-manifest.json",
-               R"({"format":"cxxime-install-manifest","version":1,"files":[]})");
+               R"({"format":"zhiyi-install-manifest","version":1,"files":[]})");
     write_file(root + L"\\maintenance\\install-state.json", "not json");
 
     cxxime::installer::InstallLifecycleResult result;
@@ -209,7 +209,7 @@ TEST(InstallerLifecycle, uninstall_cleans_active_and_discovered_retired_generati
     create_directory(root + L"\\0.5.0");
     create_directory(root + L"\\0.4.0");
     const std::string manifest =
-        R"({"format":"cxxime-install-manifest","version":1,"files":["owned.dll"]})";
+        R"({"format":"zhiyi-install-manifest","version":1,"files":["owned.dll"]})";
     write_file(root + L"\\0.5.0\\owned.dll");
     write_file(root + L"\\0.5.0\\install-manifest.json", manifest);
     write_file(root + L"\\0.4.0\\owned.dll");
@@ -231,10 +231,10 @@ TEST(InstallerLifecycle, missing_registration_retires_stale_active_generation) {
     remove_tree(root);
     create_directory(root);
     create_directory(root + L"\\0.5.0");
-    write_file(root + L"\\0.5.0\\cxxime-server.exe");
+    write_file(root + L"\\0.5.0\\zhiyi-server.exe");
     write_file(root + L"\\0.5.0\\install-manifest.json",
-               R"({"format":"cxxime-install-manifest","version":1,)"
-               R"("files":["cxxime-server.exe"]})");
+               R"({"format":"zhiyi-install-manifest","version":1,)"
+               R"("files":["zhiyi-server.exe"]})");
 
     cxxime::installer::InstallLifecycleResult result;
     unsigned long error = ERROR_SUCCESS;
@@ -258,7 +258,7 @@ TEST(InstallerLifecycle, retries_generation_after_directory_handle_blocks_cleanu
     create_directory(first);
     write_file(first + L"\\owned.dll");
     write_file(first + L"\\install-manifest.json",
-               R"({"format":"cxxime-install-manifest","version":1,"files":["owned.dll"]})");
+               R"({"format":"zhiyi-install-manifest","version":1,"files":["owned.dll"]})");
     ASSERT_TRUE(cxxime::installer::commit_install_lifecycle(root, first, L"", &result, &error));
 
     ASSERT_TRUE(
@@ -267,7 +267,7 @@ TEST(InstallerLifecycle, retries_generation_after_directory_handle_blocks_cleanu
     create_directory(second);
     write_file(second + L"\\owned.dll");
     write_file(second + L"\\install-manifest.json",
-               R"({"format":"cxxime-install-manifest","version":1,"files":["owned.dll"]})");
+               R"({"format":"zhiyi-install-manifest","version":1,"files":["owned.dll"]})");
     ASSERT_TRUE(cxxime::installer::commit_install_lifecycle(root, second, first, &result, &error));
 
     HANDLE directory = CreateFileW(first.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,

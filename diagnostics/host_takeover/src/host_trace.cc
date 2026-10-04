@@ -50,7 +50,7 @@ std::string current_process_name() {
 std::wstring trace_directory() {
     wchar_t override_path[32768] = {};
     const DWORD override_len = GetEnvironmentVariableW(
-        L"CXXIME_HOST_TRACE_DIR", override_path, ARRAYSIZE(override_path));
+        L"ZHIYIIME_HOST_TRACE_DIR", override_path, ARRAYSIZE(override_path));
     if (override_len > 0 && override_len < ARRAYSIZE(override_path)) {
         CreateDirectoryW(override_path, nullptr);
         return override_path;

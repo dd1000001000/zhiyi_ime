@@ -63,7 +63,7 @@ void cleanup_packaged_app_directories(DiagnosticsCleanupSummary* summary) {
             continue;
         }
         const std::wstring directory =
-            packages + L"\\" + find_data.cFileName + L"\\LocalState\\cxxime\\logs";
+            packages + L"\\" + find_data.cFileName + L"\\LocalState\\zhiyi\\logs";
         const DWORD attributes = GetFileAttributesW(directory.c_str());
         if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
             cleanup_directory(directory, summary);

@@ -1,11 +1,11 @@
 # Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 #
-# Collect CxxIME release diagnostics without modifying system state.
+# Collect ZhiyiIME release diagnostics without modifying system state.
 #
 # Examples:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File collect_diagnostics.ps1
 #   powershell -NoProfile -ExecutionPolicy Bypass -File collect_diagnostics.ps1 -IncludeLogs
-#   powershell -NoProfile -ExecutionPolicy Bypass -File collect_diagnostics.ps1 -OutputDir D:\Temp\cxxime-diag -NoZip
+#   powershell -NoProfile -ExecutionPolicy Bypass -File collect_diagnostics.ps1 -OutputDir D:\Temp\zhiyi-diag -NoZip
 
 param(
     [string]$OutputDir = "",
@@ -20,7 +20,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Get-CxxImeInstallDir {
+function Get-ZhiyiImeInstallDir {
     param([string]$ExplicitInstallDir)
 
     if ($ExplicitInstallDir -and (Test-Path -LiteralPath $ExplicitInstallDir)) {
@@ -28,8 +28,8 @@ function Get-CxxImeInstallDir {
     }
 
     $registryPaths = @(
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CxxIME",
-        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\CxxIME"
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyiIME",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyiIME"
     )
     foreach ($path in $registryPaths) {
         if (Test-Path -LiteralPath $path) {
@@ -41,8 +41,8 @@ function Get-CxxImeInstallDir {
     }
 
     $candidates = @(
-        (Join-Path $env:ProgramFiles "CxxIME"),
-        (Join-Path ${env:ProgramFiles(x86)} "CxxIME")
+        (Join-Path $env:ProgramFiles "ZhiyiIME"),
+        (Join-Path ${env:ProgramFiles(x86)} "ZhiyiIME")
     )
     foreach ($path in $candidates) {
         if ($path -and (Test-Path -LiteralPath $path)) {
@@ -64,7 +64,7 @@ function New-DiagnosticRoot {
         if (-not $desktop) {
             $desktop = $env:USERPROFILE
         }
-        $root = Join-Path $desktop "cxxime-diagnostics-$stamp"
+        $root = Join-Path $desktop "zhiyi-diagnostics-$stamp"
     }
 
     New-Item -ItemType Directory -Force -Path $root | Out-Null
@@ -167,7 +167,7 @@ function Write-RecentTraceSummary {
     )
 
     $lines = New-Object System.Collections.Generic.List[string]
-    $lines.Add("CxxIME recent trace summary")
+    $lines.Add("Zhiyi IME recent trace summary")
     $lines.Add("Generated: $((Get-Date).ToString("yyyy-MM-dd HH:mm:ss zzz"))")
     $lines.Add("")
 
@@ -244,21 +244,21 @@ function Get-OsInfoSafe {
     }
 }
 
-$installDir = Get-CxxImeInstallDir -ExplicitInstallDir $InstallDir
-$userDir = Join-Path $env:USERPROFILE "cxxime"
+$installDir = Get-ZhiyiImeInstallDir -ExplicitInstallDir $InstallDir
+$userDir = Join-Path $env:USERPROFILE "zhiyi"
 $dataDir = if ($installDir) { Join-Path $installDir "data" } else { "" }
 $logsDir = Join-Path $userDir "logs"
 $root = New-DiagnosticRoot -ExplicitOutputDir $OutputDir
-$cxxImeClsid = "{B7E1E5A2-8F3D-4A9C-B6E7-2C4D8F1A3B5E}"
-$systemImeX64 = Join-Path $env:WINDIR "System32\cxxime.ime"
-$sysnativeImeX64 = Join-Path $env:WINDIR "Sysnative\cxxime.ime"
+$cxxImeClsid = "{4EAC2DF0-F298-453E-BD4A-B4B3D3579718}"
+$systemImeX64 = Join-Path $env:WINDIR "System32\zhiyi.ime"
+$sysnativeImeX64 = Join-Path $env:WINDIR "Sysnative\zhiyi.ime"
 if (Test-Path -LiteralPath (Split-Path -Parent $sysnativeImeX64)) {
     $systemImeX64 = $sysnativeImeX64
 }
-$systemImeX86 = Join-Path $env:WINDIR "SysWOW64\cxxime.ime"
+$systemImeX86 = Join-Path $env:WINDIR "SysWOW64\zhiyi.ime"
 
 $report = [ordered]@{
-    product = "CxxIME"
+    product = "ZhiyiIME"
     package_version = "development"
     collected_at = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss zzz")
     machine = [ordered]@{
@@ -276,25 +276,25 @@ $report = [ordered]@{
     }
     expected_registration = [ordered]@{
         clsid = $cxxImeClsid
-        tsf_x64 = if ($installDir) { Join-Path $installDir "cxxime_tsf_x64.dll" } else { "" }
-        tsf_x86 = if ($installDir) { Join-Path $installDir "cxxime_tsf_x86.dll" } else { "" }
-        ime_x64 = if ($installDir) { Join-Path $installDir "cxxime_ime_x64.ime" } else { "" }
-        ime_x86 = if ($installDir) { Join-Path $installDir "cxxime_ime_x86.ime" } else { "" }
+        tsf_x64 = if ($installDir) { Join-Path $installDir "zhiyi_tsf_x64.dll" } else { "" }
+        tsf_x86 = if ($installDir) { Join-Path $installDir "zhiyi_tsf_x86.dll" } else { "" }
+        ime_x64 = if ($installDir) { Join-Path $installDir "zhiyi_ime_x64.ime" } else { "" }
+        ime_x86 = if ($installDir) { Join-Path $installDir "zhiyi_ime_x86.ime" } else { "" }
         system_ime_x64 = $systemImeX64
         system_ime_x86 = $systemImeX86
-        resources = if ($installDir) { Join-Path $installDir "cxxime-resources.dll" } else { "" }
+        resources = if ($installDir) { Join-Path $installDir "zhiyi-resources.dll" } else { "" }
     }
     log_inventory = Get-LogInventory $logsDir
 }
 
 $programFiles = @(
-    "cxxime_tsf_x64.dll",
-    "cxxime_tsf_x86.dll",
-    "cxxime_ime_x64.ime",
-    "cxxime_ime_x86.ime",
-    "cxxime-resources.dll",
-    "cxxime-server.exe",
-    "cxxime-settings.exe",
+    "zhiyi_tsf_x64.dll",
+    "zhiyi_tsf_x86.dll",
+    "zhiyi_ime_x64.ime",
+    "zhiyi_ime_x86.ime",
+    "zhiyi-resources.dll",
+    "zhiyi-server.exe",
+    "zhiyi-settings.exe",
     "collect_diagnostics.ps1",
     "uninstall.exe"
 )
@@ -357,20 +357,20 @@ $report.system_ime_files = @()
 $report.system_ime_files += Get-FileInfoSafe -Path $systemImeX64
 $report.system_ime_files += Get-FileInfoSafe -Path $systemImeX86
 
-$report.processes = Get-Process cxxime-server, cxxime-settings -ErrorAction SilentlyContinue |
+$report.processes = Get-Process zhiyi-server, zhiyi-settings -ErrorAction SilentlyContinue |
     Select-Object ProcessName, Id, Path, StartTime
 
 $report | ConvertTo-Json -Depth 8 | Out-File -Encoding UTF8 -FilePath (Join-Path $root "diagnostics.json")
 Write-RecentTraceSummary -LogsDir $logsDir -OutputPath (Join-Path $root "trace-summary.txt")
 
 Save-CommandOutput -Path (Join-Path $root "registry-uninstall.txt") -Command {
-    reg.exe query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CxxIME" /s
+    reg.exe query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyiIME" /s
 }
 Save-CommandOutput -Path (Join-Path $root "registry-uninstall-64.txt") -Command {
-    reg.exe query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CxxIME" /s /reg:64
+    reg.exe query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyiIME" /s /reg:64
 }
 Save-CommandOutput -Path (Join-Path $root "registry-uninstall-32.txt") -Command {
-    reg.exe query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\CxxIME" /s /reg:32
+    reg.exe query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyiIME" /s /reg:32
 }
 Save-CommandOutput -Path (Join-Path $root "registry-clsid-64.txt") -Command {
     reg.exe query "HKLM\SOFTWARE\Classes\CLSID\$cxxImeClsid" /s /reg:64
@@ -379,44 +379,44 @@ Save-CommandOutput -Path (Join-Path $root "registry-clsid-32.txt") -Command {
     reg.exe query "HKLM\SOFTWARE\Classes\CLSID\$cxxImeClsid" /s /reg:32
 }
 Save-CommandOutput -Path (Join-Path $root "registry-tip.txt") -Command {
-    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f "CxxIME"
+    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f "知意输入法"
 }
 Save-CommandOutput -Path (Join-Path $root "registry-tip-64.txt") -Command {
-    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f "CxxIME" /reg:64
+    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f "知意输入法" /reg:64
 }
 Save-CommandOutput -Path (Join-Path $root "registry-tip-32.txt") -Command {
-    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f "CxxIME" /reg:32
+    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f "知意输入法" /reg:32
 }
 Save-CommandOutput -Path (Join-Path $root "keyboard-preload.txt") -Command {
     reg.exe query "HKCU\Keyboard Layout\Preload"
 }
-Save-CommandOutput -Path (Join-Path $root "registry-keyboard-layouts-cxxime.txt") -Command {
-    reg.exe query "HKLM\SYSTEM\CurrentControlSet\Control\Keyboard Layouts" /s /f "cxxime.ime"
+Save-CommandOutput -Path (Join-Path $root "registry-keyboard-layouts-zhiyi.txt") -Command {
+    reg.exe query "HKLM\SYSTEM\CurrentControlSet\Control\Keyboard Layouts" /s /f "zhiyi.ime"
 }
-Save-CommandOutput -Path (Join-Path $root "tasklist-cxxime.txt") -Command {
-    tasklist.exe /v /fi "imagename eq cxxime-server.exe"
-    tasklist.exe /v /fi "imagename eq cxxime-settings.exe"
+Save-CommandOutput -Path (Join-Path $root "tasklist-zhiyi.txt") -Command {
+    tasklist.exe /v /fi "imagename eq zhiyi-server.exe"
+    tasklist.exe /v /fi "imagename eq zhiyi-settings.exe"
 }
 Save-CommandOutput -Path (Join-Path $root "tasklist-tsf-module.txt") -Command {
-    tasklist.exe /m cxxime_tsf_x64.dll
-    tasklist.exe /m cxxime_tsf_x86.dll
-    tasklist.exe /m cxxime.ime
+    tasklist.exe /m zhiyi_tsf_x64.dll
+    tasklist.exe /m zhiyi_tsf_x86.dll
+    tasklist.exe /m zhiyi.ime
 }
 
 $readme = @"
-CxxIME diagnostics package
+ZhiyiIME diagnostics package
 
 Generated: $((Get-Date).ToString("yyyy-MM-dd HH:mm:ss zzz"))
 
 Included by default:
 - diagnostics.json with version, OS, install path, data path, user path, file metadata and hashes.
-- diagnostics.json also records System32/SysWOW64 cxxime.ime file existence and hashes.
+- diagnostics.json also records System32/SysWOW64 zhiyi.ime file existence and hashes.
 - trace-summary.txt with log file metadata and recent error/slow-event counters.
 - registry query output for uninstall, CLSID, TIP, legacy HKL and keyboard preload state.
-- tasklist output for CxxIME processes, TSF DLLs and cxxime.ime module ownership.
+- tasklist output for ZhiyiIME processes, TSF DLLs and zhiyi.ime module ownership.
 
 Optional:
-- Use -IncludeLogs to copy %USERPROFILE%\cxxime\logs. Trace logs may contain raw input codes.
+- Use -IncludeLogs to copy %USERPROFILE%\zhiyi\logs. Trace logs may contain raw input codes.
 - Use -IncludeUserConfig to copy user configuration files.
 - Use -IncludeUserDict to copy user dictionary files. User dictionaries contain personal phrases.
 - Use -IncludeCandidatePreferences to copy candidate preference and manual order files.

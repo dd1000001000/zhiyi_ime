@@ -25,7 +25,7 @@
 namespace cxxime {
 namespace {
 
-constexpr char kCandidateOrderHeader[] = "# cxxime-candidate-order format=1";
+constexpr char kCandidateOrderHeader[] = "# zhiyi-candidate-order format=1";
 constexpr std::size_t kMaxMergedFileSize = 64ULL * 1024ULL * 1024ULL;
 constexpr std::size_t kMaxCandidateOrderFileSize = 16ULL * 1024ULL * 1024ULL;
 constexpr std::size_t kMaxCandidateOrderEntries = 100000;

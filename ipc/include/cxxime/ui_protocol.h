@@ -105,6 +105,8 @@ struct UiPresentationSnapshot {
     // Optional native window for z-order coordination when kTsfLocalCandidate is set.
     // Append after the complete 0.6.1 payload, including its tail padding.
     std::uint64_t local_candidate_window = 0;
+    // Bit i: candidate_page.candidates[i] is the Laya recommendation (sparkle mark).
+    std::uint32_t candidate_recommended_mask = 0;
 };
 
 enum class UiCommandType : std::uint32_t {

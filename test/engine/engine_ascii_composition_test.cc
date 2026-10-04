@@ -59,6 +59,13 @@ TEST(Engine, shift_toggle_then_capslock_uppercase) {
     lower_letter.is_key_up = false;
 
     result = engine.process_key(lower_letter);
+    // Laya: with the English word list installed, English mode opens a word for completion;
+    // Enter commits it as typed.
+    if (result == cxxime::ProcessResult::ACCEPTED) {
+        cxxime::KeyEvent enter;
+        enter.keycode = VK_RETURN;
+        result = engine.process_key(enter);
+    }
     ASSERT_EQ(result, cxxime::ProcessResult::COMMITTED);
     ASSERT_EQ(engine.get_commit_text(), "i");
 

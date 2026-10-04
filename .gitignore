@@ -45,3 +45,31 @@ CLAUDE.md
 # OS
 Thumbs.db
 Desktop.ini
+
+# ---- 知意输入法 ----
+# ONNX Runtime binaries: python scripts/fetch_onnxruntime.py
+third_party/onnxruntime/
+# Model files (see README): python scripts/fetch_model.py
+models/
+*.log
+
+# bench: Python environment, caches and reproducible artifacts
+__pycache__/
+*.pyc
+bench/.venv/
+# HF cache (Laya base model)
+bench/models/
+# training outputs and ONNX exports
+bench/runs/
+# Laya source (git clone, see bench/README.md)
+bench/vendor/
+bench/logs/
+# per-sample results; summary.txt is kept
+bench/results/*.jsonl
+# fetched corpora (fetch_real.py / fetch_english.py)
+bench/data/real/
+bench/data/real_en/
+# train / dev sets (rebuilt by build_*.py); the test sets are kept
+bench/data/*.jsonl
+!bench/data/testset.jsonl
+!bench/data/en_test.jsonl

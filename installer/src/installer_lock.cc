@@ -162,9 +162,9 @@ std::wstring format_lock_report(const LockQueryResult& result, std::size_t max_a
 
     std::wstring report;
     if (result.status == LockQueryStatus::kRebootRequired) {
-        report = L"Windows 要求重新启动后才能更新 CxxIME。";
+        report = L"Windows 要求重新启动后才能更新知意输入法。";
     } else if (!result.applications.empty()) {
-        report = L"以下应用程序正在使用 CxxIME：";
+        report = L"以下应用程序正在使用知意输入法：";
     }
 
     const std::size_t count = std::min(result.applications.size(), max_applications);

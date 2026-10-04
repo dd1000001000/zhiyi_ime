@@ -12,7 +12,7 @@
 namespace cxxime {
 namespace {
 
-constexpr wchar_t kMaintenanceFilename[] = L".cxxime-log-maintenance";
+constexpr wchar_t kMaintenanceFilename[] = L".zhiyi-log-maintenance";
 constexpr std::uint64_t kFileTimeTicksPerSecond = 10000000ULL;
 constexpr std::uint64_t kRetentionAge = 7ULL * 24ULL * 60ULL * 60ULL * kFileTimeTicksPerSecond;
 constexpr std::uint64_t kMaintenanceInterval = 6ULL * 60ULL * 60ULL * kFileTimeTicksPerSecond;

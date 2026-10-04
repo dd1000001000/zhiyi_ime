@@ -94,13 +94,13 @@ void EditorApp::clear_candidate_preferences() {
     std::wstring message = L"清空全部";
     message += kind;
     message += L"选词偏好？\n\n用户词库不会受到影响。";
-    if (MessageBoxW(hwnd_, message.c_str(), L"CxxIME", MB_YESNO | MB_ICONWARNING) != IDYES) {
+    if (MessageBoxW(hwnd_, message.c_str(), L"知意输入法", MB_YESNO | MB_ICONWARNING) != IDYES) {
         return;
     }
     LexiconControlClient client;
     LexiconControlResult result;
     if (!client.clear_preferences(current_user_dict_kind(), &result)) {
-        MessageBoxW(hwnd_, L"清空选词偏好失败。", L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, L"清空选词偏好失败。", L"知意输入法", MB_OK | MB_ICONERROR);
         return;
     }
     clear_lexicon_entry_form();
@@ -122,12 +122,12 @@ void EditorApp::import_user_dict() {
     if (!GetOpenFileNameW(&dialog)) {
         return;
     }
-    if (MessageBoxW(hwnd_, L"导入会覆盖当前用户词库，是否继续？", L"CxxIME",
+    if (MessageBoxW(hwnd_, L"导入会覆盖当前用户词库，是否继续？", L"知意输入法",
                     MB_YESNO | MB_ICONWARNING) != IDYES) {
         return;
     }
     if (!import_file_size_is_valid(file)) {
-        MessageBoxW(hwnd_, L"导入失败：文件无法读取或超过 64 MiB。", L"CxxIME",
+        MessageBoxW(hwnd_, L"导入失败：文件无法读取或超过 64 MiB。", L"知意输入法",
                     MB_OK | MB_ICONERROR);
         return;
     }
@@ -160,7 +160,7 @@ void EditorApp::handle_lexicon_import_complete(LPARAM completion_data) {
     update_lexicon_entry_actions();
     if (!completion->succeeded) {
         SetWindowTextW(hLexiconStatus_, L"导入失败");
-        MessageBoxW(hwnd_, L"导入失败：CxxIME 后台未运行，或文件无效、无法保存。", L"CxxIME",
+        MessageBoxW(hwnd_, L"导入失败：知意输入法后台未运行，或文件无效、无法保存。", L"知意输入法",
                     MB_OK | MB_ICONERROR);
         return;
     }
@@ -170,7 +170,7 @@ void EditorApp::handle_lexicon_import_complete(LPARAM completion_data) {
         query_lexicon_entries(false);
         SetWindowTextW(hLexiconStatus_, L"导入完成，正在刷新...");
     }
-    MessageBoxW(hwnd_, L"用户词库已导入。", L"CxxIME", MB_OK | MB_ICONINFORMATION);
+    MessageBoxW(hwnd_, L"用户词库已导入。", L"知意输入法", MB_OK | MB_ICONINFORMATION);
 }
 
 void EditorApp::export_user_dict() {
@@ -195,7 +195,7 @@ void EditorApp::export_user_dict() {
     const bool saved = client.save(current_user_dict_kind(), &result);
     const std::string destination = wstr_to_utf8(file);
     if (!copy_file_utf8_path(current_user_dict_path(), destination)) {
-        MessageBoxW(hwnd_, L"导出失败，无法复制词库文件。", L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, L"导出失败，无法复制词库文件。", L"知意输入法", MB_OK | MB_ICONERROR);
         return;
     }
     update_lexicon_status();
@@ -203,7 +203,7 @@ void EditorApp::export_user_dict() {
     if (!saved) {
         message += L"\n\n后台未能立即保存最新内存状态，已导出现有词库文件。";
     }
-    MessageBoxW(hwnd_, message.c_str(), L"CxxIME", MB_OK | MB_ICONINFORMATION);
+    MessageBoxW(hwnd_, message.c_str(), L"知意输入法", MB_OK | MB_ICONINFORMATION);
 }
 
 void EditorApp::open_user_dict_dir() {
@@ -212,7 +212,7 @@ void EditorApp::open_user_dict_dir() {
         ShellExecuteW(hwnd_, L"open", directory.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     if (reinterpret_cast<INT_PTR>(result) <= 32) {
         const std::wstring message = L"无法打开用户词库目录:\n" + directory;
-        MessageBoxW(hwnd_, message.c_str(), L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, message.c_str(), L"知意输入法", MB_OK | MB_ICONERROR);
     }
 }
 

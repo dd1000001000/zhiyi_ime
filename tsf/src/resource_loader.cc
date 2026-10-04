@@ -10,7 +10,7 @@ namespace cxxime_tsf {
 
 namespace {
 
-constexpr wchar_t kResourceDllName[] = L"cxxime-resources.dll";
+constexpr wchar_t kResourceDllName[] = L"zhiyi-resources.dll";
 
 HMODULE load_resource_module() {
     wchar_t path[MAX_PATH] = {};

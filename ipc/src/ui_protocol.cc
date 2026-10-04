@@ -173,6 +173,13 @@ UiPacketParseResult decode_ui_snapshot_packet(const void* data, std::size_t size
     if (header.payload_size < kLocalCandidateWindowPayloadSize) {
         parsed.local_candidate_window = 0;
     }
+    constexpr std::size_t kRecommendedPayloadSize =
+        offsetof(UiPresentationSnapshot, candidate_recommended_mask) + sizeof(std::uint32_t);
+    if (header.payload_size < kRecommendedPayloadSize) {
+        parsed.candidate_recommended_mask = 0;
+    }
+    parsed.candidate_recommended_mask &=
+        parsed.candidate_page.count >= 32 ? ~0u : ((1u << parsed.candidate_page.count) - 1u);
     if ((parsed.flags & ~kKnownSnapshotFlags) != 0 || !valid_ownership(parsed.ownership)) {
         return UiPacketParseResult::kIgnored;
     }

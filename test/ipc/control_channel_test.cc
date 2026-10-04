@@ -40,7 +40,7 @@ bool wait_for(const std::function<bool()>& condition, int timeout_ms = 3000) {
 
 std::wstring test_pipe_name() {
     static std::atomic<unsigned long> sequence{0};
-    return L"\\\\.\\pipe\\CxxIME-Control-Test-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+    return L"\\\\.\\pipe\\ZhiyiIME-Control-Test-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
            std::to_wstring(sequence.fetch_add(1));
 }
 
@@ -85,7 +85,7 @@ TEST(ControlChannel, protocol_rejects_invalid_header_and_oversized_payload) {
 TEST(ControlChannel, explicit_user_pipe_name_is_not_rescoped) {
     const std::wstring scoped =
         cxxime::make_user_pipe_name(cxxime::CONTROL_PIPE_BASE_NAME, L"interactive-user");
-    ASSERT_TRUE(scoped == L"\\\\.\\pipe\\interactive-user\\CxxIME-Control");
+    ASSERT_TRUE(scoped == L"\\\\.\\pipe\\interactive-user\\ZhiyiIME-Control");
     ASSERT_TRUE(cxxime::make_user_pipe_name(scoped, L"elevated-admin") == scoped);
 }
 
@@ -497,7 +497,7 @@ TEST(ControlChannel, candidate_order_codec_preserves_entries_and_version) {
 TEST(ControlChannel, user_backup_codec_and_client_preserve_summary) {
     cxxime::UserBackupControlRequest request;
     request.operation = cxxime::UserBackupOperation::kImport;
-    request.path = "C:\\backup\\profile.cxxime-backup";
+    request.path = "C:\\backup\\profile.zhiyi-backup";
     request.components = cxxime::kPortableUserBackupComponents;
     std::string payload;
     ASSERT_TRUE(cxxime::encode_user_backup_request(request, &payload));

@@ -30,7 +30,7 @@ bool wait_for(const std::function<bool()>& condition, int timeout_ms = 3000) {
 
 std::wstring test_pipe_name() {
     static std::atomic<unsigned long> sequence{0};
-    return L"\\\\.\\pipe\\CxxIME-UI-Router-Test-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+    return L"\\\\.\\pipe\\ZhiyiIME-UI-Router-Test-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
            std::to_wstring(sequence.fetch_add(1));
 }
 

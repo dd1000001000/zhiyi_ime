@@ -87,7 +87,7 @@ std::string user_data_dir() {
         wchar_t profile[MAX_PATH];
         if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_PROFILE, nullptr, 0, profile))) {
             std::wstring wdir(profile);
-            wdir += L"\\cxxime\\";
+            wdir += L"\\zhiyi\\";
             CreateDirectoryW(wdir.c_str(), nullptr);
             int len =
                 WideCharToMultiByte(CP_UTF8, 0, wdir.c_str(), -1, nullptr, 0, nullptr, nullptr);

@@ -544,7 +544,7 @@ public:
     std::atomic<int> clears{0};
     bool reject_clear = false;
     std::wstring pipe =
-        L"\\\\.\\pipe\\CxxIME-CompositionFailure-" + std::to_wstring(GetCurrentProcessId());
+        L"\\\\.\\pipe\\ZhiyiIME-CompositionFailure-" + std::to_wstring(GetCurrentProcessId());
 
     InputServer() {
         server.set_handler([this](const cxxime::IPCRequest& request) {

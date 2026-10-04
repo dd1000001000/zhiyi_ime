@@ -220,7 +220,8 @@ CandidateStateToken candidate_state_token(const cxxime::Engine& engine) {
 
 bool same_candidate_item(const cxxime::CandidatePresentationItem& left,
                          const cxxime::CandidatePresentationItem& right) {
-    return left.text == right.text && left.hint == right.hint;
+    return left.text == right.text && left.hint == right.hint &&
+           left.recommended == right.recommended;
 }
 
 bool same_candidate_page(const cxxime::CandidatePresentationPage& left,
@@ -624,6 +625,7 @@ void SessionManager::reset_global_state(const SharedResourceSnapshot& resources)
     if (resources.runtime) {
         state.input_mode =
             static_cast<cxxime::InputMode>(resources.runtime->config().input_mode);
+        state.english_words = resources.runtime->config().english.word_mode;
     }
     std::lock_guard<std::mutex> lock(state_mutex_);
     global_state_ = state;
@@ -652,6 +654,8 @@ void SessionManager::align_session_to_global(SessionEntry& entry) {
     }
     entry.engine->ascii_composer().sync_caps_lock(state.caps_lock,
                                                   entry.engine->context());
+    entry.engine->set_english_word_mode(state.english_words);
+    entry.ime_status.set_english_words(state.english_words);
     entry.ime_status.set_chinese_mode(state.caps_lock ? false : entry.base_chinese_mode);
     entry.ime_status.set_caps_lock(state.caps_lock);
     entry.ime_status.set_full_shape(entry.full_shape);
@@ -1492,6 +1496,9 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
         engine.switch_mode(next_input_mode(engine.mode()));
         state.input_mode = engine.mode();
         shared_state_changed = true;
+    } else if (result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE) {
+        state.english_words = !state.english_words;
+        shared_state_changed = true;
     }
 
     if (shared_state_changed) {
@@ -1501,6 +1508,8 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     ret.ime_status = s.ime_status;
     if (result == cxxime::ProcessResult::SWITCH_INPUT_MODE) {
         persist_input_mode(ret.ime_status.input_mode);
+    } else if (result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE) {
+        persist_english_word_mode(ret.ime_status.english_words());
     }
 
     if (result == cxxime::ProcessResult::COMMITTED) {
@@ -1508,7 +1517,8 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
         ret.commit_text = cxxime::OutputComposer::transform(raw, opts, source);
         ret.composing = engine.context().is_composing();
     } else if (result == cxxime::ProcessResult::TOGGLE_PUNCT
-            || result == cxxime::ProcessResult::TOGGLE_SHAPE) {
+            || result == cxxime::ProcessResult::TOGGLE_SHAPE
+            || result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE) {
         ret.composing = engine.context().is_composing();
     } else if (result == cxxime::ProcessResult::SWITCH_INPUT_MODE) {
         ret.composing = false;
@@ -1984,6 +1994,14 @@ bool SessionManager::freeze_and_save_candidate_preferences() {
 bool SessionManager::freeze_and_stop_composition_learning() {
     std::lock_guard<std::mutex> reload_lock(reload_mutex_);
     return shared_.freeze_and_stop_composition_learning();
+}
+
+void SessionManager::persist_english_word_mode(bool enabled) {
+    if (config_patch_handler_) {
+        nlohmann::json patch;
+        patch["english"]["word_mode"] = enabled;
+        config_patch_handler_(patch.dump());
+    }
 }
 
 void SessionManager::persist_input_mode(cxxime::InputMode mode) {

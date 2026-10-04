@@ -18,9 +18,9 @@ enum class SettingsPanel : uint32_t {
     kBackup = 7,
 };
 
-inline constexpr wchar_t kSettingsWindowTitle[] = L"CxxIME 设置";
-inline constexpr wchar_t kSettingsWindowClass[] = L"CxxIMESettingsClass5";
-inline constexpr wchar_t kSettingsNavigateMessage[] = L"CxxIME.Settings.Navigate";
+inline constexpr wchar_t kSettingsWindowTitle[] = L"知意输入法设置";
+inline constexpr wchar_t kSettingsWindowClass[] = L"ZhiyiIMESettingsClass5";
+inline constexpr wchar_t kSettingsNavigateMessage[] = L"ZhiyiIME.Settings.Navigate";
 inline constexpr wchar_t kSettingsPanelArgument[] = L"--panel";
 inline constexpr wchar_t kSettingsDictionaryArgument[] = L"dictionary";
 

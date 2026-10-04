@@ -67,7 +67,7 @@ void trace_runtime_activate(DWORD activate_flags, TfClientId client_id) {
     const HKL keyboard_layout = GetKeyboardLayout(0);
 
     cxxime::write_host_trace("tsf", "runtime.component_status", {
-        {"name", "cxxime-tsf"},
+        {"name", "zhiyi-tsf"},
         {"result", "loaded"},
     });
     cxxime::write_host_trace("tsf", "runtime.activate", {

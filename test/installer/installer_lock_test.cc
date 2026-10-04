@@ -12,7 +12,7 @@
 #include "support/testutil.h"
 
 TEST(InstallerLock, missing_file_has_no_locks) {
-    const auto result = cxxime::installer::query_file_locks({L"missing-cxxime-installer-file"});
+    const auto result = cxxime::installer::query_file_locks({L"missing-zhiyi-installer-file"});
     ASSERT_EQ(result.status, cxxime::installer::LockQueryStatus::kSuccess);
     ASSERT_TRUE(result.applications.empty());
 }

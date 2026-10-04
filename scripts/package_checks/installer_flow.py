@@ -11,7 +11,7 @@ def check_installer_flow(
     install_text: str,
     uninstall_text: str,
 ) -> None:
-    label = "cxxime-setup.nsi"
+    label = "zhiyi-setup.nsi"
     for item in (
         "Function AcquireInstallerMutex",
         "Function PrepareInstallLifecycle",
@@ -37,8 +37,8 @@ def check_installer_flow(
         "!insertmacro MUI_PAGE_FINISH",
         "!define MUI_FINISHPAGE_RUN_NOTCHECKED",
         "!define MUI_FINISHPAGE_NOREBOOTSUPPORT",
-        'StrCpy $LockReportPath "$PLUGINSDIR\\cxxime-locks.txt"',
-        'StrCpy $InstallBaseDir "$PROGRAMFILES64\\CxxIME"',
+        'StrCpy $LockReportPath "$PLUGINSDIR\\zhiyi-locks.txt"',
+        'StrCpy $InstallBaseDir "$PROGRAMFILES64\\ZhiyiIME"',
         "Call ReleaseInstallerMutex",
         'ExecWait \'"$RegisteredInstallDir\\uninstall.exe" /S\'',
         'FileWriteUTF16LE $0 "state=removing$\\r$\\n"',
@@ -65,10 +65,10 @@ def check_installer_flow(
         'ReadINIStr $LifecycleUnknown "$LifecycleResultPath" "lifecycle" "unknown"',
         'StrCmp $LifecycleRemaining "0" +2',
         'StrCpy $UninstallCleanupWarning 1',
-        'RMDir /r /REBOOTOK "$RegisteredInstallDir\\.cxxime-rollback"',
-        'RMDir /r /REBOOTOK "$RegisteredInstallDir\\.cxxime-uninstall-rollback"',
+        'RMDir /r /REBOOTOK "$RegisteredInstallDir\\.zhiyi-rollback"',
+        'RMDir /r /REBOOTOK "$RegisteredInstallDir\\.zhiyi-uninstall-rollback"',
         'RMDir /r /REBOOTOK "$InstallBaseDir\\update"',
-        'RMDir /r /REBOOTOK "$InstallBaseDir\\.cxxime-backup"',
+        'RMDir /r /REBOOTOK "$InstallBaseDir\\.zhiyi-backup"',
         'StrCpy $4 "$InstallBaseDir\\maintenance\\ime-$3-x64.pending"',
         'StrCpy $5 "$InstallBaseDir\\maintenance\\ime-$3-x86.pending"',
         'IfFileExists "$InstallBaseDir\\maintenance\\ime-*.pending"',
@@ -170,7 +170,7 @@ def check_installer_flow(
                 'StrCmp $1 "maintenance" fresh_install_base_next',
                 'IfFileExists "$InstallBaseDir\\$1\\install-manifest.json"',
                 'FindClose $0',
-                "所选产品目录包含不属于 CxxIME 的文件",
+                "所选产品目录包含不属于知意输入法的文件",
                 "fresh_install_base_next:",
                 "FindNext $0 $1",
                 "fresh_install_base_empty:",
@@ -182,7 +182,7 @@ def check_installer_flow(
 
     if text.count("!define MUI_FINISHPAGE_NOREBOOTSUPPORT") != 2:
         errors.append("Finish pages: install and uninstall must both suppress restart choices")
-    if text.count('StrCpy $LifecycleResultPath "$PLUGINSDIR\\cxxime-lifecycle.ini"') != 2:
+    if text.count('StrCpy $LifecycleResultPath "$PLUGINSDIR\\zhiyi-lifecycle.ini"') != 2:
         errors.append("Lifecycle result path: must be initialized after each InitPluginsDir")
 
     lock_start = text.find("Function un.CheckFileLocks")

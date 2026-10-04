@@ -132,7 +132,7 @@ public:
         ASSERT_TRUE(AssignProcessToJobObject(job_, process_.hProcess) != FALSE);
         ASSERT_TRUE(ResumeThread(process_.hThread) != static_cast<DWORD>(-1));
         ASSERT_TRUE(wait_for([&]() {
-            candidate = find_window(process_.dwProcessId, L"CxxIMECandidateWindow");
+            candidate = find_window(process_.dwProcessId, L"ZhiyiIMECandidateWindow");
             owner = GetWindow(candidate, GW_OWNER);
             return owner && IsWindowVisible(candidate);
         }));
@@ -166,7 +166,7 @@ public:
                                  observed_generation.store(command.presentation_generation);
                              },
                              {}));
-        status = find_window(GetCurrentProcessId(), L"CxxIMEStatusWindow");
+        status = find_window(GetCurrentProcessId(), L"ZhiyiIMEStatusWindow");
         ASSERT_TRUE(status != nullptr);
         snapshot.session_id = 1;
         snapshot.session_generation = 1;
@@ -313,7 +313,7 @@ TEST(UiPresentationController, source_switch_and_independent_layout_preserve_can
     // Even with a stale extension, flags select the server presenter.
     ++fixture.snapshot.target_generation;
     fixture.present();
-    const HWND server_candidate = find_window(GetCurrentProcessId(), L"CxxIMECandidateWindow");
+    const HWND server_candidate = find_window(GetCurrentProcessId(), L"ZhiyiIMECandidateWindow");
     ASSERT_TRUE(IsWindowVisible(server_candidate) != FALSE);
     RECT candidate_rect = {};
     ASSERT_TRUE(GetWindowRect(server_candidate, &candidate_rect) != FALSE);

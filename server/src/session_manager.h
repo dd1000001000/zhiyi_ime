@@ -230,6 +230,7 @@ private:
     struct GlobalVisibleState {
         bool caps_lock = false;
         cxxime::InputMode input_mode = cxxime::InputMode::PINYIN;
+        bool english_words = true;  // English mode style (config english.word_mode)
     };
 
     cxxime::Engine* get_engine(uint32_t id);
@@ -243,6 +244,7 @@ private:
     void align_session_to_global(SessionEntry& entry);
 
     void persist_input_mode(cxxime::InputMode mode);
+    void persist_english_word_mode(bool enabled);
 
     SharedResources shared_;
     std::unordered_map<uint32_t, std::shared_ptr<SessionEntry>> sessions_;

@@ -10,9 +10,9 @@ namespace cxxime {
 namespace settings {
 namespace {
 
-constexpr wchar_t kHotProperty[] = L"CxxIME.LexiconViewTabHot";
-constexpr wchar_t kNextProperty[] = L"CxxIME.LexiconViewTabNext";
-constexpr wchar_t kPreviousProperty[] = L"CxxIME.LexiconViewTabPrevious";
+constexpr wchar_t kHotProperty[] = L"ZhiyiIME.LexiconViewTabHot";
+constexpr wchar_t kNextProperty[] = L"ZhiyiIME.LexiconViewTabNext";
+constexpr wchar_t kPreviousProperty[] = L"ZhiyiIME.LexiconViewTabPrevious";
 
 void set_tab_stop(HWND tab, bool enabled) {
     LONG_PTR style = GetWindowLongPtrW(tab, GWL_STYLE);

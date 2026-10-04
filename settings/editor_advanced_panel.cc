@@ -272,7 +272,7 @@ void EditorApp::apply_default_candidate_settings() {
     const std::string default_path = data_path("default.json");
     const std::string themes_path = data_path("themes.json");
     if (!defaults.load(default_path) || !defaults.load_themes(themes_path)) {
-        MessageBoxW(hwnd_, L"无法重新加载默认配置或主题配置。", L"CxxIME 设置",
+        MessageBoxW(hwnd_, L"无法重新加载默认配置或主题配置。", L"知意输入法设置",
                     MB_OK | MB_ICONERROR);
         return;
     }

@@ -89,7 +89,7 @@ void EditorApp::create_diagnostics_panel(HWND panel) {
     GetClientRect(panel, &panel_rect);
     const int packaged_app_width = panel_rect.right - content_x - S(8);
     HWND packaged_app_path =
-        CreateWindowExW(0, L"STATIC", L"PackagedApp 日志目录: LocalState\\cxxime\\logs",
+        CreateWindowExW(0, L"STATIC", L"PackagedApp 日志目录: LocalState\\zhiyi\\logs",
                         WS_CHILD | WS_VISIBLE | SS_LEFT | SS_ENDELLIPSIS, content_x,
                         packaged_app_y, packaged_app_width, kCtrlH, panel, nullptr,
                         GetModuleHandle(nullptr), nullptr);
@@ -150,21 +150,21 @@ void EditorApp::read_diagnostics_controls() {
 void EditorApp::open_diagnostics_log_directory() {
     const std::wstring directory = cxxime::diagnostic_log_directory();
     if (directory.empty()) {
-        MessageBoxW(hwnd_, L"无法确定诊断日志目录。", L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, L"无法确定诊断日志目录。", L"知意输入法", MB_OK | MB_ICONERROR);
         return;
     }
 
     HINSTANCE result =
         ShellExecuteW(hwnd_, L"open", directory.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     if (reinterpret_cast<INT_PTR>(result) <= 32) {
-        MessageBoxW(hwnd_, L"无法打开诊断日志目录。", L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, L"无法打开诊断日志目录。", L"知意输入法", MB_OK | MB_ICONERROR);
     }
 }
 
 void EditorApp::export_diagnostics() {
     std::wstring script = find_collect_diagnostics_script();
     if (script.empty()) {
-        MessageBoxW(hwnd_, L"未找到 collect_diagnostics.ps1。请确认当前版本已完整安装。", L"CxxIME",
+        MessageBoxW(hwnd_, L"未找到 collect_diagnostics.ps1。请确认当前版本已完整安装。", L"知意输入法",
                     MB_OK | MB_ICONERROR);
         return;
     }
@@ -187,10 +187,10 @@ void EditorApp::export_diagnostics() {
     execute_info.nShow = SW_SHOWNORMAL;
 
     if (!ShellExecuteExW(&execute_info)) {
-        MessageBoxW(hwnd_, L"启动诊断导出失败。", L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, L"启动诊断导出失败。", L"知意输入法", MB_OK | MB_ICONERROR);
         return;
     }
-    MessageBoxW(hwnd_, L"已开始导出诊断包，完成后会再次提示结果。", L"CxxIME",
+    MessageBoxW(hwnd_, L"已开始导出诊断包，完成后会再次提示结果。", L"知意输入法",
                 MB_OK | MB_ICONINFORMATION);
 
     if (execute_info.hProcess) {
@@ -213,7 +213,7 @@ void EditorApp::cleanup_diagnostics() {
     if (!IsWindowEnabled(hDiagnosticsCleanup_)) {
         return;
     }
-    if (MessageBoxW(hwnd_, L"将删除当前未被使用的 CxxIME 历史诊断日志。是否继续？", L"CxxIME",
+    if (MessageBoxW(hwnd_, L"将删除当前未被使用的知意输入法历史诊断日志。是否继续？", L"知意输入法",
                     MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) {
         return;
     }
@@ -237,7 +237,7 @@ void EditorApp::cleanup_diagnostics() {
         }).detach();
     } catch (...) {
         EnableWindow(hDiagnosticsCleanup_, TRUE);
-        MessageBoxW(hwnd_, L"无法启动日志清理任务。", L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, L"无法启动日志清理任务。", L"知意输入法", MB_OK | MB_ICONERROR);
     }
 }
 
@@ -246,7 +246,7 @@ void EditorApp::handle_diagnostics_cleanup_complete(LPARAM completion) {
         reinterpret_cast<DiagnosticsCleanupSummary*>(completion));
     EnableWindow(hDiagnosticsCleanup_, TRUE);
     if (!summary) {
-        MessageBoxW(hwnd_, L"清理历史日志失败。", L"CxxIME", MB_OK | MB_ICONERROR);
+        MessageBoxW(hwnd_, L"清理历史日志失败。", L"知意输入法", MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -261,7 +261,7 @@ void EditorApp::handle_diagnostics_cleanup_complete(LPARAM completion) {
     if (get_check(hDiagnosticsLogging_)) {
         message << L"\n\n诊断日志已启用，运行中的应用仍会继续生成新日志。";
     }
-    MessageBoxW(hwnd_, message.str().c_str(), L"CxxIME", MB_OK | MB_ICONINFORMATION);
+    MessageBoxW(hwnd_, message.str().c_str(), L"知意输入法", MB_OK | MB_ICONINFORMATION);
 }
 
 } // namespace settings

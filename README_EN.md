@@ -1,87 +1,67 @@
-# CxxIME
+# Zhiyi IME (知意输入法)
 
 **English** | [中文](README.md)
 
-![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)
-![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?style=flat-square&logo=windows&logoColor=white)
-![CMake](https://img.shields.io/badge/CMake-3.15%2B-064F8C?style=flat-square&logo=cmake&logoColor=white)
-![Windows CI](https://img.shields.io/github/actions/workflow/status/deanxyuan/cxx-ime/windows-ci.yml?branch=master&label=Windows%20CI&style=flat-square)
-![License](https://img.shields.io/github/license/deanxyuan/cxx-ime?style=flat-square)
+> Lightweight · Open source · Context-aware — a Windows Chinese/English input method that picks
+> candidates from what you have already typed, on your own CPU
 
-> A lightweight Windows TSF (Text Services Framework) input method (Pinyin + Wubi + Mixed).
-
-CxxIME is a lightweight Windows TSF-based input method with three modes: Pinyin, Wubi 86, and mixed Pinyin + Wubi. The client (TSF DLL) only captures keystrokes and presents candidates; Pinyin parsing, dictionary lookup, and candidate generation all happen in a separate server process, so every input session shares one copy of the dictionary and a crashing engine cannot take down the host application you are typing in.
+Zhiyi IME is a Windows TSF input method for Simplified Chinese pinyin, English word completion and
+plain English letters. A small fine-tuned decision model ([Laya](https://huggingface.co/convaiinnovations/laya),
+335 MB after int8 quantization) reads the text you have typed so far, picks the most likely candidate,
+puts it first and marks it with a gold sparkle. The model runs entirely offline; nothing you type
+leaves your computer.
 
 ## Features
 
-- Pinyin, Wubi 86, and mixed modes, with full Pinyin, four Shuangpin schemes (Microsoft / Xiaohe / Ziranma / Sogou), shorthand, fuzzy syllables, dynamic sentence building, and segment-by-segment selection
-- Candidates ranked in tiers by match quality, so exact syllables and near-complete words are never buried by frequent long words; long Pinyin can be selected by segment
-- A dedicated Wubi prefix index covering shortcut codes, completion hints, automatic commit on a unique four-code match, and fifth-code handling
-- System symbols are kept out of dictionary candidates: type `\` or a category mnemonic (such as `\bd`) to browse and commit them by category, and browse or copy them in Settings
-- Candidate window supports horizontal and vertical layouts, D2D and GDI rendering, and 12 built-in themes (6 palettes × light/dark)
-- App hosts can take over inline preedit and candidate rendering via TSF UIElement (verified in DOTA2)
-- Candidate learning is off by default; when enabled, preferences persist independently, and the user dictionary, candidate order, and learning data are managed separately in Settings
-- User data lives in `%USERPROFILE%\cxxime\`, is kept on uninstall by default, and supports backup and merge import
+- **Context-aware first candidate** for pinyin homophones (权利 / 权力 / 全力) and English completions,
+  marked with a sparkle; the other candidates keep their frequency order. About 30 ms per key on 4 CPU threads.
+- **Three input modes**: Chinese pinyin / English words (completions while typing, digits select) /
+  English letters (typed straight through). Shift switches Chinese/English and `Ctrl+Space` switches
+  words/letters by default; both are configurable in Settings.
+- **Mixed input**: typing a complete English word in Chinese mode (`hello`, `wechat`) offers that word.
+- **Case follows what you type**: `hel` → hello, `Hel` → Hello, `HEL` → HELLO.
+- Inherits CxxIME's full pinyin / shuangpin / abbreviations / fuzzy pinyin, sentence composition,
+  segmented selection, horizontal and vertical candidate windows and themes.
+- User data lives in `%USERPROFILE%\zhiyi\` and is kept on uninstall.
 
-## Screenshots
+## Accuracy
 
-Candidate window theme previews (6 palettes × light/dark):
+First-candidate accuracy on the test sets (int8 model on CPU):
 
-| Palette | Light | Dark |
-|---------|-------|------|
-| Moon | ![Moon Light](docs/images/themes/moon_light.png) | ![Moon Dark](docs/images/themes/moon_dark.png) |
-| Sky | ![Sky Light](docs/images/themes/sky_light.png) | ![Sky Dark](docs/images/themes/sky_dark.png) |
-| Jade | ![Jade Light](docs/images/themes/jade_light.png) | ![Jade Dark](docs/images/themes/jade_dark.png) |
-| Amber | ![Amber Light](docs/images/themes/amber_light.png) | ![Amber Dark](docs/images/themes/amber_dark.png) |
-| Coral | ![Coral Light](docs/images/themes/coral_light.png) | ![Coral Dark](docs/images/themes/coral_dark.png) |
-| Iris | ![Iris Light](docs/images/themes/iris_light.png) | ![Iris Dark](docs/images/themes/iris_dark.png) |
+| | Frequency order only | Zhiyi IME |
+|---|---|---|
+| Chinese homophones (800 samples) | 77.4% | 88.5% |
+| English completions (840 samples) | 73.2% | 86.3% |
 
-## Installation
+Evaluation, training and quantization are described in [bench/README.md](bench/README.md).
 
-1. Download `cxxime-v<version>-setup.exe` from [Releases](https://github.com/deanxyuan/cxx-ime/releases) and follow the wizard
-2. **Log off and log back on** after installation (the TSF text service is only loaded at logon)
-3. Switch to CxxIME with `Ctrl+Space` or `Win+Space`
-
-Each version gets its own version directory, so upgrades and downgrades never overwrite older files; files still in use by a host process are cleaned up by a later install or a full restart, and installation never forces an immediate reboot. Uninstalling keeps your configuration, user dictionary, and learning data under `%USERPROFILE%\cxxime\`.
-
-See [docs/installation.md](docs/installation.md) for detailed installation, uninstall, and upgrade instructions.
-
-## Performance
-
-The dictionary and indexes are loaded into server memory in one pass. Frequent inputs are served from pre-built indexes, while other inputs use a scan budget, bounded candidate collection, and a query deadline to keep latency predictable.
-
-In the release benchmark history, the Preedit IPC round trip averages about `50 µs`, and the query P50 for `nihao` and `nihaoshijie` is no higher than `60 µs` and about `170 µs` respectively.
-
-Results vary with hardware and dictionary data. See [docs/benchmark-data.md](docs/benchmark-data.md) and [docs/ipc-architecture.md](docs/ipc-architecture.md) for the full data and reproduction steps.
-
-## Configuration
-
-- Use **CxxIME Settings** from the Start Menu
-- Or edit the user configuration file `%USERPROFILE%\cxxime\default.json` directly
-
-All options (input modes, Pinyin scheme, candidate window, themes, dictionary management, symbols, shortcuts, etc.) are documented in [docs/settings-guide.md](docs/settings-guide.md).
-
-## Dictionaries
-
-CxxIME ships with Pinyin and Wubi 86 dictionaries. The Pinyin data comes from [rime-ice](https://github.com/iDvel/rime-ice) (~1.9M entries, GPL-3.0-only), and the Wubi data from [KyleBing/rime-wubi86-jidian](https://github.com/KyleBing/rime-wubi86-jidian) (Apache-2.0). Dictionary sources and licenses are documented in [data/README.md](data/README.md), and the data formats and build/maintenance pipeline in [docs/dictionary.md](docs/dictionary.md).
-
-System symbols (emoji and standalone punctuation or symbol characters) are stripped from the dictionaries at build time and never appear as Pinyin or Wubi candidates; they are provided by the bundled symbol table and entered with `\` by category.
-
-## Compatibility
-
-- **Windows 10 / 11**: verified through daily use and regression testing
-- **Windows 7 and earlier**: not verified and not supported
-
-## Building from Source
+## Building
 
 ```cmd
-build.bat                                             # development build (output in build\, tools and tests enabled)
-ctest --test-dir build -C Release --output-on-failure # run unit tests
-python scripts\package.py                             # build a releasable installer
+python scripts\fetch_onnxruntime.py   :: ONNX Runtime 1.30.0 -> third_party\onnxruntime\
+python scripts\fetch_model.py         :: Laya model (~260 MB, GitHub release) -> models\laya\
+build_laya.bat                        :: Ninja Release build into build\
+build_laya.bat test                   :: unit tests
 ```
 
-Requirements: Windows 10/11, Visual Studio 2017 or newer (C++ workload), CMake 3.15+; packaging additionally needs Python 3.10+ and [NSIS 3.x](https://nsis.sourceforge.io/). The installer is written to `..\output\cxxime-v<version>-setup.exe`.
+Requires Windows 10/11 x64, Visual Studio 2022 or newer (C++ workload), CMake 3.15+ and Python 3.10+.
+64-bit only. Without the model the IME works normally, just without context reranking.
+The English word list `data\english.words.tsv` is included (regenerate it with
+`data\tools\build_english_dictionary.py`); model training, evaluation and quantization live in
+[bench/](bench/README.md).
 
-## License
+## Credits and licenses
 
-The project code is released under the Apache License 2.0. Third-party components and dictionary data retain their respective licenses; see [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
+Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime) (Apache License 2.0,
+Copyright (c) 2026 CxxIME Contributors). It keeps CxxIME's TSF front end, pinyin engine, candidate
+window and settings app, and adds Laya context reranking, the English word mode, three-mode
+switching and the recommendation mark, with a new name, icon and system registration identifiers.
+See [NOTICE](NOTICE) for the list of changes.
+
+- Code: Apache License 2.0 ([LICENSE](LICENSE))
+- The Chinese pinyin dictionary and English word list come from [rime-ice](https://github.com/iDvel/rime-ice)
+  (GPL-3.0-only), so distributions that include them are distributed under GPL-3.0 as a whole
+- English word frequencies: [wordfreq](https://github.com/rspeer/wordfreq) (data CC BY-SA 4.0)
+- The Laya model (Apache-2.0) and ONNX Runtime (MIT)
+
+Full notices: [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).

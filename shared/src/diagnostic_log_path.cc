@@ -57,7 +57,7 @@ std::wstring resolve_diagnostic_log_directory() {
             if (!create_directory(root)) {
                 return {};
             }
-            root += L"\\cxxime";
+            root += L"\\zhiyi";
             if (!create_directory(root)) {
                 return {};
             }
@@ -74,7 +74,7 @@ std::wstring resolve_diagnostic_log_directory() {
     }
 
     std::wstring root(profile);
-    root += L"\\cxxime";
+    root += L"\\zhiyi";
     if (!create_directory(root)) {
         return {};
     }

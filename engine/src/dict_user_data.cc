@@ -27,7 +27,7 @@ std::string default_user_dict_path(UserDictKind kind) {
     if (SHGetFolderPathW(nullptr, CSIDL_PROFILE, nullptr, 0, profile) != S_OK) {
         return {};
     }
-    const std::wstring user_dir = std::wstring(profile) + L"\\cxxime";
+    const std::wstring user_dir = std::wstring(profile) + L"\\zhiyi";
     CreateDirectoryW(user_dir.c_str(), nullptr);
     const std::wstring path =
         user_dir + (kind == UserDictKind::WUBI ? L"\\user_wubi.tsv" : L"\\user_pinyin.tsv");

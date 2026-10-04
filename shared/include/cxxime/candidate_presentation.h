@@ -13,6 +13,7 @@ namespace cxxime {
 struct CandidatePresentationItem {
     std::string text;
     std::string hint;
+    bool recommended = false;  // Laya's pick (sparkle mark)
 };
 
 struct CandidatePresentationPage {

@@ -20,6 +20,7 @@ public:
 
 private:
     void draw_preedit(const RenderContext& ctx);
+    void draw_sparkle(const RECT& mark, float t, bool highlighted);
 
     ID2D1Factory* d2d_factory_ = nullptr;
     ID2D1HwndRenderTarget* render_target_ = nullptr;

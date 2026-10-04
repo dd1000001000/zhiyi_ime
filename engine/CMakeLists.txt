@@ -52,3 +52,26 @@ target_link_libraries(cxxime-engine PUBLIC
     cxxime-shared
     nlohmann_json
 )
+
+# ---- Laya context reranking (ONNX Runtime, CPU) ----
+# onnxruntime.dll is delay-loaded: executables that link the engine but never load a model
+# (tests, tools, settings) start without it. LayaRerank only calls into ONNX Runtime after
+# checking that the model files exist and the DLL can be loaded.
+set(LAYA_ORT_DIR ${CMAKE_SOURCE_DIR}/third_party/onnxruntime CACHE PATH "ONNX Runtime (onnxruntime-win-x64) root")
+if(NOT EXISTS ${LAYA_ORT_DIR}/include/onnxruntime_cxx_api.h)
+    message(FATAL_ERROR "ONNX Runtime not found in ${LAYA_ORT_DIR}; extract onnxruntime-win-x64-1.30.0 there")
+endif()
+target_sources(cxxime-engine PRIVATE
+    src/laya_rerank.cc
+    src/english_lexicon.cc
+    src/laya/text_util.cpp
+    src/laya/tokenizer.cpp
+    src/laya/reranker.cpp
+)
+target_include_directories(cxxime-engine PRIVATE ${LAYA_ORT_DIR}/include)
+target_link_libraries(cxxime-engine PUBLIC ${LAYA_ORT_DIR}/lib/onnxruntime.lib delayimp)
+target_link_options(cxxime-engine INTERFACE /DELAYLOAD:onnxruntime.dll)
+set(LAYA_ORT_RUNTIME_FILES
+    ${LAYA_ORT_DIR}/lib/onnxruntime.dll
+    ${LAYA_ORT_DIR}/lib/onnxruntime_providers_shared.dll
+    CACHE INTERNAL "ONNX Runtime DLLs shipped next to cxxime-server.exe")

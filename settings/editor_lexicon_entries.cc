@@ -487,7 +487,7 @@ void EditorApp::handle_lexicon_query_complete(WPARAM generation, LPARAM completi
             completion->candidate_code_choices.empty() && completion->system_result.available) {
             SetWindowTextW(hLexiconStatus_, L"未找到该词语的可用编码");
         } else if (!completion->server_available) {
-            SetWindowTextW(hLexiconStatus_, L"CxxIME 后台未运行");
+            SetWindowTextW(hLexiconStatus_, L"知意输入法后台未运行");
         } else if (lexiconRows_.empty()) {
             SetWindowTextW(hLexiconStatus_, L"该编码没有可用候选");
         } else {
@@ -509,7 +509,7 @@ void EditorApp::handle_lexicon_query_complete(WPARAM generation, LPARAM completi
         }
     } else if (completion->resource == LexiconResource::kCandidatePreference) {
         if (!completion->server_available) {
-            SetWindowTextW(hLexiconStatus_, L"CxxIME 后台未运行");
+            SetWindowTextW(hLexiconStatus_, L"知意输入法后台未运行");
         } else if (lexiconRows_.empty()) {
             SetWindowTextW(hLexiconStatus_, L"暂无选词偏好");
         } else {
@@ -519,12 +519,12 @@ void EditorApp::handle_lexicon_query_complete(WPARAM generation, LPARAM completi
         }
     } else if (completion->system_query_requested && !completion->system_result.available &&
                !completion->server_available) {
-        SetWindowTextW(hLexiconStatus_, L"系统词典不可用，CxxIME 后台未运行");
+        SetWindowTextW(hLexiconStatus_, L"系统词典不可用，知意输入法后台未运行");
     } else if (completion->system_query_requested && !completion->system_result.available) {
         SetWindowTextW(hLexiconStatus_, L"系统词典不可查询，仅显示用户词条");
     } else if (!completion->server_available) {
         SetWindowTextW(hLexiconStatus_,
-                       lexiconRows_.empty() ? L"CxxIME 后台未运行" : L"仅显示系统词条；后台未运行");
+                       lexiconRows_.empty() ? L"知意输入法后台未运行" : L"仅显示系统词条；后台未运行");
     } else if (lexiconRows_.empty()) {
         SetWindowTextW(hLexiconStatus_,
                        prefill_new_entry ? L"没有匹配词条，可以新增" : L"没有匹配词条");

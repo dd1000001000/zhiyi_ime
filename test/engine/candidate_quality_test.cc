@@ -77,6 +77,8 @@ std::string source_name(cxxime::CandidateSource source) {
         return "wubi";
     case cxxime::CandidateSource::kSymbol:
         return "symbol";
+    case cxxime::CandidateSource::kEnglish:
+        return "english";
     }
     return "unknown";
 }
@@ -317,8 +319,8 @@ private:
         return nullptr;
     }
 
-    std::string pinyin_user_path_ = temp_path("cxxime_quality_pinyin_user.tsv");
-    std::string wubi_user_path_ = temp_path("cxxime_quality_wubi_user.tsv");
+    std::string pinyin_user_path_ = temp_path("zhiyi_quality_pinyin_user.tsv");
+    std::string wubi_user_path_ = temp_path("zhiyi_quality_wubi_user.tsv");
     cxxime::Dict pinyin_dict_{cxxime::UserDictKind::PINYIN};
     cxxime::Dict wubi_dict_{cxxime::UserDictKind::WUBI};
     std::shared_ptr<const cxxime::PinyinResourceSet> pinyin_resources_;

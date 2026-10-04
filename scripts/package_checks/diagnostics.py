@@ -19,15 +19,15 @@ def check_diagnostics_script(
 
     text = read_text(script_path)
     label = "collect_diagnostics.ps1"
-    require_text(errors, text, '"cxxime_tsf_x64.dll"', label)
-    require_text(errors, text, '"cxxime_ime_x64.ime"', label)
-    require_text(errors, text, '"cxxime-resources.dll"', label)
+    require_text(errors, text, '"zhiyi_tsf_x64.dll"', label)
+    require_text(errors, text, '"zhiyi_ime_x64.ime"', label)
+    require_text(errors, text, '"zhiyi-resources.dll"', label)
     require_text(errors, text, "$report.system_ime_files", label)
     require_text(errors, text, "Get-FileInfoSafe -Path $systemImeX64", label)
     require_text(errors, text, "Get-FileInfoSafe -Path $systemImeX86", label)
     require_text(errors, text, "registry-clsid-64.txt", label)
     require_text(errors, text, "registry-tip-64.txt", label)
-    require_text(errors, text, "registry-keyboard-layouts-cxxime.txt", label)
+    require_text(errors, text, "registry-keyboard-layouts-zhiyi.txt", label)
     require_text(errors, text, "learning_pinyin.tsv", label)
     require_text(errors, text, "learning_wubi.tsv", label)
     require_text(errors, text, "candidate_order_pinyin.tsv", label)
@@ -36,7 +36,7 @@ def check_diagnostics_script(
     for name in ["dictionary_manifest.json"] + manifest_files:
         require_text(errors, text, f'"{name}"', label)
     if require_x86:
-        require_text(errors, text, '"cxxime_tsf_x86.dll"', label)
-        require_text(errors, text, '"cxxime_ime_x86.ime"', label)
+        require_text(errors, text, '"zhiyi_tsf_x86.dll"', label)
+        require_text(errors, text, '"zhiyi_ime_x86.ime"', label)
         require_text(errors, text, "registry-clsid-32.txt", label)
         require_text(errors, text, "registry-tip-32.txt", label)

@@ -23,7 +23,7 @@ static LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
 }
 
 inline void show_about_dialog(HWND parent = nullptr) {
-    HWND existing = FindWindowW(L"CxxIMEAboutClass", nullptr);
+    HWND existing = FindWindowW(L"ZhiyiIMEAboutClass", nullptr);
     if (existing) {
         SetForegroundWindow(existing);
         return;
@@ -39,10 +39,10 @@ inline void show_about_dialog(HWND parent = nullptr) {
     wc.hInstance = GetModuleHandle(nullptr);
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    wc.lpszClassName = L"CxxIMEAboutClass";
+    wc.lpszClassName = L"ZhiyiIMEAboutClass";
     RegisterClassExW(&wc);
 
-    HWND hwnd = CreateWindowExW(WS_EX_TOPMOST, L"CxxIMEAboutClass", L"关于 CxxIME",
+    HWND hwnd = CreateWindowExW(WS_EX_TOPMOST, L"ZhiyiIMEAboutClass", L"关于知意输入法",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
         x, y, w, h, parent, nullptr, GetModuleHandle(nullptr), nullptr);
     if (!hwnd) return;
@@ -66,10 +66,10 @@ inline void show_about_dialog(HWND parent = nullptr) {
         SendMessageW(h, WM_SETFONT, (WPARAM)font, TRUE);
     };
 
-    label(L"CxxIME 输入法", 16, 24, hBold);
+    label(L"知意输入法", 16, 24, hBold);
     label(L"版本 " CXXIME_VERSION_WSTRING L" — Apache License 2.0", 44, 20, hFont);
-    label(L"轻量级 Windows TSF 输入法（拼音 / 五笔 / 混输）", 68, 20, hFont);
-    label(L"https://gitee.com/shadowyuan/cxx-ime", 96, 20, hFont);
+    label(L"轻量 · 开源 · 懂上文的中英文输入法（Zhiyi IME）", 68, 20, hFont);
+    label(L"基于 CxxIME 修改（Apache License 2.0），原项目：", 96, 20, hFont);
     label(L"https://github.com/deanxyuan/cxx-ime", 120, 20, hFont);
 
     HWND hBtn = CreateWindowExW(0, L"BUTTON", L"确定",

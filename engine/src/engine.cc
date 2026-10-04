@@ -13,6 +13,8 @@
 
 #include <cxxime/composition_learning.h>
 #include <cxxime/input_limits.h>
+#include <cxxime/english_lexicon.h>
+#include <cxxime/laya_rerank.h>
 #include <cxxime/logging.h>
 #include <cxxime/mixed_translator.h>
 #include <cxxime/output_composer.h>
@@ -154,6 +156,31 @@ bool Engine::apply_runtime_state(std::shared_ptr<const EngineRuntimeState> runti
 void Engine::init_per_session(const Config& config) {
     ascii_composer_.load_config(config);
     input_mode_switch_shortcut_ = config.input_mode_switch_shortcut;
+    english_style_shortcut_ = config.english_style_shortcut;
+    english_word_mode_ = config.english.word_mode;
+    // Start loading the Laya model in the background so it is ready by the first keystroke.
+    LayaRerank::instance().preload(config);
+}
+
+void Engine::remember_commit(const std::string& text) {
+    if (text.empty()) return;
+    laya_history_ += text;
+    // Keep a bounded tail (bytes); LayaRerank trims to config.laya.context_chars characters.
+    constexpr size_t kMaxHistoryBytes = 1024;
+    if (laya_history_.size() > kMaxHistoryBytes) {
+        size_t cut = laya_history_.size() - kMaxHistoryBytes / 2;
+        while (cut < laya_history_.size() &&
+               (static_cast<unsigned char>(laya_history_[cut]) & 0xC0) == 0x80) {
+            ++cut;  // do not split a UTF-8 sequence
+        }
+        laya_history_.erase(0, cut);
+    }
+}
+
+std::string Engine::laya_context(const CompositionState& state) const {
+    std::string context = laya_history_;
+    for (const auto& segment : state.converted_segments()) context += segment.text;
+    return context;
 }
 
 void Engine::finalize() {
@@ -258,6 +285,16 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         record_total_us(trace_, total_start, trace_enabled_);
         return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
     }
+    // English style (word completion / letter by letter). A word being typed stays open and
+    // is finished as usual; the new style applies from the next word.
+    if (!event.is_key_up && english_style_shortcut_.matches(event)) {
+        record_total_us(trace_, total_start, trace_enabled_);
+        if (handled_shortcut_key_ == 0) {
+            handled_shortcut_key_ = event.keycode;
+            return ProcessResult::TOGGLE_ENGLISH_STYLE;
+        }
+        return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+    }
 
     // Handle keyboard shortcuts for mode toggles.
     if (!event.is_key_up) {
@@ -305,6 +342,12 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         apply_commit_learning_plan();
         record_total_us(trace_, total_start, trace_enabled_);
         return ProcessResult::COMMITTED;
+    }
+
+    // Laya: English word completion in English (ASCII) mode.
+    if (auto english = process_english_key(event, opts)) {
+        record_total_us(trace_, total_start, trace_enabled_);
+        return *english;
     }
 
     // Keep modifier key-up available to the host while allowing the server to return the
@@ -879,11 +922,13 @@ bool Engine::select_candidate(int index) {
 std::string Engine::get_commit_text() {
     std::string text = context_.committed_text;
     reset_composition_state();
+    remember_commit(text);
     return text;
 }
 
 std::pair<std::string, CommitSource> Engine::take_commit_text_with_source() {
     auto result = std::make_pair(std::move(context_.committed_text), context_.commit_source());
+    remember_commit(result.first);
     if (context_.is_composing()) {
         context_.committed_text.clear();
         context_.set_commit_source(CommitSource::kRawCode);
@@ -895,6 +940,7 @@ std::pair<std::string, CommitSource> Engine::take_commit_text_with_source() {
 
 std::pair<std::string, CommitSource> Engine::commit_composition_with_source() {
     auto result = context_.commit_with_source();
+    remember_commit(result.first);
     apply_commit_learning_plan();
     ascii_composer_.finish_temporary_ascii();
     return result;
@@ -907,6 +953,7 @@ std::string Engine::commit_raw_composition() {
     apply_commit_learning_plan();
     std::string raw = std::move(context_.committed_text);
     reset_composition_state();
+    remember_commit(raw);
     return raw;
 }
 
@@ -967,7 +1014,253 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     if (runtime_->config().wubi_code_hint) {
         add_wubi_code_hints(state.active().input, result);
     }
+    // Laya: reorder the first pinyin page by context. Later pages keep the translator's order,
+    // so page 1 stays a permutation of the original first page.
+    if (request.scheme == CompositionScheme::kPinyin && page_index == 0 && page_offset == 0) {
+        LayaRerank::instance().apply(runtime_->config(), laya_context(state), request.input, result);
+        add_english_candidates(request.input, request.page_size, result);
+        // Nothing matched (neither pinyin nor an English word): offer the typed text itself.
+        const std::string& input = request.input;
+        // Only for a completed query: a failed or degraded one keeps the engine's retry and
+        // retention behaviour.
+        if (result.entries.empty() && input.size() >= 2 && state.converted_segments().empty() &&
+            result.status == TranslationStatus::kSuccess && result.extent.complete &&
+            std::all_of(input.begin(), input.end(), [](char c) { return c >= 'a' && c <= 'z'; })) {
+            Candidate raw;
+            raw.text = input;
+            raw.source = CandidateSource::kEnglish;
+            raw.code = input;
+            raw.input_code = input;
+            result.entries.push_back(make_text_candidate_entry(std::move(raw), input.size(), input));
+            result.highlighted = 0;
+            result.extent = make_candidate_extent(1, 1, false);
+        }
+    }
     return result;
+}
+
+void Engine::add_english_candidates(const std::string& input, int page_size,
+                                    TranslationResult& result) const {
+    const auto& ec = runtime_->config().english;
+    if (!ec.mixed_in_chinese || static_cast<int>(input.size()) < ec.min_input) return;
+    if (!std::all_of(input.begin(), input.end(), [](char c) { return c >= 'a' && c <= 'z'; })) return;
+    auto lexicon = EnglishLexicon::shared();
+    if (!lexicon) return;
+
+    // Only a word typed in full (exact match, rare words included); the best-scored spelling
+    // when several differ in case ("us" / "US").
+    const std::vector<EnglishWord> words = lexicon->lookup(input, 1, 0, true);
+    if (words.empty() || !words[0].exact) return;
+
+    // Valid pinyin (the first candidate consumes the whole input): the word goes after the
+    // leading (Laya-ranked) Chinese candidate. Otherwise (e.g. "hello", where the pinyin
+    // candidates only cover a prefix) the word leads the page.
+    bool valid_pinyin = false;
+    if (!result.entries.empty()) {
+        if (const auto* head = std::get_if<TextSelectionAction>(&result.entries[0].selection))
+            valid_pinyin = head->consumed_input_bytes == input.size();
+    }
+    Candidate c;
+    c.text = words[0].text;
+    c.source = CandidateSource::kEnglish;
+    c.code = input;
+    c.input_code = input;
+    c.frequency = words[0].score;
+    c.source_frequency = words[0].score;
+    const size_t pos = valid_pinyin
+                           ? (std::min)(result.entries.size(), static_cast<size_t>((std::max)(0, ec.position_in_pinyin)))
+                           : 0;
+    result.entries.insert(result.entries.begin() + static_cast<std::ptrdiff_t>(pos),
+                          make_text_candidate_entry(std::move(c), input.size(), input));
+    // Keep the requested page size; Chinese candidates pushed out reappear on the next page
+    // (paging re-queries page 0 and continues after the last visible candidate).
+    if (page_size > 0 && static_cast<int>(result.entries.size()) > page_size)
+        result.entries.resize(static_cast<size_t>(page_size));
+    if (result.highlighted < 0 && !result.entries.empty()) result.highlighted = 0;
+}
+
+namespace {
+
+// Applies the case pattern of what the user typed to a dictionary word:
+// "HEL" -> "HELLO", "Hel" -> "Hello", "hel" -> the dictionary form ("hello", "iPhone").
+std::string match_typed_case(const std::string& typed, const std::string& word) {
+    int letters = 0, upper = 0;
+    for (char c : typed) {
+        if (std::isalpha(static_cast<unsigned char>(c))) {
+            ++letters;
+            upper += std::isupper(static_cast<unsigned char>(c)) ? 1 : 0;
+        }
+    }
+    std::string out = word;
+    if (letters >= 2 && upper == letters) {
+        for (char& c : out) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    } else if (!typed.empty() && std::isupper(static_cast<unsigned char>(typed[0])) && !out.empty()) {
+        out[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(out[0])));
+    }
+    return out;
+}
+
+CandidateEntry make_english_entry(const std::string& text, const std::string& code, int score) {
+    Candidate c;
+    c.text = text;
+    c.source = CandidateSource::kEnglish;
+    c.code = code;
+    c.input_code = code;
+    c.frequency = score;
+    c.source_frequency = score;
+    return make_text_candidate_entry(std::move(c), code.size(), code);
+}
+
+char english_letter(const KeyEvent& event) {
+    const char ch = static_cast<char>(event.keycode);  // 'A'..'Z'
+    const bool upper = event.is_shift() != event.is_caps_lock();
+    return upper ? ch : static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+}
+
+}  // namespace
+
+void Engine::refresh_english_candidates() {
+    const std::string typed = context_.composition().active().input;
+    const auto& ec = runtime_->config().english;
+    const int page_size = (std::max)(1, runtime_->config().page_size);
+    TranslationResult result;
+    result.page_size = page_size;
+    // The typed text always comes first, so Space/1 commit exactly what was typed when no
+    // dictionary word matches.
+    result.entries.push_back(make_english_entry(typed, typed, 0));
+    if (auto lexicon = EnglishLexicon::shared()) {
+        // Dictionary order (exact match first, then by frequency) in the typed case, as the
+        // model was trained; Laya then reorders the pool by context and frequency.
+        std::vector<EnglishWord> words;
+        const int pool = (std::max)(ec.completion_count, ec.completion_pool);
+        for (auto& w : lexicon->lookup(typed, (std::max)(0, pool), ec.min_score, true)) {
+            w.text = match_typed_case(typed, w.text);
+            const bool duplicate = std::any_of(words.begin(), words.end(),
+                                               [&](const EnglishWord& e) { return e.text == w.text; });
+            if (!duplicate) words.push_back(std::move(w));
+        }
+        const bool recommended = LayaRerank::instance().apply_english(
+            runtime_->config(), laya_context(context_.composition()), typed, words);
+        if (recommended && !words.empty() && words.front().text == typed)
+            result.entries.front().candidate.recommended = true;  // the pick is what was typed
+        int shown = 0;
+        for (size_t i = 0; i < words.size(); ++i) {
+            const auto& w = words[i];
+            if (static_cast<int>(result.entries.size()) >= page_size || shown >= ec.completion_count) break;
+            if (w.text == typed) continue;  // already first
+            result.entries.push_back(make_english_entry(w.text, typed, w.score));
+            result.entries.back().candidate.recommended = recommended && i == 0;
+            ++shown;
+        }
+    }
+    const int n = static_cast<int>(result.entries.size());
+    result.extent = make_candidate_extent(n, n, false);
+    result.highlighted = 0;
+    context_.update_translation(std::move(result));
+}
+
+ProcessResult Engine::commit_english(std::string text) {
+    reset_composition_state();
+    english_composing_ = false;
+    context_.committed_text = std::move(text);
+    context_.set_commit_source(CommitSource::kRawCodePretransformed);
+    return ProcessResult::COMMITTED;
+}
+
+std::optional<ProcessResult> Engine::process_english_key(const KeyEvent& event, const OutputOptions& opts) {
+    if (event.is_key_up || !runtime_) return std::nullopt;  // uninitialized engines (tests) skip this
+    if (!context_.is_composing()) english_composing_ = false;
+    const uint32_t vk = event.keycode;
+    const bool letter = vk >= 'A' && vk <= 'Z';
+
+    if (!english_composing_) {
+        // Start a word only from idle, persistent (not temporary) English mode.
+        // CapsLock keeps its literal meaning (uppercase letters committed directly).
+        if (!letter || !english_word_mode_ || !runtime_->config().english.completion_in_ascii || event.is_caps_lock() ||
+            !ascii_composer_.is_ascii_mode() || ascii_composer_.is_temporary_ascii() ||
+            context_.is_composing() || opts.full_shape || !EnglishLexicon::shared()) {
+            return std::nullopt;
+        }
+        if (!context_.start_composition(CompositionScheme::kInlineAscii,
+                                        std::string(1, english_letter(event)), 1)) {
+            return std::nullopt;
+        }
+        english_composing_ = true;
+        refresh_english_candidates();
+        return ProcessResult::ACCEPTED;
+    }
+
+    const std::string typed = context_.composition().active().input;
+    if (letter) {
+        context_.insert_preedit(english_letter(event));
+        refresh_english_candidates();
+        return ProcessResult::ACCEPTED;
+    }
+    switch (vk) {
+    case VK_BACK:
+    case VK_DELETE:
+        if (vk == VK_BACK) {
+            context_.erase_preedit_before_cursor();
+        } else {
+            context_.erase_preedit_at_cursor();
+        }
+        if (context_.composition().active().input.empty()) {
+            reset_composition_state();
+            english_composing_ = false;
+        } else {
+            refresh_english_candidates();
+        }
+        return ProcessResult::ACCEPTED;
+    case VK_ESCAPE:
+        reset_composition_state();
+        english_composing_ = false;
+        return ProcessResult::ACCEPTED;
+    case VK_RETURN:
+        return commit_english(typed);
+    case VK_SPACE: {
+        const int h = (std::max)(0, context_.translation().highlighted);
+        const CandidateEntry* entry = context_.candidate_entry(h);
+        return commit_english((entry ? entry->candidate.text : typed) + " ");
+    }
+    case VK_TAB:
+        if (event.is_shift()) {
+            context_.move_to_previous_candidate();
+        } else {
+            context_.move_to_next_candidate();
+        }
+        return ProcessResult::ACCEPTED;
+    case VK_DOWN:
+        context_.move_to_next_candidate();
+        return ProcessResult::ACCEPTED;
+    case VK_UP:
+        context_.move_to_previous_candidate();
+        return ProcessResult::ACCEPTED;
+    case VK_LEFT:
+        context_.move_preedit_cursor_left();
+        return ProcessResult::ACCEPTED;
+    case VK_RIGHT:
+        context_.move_preedit_cursor_right();
+        return ProcessResult::ACCEPTED;
+    case VK_HOME:
+        context_.move_preedit_cursor_home();
+        return ProcessResult::ACCEPTED;
+    case VK_END:
+        context_.move_preedit_cursor_end();
+        return ProcessResult::ACCEPTED;
+    default:
+        break;
+    }
+    // 1-9 on the main keyboard select a candidate (as in Chinese mode). To type a digit after a
+    // word, commit the word first with Space.
+    if (vk >= '1' && vk <= '9' && !event.is_shift()) {
+        const CandidateEntry* entry = context_.candidate_entry(static_cast<int>(vk - '1'));
+        if (entry) return commit_english(entry->candidate.text);
+        return ProcessResult::ACCEPTED;
+    }
+    // Any other printable key (punctuation, 0, numpad, shifted digits): commit the typed text
+    // and the character, so ordinary English typing is never blocked.
+    if (auto ch = normalize_ascii_key(event)) return commit_english(typed + *ch);
+    return ProcessResult::ACCEPTED;  // other non-text keys are ignored while a word is open
 }
 
 TranslationResult Engine::translate_after_visible_anchor(const QueryDeadline& deadline,

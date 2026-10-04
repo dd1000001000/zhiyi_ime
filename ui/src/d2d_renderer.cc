@@ -7,6 +7,8 @@
 
 #include <cxxime/config.h>
 
+#include "sparkle.h"
+
 namespace cxxime {
 
 static D2D1_COLOR_F c2d(const Color& c) { return D2D1::ColorF(c.r/255.0f, c.g/255.0f, c.b/255.0f, c.a/255.0f); }
@@ -249,7 +251,7 @@ void D2DRenderer::render(const RenderContext& ctx) {
         if (!ctx.preedit.empty() && ctx.preedit_rect.right > ctx.preedit_rect.left) {
             draw_preedit(ctx);
         } else {
-            render_target_->DrawText(L"CxxIME", 6, fmt_left_, D2D1::RectF(0,0,sz.width,sz.height), preedit_brush_);
+            render_target_->DrawText(L"知意输入法", 5, fmt_left_, D2D1::RectF(0,0,sz.width,sz.height), preedit_brush_);
         }
         draw_preedit_separator();
         draw_border();
@@ -296,6 +298,9 @@ void D2DRenderer::render(const RenderContext& ctx) {
             render_target_->DrawText(wc.c_str(), (UINT32)wc.length(), fmt_left_,
                                     comment_rect, brush);
         }
+        if (cr.recommended && cr.mark_rect.right > cr.mark_rect.left) {
+            draw_sparkle(cr.mark_rect, ctx.sparkle_t, hl);
+        }
     }
 
     // Page nav (always visible, grayed when disabled)
@@ -325,6 +330,32 @@ void D2DRenderer::render(const RenderContext& ctx) {
     draw_border();
 
     render_target_->EndDraw();
+}
+
+void D2DRenderer::draw_sparkle(const RECT& mark, float t, bool highlighted) {
+    const COLORREF c = sparkle_color(highlighted);
+    ID2D1SolidColorBrush* brush = nullptr;
+    if (FAILED(render_target_->CreateSolidColorBrush(
+            D2D1::ColorF(GetRValue(c) / 255.0f, GetGValue(c) / 255.0f, GetBValue(c) / 255.0f), &brush))) {
+        return;
+    }
+    for (const SparkleStar& star : sparkle_stars(mark, t)) {
+        if (star.r < 0.5f || star.alpha < 0.02f) continue;
+        ID2D1PathGeometry* path = nullptr;
+        ID2D1GeometrySink* sink = nullptr;
+        if (SUCCEEDED(d2d_factory_->CreatePathGeometry(&path)) && SUCCEEDED(path->Open(&sink))) {
+            const auto pts = sparkle_points(star);
+            sink->BeginFigure(D2D1::Point2F(pts[0].x, pts[0].y), D2D1_FIGURE_BEGIN_FILLED);
+            for (size_t i = 1; i < pts.size(); ++i) sink->AddLine(D2D1::Point2F(pts[i].x, pts[i].y));
+            sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+            sink->Close();
+            brush->SetOpacity(star.alpha);
+            render_target_->FillGeometry(path, brush);
+        }
+        if (sink) sink->Release();
+        if (path) path->Release();
+    }
+    brush->Release();
 }
 
 void D2DRenderer::resize(int w, int h) { if (render_target_) render_target_->Resize(D2D1::SizeU(w, h)); }

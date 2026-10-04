@@ -56,7 +56,7 @@ LRESULT CALLBACK AboutLinkProc(HWND window, UINT message, WPARAM wparam, LPARAM 
                                       position.x, position.y, 0, owner, nullptr);
         DestroyMenu(menu);
         if (command == kCopyLinkCommand && !copy_text_to_clipboard(owner, url)) {
-            MessageBoxW(owner, L"复制链接失败。", L"CxxIME", MB_OK | MB_ICONERROR);
+            MessageBoxW(owner, L"复制链接失败。", L"知意输入法", MB_OK | MB_ICONERROR);
         }
         return 0;
     }
@@ -81,15 +81,14 @@ void EditorApp::create_about_panel(HWND panel, int panel_width) {
         SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
         return control;
     };
-    hAboutTitle_ = make_about_text(L"CxxIME 输入法", top, S(28), hAboutTitleFont_);
+    hAboutTitle_ = make_about_text(L"知意输入法", top, S(28), hAboutTitleFont_);
     make_about_text(L"版本 " CXXIME_VERSION_WSTRING L" — Apache License 2.0", top + kRowH, kCtrlH,
                     get_font());
-    make_about_text(L"轻量级 Windows TSF 输入法（拼音 / 五笔 / 混输）", top + kRowH * 2, kCtrlH,
+    make_about_text(L"轻量 · 开源 · 懂上文的中英文输入法（Zhiyi IME）", top + kRowH * 2, kCtrlH,
                     get_font());
     HWND gitee_link = CreateWindowExW(
         0, WC_LINK,
-        L"<a "
-        L"href=\"https://gitee.com/shadowyuan/cxx-ime\">https://gitee.com/shadowyuan/cxx-ime</a>",
+        L"基于 CxxIME 修改（Apache License 2.0），原项目：",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP, kPanelPadLeft, top + kRowH * 3,
         panel_width - kPanelPadLeft - S(8), kCtrlH, panel,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kGiteeLinkId)), GetModuleHandle(nullptr),
@@ -118,7 +117,7 @@ bool EditorApp::handle_about_notify(LPARAM notification) {
     if (header->code == NM_CLICK || header->code == NM_RETURN) {
         HINSTANCE result = ShellExecuteW(hwnd_, L"open", url, nullptr, nullptr, SW_SHOWNORMAL);
         if (reinterpret_cast<INT_PTR>(result) <= 32) {
-            MessageBoxW(hwnd_, L"无法打开项目主页。", L"CxxIME", MB_OK | MB_ICONERROR);
+            MessageBoxW(hwnd_, L"无法打开项目主页。", L"知意输入法", MB_OK | MB_ICONERROR);
         }
         return true;
     }

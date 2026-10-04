@@ -3,7 +3,7 @@
 
 #include "cxxime_resource_ids.h"
 
-IDI_CXXIME       ICON "resource\\cxxime.ico"
+IDI_CXXIME       ICON "resource\\zhiyi.ico"
 IDI_ICON_ZH      ICON "resource\\icon_zh.ico"
 IDI_ICON_EN      ICON "resource\\icon_en.ico"
 IDI_ICON_C       ICON "resource\\icon_c.ico"

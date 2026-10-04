@@ -18,7 +18,7 @@ namespace installer {
 namespace lifecycle_internal {
 namespace {
 
-constexpr char kStateFormat[] = "cxxime-install-lifecycle";
+constexpr char kStateFormat[] = "zhiyi-install-lifecycle";
 constexpr std::uint32_t kStateVersion = 1;
 constexpr wchar_t kManifestName[] = L"install-manifest.json";
 constexpr std::uint64_t kMaxStateSize = 64ULL * 1024ULL;

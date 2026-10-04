@@ -217,7 +217,7 @@ bool valid_entries(const std::vector<UserBackupEntry>& entries, std::uint32_t* c
 bool make_manifest(const std::vector<UserBackupEntry>& entries, const UserBackupSummary& summary,
                    std::string* output) {
     nlohmann::json manifest = {
-        {"format", "cxxime-user-backup"},     {"format_version", summary.format_version},
+        {"format", "zhiyi-user-backup"},     {"format_version", summary.format_version},
         {"app_version", summary.app_version}, {"created_at_utc", summary.created_at_utc},
         {"components", summary.components},   {"files", nlohmann::json::array()},
     };
@@ -430,7 +430,7 @@ bool read_user_backup_archive(const std::wstring& path, UserBackupArchive* archi
 
     try {
         const nlohmann::json manifest = nlohmann::json::parse(manifest_entry->second);
-        if (!manifest.is_object() || manifest.value("format", "") != "cxxime-user-backup" ||
+        if (!manifest.is_object() || manifest.value("format", "") != "zhiyi-user-backup" ||
             manifest.value("format_version", 0u) != kUserBackupFormatVersion ||
             manifest.value("app_version", "").empty() ||
             manifest.value("created_at_utc", "").empty() || !manifest.contains("files") ||

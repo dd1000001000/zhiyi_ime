@@ -55,7 +55,12 @@ struct CandidateRect {
     RECT text_rect{};
     RECT comment_rect{};
     RECT highlight_rect{};
+    bool recommended = false;  // Laya's pick: sparkle at the top-right corner
+    RECT mark_rect{};          // space reserved after the text for the sparkle
 };
+
+// Width reserved after a recommended candidate for its sparkle mark.
+inline int recommendation_mark_width(int row_height) { return row_height / 2; }
 
 Theme make_light_theme();
 Theme make_dark_theme();
@@ -86,6 +91,8 @@ struct RenderContext {
     Color preedit_cursor_idle{};
     int page_current = 1, page_total = 1;
     int highlighted = -1;
+    // Seconds since the Laya recommendation mark appeared while it twinkles; < 0 = steady.
+    float sparkle_t = -1.0f;
     CandidateHoverTarget hovered_target = CandidateHoverTarget::None;
     int hovered_candidate_index = -1;
     RECT preedit_rect{};

@@ -19,21 +19,21 @@ from install_payload import write_install_payload
 class InstallPayloadTest(unittest.TestCase):
     def create_payload(self, directory: str, include_x86: bool, host_diagnostics: bool) -> None:
         root_files = [
-            "cxxime_tsf_x64.dll",
-            "cxxime_ime_x64.ime",
-            "cxxime-resources.dll",
-            "cxxime-server.exe",
-            "cxxime-settings.exe",
+            "zhiyi_tsf_x64.dll",
+            "zhiyi_ime_x64.ime",
+            "zhiyi-resources.dll",
+            "zhiyi-server.exe",
+            "zhiyi-settings.exe",
             "collect_diagnostics.ps1",
             "license.txt",
             "THIRD_PARTY_NOTICES.txt",
         ]
         if include_x86:
-            root_files.extend(["cxxime_tsf_x86.dll", "cxxime_ime_x86.ime"])
+            root_files.extend(["zhiyi_tsf_x86.dll", "zhiyi_ime_x86.ime"])
         if host_diagnostics:
-            root_files.extend(["cxxime-ime-host-probe-x64.exe", "export_host_trace.ps1"])
+            root_files.extend(["zhiyi-ime-host-probe-x64.exe", "export_host_trace.ps1"])
             if include_x86:
-                root_files.append("cxxime-ime-host-probe-x86.exe")
+                root_files.append("zhiyi-ime-host-probe-x86.exe")
         for name in root_files:
             with open(os.path.join(directory, name), "w", encoding="ascii") as output:
                 output.write("x")
@@ -52,7 +52,7 @@ class InstallPayloadTest(unittest.TestCase):
             with open(os.path.join(directory, "install_payload.nsh"), encoding="utf-8") as source:
                 macro = source.read()
 
-            self.assertEqual(manifest["format"], "cxxime-install-manifest")
+            self.assertEqual(manifest["format"], "zhiyi-install-manifest")
             self.assertEqual(len(manifest["files"]), len(set(manifest["files"])))
             self.assertIn("uninstall.exe", manifest["files"])
             for relative in manifest["files"]:
@@ -67,8 +67,8 @@ class InstallPayloadTest(unittest.TestCase):
 
             with open(os.path.join(directory, "install-manifest.json"), encoding="utf-8") as source:
                 files = json.load(source)["files"]
-            self.assertNotIn("cxxime_tsf_x86.dll", files)
-            self.assertNotIn("cxxime-ime-host-probe-x86.exe", files)
+            self.assertNotIn("zhiyi_tsf_x86.dll", files)
+            self.assertNotIn("zhiyi-ime-host-probe-x86.exe", files)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ from package_checks.installer_flow import check_installer_flow
 
 class InstallerFlowTest(unittest.TestCase):
     def test_installer_sources_follow_current_lifecycle(self) -> None:
-        script_path = os.path.join(ROOT, "scripts", "cxxime-setup.nsi")
+        script_path = os.path.join(ROOT, "scripts", "zhiyi-setup.nsi")
         with open(script_path, encoding="utf-8-sig") as source:
             text = source.read()
         include_dir = os.path.join(ROOT, "scripts", "nsis")

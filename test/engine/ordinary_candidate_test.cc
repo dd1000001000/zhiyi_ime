@@ -140,7 +140,7 @@ TEST(OrdinaryCandidate, preference_snapshots_cannot_restore_removed_symbols) {
 }
 
 TEST(OrdinaryCandidate, manual_order_removes_middle_symbol_without_losing_following_text) {
-    TempFile file(u8"# cxxime-candidate-order format=1\n"
+    TempFile file(u8"# zhiyi-candidate-order format=1\n"
                   u8"ce\t正常\tce\tce\t1\nce\t\u2103\tce\tce\t2\n"
                   u8"ce\tSDK\tce\tce\t3\nxx\t\U0001f600\txx\t\t1\n");
     cxxime::ManualCandidateOrder order(cxxime::UserDictKind::PINYIN);
@@ -152,7 +152,7 @@ TEST(OrdinaryCandidate, manual_order_removes_middle_symbol_without_losing_follow
     ASSERT_TRUE(!order.replace_and_save("ce", {{u8"\u2103", "ce", "ce"}}));
     cxxime::UserDataMergeResult merged;
     ASSERT_TRUE(
-        order.merge_contents_and_save(u8"# cxxime-candidate-order format=1\nce\t\u2103\tce\tce\t1\n"
+        order.merge_contents_and_save(u8"# zhiyi-candidate-order format=1\nce\t\u2103\tce\tce\t1\n"
                                       u8"ce\t保留\tce\tce\t2\n",
                                       &merged));
     ASSERT_EQ(merged.skipped_count, 1u);

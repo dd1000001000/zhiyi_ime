@@ -37,6 +37,10 @@ jobs:
               throw "Tag must be v$version"
           }
 
+      - name: Fetch ONNX Runtime
+        shell: pwsh
+        run: python scripts/fetch_onnxruntime.py
+
       - name: Build and package
         shell: pwsh
         run: |

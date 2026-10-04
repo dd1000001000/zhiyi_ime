@@ -54,13 +54,13 @@ TEST(UserDataMerge, wubi_learning_and_manual_order_keep_distinct_length_rules) {
     cxxime::UserDataMergeResult manual_order;
     ASSERT_TRUE(cxxime::merge_lexicon_resource_contents(
         cxxime::LexiconResource::kManualCandidateOrder, cxxime::UserDictKind::WUBI, {},
-        "# cxxime-candidate-order format=1\nabcde\tword\tabcd\t\t1\n", &manual_order));
+        "# zhiyi-candidate-order format=1\nabcde\tword\tabcd\t\t1\n", &manual_order));
     ASSERT_EQ(manual_order.imported_count, static_cast<std::size_t>(0));
     ASSERT_EQ(manual_order.skipped_count, static_cast<std::size_t>(1));
 }
 
 TEST(UserDataMerge, candidate_order_replaces_each_valid_code_group) {
-    const std::string header = "# cxxime-candidate-order format=1\n";
+    const std::string header = "# zhiyi-candidate-order format=1\n";
     const std::string current = header + "nihao\t本机首选\tnihao\tni:hao\t1\n"
                                          "zaijian\t再见\tzaijian\tzai:jian\t1\n";
     const std::string imported = header + "nihao\t导入首选\tnihao\tni:hao\t1\n"

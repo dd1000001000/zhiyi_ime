@@ -116,7 +116,7 @@ TEST(DiagnosticLogMaintenance, purge_removes_logs_and_preserves_other_files) {
     ASSERT_TRUE(!exists(server));
     ASSERT_TRUE(!exists(tsf));
     ASSERT_TRUE(exists(unrelated));
-    ASSERT_TRUE(exists(directory.path() + L"\\.cxxime-log-maintenance"));
+    ASSERT_TRUE(exists(directory.path() + L"\\.zhiyi-log-maintenance"));
 }
 
 TEST(DiagnosticLogMaintenance, retention_deletes_oldest_to_low_watermark) {
@@ -167,7 +167,7 @@ TEST(DiagnosticLogMaintenance, future_lock_timestamp_does_not_throttle_cleanup) 
     TempDirectory directory;
     ASSERT_TRUE(!directory.path().empty());
     const std::wstring log = create_file(directory.path(), L"server-trace.jsonl", 10);
-    const std::wstring lock = create_file(directory.path(), L".cxxime-log-maintenance", 0);
+    const std::wstring lock = create_file(directory.path(), L".zhiyi-log-maintenance", 0);
     ASSERT_TRUE(!lock.empty());
 
     HANDLE file =
@@ -216,7 +216,7 @@ TEST(DiagnosticLogMaintenance, locked_log_is_skipped_without_blocking) {
 TEST(DiagnosticLogMaintenance, maintenance_lock_is_cross_process_style_exclusive) {
     TempDirectory directory;
     ASSERT_TRUE(!directory.path().empty());
-    const std::wstring lock_path = directory.path() + L"\\.cxxime-log-maintenance";
+    const std::wstring lock_path = directory.path() + L"\\.zhiyi-log-maintenance";
     HANDLE held = CreateFileW(lock_path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
                               OPEN_ALWAYS, FILE_ATTRIBUTE_HIDDEN, nullptr);
     ASSERT_TRUE(held != INVALID_HANDLE_VALUE);

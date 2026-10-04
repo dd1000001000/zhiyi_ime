@@ -48,7 +48,7 @@ HWND local_candidate_window(const cxxime::UiPresentationSnapshot& snapshot) {
     }
     wchar_t class_name[64] = {};
     if (!GetClassNameW(candidate, class_name, 64) ||
-        lstrcmpW(class_name, L"CxxIMECandidateWindow") != 0) {
+        lstrcmpW(class_name, L"ZhiyiIMECandidateWindow") != 0) {
         return nullptr;
     }
     const HWND owner = GetWindow(candidate, GW_OWNER);
@@ -106,6 +106,7 @@ cxxime::ButtonState button_state_from_snapshot(const cxxime::UiPresentationSnaps
     state.caps_lock = snapshot.ime_status.caps_lock();
     state.full_shape = snapshot.ime_status.full_shape();
     state.chinese_punct = snapshot.ime_status.chinese_punct();
+    state.english_words = snapshot.ime_status.english_words();
     state.input_mode = snapshot.ime_status.input_mode;
     return state;
 }

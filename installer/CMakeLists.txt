@@ -43,9 +43,10 @@ target_link_libraries(cxxime-installer-helper PRIVATE
     advapi32.lib
 )
 
+set_target_properties(cxxime-installer-helper PROPERTIES OUTPUT_NAME "zhiyi-installer-helper")
 cxxime_add_version_resource(
     cxxime-installer-helper
-    "CxxIME Installer Helper"
-    "cxxime-installer-helper.exe"
+    "知意输入法 安装助手"
+    "zhiyi-installer-helper.exe"
     VFT_APP
 )

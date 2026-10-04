@@ -1,9 +1,22 @@
-CxxIME Third-Party Notices
-==========================
+知意输入法 (Zhiyi IME) Third-Party Notices
+=========================================
 
-This file records the third-party software distributed with CxxIME. The
-corresponding source notices are also retained beside each vendored dependency
-under third_party/.
+This file records the third-party software and data distributed with
+知意输入法 (Zhiyi IME). The corresponding source notices are also retained beside
+each vendored dependency under third_party/.
+
+
+CxxIME
+------
+
+Upstream: https://github.com/deanxyuan/cxx-ime
+Base version: v0.6.2 (commit afd39b0)
+License: Apache License 2.0
+
+Copyright (c) 2026 CxxIME Contributors
+
+知意输入法 is a modified version of CxxIME; see NOTICE for the changes. The Apache
+License 2.0 text is included in LICENSE.
 
 
 darts-clone v0.32h
@@ -99,12 +112,14 @@ rime-ice dictionary data
 Upstream: https://github.com/iDvel/rime-ice
 License: GNU General Public License v3.0 only (GPL-3.0-only)
 
-The Pinyin dictionary data distributed with CxxIME is derived from the
+The Pinyin dictionary data distributed with 知意输入法 is derived from the
 rime-ice Chinese dictionaries and transformed into CxxIME's SQLite and runtime
-binary formats. The complete license text is distributed in
+binary formats. The English word list (data/english.words.tsv) is derived from
+the rime-ice English dictionaries (en_dicts/en.dict.yaml and en_ext.dict.yaml)
+by data/tools/build_english_dictionary.py, which ranks the words with wordfreq. The complete license text is distributed in
 licenses/rime-ice-GPL-3.0.txt. The corresponding dictionary source and
-transformation scripts are available in the CxxIME source distribution at
-https://github.com/deanxyuan/cxx-ime under data/ and data/tools/.
+transformation scripts are available in the source distribution under data/
+and data/tools/ (originally https://github.com/deanxyuan/cxx-ime).
 
 
 rime-wubi86-jidian 4.3 dictionary data
@@ -113,7 +128,7 @@ rime-wubi86-jidian 4.3 dictionary data
 Upstream: https://github.com/KyleBing/rime-wubi86-jidian
 License: Apache License 2.0
 
-The Wubi dictionary and symbol categories distributed with CxxIME are derived
+The Wubi dictionary and symbol categories distributed with 知意输入法 are derived
 from this project. The Apache License 2.0 text is included in LICENSE in source
 distributions and license.txt in binary packages.
 
@@ -175,3 +190,53 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
 SPDX-License-Identifier: Unicode-3.0
+
+
+wordfreq word frequency data
+----------------------------
+
+Upstream: https://github.com/rspeer/wordfreq
+License: data CC BY-SA 4.0 (code Apache License 2.0)
+
+The frequency scores in data/english.words.tsv (100 x Zipf frequency) were
+computed with wordfreq at build time. wordfreq's data is derived from Wikipedia,
+subtitles, news, books, web text and other sources; see the wordfreq README for
+the full attribution. https://creativecommons.org/licenses/by-sa/4.0/
+
+
+Laya decision model
+-------------------
+
+Upstream: https://huggingface.co/convaiinnovations/laya
+License: Apache License 2.0
+
+The model in models/laya/ (laya.int8g.onnx, tokenizer.json, rl_agent_config.json)
+is the multilingual Laya checkpoint fine-tuned with LoRA on Chinese pinyin and
+English completion data, exported to ONNX and quantized to int8.
+
+
+ONNX Runtime
+------------
+
+Upstream: https://github.com/microsoft/onnxruntime
+License: MIT
+
+Copyright (c) Microsoft Corporation
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

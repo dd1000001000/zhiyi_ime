@@ -42,6 +42,8 @@ enum class ImeStatusFlag : uint32_t {
     CAPS_LOCK = 1u << 1,
     FULL_SHAPE = 1u << 2,
     CHINESE_PUNCT = 1u << 3,
+    // English mode style: word completion (set) or plain letter-by-letter input (clear).
+    ENGLISH_WORDS = 1u << 4,
 };
 
 constexpr uint32_t ime_status_flag(ImeStatusFlag flag) noexcept {
@@ -50,7 +52,8 @@ constexpr uint32_t ime_status_flag(ImeStatusFlag flag) noexcept {
 
 struct ImeStatus {
     uint32_t flags = ime_status_flag(ImeStatusFlag::CHINESE_MODE) |
-                     ime_status_flag(ImeStatusFlag::CHINESE_PUNCT);
+                     ime_status_flag(ImeStatusFlag::CHINESE_PUNCT) |
+                     ime_status_flag(ImeStatusFlag::ENGLISH_WORDS);
     InputMode input_mode = InputMode::PINYIN;
     uint64_t revision = 0;
 
@@ -97,6 +100,14 @@ struct ImeStatus {
 
     void set_chinese_punct(bool enabled) noexcept {
         set_flag(ImeStatusFlag::CHINESE_PUNCT, enabled);
+    }
+
+    bool english_words() const noexcept {
+        return has_flag(ImeStatusFlag::ENGLISH_WORDS);
+    }
+
+    void set_english_words(bool enabled) noexcept {
+        set_flag(ImeStatusFlag::ENGLISH_WORDS, enabled);
     }
 };
 
@@ -252,6 +263,8 @@ struct IPCResponse {
     uint32_t candidate_known_count = 0;
     CandidateExtentState candidate_extent_state = CandidateExtentState::kExhausted;
     uint32_t candidate_extent_complete = 1;
+    // Bit i: candidates[i] is the Laya recommendation (sparkle mark).
+    uint32_t candidate_recommended_mask = 0;
 };
 
 static_assert(std::is_standard_layout<IPCResponse>::value,

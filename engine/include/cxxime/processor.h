@@ -18,6 +18,9 @@ enum class ProcessResult {
     // The first KeyDown switches; repeats and the matching KeyUp are only consumed.
     SWITCH_INPUT_MODE,
     INPUT_MODE_SHORTCUT_HANDLED,
+    // English mode style shortcut (word completion <-> letter by letter); same KeyDown/KeyUp
+    // handling as SWITCH_INPUT_MODE.
+    TOGGLE_ENGLISH_STYLE,
 };
 
 // Abstract processor interface

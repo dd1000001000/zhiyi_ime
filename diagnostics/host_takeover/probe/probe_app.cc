@@ -86,7 +86,7 @@ bool ProbeApp::initialize(HINSTANCE instance, ProbeComMode com_mode) {
         }
     }
 
-    hwnd_ = CreateWindowExW(0, kWindowClass, L"CxxIME Host Candidate Probe",
+    hwnd_ = CreateWindowExW(0, kWindowClass, L"Zhiyi IME Host Candidate Probe",
                             WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 760, 560,
                             nullptr, nullptr, instance_, this);
     if (!hwnd_) {

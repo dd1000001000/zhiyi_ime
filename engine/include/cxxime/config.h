@@ -86,6 +86,8 @@ struct Config {
     // shortcuts
     KeyboardShortcut input_mode_switch_shortcut;
     KeyboardShortcut activate_ime_shortcut;
+    // Switches English mode between word completion and letter-by-letter input.
+    KeyboardShortcut english_style_shortcut = {kKeyModifierControl, 0x20 /* VK_SPACE */};
 
     // status_window
     struct StatusWindowConfig {
@@ -98,6 +100,41 @@ struct Config {
 
     // Users control only trace_mode; rotation and thresholds remain package settings.
     DiagnosticsConfig diagnostics;
+
+    // Laya context reranking of the first pinyin page (server side, CPU ONNX model).
+    struct LayaConfig {
+        bool enable = true;
+        std::string model_dir = "laya";        // relative to the server executable's directory
+        std::string onnx = "laya.int8g.onnx";
+        int top_n = 7;            // candidates considered on the first page
+        int min_candidates = 2;   // fewer comparable candidates: keep the translator's order
+        int context_chars = 48;   // trailing committed characters fed to the model
+        int threads = 4;          // ONNX Runtime intra-op threads
+        // English word mode (see EnglishConfig): completions are reranked too.
+        bool english = true;
+        int english_context_chars = 96;    // English needs more characters for the same context
+        double english_freq_weight = 0.0;  // weight of log P_freq next to log P_laya
+    };
+    LayaConfig laya;
+
+    // English words (data/english.words.tsv).
+    struct EnglishConfig {
+        // Chinese pinyin mode: when the typed letters are exactly a word of the list, that word
+        // is added to the first page (no completions).
+        bool mixed_in_chinese = true;
+        int min_input = 3;              // letters typed before English words are looked up
+        int position_in_pinyin = 1;     // 0-based slot when the input is valid pinyin (2nd);
+                                        // input that is not complete pinyin puts the word first
+        // English (ASCII) mode: word completion while typing letters ("word" style) or plain
+        // letter-by-letter input. word_mode is the current style (switched by
+        // shortcuts.english_style and persisted).
+        bool completion_in_ascii = true;
+        bool word_mode = true;
+        int completion_count = 6;       // completions shown after the typed text
+        int completion_pool = 8;        // dictionary words reranked before choosing them
+        int min_score = 300;            // 100 * Zipf; hides rare words (Zipf < 3.0)
+    };
+    EnglishConfig english;
 
     // Color scheme loaded from themes.json.
     // Fields default to -1 = "not set" (resolved to Weasel-style fallbacks in load_themes).

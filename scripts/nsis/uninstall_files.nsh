@@ -1,8 +1,8 @@
 Function un.RegisterInstalledTsf
     StrCmp $UninstallTsfX64Registered "1" 0 un_restore_register_x86
-    IfFileExists "$INSTDIR\cxxime_tsf_x64.dll" 0 un_restore_register_x64_missing
+    IfFileExists "$INSTDIR\zhiyi_tsf_x64.dll" 0 un_restore_register_x64_missing
         nsExec::ExecToStack \
-            '"$WINDIR\Sysnative\regsvr32.exe" /s "$INSTDIR\cxxime_tsf_x64.dll"'
+            '"$WINDIR\Sysnative\regsvr32.exe" /s "$INSTDIR\zhiyi_tsf_x64.dll"'
         Pop $0
         Pop $1
         StrCmp $0 "0" un_restore_register_x86
@@ -11,8 +11,8 @@ Function un.RegisterInstalledTsf
             Return
     un_restore_register_x86:
     StrCmp $UninstallTsfX86Registered "1" 0 un_restore_register_done
-    IfFileExists "$INSTDIR\cxxime_tsf_x86.dll" 0 un_restore_register_x86_missing
-        nsExec::ExecToStack '"$SYSDIR\regsvr32.exe" /s "$INSTDIR\cxxime_tsf_x86.dll"'
+    IfFileExists "$INSTDIR\zhiyi_tsf_x86.dll" 0 un_restore_register_x86_missing
+        nsExec::ExecToStack '"$SYSDIR\regsvr32.exe" /s "$INSTDIR\zhiyi_tsf_x86.dll"'
         Pop $0
         Pop $1
         StrCmp $0 "0" un_restore_register_done
@@ -36,11 +36,11 @@ FunctionEnd
 Function un.RestoreInstallationRegistry
     SetRegView 64
     ClearErrors
-    WriteRegStr HKLM "${RUN_KEY}" "CxxIMEServer" '"$INSTDIR\cxxime-server.exe"'
-    WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "CxxIME"
+    WriteRegStr HKLM "${RUN_KEY}" "ZhiyiIMEServer" '"$INSTDIR\zhiyi-server.exe"'
+    WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "知意输入法"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "${VERSION}"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "Publisher" "${PUBLISHER}"
-    WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayIcon" '"$INSTDIR\cxxime-resources.dll",-100'
+    WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayIcon" '"$INSTDIR\zhiyi-resources.dll",-100'
     WriteRegStr HKLM "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "InstallBaseLocation" "$InstallBaseDir"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'

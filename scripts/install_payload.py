@@ -13,22 +13,22 @@ def write_install_payload(
 ) -> None:
     """Generate one payload list for NSIS extraction and lifecycle cleanup."""
     root_files = [
-        "cxxime_tsf_x64.dll",
-        "cxxime_ime_x64.ime",
-        "cxxime-resources.dll",
-        "cxxime-server.exe",
-        "cxxime-settings.exe",
+        "zhiyi_tsf_x64.dll",
+        "zhiyi_ime_x64.ime",
+        "zhiyi-resources.dll",
+        "zhiyi-server.exe",
+        "zhiyi-settings.exe",
         "collect_diagnostics.ps1",
         "license.txt",
         "THIRD_PARTY_NOTICES.txt",
     ]
     if include_x86_modules:
-        root_files.insert(1, "cxxime_tsf_x86.dll")
-        root_files.insert(3, "cxxime_ime_x86.ime")
+        root_files.insert(1, "zhiyi_tsf_x86.dll")
+        root_files.insert(3, "zhiyi_ime_x86.ime")
     if host_diagnostics:
-        root_files.extend(["cxxime-ime-host-probe-x64.exe", "export_host_trace.ps1"])
+        root_files.extend(["zhiyi-ime-host-probe-x64.exe", "export_host_trace.ps1"])
         if include_x86_modules:
-            root_files.append("cxxime-ime-host-probe-x86.exe")
+            root_files.append("zhiyi-ime-host-probe-x86.exe")
 
     payload_files = list(root_files)
     for directory in ("data", "licenses"):
@@ -44,7 +44,7 @@ def write_install_payload(
         raise RuntimeError(f"install payload files are missing: {', '.join(missing)}")
 
     manifest = {
-        "format": "cxxime-install-manifest",
+        "format": "zhiyi-install-manifest",
         "version": 1,
         "files": payload_files + ["uninstall.exe"],
     }

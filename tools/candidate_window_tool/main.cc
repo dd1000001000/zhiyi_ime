@@ -51,9 +51,10 @@ static void build_page() {
     for (size_t i = 0; i < words.size(); ++i) {
         cxxime::Candidate c;
         c.text = words[i];
+        c.recommended = i == 0;  // Laya recommendation mark (sparkle)
         g_page.candidates.push_back(c);
     }
-    g_page.highlighted = 0;
+    g_page.highlighted = std::getenv("ZHIYIIME_TOOL_HIGHLIGHT") ? std::atoi(std::getenv("ZHIYIIME_TOOL_HIGHLIGHT")) : 0;
     g_page.page_size = 7;
 }
 
@@ -236,10 +237,10 @@ int main() {
     wc.cbSize = sizeof(wc);
     wc.lpfnWndProc = ParentWndProc;
     wc.hInstance = GetModuleHandle(nullptr);
-    wc.lpszClassName = L"CxxIMEToolParent";
+    wc.lpszClassName = L"ZhiyiIMEToolParent";
     RegisterClassExW(&wc);
 
-    HWND parent = CreateWindowExW(0, L"CxxIMEToolParent", L"Candidate Window Tool",
+    HWND parent = CreateWindowExW(0, L"ZhiyiIMEToolParent", L"Candidate Window Tool",
                                   WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
                                   400, 100, nullptr, nullptr, GetModuleHandle(nullptr), nullptr);
 

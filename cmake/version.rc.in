@@ -1,5 +1,7 @@
 // Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 
+#pragma code_page(65001)
+
 #include <winver.h>
 
 #ifdef _DEBUG
@@ -21,13 +23,13 @@ BEGIN
     BEGIN
         BLOCK "080404B0"
         BEGIN
-            VALUE "CompanyName", "CxxIME Contributors\0"
+            VALUE "CompanyName", "知意输入法\0"
             VALUE "FileDescription", "@CXXIME_FILE_DESCRIPTION@\0"
             VALUE "FileVersion", "@CXXIME_VERSION_NUMERIC_DOTTED@\0"
             VALUE "InternalName", "@target@\0"
-            VALUE "LegalCopyright", "Copyright (c) 2026 CxxIME Contributors\0"
+            VALUE "LegalCopyright", "Copyright (c) 2026 知意输入法 Contributors; based on CxxIME (c) 2026 CxxIME Contributors, Apache-2.0\0"
             VALUE "OriginalFilename", "@CXXIME_ORIGINAL_FILENAME@\0"
-            VALUE "ProductName", "CxxIME\0"
+            VALUE "ProductName", "知意输入法 (Zhiyi IME)\0"
             VALUE "ProductVersion", "@CXXIME_VERSION@\0"
         END
     END

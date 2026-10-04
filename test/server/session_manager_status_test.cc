@@ -41,7 +41,7 @@ static void setup_test_paths() {
     static std::once_flag once;
     std::call_once(once, []() {
         cxxime::set_data_dir(CXXIME_DATA_DIR);
-        std::string user_data = std::string(temp_path) + "cxxime-session-status-" +
+        std::string user_data = std::string(temp_path) + "zhiyi-session-status-" +
                                 std::to_string(GetCurrentProcessId());
         CreateDirectoryA(user_data.c_str(), nullptr);
         cxxime::set_user_data_dir(user_data);
@@ -326,6 +326,43 @@ TEST(SessionStatus, switch_input_mode_sets_target) {
     auto [st3, s3] = mgr.switch_input_mode(id, cxxime::InputMode::PINYIN);
     ASSERT_EQ(s3.input_mode, cxxime::InputMode::PINYIN);
     ASSERT_EQ(s3.revision, (uint64_t)3);
+}
+
+TEST(SessionStatus, english_style_shortcut_toggles_shared_style_once_per_press) {
+    auto config = std::make_shared<cxxime::Config>();
+    SessionManager mgr;
+    ASSERT_TRUE(mgr.initialize(setup_test_dict(), config));
+    uint32_t id = mgr.create_session();
+    uint32_t other = mgr.create_session();
+
+    cxxime::KeyEvent shortcut;  // default Ctrl+Space
+    shortcut.keycode = VK_SPACE;
+    shortcut.set_ctrl();
+    auto first = mgr.process_key(id, shortcut);
+    ASSERT_EQ(first.result, cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE);
+    ASSERT_TRUE(!first.ime_status.english_words());
+
+    auto repeated = mgr.process_key(id, shortcut);
+    ASSERT_EQ(repeated.result, cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
+    ASSERT_TRUE(!repeated.ime_status.english_words());
+
+    shortcut.is_key_up = true;
+    shortcut.modifiers = 0;
+    auto released = mgr.process_key(id, shortcut);
+    ASSERT_EQ(released.result, cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
+
+    // The style is shared by all sessions.
+    cxxime::KeyEvent letter;
+    letter.keycode = 'N';
+    letter.is_key_up = true;
+    auto other_status = mgr.process_key(other, letter);
+    ASSERT_TRUE(!other_status.ime_status.english_words());
+
+    shortcut.is_key_up = false;
+    shortcut.set_ctrl();
+    auto second = mgr.process_key(id, shortcut);
+    ASSERT_EQ(second.result, cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE);
+    ASSERT_TRUE(second.ime_status.english_words());
 }
 
 TEST(SessionStatus, input_mode_shortcut_cycles_once_and_cancels_composition) {
@@ -645,9 +682,15 @@ TEST(SessionStatus, session_language_mode_survives_other_session_changes) {
     letter.keycode = 'N';
     auto r = mgr.process_key(notepad, letter);
     ASSERT_EQ(r.status, cxxime::IPCStatus::OK);
-    ASSERT_EQ(r.result, cxxime::ProcessResult::COMMITTED);
-    ASSERT_EQ(r.commit_text, "n");
-    ASSERT_TRUE(!r.composing);
+    // Laya: with the English word list installed, English mode opens a word for completion
+    // instead of committing the letter at once; either way the session stays in English mode.
+    if (r.result == cxxime::ProcessResult::COMMITTED) {
+        ASSERT_EQ(r.commit_text, "n");
+        ASSERT_TRUE(!r.composing);
+    } else {
+        ASSERT_EQ(r.result, cxxime::ProcessResult::ACCEPTED);
+        ASSERT_TRUE(r.composing);
+    }
     ASSERT_EQ(r.ime_status.chinese_mode(), false);
     }
 

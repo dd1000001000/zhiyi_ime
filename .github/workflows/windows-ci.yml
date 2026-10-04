@@ -3,10 +3,10 @@ name: Windows CI
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
   workflow_dispatch:
 
 permissions:
@@ -32,6 +32,10 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+
+      - name: Fetch ONNX Runtime
+        shell: pwsh
+        run: python scripts/fetch_onnxruntime.py
 
       - name: Build
         shell: cmd

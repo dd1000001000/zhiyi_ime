@@ -3,7 +3,7 @@ Function StopServer
     StrCpy $ServerWasRunning $InitialServerWasRunning
     StrCmp $InitialServerWasRunning "1" stop_server_request stop_server_done
     stop_server_request:
-    nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" stop-server "$ActiveServerDir\cxxime-server.exe"'
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" stop-server "$ActiveServerDir\zhiyi-server.exe"'
     Pop $0
     StrCmp $0 "0" stop_server_wait_start
         StrCpy $ServerStopResult 2
@@ -12,14 +12,14 @@ Function StopServer
     StrCpy $1 0
     stop_server_wait:
         Sleep 100
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" server-running "$ActiveServerDir\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" server-running "$ActiveServerDir\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "1" stop_server_done
         StrCmp $0 "2" stop_server_failed
         IntOp $1 $1 + 1
         IntCmp $1 30 stop_server_force stop_server_wait stop_server_force
     stop_server_force:
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" force-stop-server "$ActiveServerDir\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" force-stop-server "$ActiveServerDir\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "0" stop_server_force_wait
         Goto stop_server_failed
@@ -27,7 +27,7 @@ Function StopServer
         StrCpy $1 0
     stop_server_force_poll:
         Sleep 100
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" server-running "$ActiveServerDir\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" server-running "$ActiveServerDir\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "1" stop_server_done
         StrCmp $0 "2" stop_server_failed
@@ -60,11 +60,11 @@ Function QueryTipRegistration
 FunctionEnd
 
 Function CaptureServerState
-    nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" server-running "$ActiveServerDir\cxxime-server.exe"'
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" server-running "$ActiveServerDir\zhiyi-server.exe"'
     Pop $0
     StrCmp $0 "0" capture_server_running
     StrCmp $0 "1" capture_server_not_running
-        StrCpy $FailureMessage "无法读取 CxxIME 安装前后台状态。"
+        StrCpy $FailureMessage "无法读取知意输入法安装前后台状态。"
         Push 0
         Return
     capture_server_not_running:
@@ -76,7 +76,7 @@ Function CaptureServerState
         StrCpy $InitialServerWasRunning 1
         StrCpy $ServerWasRunning 1
         nsExec::ExecToStack \
-            '"$PLUGINSDIR\cxxime-installer-helper.exe" server-pid "$ActiveServerDir\cxxime-server.exe"'
+            '"$PLUGINSDIR\zhiyi-installer-helper.exe" server-pid "$ActiveServerDir\zhiyi-server.exe"'
         Pop $1
         Pop $2
         StrCmp $1 "0" 0 capture_server_query_failed
@@ -84,7 +84,7 @@ Function CaptureServerState
         Push 1
         Return
     capture_server_query_failed:
-        StrCpy $FailureMessage "无法读取 CxxIME 后台进程标识。"
+        StrCpy $FailureMessage "无法读取知意输入法后台进程标识。"
         Push 0
 FunctionEnd
 
@@ -92,15 +92,15 @@ Function RestartInstalledServer
     StrCpy $ServerRestartResult 0
     StrCmp $InitialServerWasRunning "1" 0 restart_installed_server_done
     StrCmp $InstallStateVerified "1" 0 restart_installed_server_failed
-    IfFileExists "$ActiveServerDir\cxxime-server.exe" 0 restart_installed_server_failed
+    IfFileExists "$ActiveServerDir\zhiyi-server.exe" 0 restart_installed_server_failed
         ClearErrors
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" start-server "$ActiveServerDir\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" start-server "$ActiveServerDir\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "0" 0 restart_installed_server_failed
         StrCpy $1 0
     restart_installed_server_wait:
         Sleep 100
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" server-running "$ActiveServerDir\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" server-running "$ActiveServerDir\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "0" restart_installed_server_ready
         StrCmp $0 "2" restart_installed_server_failed
@@ -109,23 +109,23 @@ Function RestartInstalledServer
             restart_installed_server_failed
     restart_installed_server_ready:
         StrCpy $ServerRestartResult 1
-        DetailPrint "CxxIME 后台已恢复启动。"
+        DetailPrint "知意输入法后台已恢复启动。"
         Goto restart_installed_server_done
     restart_installed_server_failed:
         StrCpy $ServerRestartResult 2
-        DetailPrint "CxxIME 后台恢复启动失败。"
+        DetailPrint "知意输入法后台恢复启动失败。"
     restart_installed_server_done:
 FunctionEnd
 
 Function StartNewServer
-    IfFileExists "$INSTDIR\cxxime-server.exe" 0 start_new_server_failed
-    nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" start-server "$INSTDIR\cxxime-server.exe"'
+    IfFileExists "$INSTDIR\zhiyi-server.exe" 0 start_new_server_failed
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" start-server "$INSTDIR\zhiyi-server.exe"'
     Pop $0
     StrCmp $0 "0" start_new_server_poll start_new_server_failed
     StrCpy $1 0
     start_new_server_poll:
         Sleep 100
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" server-ready "$INSTDIR\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" server-ready "$INSTDIR\zhiyi-server.exe"'
         Pop $0
         StrCmp $0 "0" start_new_server_ready
         StrCmp $0 "2" start_new_server_failed
@@ -135,9 +135,9 @@ Function StartNewServer
         Push 1
         Return
     start_new_server_failed:
-        nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" force-stop-server "$INSTDIR\cxxime-server.exe"'
+        nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" force-stop-server "$INSTDIR\zhiyi-server.exe"'
         Pop $0
-        StrCpy $FailureMessage "无法确认新版本 CxxIME 后台已启动。"
+        StrCpy $FailureMessage "无法确认新版本知意输入法后台已启动。"
         Push 0
 FunctionEnd
 
@@ -148,11 +148,11 @@ Function CleanupRuntimeSnapshotAfterServerRestore
 FunctionEnd
 
 Function ReleaseInputProcessor
-    nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" release'
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" release'
     Pop $0
     Sleep 500
     StrCmp $0 "0" release_input_processor_done
-        DetailPrint "CxxIME TSF 释放请求失败，继续检查文件占用。"
+        DetailPrint "知意输入法 TSF 释放请求失败，继续检查文件占用。"
     release_input_processor_done:
 FunctionEnd
 
@@ -161,41 +161,41 @@ Function VerifyRestoredInstall
         StrCpy $INSTDIR "$StateInstallDir"
     ${EndIf}
     StrCmp $OldInstallAvailable "1" restored_install_check_files
-    IfFileExists "$INSTDIR\cxxime-server.exe" 0 restored_install_no_old_resources
+    IfFileExists "$INSTDIR\zhiyi-server.exe" 0 restored_install_no_old_resources
         Goto restored_install_invalid
     restored_install_no_old_resources:
-    IfFileExists "$INSTDIR\cxxime-resources.dll" 0 restored_install_no_old_tsf_x64
+    IfFileExists "$INSTDIR\zhiyi-resources.dll" 0 restored_install_no_old_tsf_x64
         Goto restored_install_invalid
     restored_install_no_old_tsf_x64:
-    IfFileExists "$INSTDIR\cxxime_tsf_x64.dll" 0 restored_install_no_old_tsf_x86
+    IfFileExists "$INSTDIR\zhiyi_tsf_x64.dll" 0 restored_install_no_old_tsf_x86
         Goto restored_install_invalid
     restored_install_no_old_tsf_x86:
-    IfFileExists "$INSTDIR\cxxime_tsf_x86.dll" 0 restored_install_no_old_ime_x64
+    IfFileExists "$INSTDIR\zhiyi_tsf_x86.dll" 0 restored_install_no_old_ime_x64
         Goto restored_install_invalid
     restored_install_no_old_ime_x64:
-    IfFileExists "$WINDIR\Sysnative\cxxime.ime" 0 restored_install_no_old_ime_x86
+    IfFileExists "$WINDIR\Sysnative\zhiyi.ime" 0 restored_install_no_old_ime_x86
         Goto restored_install_invalid
     restored_install_no_old_ime_x86:
-    IfFileExists "$SYSDIR\cxxime.ime" 0 restored_install_registry
+    IfFileExists "$SYSDIR\zhiyi.ime" 0 restored_install_registry
         Goto restored_install_invalid
 
     restored_install_check_files:
-    IfFileExists "$INSTDIR\cxxime-server.exe" 0 restored_install_invalid
-    IfFileExists "$INSTDIR\cxxime-resources.dll" 0 restored_install_invalid
+    IfFileExists "$INSTDIR\zhiyi-server.exe" 0 restored_install_invalid
+    IfFileExists "$INSTDIR\zhiyi-resources.dll" 0 restored_install_invalid
     StrCmp $OldTsfX64Present "1" restored_install_tsf_x64_present restored_install_tsf_x64_absent
     restored_install_tsf_x64_present:
-    IfFileExists "$INSTDIR\cxxime_tsf_x64.dll" 0 restored_install_invalid
+    IfFileExists "$INSTDIR\zhiyi_tsf_x64.dll" 0 restored_install_invalid
     Goto restored_install_x86
     restored_install_tsf_x64_absent:
-    IfFileExists "$INSTDIR\cxxime_tsf_x64.dll" 0 restored_install_x86
+    IfFileExists "$INSTDIR\zhiyi_tsf_x64.dll" 0 restored_install_x86
         Goto restored_install_invalid
     restored_install_x86:
     StrCmp $OldTsfX86Present "1" restored_install_tsf_x86_present restored_install_tsf_x86_absent
     restored_install_tsf_x86_present:
-    IfFileExists "$INSTDIR\cxxime_tsf_x86.dll" 0 restored_install_invalid
+    IfFileExists "$INSTDIR\zhiyi_tsf_x86.dll" 0 restored_install_invalid
     Goto restored_install_registry
     restored_install_tsf_x86_absent:
-    IfFileExists "$INSTDIR\cxxime_tsf_x86.dll" 0 restored_install_registry
+    IfFileExists "$INSTDIR\zhiyi_tsf_x86.dll" 0 restored_install_registry
         Goto restored_install_invalid
     restored_install_registry:
     ${If} $OldTsfX64Registered == 1
@@ -205,7 +205,7 @@ Function VerifyRestoredInstall
         ${If} ${Errors}
             Goto restored_install_invalid
         ${EndIf}
-        ${If} $0 != "$INSTDIR\cxxime_tsf_x64.dll"
+        ${If} $0 != "$INSTDIR\zhiyi_tsf_x64.dll"
             Goto restored_install_invalid
         ${EndIf}
     ${Else}
@@ -224,7 +224,7 @@ Function VerifyRestoredInstall
             SetRegView 64
             Goto restored_install_invalid
         ${EndIf}
-        ${If} $0 != "$INSTDIR\cxxime_tsf_x86.dll"
+        ${If} $0 != "$INSTDIR\zhiyi_tsf_x86.dll"
             SetRegView 64
             Goto restored_install_invalid
         ${EndIf}
@@ -268,7 +268,7 @@ Function VerifyRestoredInstall
         ${EndIf}
     ${EndIf}
     ClearErrors
-    ReadRegStr $0 HKLM "${RUN_KEY}" "CxxIMEServer"
+    ReadRegStr $0 HKLM "${RUN_KEY}" "ZhiyiIMEServer"
     ${If} $OldRunPresent == 1
         ${If} ${Errors}
             Goto restored_install_invalid
@@ -287,7 +287,7 @@ Function VerifyRestoredInstall
     restored_install_invalid:
         StrCpy $InstallStateVerified 0
         StrCpy $FailureMessage \
-            "$FailureMessage$\r$\n$\r$\nCxxIME 安装前状态未通过恢复校验，未启动后台。"
+            "$FailureMessage$\r$\n$\r$\n知意输入法安装前状态未通过恢复校验，未启动后台。"
         Push 0
 FunctionEnd
 
@@ -307,7 +307,7 @@ Function ReadLockReport
     lock_report_done:
     ${If} $LockReportText == ""
         StrCpy $LockReportText \
-            "Windows 无法提供正在使用 CxxIME 的应用程序详情。"
+            "Windows 无法提供正在使用知意输入法的应用程序详情。"
     ${EndIf}
 FunctionEnd
 
@@ -319,18 +319,18 @@ Function CollectPreviousVersionLockNotice
 
     Delete "$LockReportPath"
     nsExec::ExecToStack /TIMEOUT=3000 \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" query --report "$LockReportPath" \
-        "$PreviousInstallDir\cxxime_tsf_x64.dll" \
-        "$PreviousInstallDir\cxxime_tsf_x86.dll" \
-        "$PreviousInstallDir\cxxime_ime_x64.ime" \
-        "$PreviousInstallDir\cxxime_ime_x86.ime" \
-        "$PreviousInstallDir\cxxime-resources.dll" \
-        "$PreviousInstallDir\cxxime-server.exe" \
-        "$PreviousInstallDir\cxxime-settings.exe" \
-        "$PreviousInstallDir\cxxime-ime-host-probe-x64.exe" \
-        "$PreviousInstallDir\cxxime-ime-host-probe-x86.exe" \
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" query --report "$LockReportPath" \
+        "$PreviousInstallDir\zhiyi_tsf_x64.dll" \
+        "$PreviousInstallDir\zhiyi_tsf_x86.dll" \
+        "$PreviousInstallDir\zhiyi_ime_x64.ime" \
+        "$PreviousInstallDir\zhiyi_ime_x86.ime" \
+        "$PreviousInstallDir\zhiyi-resources.dll" \
+        "$PreviousInstallDir\zhiyi-server.exe" \
+        "$PreviousInstallDir\zhiyi-settings.exe" \
+        "$PreviousInstallDir\zhiyi-ime-host-probe-x64.exe" \
+        "$PreviousInstallDir\zhiyi-ime-host-probe-x86.exe" \
         "$PreviousInstallDir\uninstall.exe" \
-        "$WINDIR\System32\cxxime.ime" "$SYSDIR\cxxime.ime"'
+        "$WINDIR\System32\zhiyi.ime" "$SYSDIR\zhiyi.ime"'
     Pop $0
     Pop $1
     StrCmp $0 "2" collect_previous_locks_found

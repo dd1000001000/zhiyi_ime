@@ -25,17 +25,17 @@ def check_required_files(
     host_diagnostics: bool,
 ) -> None:
     required_files = [
-        "cxxime_tsf_x64.dll",
-        "cxxime_ime_x64.ime",
-        "cxxime-resources.dll",
-        "cxxime-server.exe",
-        "cxxime-settings.exe",
-        "cxxime-installer-helper.exe",
+        "zhiyi_tsf_x64.dll",
+        "zhiyi_ime_x64.ime",
+        "zhiyi-resources.dll",
+        "zhiyi-server.exe",
+        "zhiyi-settings.exe",
+        "zhiyi-installer-helper.exe",
         "collect_diagnostics.ps1",
-        "cxxime-setup.nsi",
+        "zhiyi-setup.nsi",
         "install-manifest.json",
         "install_payload.nsh",
-        "cxxime.ico",
+        "zhiyi.ico",
         "license.txt",
         "THIRD_PARTY_NOTICES.txt",
         os.path.join("licenses", "rime-ice-GPL-3.0.txt"),
@@ -47,18 +47,18 @@ def check_required_files(
     ]
     diagnostic_files = [
         "export_host_trace.ps1",
-        "cxxime-ime-host-probe-x64.exe",
+        "zhiyi-ime-host-probe-x64.exe",
     ]
     if host_diagnostics:
         required_files.extend(diagnostic_files)
     else:
-        for name in diagnostic_files + ["cxxime-ime-host-probe-x86.exe"]:
+        for name in diagnostic_files + ["zhiyi-ime-host-probe-x86.exe"]:
             if os.path.exists(os.path.join(dist_dir, name)):
                 add_error(errors, f"host diagnostic file must not be packaged: {name}")
     if require_x86:
-        required_files.extend(["cxxime_tsf_x86.dll", "cxxime_ime_x86.ime"])
+        required_files.extend(["zhiyi_tsf_x86.dll", "zhiyi_ime_x86.ime"])
         if host_diagnostics:
-            required_files.append("cxxime-ime-host-probe-x86.exe")
+            required_files.append("zhiyi-ime-host-probe-x86.exe")
 
     for name in required_files:
         require_file(errors, os.path.join(dist_dir, name), dist_dir)
@@ -105,22 +105,22 @@ def check_binary_architectures(
     host_diagnostics: bool,
 ) -> None:
     x64_files = [
-        "cxxime_tsf_x64.dll",
-        "cxxime_ime_x64.ime",
-        "cxxime-resources.dll",
-        "cxxime-server.exe",
-        "cxxime-settings.exe",
-        "cxxime-installer-helper.exe",
+        "zhiyi_tsf_x64.dll",
+        "zhiyi_ime_x64.ime",
+        "zhiyi-resources.dll",
+        "zhiyi-server.exe",
+        "zhiyi-settings.exe",
+        "zhiyi-installer-helper.exe",
     ]
     if host_diagnostics:
-        x64_files.append("cxxime-ime-host-probe-x64.exe")
+        x64_files.append("zhiyi-ime-host-probe-x64.exe")
     for name in x64_files:
         require_machine(errors, os.path.join(dist_dir, name), dist_dir, MACHINE_X64)
 
     if require_x86:
-        x86_files = ["cxxime_tsf_x86.dll", "cxxime_ime_x86.ime"]
+        x86_files = ["zhiyi_tsf_x86.dll", "zhiyi_ime_x86.ime"]
         if host_diagnostics:
-            x86_files.append("cxxime-ime-host-probe-x86.exe")
+            x86_files.append("zhiyi-ime-host-probe-x86.exe")
         for name in x86_files:
             require_machine(errors, os.path.join(dist_dir, name), dist_dir, MACHINE_X86)
 
@@ -130,7 +130,7 @@ def run_checks(dist_dir: str, require_x86: bool, host_diagnostics: bool) -> list
     check_required_files(errors, dist_dir, require_x86, host_diagnostics)
     check_licenses(errors, dist_dir)
 
-    for name in ["cxxime_tsf_x64.dll.old", "cxxime_tsf_x86.dll.old"]:
+    for name in ["zhiyi_tsf_x64.dll.old", "zhiyi_tsf_x86.dll.old"]:
         if os.path.exists(os.path.join(dist_dir, name)):
             add_error(errors, f"obsolete file must not be packaged: {name}")
 

@@ -59,7 +59,7 @@ STDMETHODIMP_(ULONG) ReadingUIElement::Release() {
 STDMETHODIMP ReadingUIElement::GetDescription(BSTR* pbstrDescription) {
     if (!pbstrDescription)
         return E_INVALIDARG;
-    *pbstrDescription = SysAllocString(L"CxxIME Reading");
+    *pbstrDescription = SysAllocString(L"Zhiyi IME Reading");
     return *pbstrDescription ? S_OK : E_OUTOFMEMORY;
 }
 

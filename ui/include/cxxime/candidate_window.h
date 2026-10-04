@@ -134,6 +134,12 @@ private:
 
     int page_current_ = 1, page_total_ = 1;
     int visible_candidate_count_ = 0;
+    // Laya recommendation mark: restarts its twinkle when the recommended word changes.
+    std::string sparkle_text_;
+    unsigned long long sparkle_start_ms_ = 0;
+    bool sparkle_animating_ = false;
+    void update_sparkle(const CandidatePage& page);
+    void tick_sparkle();
     int window_width_ = 0, window_height_ = 0, window_corner_ = -1;
     bool has_last_caret_rect_ = false;
     RECT last_caret_rect_{};

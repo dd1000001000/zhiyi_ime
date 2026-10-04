@@ -89,9 +89,9 @@ target_link_libraries(cxxime-tsf PRIVATE
 )
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(CXXIME_TSF_OUTPUT_NAME "cxxime_tsf_x64")
+    set(CXXIME_TSF_OUTPUT_NAME "zhiyi_tsf_x64")
 elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    set(CXXIME_TSF_OUTPUT_NAME "cxxime_tsf_x86")
+    set(CXXIME_TSF_OUTPUT_NAME "zhiyi_tsf_x86")
 else()
     message(FATAL_ERROR "Unsupported TSF target pointer size: ${CMAKE_SIZEOF_VOID_P}")
 endif()
@@ -103,7 +103,7 @@ set_target_properties(cxxime-tsf PROPERTIES
 
 cxxime_add_version_resource(
     cxxime-tsf
-    "CxxIME TSF Text Service"
+    "知意输入法 文本服务"
     "${CXXIME_TSF_OUTPUT_NAME}.dll"
     VFT_DLL
 )

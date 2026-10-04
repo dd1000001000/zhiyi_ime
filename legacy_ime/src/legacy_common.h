@@ -15,7 +15,7 @@
 
 namespace cxxime_legacy {
 
-inline constexpr wchar_t kUiClassName[] = L"CxxImeUI";
+inline constexpr wchar_t kUiClassName[] = L"ZhiyiImeUI";
 inline constexpr size_t kMaxCompositionChars = 255;
 inline constexpr DWORD kCandidateListIndex = 0;
 inline constexpr DWORD kCandidateListMask = 1U << kCandidateListIndex;

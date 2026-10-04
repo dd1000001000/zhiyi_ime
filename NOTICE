@@ -1,0 +1,24 @@
+知意输入法 (Zhiyi IME)
+Copyright (c) 2026 知意输入法 Contributors
+
+This product is a modified version of CxxIME
+(https://github.com/deanxyuan/cxx-ime), Copyright (c) 2026 CxxIME Contributors,
+licensed under the Apache License, Version 2.0. The original copyright notices are
+retained in the source files.
+
+Changes made to CxxIME (2026-10):
+- Laya context reranking: a fine-tuned Laya decision model (ONNX Runtime, CPU) picks the
+  first candidate for pinyin homophones and English completions from the preceding text;
+  the pick is marked with a sparkle in the candidate window
+  (engine/src/laya_rerank.cc, engine/src/laya/, ui/src/sparkle.h).
+- English word list and English word mode with completion, digit selection and case
+  matching; exact English words offered in Chinese mode
+  (engine/src/english_lexicon.cc, engine/src/engine.cc).
+- Three input modes (Chinese / English words / English letters) with a configurable
+  English style shortcut (settings, server session state, status window).
+- Renamed to 知意输入法 / Zhiyi IME with new text service and UI GUIDs, pipe, mutex,
+  window class, registry, file and data directory names, and new icons.
+- Fixed an out-of-bounds read in SpellingsIndex::load and the node count written by
+  SpellingsIndex::create_test_trie.
+
+"CxxIME" is used here only to identify the original work.

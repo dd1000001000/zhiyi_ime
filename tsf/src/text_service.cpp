@@ -143,7 +143,7 @@ STDMETHODIMP TextService::GetDisplayName(BSTR* name) {
     if (!name) {
         return E_INVALIDARG;
     }
-    *name = SysAllocString(L"CxxIME Search Candidates");
+    *name = SysAllocString(L"Zhiyi IME Search Candidates");
     return *name ? S_OK : E_OUTOFMEMORY;
 }
 
@@ -193,7 +193,7 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr* ptim, TfClientId tid) {
 }
 
 STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* ptim, TfClientId tid, DWORD dwFlags) {
-    OutputDebugStringA("[CxxIME] ActivateEx called\n");
+    OutputDebugStringA("[ZhiyiIME] ActivateEx called\n");
     CXXIME_LOG(L"ActivateEx: clientId=%u, flags=%u", tid, dwFlags);
     {
         char detail[64] = {};

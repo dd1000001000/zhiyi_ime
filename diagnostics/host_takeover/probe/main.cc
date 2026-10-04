@@ -9,7 +9,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int) {
     if (command_line && wcsstr(command_line, L"--window-owner")) {
         cxxime_probe::WindowOwnerProbe probe;
         if (!probe.initialize(instance)) {
-            MessageBoxW(nullptr, probe.initialization_error().c_str(), L"CxxIME Probe",
+            MessageBoxW(nullptr, probe.initialization_error().c_str(), L"Zhiyi IME Probe",
                         MB_OK | MB_ICONERROR);
             probe.shutdown();
             return 1;
@@ -28,7 +28,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int) {
 
     cxxime_probe::ProbeApp app;
     if (!app.initialize(instance, com_mode)) {
-        MessageBoxW(nullptr, app.initialization_error().c_str(), L"CxxIME Probe",
+        MessageBoxW(nullptr, app.initialization_error().c_str(), L"Zhiyi IME Probe",
                     MB_OK | MB_ICONERROR);
         app.shutdown();
         return 1;

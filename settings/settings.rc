@@ -2,4 +2,4 @@
 
 #include "resource/cxxime_resource_ids.h"
 
-IDI_CXXIME ICON "resource\\cxxime.ico"
+IDI_CXXIME ICON "resource\\zhiyi.ico"

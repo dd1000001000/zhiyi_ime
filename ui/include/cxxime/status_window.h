@@ -32,6 +32,7 @@ struct ButtonState {
     bool caps_lock = false;
     bool full_shape = false;
     bool chinese_punct = true;
+    bool english_words = true;  // English mode: word completion ("英") or letters ("a")
     InputMode input_mode = InputMode::PINYIN;
 };
 

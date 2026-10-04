@@ -94,6 +94,7 @@ endif()
 
 if(CXXIME_BUILD_TOOLS)
     add_subdirectory(tools/dict_query)
+    add_subdirectory(tools/laya_smoke)
     add_subdirectory(tools/sqlite_query)
     add_subdirectory(tools/ipc_test)
     add_subdirectory(tools/candidate_window_tool)

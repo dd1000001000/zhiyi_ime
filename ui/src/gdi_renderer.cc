@@ -3,8 +3,11 @@
 #include "gdi_renderer.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include <cxxime/config.h>
+
+#include "sparkle.h"
 
 namespace cxxime {
 
@@ -191,7 +194,7 @@ void GdiRenderer::render(HDC hdc, const RECT& clip, const RenderContext& ctx) {
         } else {
             SetBkMode(target_dc, TRANSPARENT);
             SetTextColor(target_dc, preedit_color_);
-            DrawTextW(target_dc, L"CxxIME", -1, const_cast<RECT*>(&clip), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextW(target_dc, L"知意输入法", -1, const_cast<RECT*>(&clip), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         }
         if (!ctx.preedit.empty() && ctx.preedit_rect.right > ctx.preedit_rect.left)
             draw_preedit_separator(target_dc, clip, ctx, margin);
@@ -243,6 +246,29 @@ void GdiRenderer::render(HDC hdc, const RECT& clip, const RenderContext& ctx) {
         SetTextColor(target_dc, hl ? hl_text_color_ : text_color_);
         DrawTextW(target_dc, to_wstr(cr.text).c_str(), -1, const_cast<RECT*>(&cr.text_rect),
             DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        if (cr.recommended && cr.mark_rect.right > cr.mark_rect.left && ctx.theme) {
+            // GDI has no per-shape opacity: blend the star color with the background instead.
+            const Color& back = hl ? ctx.theme->hilited_back : ctx.theme->background;
+            const COLORREF star_color = sparkle_color(hl);
+            for (const SparkleStar& star : sparkle_stars(cr.mark_rect, ctx.sparkle_t)) {
+                if (star.r < 0.5f || star.alpha < 0.02f) continue;
+                auto mix = [&](int fg, int bg) { return static_cast<int>(bg + (fg - bg) * star.alpha); };
+                HBRUSH brush = CreateSolidBrush(RGB(mix(GetRValue(star_color), back.r),
+                                                    mix(GetGValue(star_color), back.g),
+                                                    mix(GetBValue(star_color), back.b)));
+                HBRUSH ob = (HBRUSH)SelectObject(target_dc, brush);
+                HPEN op = (HPEN)SelectObject(target_dc, GetStockObject(NULL_PEN));
+                POINT pts[8];
+                const auto sp = sparkle_points(star);
+                for (int k = 0; k < 8; ++k) {
+                    pts[k] = {static_cast<LONG>(std::lround(sp[k].x)), static_cast<LONG>(std::lround(sp[k].y))};
+                }
+                Polygon(target_dc, pts, 8);
+                SelectObject(target_dc, op);
+                SelectObject(target_dc, ob);
+                DeleteObject(brush);
+            }
+        }
         if (!cr.comment.empty()) {
             SetTextColor(target_dc, hl ? hl_text_color_ : (hv ? text_color_ : comment_color_));
             DrawTextW(target_dc, to_wstr(cr.comment).c_str(), -1,

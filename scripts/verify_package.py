@@ -2,7 +2,7 @@
 # Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 #
 # Static package preflight checks. This script validates dist/ contents before
-# NSIS builds the installer. It does not install, register, or execute CxxIME.
+# NSIS builds the installer. It does not install, register, or execute ZhiyiIME.
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ DEFAULT_DIST_DIR = os.path.join(ROOT, "dist")
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Verify CxxIME dist package layout")
+    parser = argparse.ArgumentParser(description="Verify ZhiyiIME dist package layout")
     parser.add_argument("--dist-dir", default=DEFAULT_DIST_DIR)
     parser.add_argument(
         "--allow-missing-x86",

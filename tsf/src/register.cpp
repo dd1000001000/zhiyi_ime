@@ -15,7 +15,7 @@
 namespace {
 
 constexpr wchar_t kKeyboardLayoutsKey[] = L"SYSTEM\\CurrentControlSet\\Control\\Keyboard Layouts";
-constexpr wchar_t kLegacyImeFile[] = L"cxxime.ime";
+constexpr wchar_t kLegacyImeFile[] = L"zhiyi.ime";
 constexpr wchar_t kLegacyLayoutFile[] = L"kbdus.dll";
 constexpr DWORD kLegacyImeStart = 0xE0200000;
 constexpr DWORD kLegacyImeEnd = 0xE0FF0000;

@@ -1,8 +1,8 @@
 Function AcquireInstallerMutex
-    System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\CxxIME.Installation") p .r1 ?e'
+    System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\ZhiyiIME.Installation") p .r1 ?e'
     Pop $0
     ${If} $1 == 0
-        StrCpy $FailureMessage "无法初始化 CxxIME 安装程序。"
+        StrCpy $FailureMessage "无法初始化知意输入法安装程序。"
         IfSilent installer_mutex_failed_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         installer_mutex_failed_silent:
@@ -11,7 +11,7 @@ Function AcquireInstallerMutex
         Abort
     ${EndIf}
     ${If} $0 == ${ERROR_ALREADY_EXISTS}
-        StrCpy $FailureMessage "另一个 CxxIME 安装程序或卸载程序正在运行。"
+        StrCpy $FailureMessage "另一个知意输入法安装程序或卸载程序正在运行。"
         IfSilent installer_already_running_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         installer_already_running_silent:
@@ -51,18 +51,18 @@ Function .onInit
     StrCpy $TransactionServerWasRunning ""
     StrCpy $ServerStopResult 0
     StrCpy $ServerProcessId 0
-    StrCpy $InstallBaseDir "$PROGRAMFILES64\CxxIME"
+    StrCpy $InstallBaseDir "$PROGRAMFILES64\ZhiyiIME"
     StrCpy $PreviousInstallDir ""
     StrCpy $MultiVersionInstall 0
-    StrCpy $ActiveServerDir "$PROGRAMFILES64\CxxIME"
-    StrCpy $StateInstallDir "$PROGRAMFILES64\CxxIME"
-    StrCpy $InstallTargetDir "$PROGRAMFILES64\CxxIME\${VERSION}"
+    StrCpy $ActiveServerDir "$PROGRAMFILES64\ZhiyiIME"
+    StrCpy $StateInstallDir "$PROGRAMFILES64\ZhiyiIME"
+    StrCpy $InstallTargetDir "$PROGRAMFILES64\ZhiyiIME\${VERSION}"
     StrCpy $InstallTargetPrepared 0
     StrCpy $OldTipX64Present 0
     StrCpy $OldTipX86Present 0
     StrCpy $LifecycleScheduled 0
     ${IfNot} ${RunningX64}
-        StrCpy $FailureMessage "CxxIME 需要 64 位 Windows。"
+        StrCpy $FailureMessage "知意输入法需要 64 位 Windows。"
         IfSilent installer_requires_x64_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         installer_requires_x64_silent:
@@ -74,7 +74,7 @@ Function .onInit
     Call AcquireInstallerMutex
     SetShellVarContext all
     SetRegView 64
-    StrCpy $INSTDIR "$PROGRAMFILES64\CxxIME"
+    StrCpy $INSTDIR "$PROGRAMFILES64\ZhiyiIME"
     StrCpy $RegisteredInstallDir ""
     ClearErrors
     ReadRegStr $0 HKLM "${UNINSTALL_KEY}" "InstallLocation"
@@ -101,11 +101,11 @@ Function .onInit
             setup_mark_legacy_install
         IfFileExists "$RegisteredInstallDir\${INSTALL_MARKER}" 0 setup_unknown_install
         IfFileExists "$RegisteredInstallDir\uninstall.exe" 0 setup_unknown_install
-        IfFileExists "$RegisteredInstallDir\cxxime-server.exe" setup_mark_legacy_install
-        IfFileExists "$RegisteredInstallDir\cxxime_tsf_x64.dll" setup_mark_legacy_install
+        IfFileExists "$RegisteredInstallDir\zhiyi-server.exe" setup_mark_legacy_install
+        IfFileExists "$RegisteredInstallDir\zhiyi_tsf_x64.dll" setup_mark_legacy_install
         setup_unknown_install:
         StrCpy $FailureMessage \
-            "检测到无法自动升级的 CxxIME 安装。请先卸载当前版本，再运行此安装程序。"
+            "检测到无法自动升级的知意输入法安装。请先卸载当前版本，再运行此安装程序。"
         IfSilent setup_unknown_install_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         setup_unknown_install_silent:
@@ -126,7 +126,7 @@ FunctionEnd
 Function CheckInstallVersion
     StrCmp $InstalledVersion "" check_install_version_done
     nsExec::Exec \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" compare-version \
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" compare-version \
         "$InstalledVersion" "${VERSION}"'
     Pop $0
     StrCmp $0 "0" check_install_version_done
@@ -140,9 +140,9 @@ Function CheckInstallVersion
     StrCmp $AllowDowngrade "1" check_install_version_done
     IfSilent check_install_version_silent_downgrade
         MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 \
-            "当前已安装 CxxIME $InstalledVersion。继续将降级到 ${VERSION}。$\r$\n$\r$\n是否继续？" \
+            "当前已安装知意输入法 $InstalledVersion。继续将降级到 ${VERSION}。$\r$\n$\r$\n是否继续？" \
             IDYES check_install_version_done
-        StrCpy $FailureMessage "用户取消了 CxxIME 降级安装。"
+        StrCpy $FailureMessage "用户取消了知意输入法降级安装。"
         Goto check_install_version_cancelled
     check_install_version_silent_downgrade:
     StrCpy $FailureMessage \
@@ -192,10 +192,10 @@ Function RefreshInstallLayoutAfterRecovery
 FunctionEnd
 
 Function un.AcquireInstallerMutex
-    System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\CxxIME.Installation") p .r1 ?e'
+    System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\ZhiyiIME.Installation") p .r1 ?e'
     Pop $0
     ${If} $1 == 0
-        StrCpy $FailureMessage "无法初始化 CxxIME 卸载程序。"
+        StrCpy $FailureMessage "无法初始化知意输入法卸载程序。"
         IfSilent un_mutex_failed_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         un_mutex_failed_silent:
@@ -204,7 +204,7 @@ Function un.AcquireInstallerMutex
         Abort
     ${EndIf}
     ${If} $0 == ${ERROR_ALREADY_EXISTS}
-        StrCpy $FailureMessage "另一个 CxxIME 安装程序或卸载程序正在运行。"
+        StrCpy $FailureMessage "另一个知意输入法安装程序或卸载程序正在运行。"
         IfSilent un_already_running_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         un_already_running_silent:
@@ -222,7 +222,7 @@ Function un.onInit
     StrCpy $UninstallServerStopResult 0
     StrCpy $UninstallRemoveUserData 0
     StrCpy $UninstallCleanupWarning 0
-    StrCpy $UninstallUserDataDir "$PROFILE\cxxime"
+    StrCpy $UninstallUserDataDir "$PROFILE\zhiyi"
     StrCpy $InstallBaseDir "$INSTDIR"
     ClearErrors
     ReadRegStr $InstallBaseDir HKLM "${UNINSTALL_KEY}" "InstallBaseLocation"
@@ -278,7 +278,7 @@ Function FinishPageShow
 FunctionEnd
 
 Function un.ConfirmPage
-    !insertmacro MUI_HEADER_TEXT "卸载 CxxIME" "移除程序，并选择是否同时删除个人数据。"
+    !insertmacro MUI_HEADER_TEXT "卸载知意输入法" "移除程序，并选择是否同时删除个人数据。"
     nsDialogs::Create 1018
     Pop $0
     ${If} $0 == error
@@ -286,7 +286,7 @@ Function un.ConfirmPage
     ${EndIf}
 
     ${NSD_CreateLabel} 20u 16u 100% 28u \
-        "CxxIME 将从系统中移除。正在使用的程序文件会自动在 Windows 重启后删除。"
+        "知意输入法将从系统中移除。正在使用的程序文件会自动在 Windows 重启后删除。"
     Pop $0
     ${NSD_CreateLabel} 20u 48u 100% 24u \
         "用户配置和词库默认保留，之后重新安装仍可继续使用。"
@@ -324,11 +324,11 @@ Function un.FinishPageShow
     IfRebootFlag un_finish_page_deferred un_finish_page_done
     un_finish_page_deferred:
         ${NSD_SetText} $mui.FinishPage.Text \
-            "CxxIME 已卸载。少量正在使用的程序文件将在下次重新启动 Windows 后自动删除。"
+            "知意输入法已卸载。少量正在使用的程序文件将在下次重新启动 Windows 后自动删除。"
         Goto un_finish_page_done
     un_finish_page_warning:
         ${NSD_SetText} $mui.FinishPage.Text \
-            "CxxIME 已从系统中移除，但部分程序文件未能自动清理。重新运行安装程序时会再次处理。"
+            "知意输入法已从系统中移除，但部分程序文件未能自动清理。重新运行安装程序时会再次处理。"
     un_finish_page_done:
 FunctionEnd
 
@@ -336,14 +336,14 @@ Function CheckInstallDirectory
     StrCpy $ExistingInstall 0
     IfFileExists "$INSTDIR\${INSTALL_MARKER}" install_directory_owned
     StrCmp $RegisteredInstallDir "$INSTDIR" 0 install_directory_scan_start
-    IfFileExists "$INSTDIR\cxxime-server.exe" 0 install_directory_scan_start
-    IfFileExists "$INSTDIR\cxxime_tsf_x64.dll" 0 install_directory_scan_start
+    IfFileExists "$INSTDIR\zhiyi-server.exe" 0 install_directory_scan_start
+    IfFileExists "$INSTDIR\zhiyi_tsf_x64.dll" 0 install_directory_scan_start
     IfFileExists "$INSTDIR\uninstall.exe" install_directory_owned
 
     install_directory_scan_start:
-    IfFileExists "$INSTDIR\cxxime-resources.dll" 0 install_directory_scan_contents
-    IfFileExists "$INSTDIR\cxxime_tsf_x64.dll" install_directory_owned
-    IfFileExists "$INSTDIR\cxxime_tsf_x86.dll" install_directory_owned
+    IfFileExists "$INSTDIR\zhiyi-resources.dll" 0 install_directory_scan_contents
+    IfFileExists "$INSTDIR\zhiyi_tsf_x64.dll" install_directory_owned
+    IfFileExists "$INSTDIR\zhiyi_tsf_x86.dll" install_directory_owned
 
     install_directory_scan_contents:
     FindFirst $0 $1 "$INSTDIR\*"
@@ -354,7 +354,7 @@ Function CheckInstallDirectory
         StrCmp $1 "${RUNTIME_MARKER}" install_directory_next
         FindClose $0
         StrCpy $FailureMessage \
-            "所选目录不为空，并且不是 CxxIME 安装目录。请选择一个空目录。"
+            "所选目录不为空，并且不是知意输入法安装目录。请选择一个空目录。"
         Push 0
         Return
     install_directory_next:
@@ -395,7 +395,7 @@ FunctionEnd
 
 Function SetTransactionPaths
     StrCpy $StageDir "$InstallBaseDir\update"
-    StrCpy $LockReportPath "$PLUGINSDIR\cxxime-locks.txt"
+    StrCpy $LockReportPath "$PLUGINSDIR\zhiyi-locks.txt"
 FunctionEnd
 
 Function CheckFreshInstallBase
@@ -422,7 +422,7 @@ Function CheckFreshInstallBase
         IfFileExists "$InstallBaseDir\$1\install-manifest.json" fresh_install_base_next
         FindClose $0
         StrCpy $FailureMessage \
-            "所选产品目录包含不属于 CxxIME 的文件。请选择其他目录。"
+            "所选产品目录包含不属于知意输入法的文件。请选择其他目录。"
         Push 0
         Return
     fresh_install_base_next:
@@ -438,7 +438,7 @@ FunctionEnd
 
 Function SecureInstallBase
     nsExec::Exec \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" secure-install-root "$InstallBaseDir"'
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" secure-install-root "$InstallBaseDir"'
     Pop $0
     StrCmp $0 "0" 0 secure_install_base_failed
     System::Call 'kernel32::CreateFileW(\
@@ -446,15 +446,15 @@ Function SecureInstallBase
     StrCpy $InstallBaseHandle $0
     IntCmp $InstallBaseHandle -1 secure_install_base_failed
     nsExec::Exec \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" validate-install-directory "$StageDir"'
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" validate-install-directory "$StageDir"'
     Pop $0
     StrCmp $0 "0" 0 secure_install_base_failed
     nsExec::Exec \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" validate-install-directory "$INSTDIR"'
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" validate-install-directory "$INSTDIR"'
     Pop $0
     StrCmp $0 "0" secure_install_base_done
     secure_install_base_failed:
-    StrCpy $FailureMessage "无法安全地准备 CxxIME 产品目录。"
+    StrCpy $FailureMessage "无法安全地准备知意输入法产品目录。"
     Push 0
     Return
     secure_install_base_done:
@@ -484,12 +484,12 @@ Function PrepareInstallLifecycle
         StrCpy $LifecycleActiveArg "$RegisteredInstallDir"
     Delete "$LifecycleResultPath"
     nsExec::ExecToStack \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" lifecycle-prepare "$InstallBaseDir" \
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" lifecycle-prepare "$InstallBaseDir" \
         "$LifecycleActiveArg" "${VERSION}" "$LifecycleResultPath"'
     Pop $0
     Pop $1
     StrCmp $0 "0" lifecycle_prepare_read
-        StrCpy $FailureMessage "无法准备 CxxIME 版本生命周期状态。"
+        StrCpy $FailureMessage "无法准备知意输入法版本生命周期状态。"
         Push 0
         Return
     lifecycle_prepare_read:
@@ -505,19 +505,19 @@ Function PrepareInstallLifecycle
     Push 1
     Return
     lifecycle_prepare_failed:
-    StrCpy $FailureMessage "CxxIME 生命周期状态缺少有效的安装目标。"
+    StrCpy $FailureMessage "知意输入法生命周期状态缺少有效的安装目标。"
     Push 0
 FunctionEnd
 
 Function LoadPreparedInstallTarget
     Delete "$LifecycleResultPath"
     nsExec::ExecToStack \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" lifecycle-prepared-target \
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" lifecycle-prepared-target \
         "$InstallBaseDir" "$LifecycleResultPath"'
     Pop $0
     Pop $1
     StrCmp $0 "0" lifecycle_prepared_target_read
-        StrCpy $FailureMessage "无法读取 CxxIME 安装事务目录。"
+        StrCpy $FailureMessage "无法读取知意输入法安装事务目录。"
         Push 0
         Return
     lifecycle_prepared_target_read:
@@ -533,7 +533,7 @@ Function LoadPreparedInstallTarget
     Push 1
     Return
     lifecycle_prepared_target_failed:
-    StrCpy $FailureMessage "CxxIME 安装事务目录状态无效。"
+    StrCpy $FailureMessage "知意输入法安装事务目录状态无效。"
     Push 0
 FunctionEnd
 
@@ -542,11 +542,11 @@ Function CommitInstallLifecycle
     StrCmp $PreviousInstallDir "" +2
         StrCpy $LifecycleActiveArg "$PreviousInstallDir"
     nsExec::Exec \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" lifecycle-commit "$InstallBaseDir" \
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" lifecycle-commit "$InstallBaseDir" \
         "$INSTDIR" "$LifecycleActiveArg"'
     Pop $0
     StrCmp $0 "0" lifecycle_commit_done
-        StrCpy $FailureMessage "无法提交 CxxIME 版本生命周期状态。"
+        StrCpy $FailureMessage "无法提交知意输入法版本生命周期状态。"
         Push 0
         Return
     lifecycle_commit_done:
@@ -556,7 +556,7 @@ FunctionEnd
 Function CollectInstallGarbage
     Delete "$LifecycleResultPath"
     nsExec::ExecToStack \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" lifecycle-gc \
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" lifecycle-gc \
         "$InstallBaseDir" "$LifecycleResultPath"'
     Pop $0
     Pop $1
@@ -577,7 +577,7 @@ Function un.CommitInstallLifecycle
     StrCpy $LifecycleUnknown 0
     Delete "$LifecycleResultPath"
     nsExec::ExecToStack \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" lifecycle-uninstall "$InstallBaseDir" \
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" lifecycle-uninstall "$InstallBaseDir" \
         "$INSTDIR" "$LifecycleResultPath"'
     Pop $0
     Pop $1
@@ -605,12 +605,12 @@ FunctionEnd
 
 Function un.ValidateInstallLifecycle
     nsExec::Exec \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" lifecycle-validate-uninstall \
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" lifecycle-validate-uninstall \
         "$InstallBaseDir" "$INSTDIR"'
     Pop $0
     StrCmp $0 "0" un_lifecycle_validate_done
         StrCpy $FailureMessage \
-            "无法验证 CxxIME 程序文件清单。卸载未进行，请重新安装后再卸载。"
+            "无法验证知意输入法程序文件清单。卸载未进行，请重新安装后再卸载。"
         Push 0
         Return
     un_lifecycle_validate_done:

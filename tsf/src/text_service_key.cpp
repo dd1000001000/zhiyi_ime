@@ -115,7 +115,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
     }
     _fTestKeyDownPending = *pfEaten != FALSE;
 
-    OutputDebugStringA("[CxxIME] OnTestKeyDown\n");
+    OutputDebugStringA("[ZhiyiIME] OnTestKeyDown\n");
     CXXIME_LOG(L"OnTestKeyDown: vk=%u, eaten=%d, sessionId=%u", (unsigned int)wParam, *pfEaten, _sessionId);
     return S_OK;
 }

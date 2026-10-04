@@ -555,7 +555,7 @@ TEST(SessionIntegration, user_data_merge_skips_failed_file_and_continues) {
 int main() {
     GetTempPathA(MAX_PATH, temp_path);
     const std::string directory_name =
-        "cxxime-session-integration-" + std::to_string(GetCurrentProcessId());
+        "zhiyi-session-integration-" + std::to_string(GetCurrentProcessId());
     test_user_data_dir = make_temp_path(directory_name.c_str());
     CreateDirectoryA(test_user_data_dir.c_str(), nullptr);
     DeleteFileA((test_user_data_dir + "\\default.json").c_str());

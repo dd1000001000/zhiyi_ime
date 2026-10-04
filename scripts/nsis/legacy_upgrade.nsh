@@ -25,7 +25,7 @@ Function UpgradeLegacyInstall
         Pop $4
         StrCmp $4 "1" upgrade_legacy_install_complete_locked
         StrCpy $FailureMessage \
-            "旧版 CxxIME 已开始静默清理，但无法完成注册状态交接。请重新运行此安装程序。"
+            "旧版知意输入法已开始静默清理，但无法完成注册状态交接。请重新运行此安装程序。"
         Goto setup_legacy_uninstall_failed_message
     ${EndIf}
     SetRebootFlag true
@@ -51,7 +51,7 @@ Function UpgradeLegacyInstall
     Call AcquireInstallerMutex
     setup_legacy_uninstall_failed_locked:
     StrCpy $FailureMessage \
-        "无法自动卸载旧版 CxxIME（结果：$2）。旧版本未被替换，请先手动卸载后重试。"
+        "无法自动卸载旧版知意输入法（结果：$2）。旧版本未被替换，请先手动卸载后重试。"
     setup_legacy_uninstall_failed_message:
     IfSilent setup_legacy_uninstall_failed_silent
         MessageBox MB_ICONSTOP "$FailureMessage"
@@ -63,23 +63,23 @@ Function UpgradeLegacyInstall
 FunctionEnd
 
 Function PrepareLegacyDeferredUninstall
-    nsExec::Exec '"$PLUGINSDIR\cxxime-installer-helper.exe" release'
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" release'
     Pop $0
     nsExec::Exec \
-        '"$PLUGINSDIR\cxxime-installer-helper.exe" force-stop-server \
-        "$RegisteredInstallDir\cxxime-server.exe"'
+        '"$PLUGINSDIR\zhiyi-installer-helper.exe" force-stop-server \
+        "$RegisteredInstallDir\zhiyi-server.exe"'
     Pop $0
-    IfFileExists "$RegisteredInstallDir\cxxime_tsf_x86.dll" 0 legacy_unregister_x64
+    IfFileExists "$RegisteredInstallDir\zhiyi_tsf_x86.dll" 0 legacy_unregister_x64
         nsExec::ExecToStack \
-            '"$SYSDIR\regsvr32.exe" /u /s "$RegisteredInstallDir\cxxime_tsf_x86.dll"'
+            '"$SYSDIR\regsvr32.exe" /u /s "$RegisteredInstallDir\zhiyi_tsf_x86.dll"'
         Pop $0
         Pop $1
         StrCmp $0 "0" legacy_unregister_x64 legacy_deferred_prepare_failed
     legacy_unregister_x64:
-    IfFileExists "$RegisteredInstallDir\cxxime_tsf_x64.dll" 0 legacy_write_deferred_marker
+    IfFileExists "$RegisteredInstallDir\zhiyi_tsf_x64.dll" 0 legacy_write_deferred_marker
         nsExec::ExecToStack \
             '"$WINDIR\Sysnative\regsvr32.exe" /u /s \
-            "$RegisteredInstallDir\cxxime_tsf_x64.dll"'
+            "$RegisteredInstallDir\zhiyi_tsf_x64.dll"'
         Pop $0
         Pop $1
         StrCmp $0 "0" legacy_write_deferred_marker legacy_deferred_prepare_failed
@@ -105,21 +105,21 @@ FunctionEnd
 Function RestoreLegacyInstall
     Delete "$RegisteredInstallDir\${LEGACY_UNINSTALL_DEFERRED_MARKER}"
     Delete "$InstallBaseDir\${SYSTEM_IME_REMOVE_MARKER}"
-    IfFileExists "$RegisteredInstallDir\cxxime_tsf_x64.dll" 0 legacy_restore_x86
+    IfFileExists "$RegisteredInstallDir\zhiyi_tsf_x64.dll" 0 legacy_restore_x86
         nsExec::Exec \
             '"$WINDIR\Sysnative\regsvr32.exe" /s \
-            "$RegisteredInstallDir\cxxime_tsf_x64.dll"'
+            "$RegisteredInstallDir\zhiyi_tsf_x64.dll"'
         Pop $0
     legacy_restore_x86:
-    IfFileExists "$RegisteredInstallDir\cxxime_tsf_x86.dll" 0 legacy_restore_server
+    IfFileExists "$RegisteredInstallDir\zhiyi_tsf_x86.dll" 0 legacy_restore_server
         nsExec::Exec \
-            '"$SYSDIR\regsvr32.exe" /s "$RegisteredInstallDir\cxxime_tsf_x86.dll"'
+            '"$SYSDIR\regsvr32.exe" /s "$RegisteredInstallDir\zhiyi_tsf_x86.dll"'
         Pop $0
     legacy_restore_server:
-    IfFileExists "$RegisteredInstallDir\cxxime-server.exe" 0 legacy_restore_done
+    IfFileExists "$RegisteredInstallDir\zhiyi-server.exe" 0 legacy_restore_done
         nsExec::Exec \
-            '"$PLUGINSDIR\cxxime-installer-helper.exe" start-server \
-            "$RegisteredInstallDir\cxxime-server.exe"'
+            '"$PLUGINSDIR\zhiyi-installer-helper.exe" start-server \
+            "$RegisteredInstallDir\zhiyi-server.exe"'
         Pop $0
     legacy_restore_done:
 FunctionEnd
@@ -127,7 +127,7 @@ FunctionEnd
 Function CompleteLegacyUninstallHandoff
     Call CleanupLegacyInstallFiles
     SetRegView 64
-    DeleteRegValue HKLM "${RUN_KEY}" "CxxIMEServer"
+    DeleteRegValue HKLM "${RUN_KEY}" "ZhiyiIMEServer"
     DeleteRegKey HKLM "${UNINSTALL_KEY}"
     DeleteRegKey HKLM "SOFTWARE\Classes\CLSID\${CLSID}"
     DeleteRegKey HKLM "SOFTWARE\Microsoft\CTF\TIP\${CLSID}"
@@ -146,25 +146,25 @@ Function CompleteLegacyUninstallHandoff
 FunctionEnd
 
 Function CleanupLegacyInstallFiles
-    Delete /REBOOTOK "$RegisteredInstallDir\cxxime_tsf_x64.dll"
-    Delete /REBOOTOK "$RegisteredInstallDir\cxxime_tsf_x86.dll"
-    Delete /REBOOTOK "$RegisteredInstallDir\cxxime_ime_x64.ime"
-    Delete /REBOOTOK "$RegisteredInstallDir\cxxime_ime_x86.ime"
-    Delete /REBOOTOK "$RegisteredInstallDir\cxxime-resources.dll"
-    Delete /REBOOTOK "$RegisteredInstallDir\cxxime-server.exe"
-    Delete /REBOOTOK "$RegisteredInstallDir\cxxime-settings.exe"
+    Delete /REBOOTOK "$RegisteredInstallDir\zhiyi_tsf_x64.dll"
+    Delete /REBOOTOK "$RegisteredInstallDir\zhiyi_tsf_x86.dll"
+    Delete /REBOOTOK "$RegisteredInstallDir\zhiyi_ime_x64.ime"
+    Delete /REBOOTOK "$RegisteredInstallDir\zhiyi_ime_x86.ime"
+    Delete /REBOOTOK "$RegisteredInstallDir\zhiyi-resources.dll"
+    Delete /REBOOTOK "$RegisteredInstallDir\zhiyi-server.exe"
+    Delete /REBOOTOK "$RegisteredInstallDir\zhiyi-settings.exe"
     Delete /REBOOTOK "$RegisteredInstallDir\collect_diagnostics.ps1"
-    Delete /REBOOTOK "$RegisteredInstallDir\cxxime-ime-host-probe-x64.exe"
-    Delete /REBOOTOK "$RegisteredInstallDir\cxxime-ime-host-probe-x86.exe"
+    Delete /REBOOTOK "$RegisteredInstallDir\zhiyi-ime-host-probe-x64.exe"
+    Delete /REBOOTOK "$RegisteredInstallDir\zhiyi-ime-host-probe-x86.exe"
     Delete /REBOOTOK "$RegisteredInstallDir\export_host_trace.ps1"
     Delete /REBOOTOK "$RegisteredInstallDir\license.txt"
     Delete /REBOOTOK "$RegisteredInstallDir\THIRD_PARTY_NOTICES.txt"
     Delete /REBOOTOK "$RegisteredInstallDir\uninstall.exe"
-    Delete /REBOOTOK "$RegisteredInstallDir\.cxxime-install-complete"
-    Delete /REBOOTOK "$RegisteredInstallDir\.cxxime-install-transaction"
-    Delete /REBOOTOK "$RegisteredInstallDir\.cxxime-install-transaction.tmp"
-    Delete /REBOOTOK "$RegisteredInstallDir\.cxxime-uninstall-transaction"
-    Delete /REBOOTOK "$RegisteredInstallDir\.cxxime-uninstall-transaction.tmp"
+    Delete /REBOOTOK "$RegisteredInstallDir\.zhiyi-install-complete"
+    Delete /REBOOTOK "$RegisteredInstallDir\.zhiyi-install-transaction"
+    Delete /REBOOTOK "$RegisteredInstallDir\.zhiyi-install-transaction.tmp"
+    Delete /REBOOTOK "$RegisteredInstallDir\.zhiyi-uninstall-transaction"
+    Delete /REBOOTOK "$RegisteredInstallDir\.zhiyi-uninstall-transaction.tmp"
     Delete /REBOOTOK "$RegisteredInstallDir\${LEGACY_UNINSTALL_DEFERRED_MARKER}"
     Delete /REBOOTOK "$RegisteredInstallDir\data\default.json"
     Delete /REBOOTOK "$RegisteredInstallDir\data\settings_presets.json"
@@ -182,12 +182,12 @@ Function CleanupLegacyInstallFiles
     Delete /REBOOTOK "$RegisteredInstallDir\data\wubi86.reverse.idx"
     Delete /REBOOTOK "$RegisteredInstallDir\licenses\rime-ice-GPL-3.0.txt"
     Delete /REBOOTOK "$RegisteredInstallDir\licenses\miniz-MIT.txt"
-    RMDir /r /REBOOTOK "$RegisteredInstallDir\.cxxime-rollback"
-    RMDir /r /REBOOTOK "$RegisteredInstallDir\.cxxime-uninstall-rollback"
+    RMDir /r /REBOOTOK "$RegisteredInstallDir\.zhiyi-rollback"
+    RMDir /r /REBOOTOK "$RegisteredInstallDir\.zhiyi-uninstall-rollback"
     RMDir /REBOOTOK "$RegisteredInstallDir\data"
     RMDir /REBOOTOK "$RegisteredInstallDir\licenses"
     RMDir /r /REBOOTOK "$InstallBaseDir\update"
-    RMDir /r /REBOOTOK "$InstallBaseDir\.cxxime-backup"
+    RMDir /r /REBOOTOK "$InstallBaseDir\.zhiyi-backup"
     StrCmp $RegisteredInstallDir $InstallBaseDir legacy_cleanup_done
         RMDir /REBOOTOK "$RegisteredInstallDir"
     legacy_cleanup_done:

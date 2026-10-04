@@ -209,6 +209,8 @@ private:
     HWND hInputModeSwitchKey_ = nullptr;
     HWND hActivateImeHotkeyEnabled_ = nullptr;
     HWND hActivateImeHotkey_ = nullptr;
+    HWND hEnglishStyleEnabled_ = nullptr;
+    HWND hEnglishStyleKey_ = nullptr;
 
     // Dictionary panel
     HWND hLexiconStatus_ = nullptr;

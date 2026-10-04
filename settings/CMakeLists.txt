@@ -37,6 +37,10 @@ add_executable(cxxime-settings WIN32
 
 set_source_files_properties(settings.rc PROPERTIES
     COMPILE_FLAGS "/i${CMAKE_SOURCE_DIR}"
+    # The Ninja generator's resource compiler rule ignores the /i flag above; a source-level
+    # include directory works with every generator. (Not added to the target: the repo root
+    # contains a VERSION file that would shadow the C++ <version> header.)
+    INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}
 )
 
 target_include_directories(cxxime-settings PRIVATE
@@ -55,9 +59,10 @@ target_link_libraries(cxxime-settings PRIVATE
     comctl32.lib
 )
 
+set_target_properties(cxxime-settings PROPERTIES OUTPUT_NAME "zhiyi-settings")
 cxxime_add_version_resource(
     cxxime-settings
-    "CxxIME Settings"
-    "cxxime-settings.exe"
+    "知意输入法 设置"
+    "zhiyi-settings.exe"
     VFT_APP
 )

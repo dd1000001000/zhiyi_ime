@@ -34,9 +34,9 @@ target_link_libraries(cxxime-ime PRIVATE
 )
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(CXXIME_IME_OUTPUT_NAME "cxxime_ime_x64")
+    set(CXXIME_IME_OUTPUT_NAME "zhiyi_ime_x64")
 elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    set(CXXIME_IME_OUTPUT_NAME "cxxime_ime_x86")
+    set(CXXIME_IME_OUTPUT_NAME "zhiyi_ime_x86")
 else()
     message(FATAL_ERROR "Unsupported IME target pointer size: ${CMAKE_SIZEOF_VOID_P}")
 endif()
@@ -48,7 +48,7 @@ set_target_properties(cxxime-ime PROPERTIES
 
 cxxime_add_version_resource(
     cxxime-ime
-    "CxxIME Legacy IME"
+    "知意输入法 兼容输入法"
     "${CXXIME_IME_OUTPUT_NAME}.ime"
     VFT_DLL
 )

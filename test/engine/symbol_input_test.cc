@@ -38,8 +38,8 @@ public:
         if (GetTempPathA(MAX_PATH, temp_path) == 0) {
             return false;
         }
-        dict_path_ = std::string(temp_path) + "cxxime_symbol_input.bin";
-        user_path_ = std::string(temp_path) + "cxxime_symbol_input.tsv";
+        dict_path_ = std::string(temp_path) + "zhiyi_symbol_input.bin";
+        user_path_ = std::string(temp_path) + "zhiyi_symbol_input.tsv";
         DeleteFileA(dict_path_.c_str());
         DeleteFileA(user_path_.c_str());
 

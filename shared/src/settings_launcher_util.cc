@@ -63,7 +63,7 @@ bool build_registered_settings_path(const wchar_t* value, std::size_t value_byte
         return false;
     }
 
-    constexpr wchar_t kSettingsExecutable[] = L"\\cxxime-settings.exe";
+    constexpr wchar_t kSettingsExecutable[] = L"\\zhiyi-settings.exe";
     if (path.size() + _countof(kSettingsExecutable) > MAX_PATH) {
         return false;
     }

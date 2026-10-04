@@ -29,7 +29,7 @@ std::string temp_path(const char* suffix) {
     char directory[MAX_PATH] = {};
     GetTempPathA(MAX_PATH, directory);
     static std::atomic<unsigned long> sequence{0};
-    const std::string path = std::string(directory) + "cxxime-composition-learning-" +
+    const std::string path = std::string(directory) + "zhiyi-composition-learning-" +
                              std::to_string(GetCurrentProcessId()) + "-" +
                              std::to_string(sequence.fetch_add(1)) + suffix;
     DeleteFileA(path.c_str());

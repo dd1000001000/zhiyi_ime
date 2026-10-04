@@ -27,7 +27,7 @@ if not "%2"=="" set DATA_DIR=%2
 if not "%3"=="" set REPEAT=%3
 if not "%4"=="" set THRESHOLD=%4
 
-echo === CxxIME Sync Regression ===
+echo === ZhiyiIME Sync Regression ===
 echo   Build:  %BUILD_DIR%
 echo   Data:   %DATA_DIR%
 echo   Repeat: %REPEAT%

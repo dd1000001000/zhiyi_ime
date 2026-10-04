@@ -150,7 +150,7 @@ static LRESULT CALLBACK ParentWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 // ── Entry point ──────────────────────────────────────────────
 int main() {
-    wprintf(L"=== CxxIME Status Window Tool ===\n");
+    wprintf(L"=== Zhiyi IME Status Window Tool ===\n");
     wprintf(L"Keys:  1     = Toggle 中/英\n");
     wprintf(L"       2     = Toggle 全/半\n");
     wprintf(L"       3     = Toggle 。/.\n");
@@ -165,10 +165,10 @@ int main() {
     wc.cbSize = sizeof(wc);
     wc.lpfnWndProc = ParentWndProc;
     wc.hInstance = GetModuleHandle(nullptr);
-    wc.lpszClassName = L"CxxIMEStatusToolParent";
+    wc.lpszClassName = L"ZhiyiIMEStatusToolParent";
     RegisterClassExW(&wc);
 
-    g_parent = CreateWindowExW(0, L"CxxIMEStatusToolParent",
+    g_parent = CreateWindowExW(0, L"ZhiyiIMEStatusToolParent",
         L"Status Window Tool",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 500, 120,

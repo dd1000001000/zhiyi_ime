@@ -265,7 +265,7 @@ bool make_disabled_file(std::string* path, std::string* error) {
 bool write_small_disabled_set(const std::string& path, std::string* error) {
     std::ofstream output(path, std::ios::binary | std::ios::trunc);
     for (int index = 0; index < 16; ++index) {
-        output << "cxxime-benchmark-disabled-" << std::setw(2) << std::setfill('0') << index
+        output << "zhiyi-benchmark-disabled-" << std::setw(2) << std::setfill('0') << index
                << '\n';
     }
     if (!output.good()) {

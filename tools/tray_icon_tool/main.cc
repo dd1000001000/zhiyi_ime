@@ -440,7 +440,7 @@ static void cleanup() {
 // ── Entry point ───────────────────────────────────────────────
 int main() {
     SetConsoleOutputCP(CP_UTF8);
-    printf("=== CxxIME Tray Icon Preview Tool ===\n\n");
+    printf("=== Zhiyi IME Tray Icon Preview Tool ===\n\n");
 
     g_resource_dir = find_resource_dir();
     if (g_resource_dir.empty()) {
@@ -481,7 +481,7 @@ int main() {
     wc_msg.cbSize = sizeof(wc_msg);
     wc_msg.lpfnWndProc = MsgWndProc;
     wc_msg.hInstance = hinst;
-    wc_msg.lpszClassName = L"CxxIMETrayIconMsg";
+    wc_msg.lpszClassName = L"ZhiyiIMETrayIconMsg";
     RegisterClassExW(&wc_msg);
 
     WNDCLASSEXW wc_prev = {};
@@ -490,11 +490,11 @@ int main() {
     wc_prev.lpfnWndProc = PreviewWndProc;
     wc_prev.hInstance = hinst;
     wc_prev.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc_prev.lpszClassName = L"CxxIMETrayIconPreview";
+    wc_prev.lpszClassName = L"ZhiyiIMETrayIconPreview";
     RegisterClassExW(&wc_prev);
 
     // Create message-only window (receives tray callbacks)
-    g_hwnd = CreateWindowExW(0, L"CxxIMETrayIconMsg", L"", 0,
+    g_hwnd = CreateWindowExW(0, L"ZhiyiIMETrayIconMsg", L"", 0,
         0, 0, 0, 0, HWND_MESSAGE, nullptr, hinst, nullptr);
     if (!g_hwnd) {
         printf("Error: failed to create message window\n");
@@ -506,7 +506,7 @@ int main() {
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
 
-    g_preview = CreateWindowExW(0, L"CxxIMETrayIconPreview",
+    g_preview = CreateWindowExW(0, L"ZhiyiIMETrayIconPreview",
         L"Tray Icon Tool",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 520, 360,

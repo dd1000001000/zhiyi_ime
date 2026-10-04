@@ -45,7 +45,7 @@ TEST(DictionaryMonitor, start_returns_false_for_empty_paths) {
 }
 
 TEST(DictionaryMonitor, callback_on_watched_file_change) {
-    std::string dir = make_temp_dir("cxxime_dict_monitor");
+    std::string dir = make_temp_dir("zhiyi_dict_monitor");
     std::string path = dir + "dictionary_manifest.json";
     write_file(path, "old");
 
@@ -72,7 +72,7 @@ TEST(DictionaryMonitor, callback_on_watched_file_change) {
 }
 
 TEST(DictionaryMonitor, failed_callback_retries_after_change) {
-    std::string dir = make_temp_dir("cxxime_dict_monitor_retry");
+    std::string dir = make_temp_dir("zhiyi_dict_monitor_retry");
     std::string path = dir + "dictionary_manifest.json";
     write_file(path, "old");
 

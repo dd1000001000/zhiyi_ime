@@ -61,7 +61,7 @@ Function un.RestartInstalledServer
         IntOp $1 $1 + 1
         IntCmp $1 30 un_restart_server_failed un_restart_server_wait un_restart_server_failed
     un_restart_server_failed:
-        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n知意输入法后台恢复启动失败。"
+        StrCpy $FailureMessage "$(L_098)"
     un_restart_installed_server_done:
 FunctionEnd
 
@@ -70,7 +70,7 @@ Function un.ReleaseInputProcessor
     Pop $0
     Sleep 500
     StrCmp $0 "0" un_release_input_processor_done
-        DetailPrint "知意输入法 TSF 释放请求失败，继续检查文件占用。"
+        DetailPrint "$(L_028)"
     un_release_input_processor_done:
 FunctionEnd
 
@@ -90,7 +90,7 @@ Function un.ReadLockReport
     un_lock_report_done:
     ${If} $LockReportText == ""
         StrCpy $LockReportText \
-            "Windows 无法提供正在使用知意输入法的应用程序详情。"
+            "$(L_030)"
     ${EndIf}
 FunctionEnd
 

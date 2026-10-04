@@ -20,15 +20,23 @@ leaves your computer.
 ## Features
 
 - **Context-aware first candidate** for pinyin homophones (权利 / 权力 / 全力) and English completions,
-  marked with a sparkle; the other candidates keep their frequency order. About 30 ms per key on 4 CPU threads.
-- **Three input modes**: Chinese pinyin / English words (completions while typing, digits select) /
-  English letters (typed straight through). Shift switches Chinese/English and `Ctrl+Space` switches
-  words/letters by default; both are configurable in Settings.
-- **Mixed input**: typing a complete English word in Chinese mode (`hello`, `wechat`) offers that word.
+  marked with a sparkle. The model picks among the first 2 × (candidates per page) candidates; the
+  others keep their frequency order. About 30–40 ms per key on 4 CPU threads.
+- **Chinese input: pinyin or Wubi**, chosen in Settings. Pinyin offers full pinyin (initials are
+  accepted too) and an initials mode where each letter is one character (`zgr` → 中国人).
+- **English input**: words (completions while typing, digits select) or plain letters.
+- **Switch keys**: Shift switches Chinese/English; `Ctrl+Space` switches full pinyin / initials in
+  Chinese pinyin mode and words / letters in English mode. Both are configurable; the status window
+  shows the current style (拼 / 首 / 五, 英 / a).
+- **Mixed input**: typing a complete English word in Chinese mode (`hello`, `wechat`) offers that word
+  second.
 - **Case follows what you type**: `hel` → hello, `Hel` → Hello, `HEL` → HELLO.
-- Inherits CxxIME's full pinyin / shuangpin / abbreviations / fuzzy pinyin, sentence composition,
-  segmented selection, horizontal and vertical candidate windows and themes.
-- User data lives in `%USERPROFILE%\zhiyi\` and is kept on uninstall.
+- **Simple settings**: General (Chinese input, pinyin style, light/dark theme, font size, 3–10
+  candidates per page, UI language), Keys, Dictionary (self-learning, clear learning data) and
+  About. Settings and the installer are in Chinese and English and follow the Windows language.
+- **Compact dictionary**: about 400k entries (every character plus common words); rare words can be
+  typed character by character and are remembered by self-learning.
+- User data lives in `%USERPROFILE%\zhiyi\`; uninstalling asks whether to keep it.
 
 ## Accuracy
 

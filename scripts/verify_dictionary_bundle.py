@@ -32,7 +32,9 @@ from package_checks.reverse_index import check_reverse_index
 
 REQUIRED_FILES = REQUIRED_BUNDLE_FILES
 
-REQUIRED_TOPN_KEYS = ["s", "sd", "sdf", "sddf", "bj", "srf", "shrf"]
+# Sample keys whose Top-N lists must be complete. ("sddf" is not complete with the compact
+# ~400k-entry dictionary; such keys take the regular query path.)
+REQUIRED_TOPN_KEYS = ["s", "sd", "sdf", "bj", "srf", "shrf"]
 
 # Magic values (first 8 bytes of each binary file)
 DICT_MAGIC_V2 = b"CXDIC\x02\x00\x00"

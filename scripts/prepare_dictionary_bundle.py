@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import struct
 import subprocess
 import sys
@@ -275,6 +276,30 @@ def prepare_wubi_dictionary(
     ]
 
 
+# Zhiyi IME ships a compact pinyin dictionary (about 400k entries): every single character
+# plus the words ranked above rime-ice's default weight of 100. The cut words (rare names,
+# places and transliterations) can still be typed character by character and are then
+# remembered by self-learning.
+PINYIN_MIN_WORD_FREQUENCY = 101
+
+
+def trim_pinyin_dictionary(db_path: str) -> dict:
+    """Drops multi-character pinyin words below PINYIN_MIN_WORD_FREQUENCY."""
+    db = sqlite3.connect(db_path)
+    try:
+        before = db.execute("SELECT COUNT(*) FROM dict").fetchone()[0]
+        db.execute(
+            "DELETE FROM dict WHERE length(text) > 1 AND frequency < ?",
+            (PINYIN_MIN_WORD_FREQUENCY,),
+        )
+        db.commit()
+        after = db.execute("SELECT COUNT(*) FROM dict").fetchone()[0]
+        db.execute("VACUUM")
+    finally:
+        db.close()
+    return {"entries_before": before, "entries_after": after}
+
+
 def prepare_dictionary_bundle(
     data_dir: str,
     output_dir: str,
@@ -300,6 +325,7 @@ def prepare_dictionary_bundle(
             wubi_source, pinyin_source, wubi_db, pinyin_db,
         )
         print("Dictionary symbol filtering: " + json.dumps(stats))
+        print("Pinyin dictionary trimming: " + json.dumps(trim_pinyin_dictionary(pinyin_db)))
         tasks = [
             (prepare_pinyin_dictionary, (pinyin_db, output_dir)),
             (prepare_wubi_dictionary, (wubi_db, output_dir, pinyin_source)),

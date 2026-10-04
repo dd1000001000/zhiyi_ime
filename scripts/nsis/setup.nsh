@@ -2,7 +2,7 @@ Function AcquireInstallerMutex
     System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\ZhiyiIME.Installation") p .r1 ?e'
     Pop $0
     ${If} $1 == 0
-        StrCpy $FailureMessage "无法初始化知意输入法安装程序。"
+        StrCpy $FailureMessage "$(L_060)"
         IfSilent installer_mutex_failed_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         installer_mutex_failed_silent:
@@ -11,7 +11,7 @@ Function AcquireInstallerMutex
         Abort
     ${EndIf}
     ${If} $0 == ${ERROR_ALREADY_EXISTS}
-        StrCpy $FailureMessage "另一个知意输入法安装程序或卸载程序正在运行。"
+        StrCpy $FailureMessage "$(L_061)"
         IfSilent installer_already_running_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         installer_already_running_silent:
@@ -62,7 +62,7 @@ Function .onInit
     StrCpy $OldTipX86Present 0
     StrCpy $LifecycleScheduled 0
     ${IfNot} ${RunningX64}
-        StrCpy $FailureMessage "知意输入法需要 64 位 Windows。"
+        StrCpy $FailureMessage "$(L_062)"
         IfSilent installer_requires_x64_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         installer_requires_x64_silent:
@@ -105,7 +105,7 @@ Function .onInit
         IfFileExists "$RegisteredInstallDir\zhiyi_tsf_x64.dll" setup_mark_legacy_install
         setup_unknown_install:
         StrCpy $FailureMessage \
-            "检测到无法自动升级的知意输入法安装。请先卸载当前版本，再运行此安装程序。"
+            "$(L_063)"
         IfSilent setup_unknown_install_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         setup_unknown_install_silent:
@@ -133,20 +133,20 @@ Function CheckInstallVersion
     StrCmp $0 "1" check_install_version_done
     StrCmp $0 "2" check_install_version_downgrade
         StrCpy $FailureMessage \
-            "无法比较已安装版本 $InstalledVersion 与安装包版本 ${VERSION}。"
+            "$(L_064)"
         Goto check_install_version_failed
 
     check_install_version_downgrade:
     StrCmp $AllowDowngrade "1" check_install_version_done
     IfSilent check_install_version_silent_downgrade
         MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 \
-            "当前已安装知意输入法 $InstalledVersion。继续将降级到 ${VERSION}。$\r$\n$\r$\n是否继续？" \
+            "$(L_065)" \
             IDYES check_install_version_done
-        StrCpy $FailureMessage "用户取消了知意输入法降级安装。"
+        StrCpy $FailureMessage "$(L_066)"
         Goto check_install_version_cancelled
     check_install_version_silent_downgrade:
     StrCpy $FailureMessage \
-        "静默安装默认不允许从 $InstalledVersion 降级到 ${VERSION}。请显式使用 /ALLOWDOWNGRADE。"
+        "$(L_067)"
     check_install_version_failed:
     IfSilent check_install_version_report
         MessageBox MB_ICONSTOP "$FailureMessage"
@@ -195,7 +195,7 @@ Function un.AcquireInstallerMutex
     System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\ZhiyiIME.Installation") p .r1 ?e'
     Pop $0
     ${If} $1 == 0
-        StrCpy $FailureMessage "无法初始化知意输入法卸载程序。"
+        StrCpy $FailureMessage "$(L_068)"
         IfSilent un_mutex_failed_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         un_mutex_failed_silent:
@@ -204,7 +204,7 @@ Function un.AcquireInstallerMutex
         Abort
     ${EndIf}
     ${If} $0 == ${ERROR_ALREADY_EXISTS}
-        StrCpy $FailureMessage "另一个知意输入法安装程序或卸载程序正在运行。"
+        StrCpy $FailureMessage "$(L_061)"
         IfSilent un_already_running_silent
             MessageBox MB_ICONSTOP "$FailureMessage"
         un_already_running_silent:
@@ -237,13 +237,13 @@ Function ToggleInstallLockDetails
     StrCmp $InstallLockDetailsVisible "1" hide_install_lock_details
 
     ShowWindow $InstallLockDetailsText ${SW_SHOW}
-    ${NSD_SetText} $InstallLockDetailsButton "收起占用详情"
+    ${NSD_SetText} $InstallLockDetailsButton "$(L_069)"
     StrCpy $InstallLockDetailsVisible 1
     Return
 
     hide_install_lock_details:
         ShowWindow $InstallLockDetailsText ${SW_HIDE}
-        ${NSD_SetText} $InstallLockDetailsButton "查看占用详情"
+        ${NSD_SetText} $InstallLockDetailsButton "$(L_070)"
         StrCpy $InstallLockDetailsVisible 0
 FunctionEnd
 
@@ -256,13 +256,13 @@ Function FinishPageShow
         IfRebootFlag finish_page_occupied_reboot finish_page_occupied_only
     finish_page_occupied_reboot:
         ${NSD_SetText} $mui.FinishPage.Text \
-            "部分应用仍使用上一版本；部分更新将在下次 Windows 重启后生效。"
+            "$(L_071)"
         Goto finish_page_create_details
     finish_page_occupied_only:
         ${NSD_SetText} $mui.FinishPage.Text \
-            "部分正在运行的应用仍使用上一版本，重新打开后即可切换。"
+            "$(L_072)"
     finish_page_create_details:
-        ${NSD_CreateButton} 120u 108u 76u 16u "查看占用详情"
+        ${NSD_CreateButton} 120u 108u 76u 16u "$(L_070)"
         Pop $InstallLockDetailsButton
         ${NSD_OnClick} $InstallLockDetailsButton ToggleInstallLockDetails
         ${NSD_CreateMLText} 120u 130u 195u 42u "$LockReportText"
@@ -273,12 +273,12 @@ Function FinishPageShow
 
     finish_page_reboot:
         ${NSD_SetText} $mui.FinishPage.Text \
-            "部分更新将在下次 Windows 重启后生效。"
+            "$(L_073)"
     finish_page_done:
 FunctionEnd
 
 Function un.ConfirmPage
-    !insertmacro MUI_HEADER_TEXT "卸载知意输入法" "移除程序，并选择是否同时删除个人数据。"
+    !insertmacro MUI_HEADER_TEXT "$(L_074)" "$(L_075)"
     nsDialogs::Create 1018
     Pop $0
     ${If} $0 == error
@@ -286,22 +286,22 @@ Function un.ConfirmPage
     ${EndIf}
 
     ${NSD_CreateLabel} 20u 16u 100% 28u \
-        "知意输入法将从系统中移除。正在使用的程序文件会自动在 Windows 重启后删除。"
+        "$(L_076)"
     Pop $0
     ${NSD_CreateLabel} 20u 48u 100% 24u \
-        "用户配置和词库默认保留，之后重新安装仍可继续使用。"
+        "$(L_077)"
     Pop $0
-    ${NSD_CreateCheckbox} 20u 82u 100% 20u "删除用户配置和词库数据"
+    ${NSD_CreateCheckbox} 20u 82u 100% 20u "$(L_078)"
     Pop $UninstallRemoveUserDataCheckbox
     ${NSD_SetState} $UninstallRemoveUserDataCheckbox $UninstallRemoveUserData
-    ${NSD_CreateLabel} 38u 106u 100% 18u "勾选后个人数据将永久删除，无法撤销。"
+    ${NSD_CreateLabel} 38u 106u 100% 18u "$(L_079)"
     Pop $UninstallRemoveUserDataWarning
     ${NSD_OnClick} $UninstallRemoveUserDataCheckbox un.ToggleRemoveUserDataWarning
     StrCmp $UninstallRemoveUserData "${BST_CHECKED}" un_remove_user_data_warning_ready
         ShowWindow $UninstallRemoveUserDataWarning ${SW_HIDE}
     un_remove_user_data_warning_ready:
     GetDlgItem $0 $HWNDPARENT 1
-    SendMessage $0 ${WM_SETTEXT} 0 "STR:卸载"
+    SendMessage $0 ${WM_SETTEXT} 0 "$(L_080)"
     nsDialogs::Show
 FunctionEnd
 
@@ -324,11 +324,11 @@ Function un.FinishPageShow
     IfRebootFlag un_finish_page_deferred un_finish_page_done
     un_finish_page_deferred:
         ${NSD_SetText} $mui.FinishPage.Text \
-            "知意输入法已卸载。少量正在使用的程序文件将在下次重新启动 Windows 后自动删除。"
+            "$(L_002)"
         Goto un_finish_page_done
     un_finish_page_warning:
         ${NSD_SetText} $mui.FinishPage.Text \
-            "知意输入法已从系统中移除，但部分程序文件未能自动清理。重新运行安装程序时会再次处理。"
+            "$(L_081)"
     un_finish_page_done:
 FunctionEnd
 
@@ -354,7 +354,7 @@ Function CheckInstallDirectory
         StrCmp $1 "${RUNTIME_MARKER}" install_directory_next
         FindClose $0
         StrCpy $FailureMessage \
-            "所选目录不为空，并且不是知意输入法安装目录。请选择一个空目录。"
+            "$(L_082)"
         Push 0
         Return
     install_directory_next:
@@ -422,7 +422,7 @@ Function CheckFreshInstallBase
         IfFileExists "$InstallBaseDir\$1\install-manifest.json" fresh_install_base_next
         FindClose $0
         StrCpy $FailureMessage \
-            "所选产品目录包含不属于知意输入法的文件。请选择其他目录。"
+            "$(L_083)"
         Push 0
         Return
     fresh_install_base_next:
@@ -454,7 +454,7 @@ Function SecureInstallBase
     Pop $0
     StrCmp $0 "0" secure_install_base_done
     secure_install_base_failed:
-    StrCpy $FailureMessage "无法安全地准备知意输入法产品目录：$InstallBaseDir$\r$\n请选择一个新的或空的文件夹（不能是符号链接或网络位置）。"
+    StrCpy $FailureMessage "$(L_084)"
     Push 0
     Return
     secure_install_base_done:
@@ -489,7 +489,7 @@ Function PrepareInstallLifecycle
     Pop $0
     Pop $1
     StrCmp $0 "0" lifecycle_prepare_read
-        StrCpy $FailureMessage "无法准备知意输入法版本生命周期状态。"
+        StrCpy $FailureMessage "$(L_085)"
         Push 0
         Return
     lifecycle_prepare_read:
@@ -505,7 +505,7 @@ Function PrepareInstallLifecycle
     Push 1
     Return
     lifecycle_prepare_failed:
-    StrCpy $FailureMessage "知意输入法生命周期状态缺少有效的安装目标。"
+    StrCpy $FailureMessage "$(L_086)"
     Push 0
 FunctionEnd
 
@@ -517,7 +517,7 @@ Function LoadPreparedInstallTarget
     Pop $0
     Pop $1
     StrCmp $0 "0" lifecycle_prepared_target_read
-        StrCpy $FailureMessage "无法读取知意输入法安装事务目录。"
+        StrCpy $FailureMessage "$(L_087)"
         Push 0
         Return
     lifecycle_prepared_target_read:
@@ -533,7 +533,7 @@ Function LoadPreparedInstallTarget
     Push 1
     Return
     lifecycle_prepared_target_failed:
-    StrCpy $FailureMessage "知意输入法安装事务目录状态无效。"
+    StrCpy $FailureMessage "$(L_088)"
     Push 0
 FunctionEnd
 
@@ -546,7 +546,7 @@ Function CommitInstallLifecycle
         "$INSTDIR" "$LifecycleActiveArg"'
     Pop $0
     StrCmp $0 "0" lifecycle_commit_done
-        StrCpy $FailureMessage "无法提交知意输入法版本生命周期状态。"
+        StrCpy $FailureMessage "$(L_089)"
         Push 0
         Return
     lifecycle_commit_done:
@@ -561,7 +561,7 @@ Function CollectInstallGarbage
     Pop $0
     Pop $1
     StrCmp $0 "0" lifecycle_gc_read
-        DetailPrint "无法清理退役版本，后续安装将再次处理。"
+        DetailPrint "$(L_090)"
         Return
     lifecycle_gc_read:
     ClearErrors
@@ -582,7 +582,7 @@ Function un.CommitInstallLifecycle
     Pop $0
     Pop $1
     StrCmp $0 "0" un_lifecycle_commit_read
-        DetailPrint "无法完成程序文件清理；后续安装将再次处理残留文件。"
+        DetailPrint "$(L_091)"
         Push 0
         Return
     un_lifecycle_commit_read:
@@ -599,7 +599,7 @@ Function un.CommitInstallLifecycle
     Push 1
     Return
     un_lifecycle_commit_failed:
-    DetailPrint "无法读取程序文件清理结果；后续安装将再次处理残留文件。"
+    DetailPrint "$(L_092)"
     Push 0
 FunctionEnd
 
@@ -610,7 +610,7 @@ Function un.ValidateInstallLifecycle
     Pop $0
     StrCmp $0 "0" un_lifecycle_validate_done
         StrCpy $FailureMessage \
-            "无法验证知意输入法程序文件清单。卸载未进行，请重新安装后再卸载。"
+            "$(L_093)"
         Push 0
         Return
     un_lifecycle_validate_done:

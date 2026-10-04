@@ -89,7 +89,7 @@ Function LoadTransactionState
     Return
 
     transaction_state_invalid:
-    StrCpy $FailureMessage "先前的知意输入法安装事务不完整或无效。"
+    StrCpy $FailureMessage "$(L_033)"
     Push 0
 FunctionEnd
 
@@ -100,7 +100,7 @@ Function UnregisterTransactionTsf
         Pop $0
         Pop $1
         StrCmp $0 "0" unregister_transaction_x64
-            StrCpy $FailureMessage "无法注销中断安装留下的 32 位 TSF 模块。"
+            StrCpy $FailureMessage "$(L_034)"
             Push 0
             Return
     unregister_transaction_x64:
@@ -110,7 +110,7 @@ Function UnregisterTransactionTsf
         Pop $0
         Pop $1
         StrCmp $0 "0" unregister_transaction_done
-            StrCpy $FailureMessage "无法注销中断安装留下的 64 位 TSF 模块。"
+            StrCpy $FailureMessage "$(L_035)"
             Push 0
             Return
     unregister_transaction_done:
@@ -172,12 +172,12 @@ Function RecoverTransaction
         Push 0
         Return
     transaction_cleanup_done:
-    DetailPrint "已恢复先前的知意输入法安装状态。"
+    DetailPrint "$(L_036)"
     Push 1
     Return
 
     transaction_recovery_failed:
-    StrCpy $FailureMessage "无法恢复先前的知意输入法程序文件。"
+    StrCpy $FailureMessage "$(L_037)"
     Push 0
 FunctionEnd
 
@@ -206,7 +206,7 @@ Function RecoverInterruptedInstall
     Goto recover_remove_uncommitted_stage
     recover_uninstall_transaction_pending:
         StrCpy $FailureMessage \
-            "上一次知意输入法卸载尚未完成。请先重新运行已安装的卸载程序。"
+            "$(L_038)"
         Push 0
         Return
 
@@ -221,6 +221,6 @@ Function RecoverInterruptedInstall
     Return
 
     recover_staged_cleanup_failed:
-    StrCpy $FailureMessage "无法清理已完成安装留下的知意输入法文件。"
+    StrCpy $FailureMessage "$(L_039)"
     Push 0
 FunctionEnd

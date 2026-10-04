@@ -27,7 +27,7 @@ Function un.LoadTransactionState
     Return
 
     un_transaction_state_invalid:
-    StrCpy $FailureMessage "先前的知意输入法卸载事务不完整或无效。"
+    StrCpy $FailureMessage "$(L_099)"
     Push 0
 FunctionEnd
 
@@ -57,14 +57,14 @@ Function un.WriteTransactionState
     FileClose $0
     un_write_transaction_failed:
     Delete "$INSTDIR\${UNINSTALL_TRANSACTION_TEMP}"
-    StrCpy $FailureMessage "无法写入知意输入法卸载事务。"
+    StrCpy $FailureMessage "$(L_100)"
     Push 0
     Return
 
     un_commit_transaction_failed:
     Delete "$INSTDIR\${UNINSTALL_TRANSACTION_TEMP}"
     StrCpy $FailureMessage \
-        "无法提交知意输入法卸载事务（Win32 错误 $1）。"
+        "$(L_101)"
     Push 0
 FunctionEnd
 
@@ -114,7 +114,7 @@ Function un.PrepareTransaction
 
     un_prepare_install_incomplete:
     StrCpy $FailureMessage \
-        "知意输入法安装尚未完成。请重新运行安装程序后再卸载。"
+        "$(L_102)"
     Push 0
 FunctionEnd
 
@@ -125,7 +125,7 @@ Function un.PrepareSystemImeRemoval
     Return
 
     un_prepare_system_ime_removal_failed:
-    StrCpy $FailureMessage "无法记录传统 IME 删除状态。"
+    StrCpy $FailureMessage "$(L_103)"
     Push 0
 FunctionEnd
 
@@ -137,7 +137,7 @@ Function un.UnregisterInstalledTsf
         Pop $0
         Pop $1
         StrCmp $0 "0" un_unregister_installed_x64_path
-            StrCpy $FailureMessage "无法注销 32 位 TSF 模块。"
+            StrCpy $FailureMessage "$(L_104)"
             Push 0
             Return
 
@@ -149,7 +149,7 @@ Function un.UnregisterInstalledTsf
         Pop $0
         Pop $1
         StrCmp $0 "0" un_unregister_installed_done
-            StrCpy $FailureMessage "无法注销 64 位 TSF 模块。"
+            StrCpy $FailureMessage "$(L_105)"
             Push 0
             Return
     un_unregister_installed_done:
@@ -157,12 +157,12 @@ Function un.UnregisterInstalledTsf
     Return
 
     un_unregister_installed_x86_missing:
-    StrCpy $FailureMessage "缺少已注册的 32 位 TSF 模块。"
+    StrCpy $FailureMessage "$(L_106)"
     Push 0
     Return
 
     un_unregister_installed_x64_missing:
-    StrCpy $FailureMessage "缺少已注册的 64 位 TSF 模块。"
+    StrCpy $FailureMessage "$(L_107)"
     Push 0
 FunctionEnd
 
@@ -227,6 +227,6 @@ Function un.RemoveSystemIme
     Return
 
     un_remove_system_ime_failed:
-    DetailPrint "无法登记传统 IME 文件清理，将在后续安装时重试。"
+    DetailPrint "$(L_108)"
     Push 0
 FunctionEnd

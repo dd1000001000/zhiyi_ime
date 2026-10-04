@@ -25,7 +25,7 @@ Function UpgradeLegacyInstall
         Pop $4
         StrCmp $4 "1" upgrade_legacy_install_complete_locked
         StrCpy $FailureMessage \
-            "旧版知意输入法已开始静默清理，但无法完成注册状态交接。请重新运行此安装程序。"
+            "$(L_058)"
         Goto setup_legacy_uninstall_failed_message
     ${EndIf}
     SetRebootFlag true
@@ -51,7 +51,7 @@ Function UpgradeLegacyInstall
     Call AcquireInstallerMutex
     setup_legacy_uninstall_failed_locked:
     StrCpy $FailureMessage \
-        "无法自动卸载旧版知意输入法（结果：$2）。旧版本未被替换，请先手动卸载后重试。"
+        "$(L_059)"
     setup_legacy_uninstall_failed_message:
     IfSilent setup_legacy_uninstall_failed_silent
         MessageBox MB_ICONSTOP "$FailureMessage"

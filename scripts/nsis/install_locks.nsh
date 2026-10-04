@@ -64,7 +64,7 @@ Function CaptureServerState
     Pop $0
     StrCmp $0 "0" capture_server_running
     StrCmp $0 "1" capture_server_not_running
-        StrCpy $FailureMessage "无法读取知意输入法安装前后台状态。"
+        StrCpy $FailureMessage "$(L_023)"
         Push 0
         Return
     capture_server_not_running:
@@ -84,7 +84,7 @@ Function CaptureServerState
         Push 1
         Return
     capture_server_query_failed:
-        StrCpy $FailureMessage "无法读取知意输入法后台进程标识。"
+        StrCpy $FailureMessage "$(L_024)"
         Push 0
 FunctionEnd
 
@@ -109,11 +109,11 @@ Function RestartInstalledServer
             restart_installed_server_failed
     restart_installed_server_ready:
         StrCpy $ServerRestartResult 1
-        DetailPrint "知意输入法后台已恢复启动。"
+        DetailPrint "$(L_025)"
         Goto restart_installed_server_done
     restart_installed_server_failed:
         StrCpy $ServerRestartResult 2
-        DetailPrint "知意输入法后台恢复启动失败。"
+        DetailPrint "$(L_026)"
     restart_installed_server_done:
 FunctionEnd
 
@@ -137,7 +137,7 @@ Function StartNewServer
     start_new_server_failed:
         nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" force-stop-server "$INSTDIR\zhiyi-server.exe"'
         Pop $0
-        StrCpy $FailureMessage "无法确认新版本知意输入法后台已启动。"
+        StrCpy $FailureMessage "$(L_027)"
         Push 0
 FunctionEnd
 
@@ -152,7 +152,7 @@ Function ReleaseInputProcessor
     Pop $0
     Sleep 500
     StrCmp $0 "0" release_input_processor_done
-        DetailPrint "知意输入法 TSF 释放请求失败，继续检查文件占用。"
+        DetailPrint "$(L_028)"
     release_input_processor_done:
 FunctionEnd
 
@@ -287,7 +287,7 @@ Function VerifyRestoredInstall
     restored_install_invalid:
         StrCpy $InstallStateVerified 0
         StrCpy $FailureMessage \
-            "$FailureMessage$\r$\n$\r$\n知意输入法安装前状态未通过恢复校验，未启动后台。"
+            "$(L_029)"
         Push 0
 FunctionEnd
 
@@ -307,7 +307,7 @@ Function ReadLockReport
     lock_report_done:
     ${If} $LockReportText == ""
         StrCpy $LockReportText \
-            "Windows 无法提供正在使用知意输入法的应用程序详情。"
+            "$(L_030)"
     ${EndIf}
 FunctionEnd
 
@@ -338,11 +338,11 @@ Function CollectPreviousVersionLockNotice
     StrCmp $0 "5" collect_previous_locks_found_and_reboot
     StrCmp $0 "timeout" collect_previous_locks_timeout
     StrCmp $0 "0" collect_previous_locks_done
-        DetailPrint "无法读取旧版本文件占用信息，安装继续。"
+        DetailPrint "$(L_031)"
         Goto collect_previous_locks_done
 
     collect_previous_locks_timeout:
-        DetailPrint "检查旧版本文件占用超时，安装继续。"
+        DetailPrint "$(L_032)"
         Goto collect_previous_locks_done
 
     collect_previous_locks_found_and_reboot:

@@ -6,7 +6,7 @@ Function un.RegisterInstalledTsf
         Pop $0
         Pop $1
         StrCmp $0 "0" un_restore_register_x86
-            StrCpy $FailureMessage "无法恢复 64 位 TSF 注册。"
+            StrCpy $FailureMessage "$(L_094)"
             Push 0
             Return
     un_restore_register_x86:
@@ -16,7 +16,7 @@ Function un.RegisterInstalledTsf
         Pop $0
         Pop $1
         StrCmp $0 "0" un_restore_register_done
-            StrCpy $FailureMessage "无法恢复 32 位 TSF 注册。"
+            StrCpy $FailureMessage "$(L_095)"
             Push 0
             Return
     un_restore_register_done:
@@ -24,12 +24,12 @@ Function un.RegisterInstalledTsf
     Return
 
     un_restore_register_x64_missing:
-    StrCpy $FailureMessage "无法恢复 64 位 TSF 模块。"
+    StrCpy $FailureMessage "$(L_096)"
     Push 0
     Return
 
     un_restore_register_x86_missing:
-    StrCpy $FailureMessage "无法恢复 32 位 TSF 模块。"
+    StrCpy $FailureMessage "$(L_097)"
     Push 0
 FunctionEnd
 
@@ -37,7 +37,7 @@ Function un.RestoreInstallationRegistry
     SetRegView 64
     ClearErrors
     WriteRegStr HKLM "${RUN_KEY}" "ZhiyiIMEServer" '"$INSTDIR\zhiyi-server.exe"'
-    WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "知意输入法"
+    WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "$(L_022)"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "${VERSION}"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "Publisher" "${PUBLISHER}"
     WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayIcon" '"$INSTDIR\zhiyi-resources.dll",-100'

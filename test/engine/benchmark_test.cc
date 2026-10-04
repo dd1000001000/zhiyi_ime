@@ -83,7 +83,7 @@ TEST(Benchmark, TraceFieldsPopulated) {
 
     // Top-N is disabled for this fixture so the input exercises the full
     // syllabifier and dictionary lookup pipeline.
-    const char* input = "nihaoshijie";
+    const char* input = "zhonghuarenmin";  // a dictionary word (the compact dictionary has no 你好世界)
     for (const char* p = input; *p; ++p) {
         cxxime::KeyEvent event;
         event.keycode = *p - 'a' + 'A';  // Convert to uppercase VK code
@@ -93,7 +93,7 @@ TEST(Benchmark, TraceFieldsPopulated) {
 
     const auto& trace = engine.last_trace();
 
-    printf("Trace fields for 'nihaoshijie':\n");
+    printf("Trace fields for 'zhonghuarenmin':\n");
     printf("  total_us: %lld\n", trace.total_us);
     printf("  processor_us: %lld\n", trace.processor_us);
     printf("  translate_us: %lld\n", trace.translate_us);
@@ -355,7 +355,7 @@ TEST(Benchmark, CacheMissScanPositive) {
     engine.set_trace_enabled(true);
     fixture.set_page_size(7);
 
-    const char* input = "nihaoshijie";
+    const char* input = "zhonghuarenmin";  // a dictionary word
     for (const char* p = input; *p; ++p) {
         cxxime::KeyEvent event;
         event.keycode = *p - 'a' + 'A';

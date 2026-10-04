@@ -7,7 +7,7 @@ Unicode true
 !include "x64.nsh"
 
 !define PRODUCT "知意输入法"
-!define PUBLISHER "知意输入法 Contributors"
+!define PUBLISHER "Zhiyi IME Contributors"
 !define CLSID "{4EAC2DF0-F298-453E-BD4A-B4B3D3579718}"
 !define UNINSTALL_KEY "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyiIME"
 !define RUN_KEY "SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
@@ -38,7 +38,7 @@ Unicode true
     !error "VERSION_NUMERIC must be provided by package.py"
 !endif
 
-Name "${PRODUCT} ${VERSION}"
+Name "$(L_022) ${VERSION}"
 !ifdef HOST_DIAGNOSTICS
     OutFile "zhiyi-v${VERSION}-host-diag-setup.exe"
 !else
@@ -57,6 +57,12 @@ VIAddVersionKey /LANG=2052 "FileVersion" "${VERSION_NUMERIC}"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "Copyright (c) 2026 知意输入法 Contributors, GPL-3.0; based on CxxIME (Apache-2.0)"
 VIAddVersionKey /LANG=2052 "ProductName" "${PRODUCT}"
 VIAddVersionKey /LANG=2052 "ProductVersion" "${VERSION}"
+VIAddVersionKey /LANG=1033 "CompanyName" "${PUBLISHER}"
+VIAddVersionKey /LANG=1033 "FileDescription" "Zhiyi IME Setup"
+VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION_NUMERIC}"
+VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright (c) 2026 Zhiyi IME Contributors, GPL-3.0; based on CxxIME (Apache-2.0)"
+VIAddVersionKey /LANG=1033 "ProductName" "Zhiyi IME"
+VIAddVersionKey /LANG=1033 "ProductVersion" "${VERSION}"
 
 !define MUI_ICON "zhiyi.ico"
 !define MUI_UNICON "zhiyi.ico"
@@ -127,18 +133,22 @@ Var UninstallCleanupWarning
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_NOREBOOTSUPPORT
 !define MUI_FINISHPAGE_RUN "$INSTDIR\zhiyi-settings.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "启动知意输入法设置"
+!define MUI_FINISHPAGE_RUN_TEXT "$(L_001)"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishPageShow
 !insertmacro MUI_PAGE_FINISH
 UninstPage custom un.ConfirmPage un.ConfirmPageLeave
 !insertmacro MUI_UNPAGE_INSTFILES
 !define MUI_UNTEXT_FINISH_INFO_REBOOT \
-    "知意输入法已卸载。少量正在使用的程序文件将在下次重新启动 Windows 后自动删除。"
+    "$(L_002)"
 !define MUI_FINISHPAGE_NOREBOOTSUPPORT
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.FinishPageShow
 !insertmacro MUI_UNPAGE_FINISH
+; The installer and uninstaller follow the Windows UI language; any language other than
+; Chinese uses English, the first language inserted.
+!insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "SimpChinese"
+!include "nsis\lang.nsh"
 
 !include "nsis\legacy_upgrade.nsh"
 !include "nsis\setup.nsh"
@@ -183,14 +193,14 @@ Section "Install"
     Call ReleaseInputProcessor
     Call StopServer
     StrCmp $ServerStopResult "0" install_server_stopped
-        StrCpy $FailureMessage "无法确认知意输入法后台已终止，未继续覆盖文件。"
+        StrCpy $FailureMessage "$(L_003)"
         Goto install_failed_before_swap
     install_server_stopped:
     Call RecoverInterruptedInstall
     Pop $0
     StrCmp $0 "1" install_recovery_ready
         StrCmp $FailureMessage "" 0 install_failed_recovery
-        StrCpy $FailureMessage "无法安全恢复上一次未完成的知意输入法安装。"
+        StrCpy $FailureMessage "$(L_004)"
         Goto install_failed_recovery
 
     install_recovery_ready:
@@ -218,12 +228,12 @@ Section "Install"
     ClearErrors
     RMDir "$StageDir"
     IfFileExists "$StageDir" 0 install_stage_path_ready
-        StrCpy $FailureMessage "知意输入法更新目录中仍有未完成的安装文件。"
+        StrCpy $FailureMessage "$(L_005)"
         Goto install_failed_before_swap
     install_stage_path_ready:
     CreateDirectory "$StageDir"
     IfErrors 0 install_stage_directory_ready
-        StrCpy $FailureMessage "无法创建知意输入法更新目录。"
+        StrCpy $FailureMessage "$(L_006)"
         Goto install_failed_before_swap
     install_stage_directory_ready:
 
@@ -231,7 +241,7 @@ Section "Install"
 
     WriteUninstaller "$StageDir\uninstall.exe"
     IfErrors 0 install_stage_ready
-        StrCpy $FailureMessage "无法解压知意输入法安装文件。"
+        StrCpy $FailureMessage "$(L_007)"
         Goto install_failed_before_swap
 
     install_stage_ready:
@@ -247,7 +257,7 @@ Section "Install"
     ClearErrors
     Rename "$StageDir" "$INSTDIR"
     IfErrors 0 install_stage_swapped
-        StrCpy $FailureMessage "无法启用新的知意输入法文件。"
+        StrCpy $FailureMessage "$(L_008)"
         Goto install_failed_after_transaction
 
     install_stage_swapped:
@@ -290,7 +300,7 @@ Section "Install"
     ClearErrors
     Delete "$INSTDIR\${TRANSACTION_MARKER}"
     IfErrors 0 install_transaction_marker_removed
-        DetailPrint "安装状态已提交，但未能删除安装事务标记。"
+        DetailPrint "$(L_009)"
     install_transaction_marker_removed:
     Call CollectInstallGarbage
     Delete /REBOOTOK "$InstallBaseDir\${LEGACY_INSTALL_STATE_MARKER}"
@@ -300,8 +310,7 @@ Section "Install"
     StrCmp $0 "1" install_system_ime_committed
         IfSilent install_system_ime_warning_silent
             MessageBox MB_ICONEXCLAMATION \
-                "知意输入法 ${VERSION} 已安装，但系统 IME 模块未能完成更新。$\r$\n$\r$\n$FailureMessage$\r$\n$\r$\n\
-                安装状态已保留，后续运行安装程序时会再次尝试。"
+                "$(L_010)"
         install_system_ime_warning_silent:
         DetailPrint "$FailureMessage"
     install_system_ime_committed:
@@ -310,7 +319,7 @@ Section "Install"
         CopyFiles /SILENT /FILESONLY "$INSTDIR\data\default.json" "$PROFILE\zhiyi"
     install_user_config_ready:
     Call CreateInstallShortcuts
-    DetailPrint "知意输入法 ${VERSION} 安装已完成。"
+    DetailPrint "$(L_011)"
     Goto install_done
 
     install_failed_untrusted_base:
@@ -334,16 +343,16 @@ Section "Install"
     IfFileExists "$StageDir" 0 install_failed_before_swap_cleanup_done
     install_failed_before_swap_cleanup_failed:
     StrCpy $InstallStateVerified 0
-    StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n无法清理安装暂存目录，未恢复启动后台。"
+    StrCpy $FailureMessage "$(L_012)"
     Goto install_failed_before_swap_report_ready
     install_failed_before_swap_cleanup_done:
     Call RestartInstalledServer
     Call CleanupRuntimeSnapshotAfterServerRestore
     StrCmp $ServerRestartResult "2" 0 install_failed_before_swap_report_ready
-        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n知意输入法后台未能自动恢复，请检查占用进程或手动启动知意输入法。"
+        StrCpy $FailureMessage "$(L_013)"
     install_failed_before_swap_report_ready:
     IfSilent install_failed_silent
-        MessageBox MB_ICONSTOP "$FailureMessage$\r$\n$\r$\n已安装的知意输入法文件未发生变化。"
+        MessageBox MB_ICONSTOP "$(L_014)"
         Goto install_failed_abort
 
     install_failed_after_transaction:
@@ -354,7 +363,7 @@ Section "Install"
     Pop $0
     StrCmp $0 "1" install_rollback_complete
         StrCpy $FailureMessage \
-            "$FailureMessage$\r$\n$\r$\n自动回滚未能完成。请重新运行安装程序后再使用知意输入法。"
+            "$(L_015)"
         Goto install_failed_silent_or_message
     install_rollback_complete:
         Call VerifyRestoredInstall
@@ -362,7 +371,7 @@ Section "Install"
         StrCmp $0 "1" install_rollback_verified
             Goto install_failed_silent_or_message
         install_rollback_verified:
-        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n已恢复知意输入法安装前的状态。"
+        StrCpy $FailureMessage "$(L_016)"
         Goto install_failed_silent_or_message
 
     install_failed_recovery:
@@ -373,7 +382,7 @@ Section "Install"
     Call RestartInstalledServer
     Call CleanupRuntimeSnapshotAfterServerRestore
     StrCmp $ServerRestartResult "2" 0 install_failed_restart_report_ready
-        StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n知意输入法后台未能自动恢复，请检查占用进程或手动启动知意输入法。"
+        StrCpy $FailureMessage "$(L_013)"
     install_failed_restart_report_ready:
     IfSilent install_failed_silent
         MessageBox MB_ICONSTOP "$FailureMessage"
@@ -408,7 +417,7 @@ Section "Uninstall"
     Call un.ReleaseInputProcessor
     Call un.StopServer
     StrCmp $UninstallServerStopResult "0" un_server_stopped
-        DetailPrint "知意输入法后台仍在退出；相关程序文件将在 Windows 重启后删除。"
+        DetailPrint "$(L_017)"
     un_server_stopped:
     Call un.CheckFileLocks
     Call un.ValidateInstallLifecycle
@@ -437,10 +446,10 @@ Section "Uninstall"
     Pop $0
     StrCmp $0 "1" un_rollback_complete
         StrCpy $FailureMessage \
-            "$FailureMessage$\r$\n$\r$\n自动回滚未能完成。请重新运行卸载程序后再使用知意输入法。"
+            "$(L_018)"
         Call un.FailAndRestart
     un_rollback_complete:
-    StrCpy $FailureMessage "$FailureMessage$\r$\n$\r$\n已恢复卸载前的知意输入法状态。"
+    StrCpy $FailureMessage "$(L_019)"
     Call un.FailAndRestart
 
     un_remove_registry:
@@ -456,14 +465,14 @@ Section "Uninstall"
     ReadRegStr $0 HKLM "${UNINSTALL_KEY}" "DisplayName"
     IfErrors un_uninstall_registry_removed
         StrCpy $FailureMessage \
-            "无法删除知意输入法卸载注册表项。请重新运行卸载程序。"
+            "$(L_020)"
         Goto un_rollback_failure
     un_uninstall_registry_removed:
     ClearErrors
     ReadRegStr $0 HKLM "${RUN_KEY}" "ZhiyiIMEServer"
     IfErrors un_run_registry_removed
         StrCpy $FailureMessage \
-            "无法删除知意输入法启动注册表项。请重新运行卸载程序。"
+            "$(L_021)"
         Goto un_rollback_failure
     un_run_registry_removed:
 
@@ -471,7 +480,9 @@ Section "Uninstall"
     Pop $0
     StrCmp $0 "1" +2
         StrCpy $UninstallCleanupWarning 1
+    ; Start menu folder in either language (the installer language may have changed).
     RMDir /r "$SMPROGRAMS\知意输入法"
+    RMDir /r "$SMPROGRAMS\Zhiyi IME"
     Call un.CommitInstallLifecycle
     Pop $0
     StrCmp $0 "1" +2

@@ -106,14 +106,14 @@ Function WriteTransactionState
     FileClose $0
     transaction_state_write_failed:
     Delete "$StageDir\${TRANSACTION_TEMP}"
-    StrCpy $FailureMessage "无法写入知意输入法安装事务。"
+    StrCpy $FailureMessage "$(L_040)"
     Push 0
     Return
 
     transaction_state_commit_failed:
     Delete "$StageDir\${TRANSACTION_TEMP}"
     StrCpy $FailureMessage \
-        "无法提交知意输入法安装事务（Win32 错误 $1）。"
+        "$(L_041)"
     Push 0
 FunctionEnd
 
@@ -124,7 +124,7 @@ Function PrepareSystemImeUpdate
     Return
 
     prepare_system_ime_failed:
-    StrCpy $FailureMessage "无法记录知意输入法系统 IME 更新状态。"
+    StrCpy $FailureMessage "$(L_042)"
     Push 0
 FunctionEnd
 
@@ -207,16 +207,16 @@ Function CopyNewSystemIme
     Return
 
     install_system_ime_marker_failed:
-    StrCpy $FailureMessage "无法完成知意输入法系统 IME 更新状态。"
+    StrCpy $FailureMessage "$(L_043)"
     Push 0
     Return
     install_system_ime_x64_failed:
     Delete "$4"
-    StrCpy $FailureMessage "无法安装 64 位传统 IME 模块。"
+    StrCpy $FailureMessage "$(L_044)"
     Push 0
     Return
     install_system_ime_x86_failed:
     Delete "$5"
-    StrCpy $FailureMessage "无法安装 32 位传统 IME 模块。"
+    StrCpy $FailureMessage "$(L_045)"
     Push 0
 FunctionEnd

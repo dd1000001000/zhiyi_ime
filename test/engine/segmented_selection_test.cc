@@ -960,6 +960,7 @@ TEST(SegmentedSelection, real_dictionary_can_select_wu_then_zong) {
 
     int wu_index = -1;
     int wu_page = -1;
+    bool partial_seen = false;
     for (int page = 0; page < 4 && wu_index < 0; ++page) {
         const auto& translation = engine.context().translation();
         for (std::size_t index = 0; index < translation.entries.size(); ++index) {
@@ -968,13 +969,17 @@ TEST(SegmentedSelection, real_dictionary_can_select_wu_then_zong) {
             ASSERT_TRUE(action != nullptr);
             const std::size_t global_position =
                 static_cast<std::size_t>(translation.page_offset) + index;
-            if (global_position < cxxime::kLeadingFullSpanCandidateCount) {
-                ASSERT_EQ(action->consumed_input_bytes, std::string("wuzong").size());
-                // Two characters, or a longer word starting with wu zong (乌棕鹅).
+            // Full-span words (two characters or longer, e.g. 乌棕鹅) come first, at least
+            // kLeadingFullSpanCandidateCount of them when the dictionary has that many; then
+            // the partial candidates for "wu".
+            if (action->consumed_input_bytes == std::string("wuzong").size()) {
+                ASSERT_TRUE(!partial_seen);
                 ASSERT_GE(entry.candidate.text.size(), 6u);
             } else {
                 ASSERT_EQ(action->consumed_input_bytes, 2u);
+                partial_seen = true;
             }
+            (void)global_position;
             if (entry.candidate.text == "乌" && action->consumed_input_bytes == 2) {
                 wu_index = static_cast<int>(index);
                 wu_page = page;

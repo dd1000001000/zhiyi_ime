@@ -346,10 +346,14 @@ void TextService::_register_switch_keys() {
         if (keys[i].key.modifiers & cxxime::kKeyModifierControl) preserved.uModifiers |= TF_MOD_CONTROL;
         if (keys[i].key.modifiers & cxxime::kKeyModifierAlt) preserved.uModifiers |= TF_MOD_ALT;
         if (keys[i].key.modifiers & cxxime::kKeyModifierShift) preserved.uModifiers |= TF_MOD_SHIFT;
-        if (SUCCEEDED(keystroke_mgr->PreserveKey(_clientId, *keys[i].guid, &preserved,
-                                                 keys[i].description,
-                                                 static_cast<ULONG>(wcslen(keys[i].description))))) {
+        const HRESULT hr = keystroke_mgr->PreserveKey(
+            _clientId, *keys[i].guid, &preserved, keys[i].description,
+            static_cast<ULONG>(wcslen(keys[i].description)));
+        if (SUCCEEDED(hr)) {
             _preservedSwitchKeys[i] = keys[i].key;
+        } else {
+            // E.g. another text service preserved the same key in this thread.
+            cxxime_tsf::trace_activation_step("switch_key", "preserve_failed", hr, false);
         }
     }
     keystroke_mgr->Release();

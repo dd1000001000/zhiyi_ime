@@ -122,6 +122,26 @@ TEST(KeyboardShortcut, validators_apply_context_specific_rules) {
     ASSERT_TRUE(cxxime::is_valid_activate_ime_shortcut(shortcut));
 }
 
+TEST(KeyboardShortcut, reads_win32_hotkeys_and_flags_common_program_shortcuts) {
+    // ImmGetHotKey reports Ctrl+Space as MOD_CONTROL plus side flags (0xC000).
+    const cxxime::KeyboardShortcut ctrl_space =
+        cxxime::shortcut_from_win32_hotkey(MOD_CONTROL | 0xC000, VK_SPACE);
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(ctrl_space) == "Ctrl+Space");
+    const cxxime::KeyboardShortcut ctrl_alt_g =
+        cxxime::shortcut_from_win32_hotkey(MOD_CONTROL | MOD_ALT, 'G');
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(ctrl_alt_g) == "Ctrl+Alt+G");
+
+    cxxime::KeyboardShortcut shortcut;
+    for (const char* common : {"Ctrl+T", "Ctrl+W", "Ctrl+N", "Ctrl+P", "Ctrl+R", "F5", "F1"}) {
+        ASSERT_TRUE(cxxime::parse_keyboard_shortcut(common, &shortcut));
+        ASSERT_TRUE(cxxime::is_common_program_shortcut(shortcut));
+    }
+    for (const char* other : {"Ctrl+Space", "Ctrl+Shift+T", "F8", "Alt+T"}) {
+        ASSERT_TRUE(cxxime::parse_keyboard_shortcut(other, &shortcut));
+        ASSERT_TRUE(!cxxime::is_common_program_shortcut(shortcut));
+    }
+}
+
 TEST(KeyboardShortcut, converts_modifiers_for_register_hotkey) {
     const cxxime::KeyboardShortcut shortcut = {
         cxxime::kKeyModifierControl | cxxime::kKeyModifierAlt | cxxime::kKeyModifierShift,

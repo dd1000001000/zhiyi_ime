@@ -386,6 +386,10 @@ Save-CommandOutput -Path (Join-Path $root "registry-tip-32.txt") -Command {
 Save-CommandOutput -Path (Join-Path $root "keyboard-preload.txt") -Command {
     reg.exe query "HKCU\Keyboard Layout\Preload"
 }
+# Windows input method hotkeys (they can collide with the configured switch keys).
+Save-CommandOutput -Path (Join-Path $root "ime-hotkeys.txt") -Command {
+    reg.exe query "HKCU\Control Panel\Input Method\Hot Keys" /s
+}
 Save-CommandOutput -Path (Join-Path $root "registry-keyboard-layouts-zhiyi.txt") -Command {
     reg.exe query "HKLM\SYSTEM\CurrentControlSet\Control\Keyboard Layouts" /s /f "zhiyi.ime"
 }

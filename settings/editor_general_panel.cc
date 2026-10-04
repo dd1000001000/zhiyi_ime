@@ -16,6 +16,7 @@
 #include <cxxime/user_dict.h>
 
 #include "editor_app_internal.h"
+#include "hotkey_check.h"
 #include "key_capture.h"
 
 namespace cxxime {
@@ -241,7 +242,7 @@ void EditorApp::create_keys_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     int y = kPanelPadTop;
     const int labels = label_width({"keys.switch", "keys.style", "keys.punct", "keys.shape"});
-    const int box_width = S(260);
+    const int box_width = S(340);
     struct Row {
         const char* label;
         int id;
@@ -387,6 +388,43 @@ void EditorApp::set_switch_key_boxes(const Config& config) {
     key_capture_set(hStyleKey_, KeyChoice::of(config.english_style_shortcut));
     key_capture_set(hPunctKey_, KeyChoice::of(config.punct_toggle_shortcut));
     key_capture_set(hShapeKey_, KeyChoice::of(config.shape_toggle_shortcut));
+    update_switch_key_notes();
+}
+
+// Checked on this machine each time (programs come and go): another program's global hotkey
+// wins over the IME, a Windows input method hotkey is taken over by it.
+void EditorApp::update_switch_key_notes() {
+    for (HWND box : {hSwitchKey_, hStyleKey_, hPunctKey_, hShapeKey_}) {
+        if (!box) continue;
+        const KeyChoice choice = key_capture_get(box);
+        if (choice.kind != KeyChoice::Kind::kCombo) {
+            key_capture_set_note(box, KeyNote::kNone, {});
+            continue;
+        }
+        if (taken_by_other_program(choice.combo)) {
+            key_capture_set_note(box, KeyNote::kWarning, tr("keys.note_taken"));
+            continue;
+        }
+        const char* system_name = nullptr;
+        switch (system_ime_hotkey(choice.combo)) {
+        case SystemHotkey::kImeToggle: system_name = "keys.sys_ime_toggle"; break;
+        case SystemHotkey::kShape: system_name = "keys.sys_shape"; break;
+        case SystemHotkey::kSymbol: system_name = "keys.sys_symbol"; break;
+        case SystemHotkey::kLayout: system_name = "keys.sys_layout"; break;
+        case SystemHotkey::kOtherIme: system_name = "keys.sys_other_ime"; break;
+        case SystemHotkey::kNone: break;
+        }
+        if (system_name) {
+            std::wstring note = tr("keys.note_system");
+            const size_t at = note.find(L"{0}");
+            if (at != std::wstring::npos) note.replace(at, 3, tr(system_name));
+            key_capture_set_note(box, KeyNote::kInfo, note);
+        } else if (is_common_program_shortcut(choice.combo)) {
+            key_capture_set_note(box, KeyNote::kInfo, tr("keys.note_program"));
+        } else {
+            key_capture_set_note(box, KeyNote::kNone, {});
+        }
+    }
 }
 
 void EditorApp::restore_default_keys() {
@@ -439,6 +477,14 @@ bool EditorApp::handle_command(int control_id, int notification) {
     case kRestoreKeysId:
         if (notification == BN_CLICKED) {
             restore_default_keys();
+        }
+        return true;
+    case kSwitchKeyId:
+    case kStyleKeyId:
+    case kPunctKeyId:
+    case kShapeKeyId:
+        if (notification == kKeyCaptureChanged) {
+            update_switch_key_notes();
         }
         return true;
     default:

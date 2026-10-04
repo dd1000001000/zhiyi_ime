@@ -37,6 +37,12 @@ bool is_valid_input_mode_shortcut(const KeyboardShortcut& shortcut);
 bool is_common_app_shortcut(const KeyboardShortcut& shortcut);
 bool is_valid_activate_ime_shortcut(const KeyboardShortcut& shortcut);
 uint32_t keyboard_shortcut_win32_modifiers(const KeyboardShortcut& shortcut);
+// MOD_ALT / MOD_CONTROL / MOD_SHIFT flags (RegisterHotKey, ImmGetHotKey) and a virtual key; other
+// flags (left/right side, key up, no repeat) are ignored.
+KeyboardShortcut shortcut_from_win32_hotkey(uint32_t win32_modifiers, uint32_t virtual_key);
+// Shortcuts many programs use (new / close tab, print, refresh, help ...): allowed as switch
+// keys, with a note that a program may lose them.
+bool is_common_program_shortcut(const KeyboardShortcut& shortcut);
 
 } // namespace cxxime
 

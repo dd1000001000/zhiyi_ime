@@ -245,6 +245,35 @@ bool is_valid_activate_ime_shortcut(const KeyboardShortcut& shortcut) {
     return (shortcut.modifiers & (kKeyModifierControl | kKeyModifierAlt)) != 0;
 }
 
+KeyboardShortcut shortcut_from_win32_hotkey(uint32_t win32_modifiers, uint32_t virtual_key) {
+    KeyboardShortcut shortcut;
+    shortcut.virtual_key = virtual_key;
+    if ((win32_modifiers & MOD_ALT) != 0) shortcut.modifiers |= kKeyModifierAlt;
+    if ((win32_modifiers & MOD_CONTROL) != 0) shortcut.modifiers |= kKeyModifierControl;
+    if ((win32_modifiers & MOD_SHIFT) != 0) shortcut.modifiers |= kKeyModifierShift;
+    return shortcut;
+}
+
+bool is_common_program_shortcut(const KeyboardShortcut& shortcut) {
+    if (shortcut.modifiers == 0) {
+        return shortcut.virtual_key >= VK_F1 && shortcut.virtual_key <= VK_F5;
+    }
+    if (shortcut.modifiers != kKeyModifierControl) {
+        return false;
+    }
+    switch (shortcut.virtual_key) {
+    case 'N':
+    case 'O':
+    case 'P':
+    case 'R':
+    case 'T':
+    case 'W':
+        return true;
+    default:
+        return false;
+    }
+}
+
 uint32_t keyboard_shortcut_win32_modifiers(const KeyboardShortcut& shortcut) {
     uint32_t modifiers = MOD_NOREPEAT;
     if ((shortcut.modifiers & kKeyModifierShift) != 0) {

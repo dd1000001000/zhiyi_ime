@@ -43,6 +43,10 @@ void key_capture_set_check(HWND control, KeyCaptureCheck check);
 
 bool same_key_choice(const KeyChoice& left, const KeyChoice& right);
 
+// A note after the key: gray information, or a warning on a yellow box.
+enum class KeyNote { kNone, kInfo, kWarning };
+void key_capture_set_note(HWND control, KeyNote kind, const std::wstring& text);
+
 // "Shift", "Ctrl + Space"; `none` for no key.
 std::wstring key_choice_text(const KeyChoice& choice, const wchar_t* none);
 

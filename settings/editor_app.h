@@ -56,6 +56,7 @@ private:
     void update_enabled_controls();
     void clear_learning_data();
     void set_switch_key_boxes(const cxxime::Config& config);
+    void update_switch_key_notes();
     void restore_default_keys();
 
     HWND hwnd_ = nullptr;

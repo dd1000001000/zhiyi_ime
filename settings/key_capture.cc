@@ -28,6 +28,8 @@ struct State {
     bool hover = false;
     const wchar_t* message = nullptr;  // why the last key was not taken (while capturing)
     std::wstring notice;               // why the key was kept (shown for a moment afterwards)
+    KeyNote note_kind = KeyNote::kNone;
+    std::wstring note;                 // shown after the key
     KeyCaptureCheck check;
     // The key presses of one capture: modifiers seen, and whether another key came with them.
     uint32_t modifiers_seen = 0;
@@ -177,7 +179,16 @@ void paint(HWND window, State* state) {
     FillRect(dc, &rect, GetSysColorBrush(COLOR_WINDOW));
 
     const bool focused = GetFocus() == window;
+    const bool show_note = !state->capturing && state->notice.empty() && !state->note.empty() &&
+                           state->choice.kind != KeyChoice::Kind::kNone;
+    const bool warning = show_note && state->note_kind == KeyNote::kWarning;
+    if (warning) {
+        HBRUSH yellow = CreateSolidBrush(RGB(255, 247, 214));
+        FillRect(dc, &rect, yellow);
+        DeleteObject(yellow);
+    }
     const COLORREF border = state->capturing ? RGB(0, 103, 192)
+                            : warning         ? RGB(222, 170, 40)
                             : state->hover    ? RGB(120, 120, 120)
                                               : RGB(170, 170, 170);
     const int thickness = state->capturing ? (std::max)(2, S(2)) : 1;
@@ -206,6 +217,23 @@ void paint(HWND window, State* state) {
     RECT text_rect = {rect.left + S(8), rect.top, rect.right - S(6), rect.bottom};
     DrawTextW(dc, text.c_str(), -1, &text_rect,
               DT_SINGLELINE | DT_VCENTER | DT_LEFT | DT_END_ELLIPSIS | DT_NOPREFIX);
+    if (show_note) {
+        // Smaller text after the key.
+        RECT measured = text_rect;
+        DrawTextW(dc, text.c_str(), -1, &measured,
+                  DT_SINGLELINE | DT_LEFT | DT_NOPREFIX | DT_CALCRECT);
+        LOGFONTW font = {};
+        GetObjectW(get_font(), sizeof(font), &font);
+        font.lfHeight = font.lfHeight * 4 / 5;
+        HFONT small = CreateFontIndirectW(&font);
+        SelectObject(dc, small);
+        SetTextColor(dc, warning ? RGB(150, 98, 0) : RGB(128, 128, 128));
+        RECT note_rect = {measured.right + S(10), rect.top, rect.right - S(6), rect.bottom};
+        DrawTextW(dc, state->note.c_str(), -1, &note_rect,
+                  DT_SINGLELINE | DT_VCENTER | DT_LEFT | DT_END_ELLIPSIS | DT_NOPREFIX);
+        SelectObject(dc, get_font());
+        DeleteObject(small);
+    }
     SelectObject(dc, old_font);
     if (focused && !state->capturing) {
         RECT focus = {rect.left + 3, rect.top + 3, rect.right - 3, rect.bottom - 3};
@@ -347,6 +375,14 @@ void key_capture_set(HWND control, const KeyChoice& choice) {
         state->choice = choice;
         state->capturing = false;
         state->message = nullptr;
+        InvalidateRect(control, nullptr, TRUE);
+    }
+}
+
+void key_capture_set_note(HWND control, KeyNote kind, const std::wstring& text) {
+    if (State* state = state_of(control)) {
+        state->note_kind = text.empty() ? KeyNote::kNone : kind;
+        state->note = text;
         InvalidateRect(control, nullptr, TRUE);
     }
 }

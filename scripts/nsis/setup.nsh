@@ -454,7 +454,7 @@ Function SecureInstallBase
     Pop $0
     StrCmp $0 "0" secure_install_base_done
     secure_install_base_failed:
-    StrCpy $FailureMessage "无法安全地准备知意输入法产品目录。"
+    StrCpy $FailureMessage "无法安全地准备知意输入法产品目录：$InstallBaseDir$\r$\n请选择一个新的或空的文件夹（不能是符号链接或网络位置）。"
     Push 0
     Return
     secure_install_base_done:

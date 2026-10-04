@@ -147,27 +147,22 @@ bool object_prevents_untrusted_access(const std::wstring& path, ACCESS_MASK dang
     return protected_parent;
 }
 
-bool path_ancestors_prevent_untrusted_replacement(const std::wstring& path) {
-    constexpr ACCESS_MASK kReplacementRights =
-        FILE_DELETE_CHILD | DELETE | WRITE_DAC | WRITE_OWNER | GENERIC_ALL;
-    size_t separator = path.find_last_of(L'\\');
-    if (separator == std::wstring::npos || separator < 2) {
-        return false;
+bool directory_is_empty(const std::wstring& path) {
+    WIN32_FIND_DATAW entry = {};
+    const std::wstring pattern = path + L"\\*";
+    HANDLE search = FindFirstFileW(pattern.c_str(), &entry);
+    if (search == INVALID_HANDLE_VALUE) {
+        return GetLastError() == ERROR_FILE_NOT_FOUND;
     }
-    std::wstring ancestor = separator == 2 ? path.substr(0, 3) : path.substr(0, separator);
-    for (;;) {
-        if (!object_prevents_untrusted_access(ancestor, kReplacementRights)) {
-            return false;
+    bool empty = true;
+    do {
+        if (wcscmp(entry.cFileName, L".") != 0 && wcscmp(entry.cFileName, L"..") != 0) {
+            empty = false;
+            break;
         }
-        if (ancestor.size() == 3) {
-            return true;
-        }
-        separator = ancestor.find_last_of(L'\\');
-        if (separator == std::wstring::npos || separator < 2) {
-            return false;
-        }
-        ancestor = separator == 2 ? ancestor.substr(0, 3) : ancestor.substr(0, separator);
-    }
+    } while (FindNextFileW(search, &entry) != FALSE);
+    FindClose(search);
+    return empty;
 }
 
 bool apply_protected_security(const std::wstring& path, PSID protected_owner,
@@ -253,9 +248,11 @@ int secure_install_root(const std::wstring& path) {
     }
     const std::wstring parent =
         separator == 2 ? normalized.substr(0, 3) : normalized.substr(0, separator);
+    // The install root may live on any local drive (data drives usually let Authenticated Users
+    // modify their root), so only the root and its contents are locked down; the ancestors just
+    // have to be real directories, not links.
     std::wstring normalized_parent;
-    if (!path_ancestors_are_directories(parent, &normalized_parent) ||
-        !path_ancestors_prevent_untrusted_replacement(normalized)) {
+    if (!path_ancestors_are_directories(parent, &normalized_parent)) {
         return 1;
     }
 
@@ -299,6 +296,10 @@ int secure_install_root(const std::wstring& path) {
         LocalFree(descriptor);
         return 1;
     }
+    // An existing empty folder (for example one the user created in the folder picker) holds
+    // nothing that could have been tampered with, so it is adopted and locked down. A non-empty
+    // tree must already be protected before it is trusted.
+    const bool adopt_empty_root = directory_is_empty(normalized);
 
     HANDLE root_handle = CreateFileW(
         normalized.c_str(), READ_CONTROL | WRITE_DAC | WRITE_OWNER | FILE_LIST_DIRECTORY,
@@ -308,8 +309,10 @@ int secure_install_root(const std::wstring& path) {
         LocalFree(descriptor);
         return 1;
     }
-    const bool secured = inspect_install_tree(normalized, owner, dacl, false) &&
-                         inspect_install_tree(normalized, owner, dacl, true);
+    const bool secured =
+        (adopt_empty_root ? apply_protected_security(normalized, owner, dacl)
+                          : inspect_install_tree(normalized, owner, dacl, false)) &&
+        inspect_install_tree(normalized, owner, dacl, true);
     CloseHandle(root_handle);
     LocalFree(descriptor);
     return secured ? 0 : 1;

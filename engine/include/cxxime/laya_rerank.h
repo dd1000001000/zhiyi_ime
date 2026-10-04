@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Laya IME Contributors. Apache License 2.0.
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
 // Laya context reranking: reorders the first page of pinyin candidates with the Laya decision
 // model (ONNX, CPU), using the text committed so far as context.

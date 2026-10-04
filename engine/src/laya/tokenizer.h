@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 // Laya (mmBERT) 分词器的 C++ 实现, 读取 Hugging Face tokenizer.json。
 //
 // 只实现该模型实际用到的组件:

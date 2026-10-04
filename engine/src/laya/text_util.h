@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 // UTF-8 / UTF-16 小工具 (Windows API 用 UTF-16, 其余一律 UTF-8)。
 #pragma once
 

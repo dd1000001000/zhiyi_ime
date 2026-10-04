@@ -25,7 +25,8 @@ SHA-256；它同样不作为源文件维护。
 - 五笔词典和 `symbols.json` 派生自
   [rime-wubi86-jidian](https：//github.com/KyleBing/rime-wubi86-jidian)，按
   Apache-2.0 发布。
-- 项目代码的 Apache-2.0 许可证不替代上述第三方词典数据各自的许可证。
+- 知意输入法整体按 GPL-3.0-only 发布，不替代上述第三方词典数据各自的许可证；
+  Apache-2.0 全文见 `licenses/Apache-2.0.txt`。
 
 ## 本地工具入口
 

@@ -182,6 +182,7 @@ Function CleanupLegacyInstallFiles
     Delete /REBOOTOK "$RegisteredInstallDir\data\wubi86.reverse.idx"
     Delete /REBOOTOK "$RegisteredInstallDir\licenses\rime-ice-GPL-3.0.txt"
     Delete /REBOOTOK "$RegisteredInstallDir\licenses\miniz-MIT.txt"
+    Delete /REBOOTOK "$RegisteredInstallDir\licenses\Apache-2.0.txt"
     RMDir /r /REBOOTOK "$RegisteredInstallDir\.zhiyi-rollback"
     RMDir /r /REBOOTOK "$RegisteredInstallDir\.zhiyi-uninstall-rollback"
     RMDir /REBOOTOK "$RegisteredInstallDir\data"

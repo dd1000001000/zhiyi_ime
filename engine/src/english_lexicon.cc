@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Laya IME Contributors. Apache License 2.0.
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 
 #include <cxxime/english_lexicon.h>
 

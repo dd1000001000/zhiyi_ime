@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Laya IME Contributors. Apache License 2.0.
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
 // Scores bench samples with the C++ reranker (the code the IME runs) and reports top-1 accuracy;
 // with an output path, also writes the probabilities so they can be compared with Python

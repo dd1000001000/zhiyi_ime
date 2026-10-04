@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 // Laya 候选重排: 构造与训练时完全一致的输入序列, 用 ONNX Runtime (CPU) 推理。
 #pragma once
 

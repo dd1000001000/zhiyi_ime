@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 #include "reranker.h"
 
 #include <algorithm>

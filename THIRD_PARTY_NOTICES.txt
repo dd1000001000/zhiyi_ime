@@ -15,8 +15,10 @@ License: Apache License 2.0
 
 Copyright (c) 2026 CxxIME Contributors
 
-知意输入法 is a modified version of CxxIME; see NOTICE for the changes. The Apache
-License 2.0 text is included in LICENSE.
+知意输入法 is a modified version of CxxIME; see NOTICE for the changes. The files
+taken from CxxIME keep their Apache License 2.0 notices; the license text is in
+data/licenses/Apache-2.0.txt (licenses/Apache-2.0.txt in binary packages). 知意输入法
+as a whole is distributed under GPL-3.0-only (LICENSE).
 
 
 darts-clone v0.32h
@@ -129,8 +131,9 @@ Upstream: https://github.com/KyleBing/rime-wubi86-jidian
 License: Apache License 2.0
 
 The Wubi dictionary and symbol categories distributed with 知意输入法 are derived
-from this project. The Apache License 2.0 text is included in LICENSE in source
-distributions and license.txt in binary packages.
+from this project. The Apache License 2.0 text is included in
+data/licenses/Apache-2.0.txt in source distributions and licenses/Apache-2.0.txt
+in binary packages.
 
 
 Unicode 17.0 classification data

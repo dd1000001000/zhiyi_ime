@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Laya IME Contributors. Apache License 2.0.
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
 // Laya recommendation mark: a four-point star with a small companion star in the space reserved
 // after the recommended candidate (CandidateRect::mark_rect). For kSparkleDurationMs after the

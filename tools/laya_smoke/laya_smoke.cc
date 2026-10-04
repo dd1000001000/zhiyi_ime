@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Laya IME Contributors. Apache License 2.0.
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
 // End-to-end check of Laya reranking inside the real Engine (project dictionary + model):
 // types a sentence word by word in two engines (reranking off / on), selects the target word

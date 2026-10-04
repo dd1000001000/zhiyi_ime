@@ -69,6 +69,7 @@ def check_installer_payload(
         "zhiyi-server.exe",
         "zhiyi-settings.exe",
         "uninstall.exe",
+        "licenses/Apache-2.0.txt",
         "licenses/miniz-MIT.txt",
         "licenses/rime-ice-GPL-3.0.txt",
         *(f"data/{name}" for name in manifest_files),

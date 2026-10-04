@@ -38,6 +38,7 @@ def check_required_files(
         "zhiyi.ico",
         "license.txt",
         "THIRD_PARTY_NOTICES.txt",
+        os.path.join("licenses", "Apache-2.0.txt"),
         os.path.join("licenses", "rime-ice-GPL-3.0.txt"),
         os.path.join("data", "default.json"),
         os.path.join("data", "settings_presets.json"),

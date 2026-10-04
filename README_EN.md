@@ -58,9 +58,10 @@ window and settings app, and adds Laya context reranking, the English word mode,
 switching and the recommendation mark, with a new name, icon and system registration identifiers.
 See [NOTICE](NOTICE) for the list of changes.
 
-- Code: Apache License 2.0 ([LICENSE](LICENSE))
-- The Chinese pinyin dictionary and English word list come from [rime-ice](https://github.com/iDvel/rime-ice)
-  (GPL-3.0-only), so distributions that include them are distributed under GPL-3.0 as a whole
+- Zhiyi IME as a whole is licensed under **GPL-3.0-only** ([LICENSE](LICENSE))
+- Source files taken from CxxIME keep their Apache License 2.0 notices (full text in
+  [data/licenses/Apache-2.0.txt](data/licenses/Apache-2.0.txt))
+- The Chinese pinyin dictionary and English word list come from [rime-ice](https://github.com/iDvel/rime-ice) (GPL-3.0-only)
 - English word frequencies: [wordfreq](https://github.com/rspeer/wordfreq) (data CC BY-SA 4.0)
 - The Laya model (Apache-2.0) and ONNX Runtime (MIT)
 

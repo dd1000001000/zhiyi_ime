@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Laya IME Contributors. Apache License 2.0.
+// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
 // English word list for word candidates and completion (data/english.words.tsv, built by
 // data/tools/build_english_dictionary.py from the rime-ice English dictionaries).

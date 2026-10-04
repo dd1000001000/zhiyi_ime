@@ -54,7 +54,7 @@ VIProductVersion "${VERSION_NUMERIC}"
 VIAddVersionKey /LANG=2052 "CompanyName" "${PUBLISHER}"
 VIAddVersionKey /LANG=2052 "FileDescription" "知意输入法安装程序"
 VIAddVersionKey /LANG=2052 "FileVersion" "${VERSION_NUMERIC}"
-VIAddVersionKey /LANG=2052 "LegalCopyright" "Copyright (c) 2026 知意输入法 Contributors; based on 知意输入法 (Apache-2.0)"
+VIAddVersionKey /LANG=2052 "LegalCopyright" "Copyright (c) 2026 知意输入法 Contributors, GPL-3.0; based on CxxIME (Apache-2.0)"
 VIAddVersionKey /LANG=2052 "ProductName" "${PRODUCT}"
 VIAddVersionKey /LANG=2052 "ProductVersion" "${VERSION}"
 

@@ -67,7 +67,7 @@ inline void show_about_dialog(HWND parent = nullptr) {
     };
 
     label(L"知意输入法", 16, 24, hBold);
-    label(L"版本 " CXXIME_VERSION_WSTRING L" — Apache License 2.0", 44, 20, hFont);
+    label(L"版本 " CXXIME_VERSION_WSTRING L" — GPL-3.0", 44, 20, hFont);
     label(L"轻量 · 开源 · 懂上文的中英文输入法（Zhiyi IME）", 68, 20, hFont);
     label(L"基于 CxxIME 修改（Apache License 2.0），原项目：", 96, 20, hFont);
     label(L"https://github.com/deanxyuan/cxx-ime", 120, 20, hFont);

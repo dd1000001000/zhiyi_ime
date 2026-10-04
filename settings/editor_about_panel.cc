@@ -82,7 +82,7 @@ void EditorApp::create_about_panel(HWND panel, int panel_width) {
         return control;
     };
     hAboutTitle_ = make_about_text(L"知意输入法", top, S(28), hAboutTitleFont_);
-    make_about_text(L"版本 " CXXIME_VERSION_WSTRING L" — Apache License 2.0", top + kRowH, kCtrlH,
+    make_about_text(L"版本 " CXXIME_VERSION_WSTRING L" — GPL-3.0", top + kRowH, kCtrlH,
                     get_font());
     make_about_text(L"轻量 · 开源 · 懂上文的中英文输入法（Zhiyi IME）", top + kRowH * 2, kCtrlH,
                     get_font());

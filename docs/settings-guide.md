@@ -384,13 +384,11 @@ CapsLock 键在输入法中的行为模式。下拉框提供 5 个选项：
 
 ## 面板八：关于
 
-显示 CxxIME 的版本信息和项目链接：
+显示知意输入法的版本信息和原项目链接：
 
 - 版本号：取自仓库根目录的 `VERSION` 文件（如 `0.1.0-beta.7`）
-- 许可证：Apache License 2.0
-- 项目地址：
-  - Gitee: https://gitee.com/shadowyuan/cxx-ime
-  - GitHub: https://github.com/deanxyuan/cxx-ime
+- 许可证：GPL-3.0（基于 CxxIME 修改，CxxIME 为 Apache License 2.0）
+- 原项目地址：https://github.com/deanxyuan/cxx-ime
 
 ---
 

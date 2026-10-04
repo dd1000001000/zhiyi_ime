@@ -51,9 +51,9 @@ build_laya.bat test                   :: 运行单元测试
 修改而来：保留了它的 TSF 前端、拼音引擎、候选窗与设置程序，新增了 Laya 上文重排、英文单词模式、
 三种输入模式切换与推荐标记，并更换了名称、图标与系统注册标识。改动说明见 [NOTICE](NOTICE)。
 
-- 程序代码：Apache License 2.0（[LICENSE](LICENSE)）
-- 中文拼音词库与英文词表来自 [rime-ice](https://github.com/iDvel/rime-ice)（GPL-3.0-only），
-  因此包含词库的发行版整体按 GPL-3.0 分发
+- 知意输入法整体按 **GPL-3.0-only** 发布（[LICENSE](LICENSE)）
+- 来自 CxxIME 的源文件保留其 Apache License 2.0 声明（全文见 [data/licenses/Apache-2.0.txt](data/licenses/Apache-2.0.txt)）
+- 中文拼音词库与英文词表来自 [rime-ice](https://github.com/iDvel/rime-ice)（GPL-3.0-only）
 - 英文词频来自 [wordfreq](https://github.com/rspeer/wordfreq)（数据 CC BY-SA 4.0）
 - Laya 模型（Apache-2.0）与 ONNX Runtime（MIT）
 

@@ -1,6 +1,6 @@
 ; Installer and uninstaller strings (generated from the Chinese originals).
-; The language follows Windows; languages other than Chinese use English, the first
-; language inserted in zhiyi-setup.nsi.
+; The installer language is chosen in the language dialog (preselected from the settings or
+; Windows language; English for languages other than Chinese); see zhiyi-setup.nsi.
 
 LangString L_001 ${LANG_ENGLISH} "Open Zhiyi IME settings"
 LangString L_001 ${LANG_SIMPCHINESE} "启动知意输入法设置"

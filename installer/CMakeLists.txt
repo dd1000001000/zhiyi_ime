@@ -7,7 +7,9 @@ add_library(cxxime-installer-lock STATIC
     src/installer_lifecycle_state.cc
     src/installer_lifecycle_internal.h
     src/installer_version.cc
+    src/installer_ui_language.cc
     include/cxxime/installer_version.h
+    include/cxxime/installer_ui_language.h
 )
 
 target_include_directories(cxxime-installer-lock PUBLIC

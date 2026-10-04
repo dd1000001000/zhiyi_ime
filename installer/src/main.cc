@@ -10,6 +10,7 @@
 #include <cxxime/installer_path_security.h>
 #include <cxxime/installer_server_process.h>
 #include <cxxime/installer_tsf.h>
+#include <cxxime/installer_ui_language.h>
 #include <cxxime/installer_version.h>
 
 #include "installer_lifecycle_command.h"
@@ -46,6 +47,12 @@ bool write_utf16_report(const std::wstring& path, const std::wstring& report) {
 } // namespace
 
 int wmain(int argc, wchar_t** argv) {
+    if (argc == 3 && std::wstring(argv[1]) == L"get-ui-language") {
+        return cxxime::installer::get_ui_language_command(argv[2]);
+    }
+    if (argc == 4 && std::wstring(argv[1]) == L"set-ui-language") {
+        return cxxime::installer::set_ui_language_command(argv[2], argv[3]);
+    }
     if (argc == 4 && std::wstring(argv[1]) == L"compare-version") {
         return cxxime::installer::compare_version_command(argv[2], argv[3]);
     }

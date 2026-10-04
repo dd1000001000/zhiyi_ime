@@ -39,7 +39,8 @@ leaves your computer.
 - **Case follows what you type**: `hel` → hello, `Hel` → Hello, `HEL` → HELLO.
 - **Simple settings**: General (Chinese input, pinyin style, light/dark theme, font size, 3–10
   candidates per page, UI language, English spelling correction), Fuzzy pinyin, Keys, Dictionary (self-learning, clear learning data) and
-  About. Settings and the installer are in Chinese and English and follow the Windows language.
+  About. Settings and the installer are in Chinese and English: the installer asks for its language
+  (the Windows language is preselected) and the settings use the language chosen there.
 - **Compact dictionary**: about 400k entries (every character plus common words); rare words can be
   typed character by character and are remembered by self-learning.
 - User data lives in `%USERPROFILE%\zhiyi\`; uninstalling asks whether to keep it.

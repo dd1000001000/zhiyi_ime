@@ -144,10 +144,18 @@ UninstPage custom un.ConfirmPage un.ConfirmPageLeave
 !define MUI_FINISHPAGE_NOREBOOTSUPPORT
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.FinishPageShow
 !insertmacro MUI_UNPAGE_FINISH
-; The installer and uninstaller follow the Windows UI language; any language other than
-; Chinese uses English, the first language inserted.
+; The installer asks for its language (ChooseInstallerLanguage in nsis\setup.nsh): the
+; settings language, else the Windows UI language, is preselected; any language other than
+; Chinese preselects English, the first language inserted. Silent installs do not ask. The
+; uninstaller uses the language chosen at installation.
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "SimpChinese"
+; Both languages are listed whatever the system code page (A, not AC); the dialog is shown
+; before a language is chosen, so its text is in both.
+!define MUI_LANGDLL_ALLLANGUAGES
+!define MUI_LANGDLL_WINDOWTITLE "Zhiyi IME / 知意输入法"
+!define MUI_LANGDLL_INFO "Please select a language.$\r$\n请选择安装语言。"
+!insertmacro MUI_RESERVEFILE_LANGDLL
 !include "nsis\lang.nsh"
 
 !include "nsis\legacy_upgrade.nsh"
@@ -273,6 +281,8 @@ Section "Install"
         Goto install_failed_after_transaction
 
     install_start_new_server:
+    ; Before the server starts and reads the user config.
+    Call ApplyInstallerLanguage
     Call StartNewServer
     Pop $0
     StrCmp $0 "1" install_prepare_system_ime

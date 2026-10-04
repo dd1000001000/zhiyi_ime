@@ -29,6 +29,40 @@ Function ReleaseInstallerMutex
     release_installer_mutex_done:
 FunctionEnd
 
+; Language dialog. Preselected: the settings language (ui.language in the user config, so an
+; upgrade keeps it), else NSIS's match of the Windows UI language. Silent installs skip it.
+Function ChooseInstallerLanguage
+    InitPluginsDir
+    SetOutPath "$PLUGINSDIR"
+    File /oname=zhiyi-installer-helper.exe "zhiyi-installer-helper.exe"
+    nsExec::ExecToStack '"$PLUGINSDIR\zhiyi-installer-helper.exe" get-ui-language "$PROFILE\zhiyi\default.json"'
+    Pop $0
+    Pop $1
+    ${If} $0 == "0"
+        ${If} $1 == "zh-CN"
+            StrCpy $LANGUAGE ${LANG_SIMPCHINESE}
+        ${ElseIf} $1 == "en-US"
+            StrCpy $LANGUAGE ${LANG_ENGLISH}
+        ${EndIf}
+    ${EndIf}
+    !insertmacro MUI_LANGDLL_DISPLAY
+FunctionEnd
+
+; The chosen language: kept for the uninstaller and made the settings language (unless the
+; settings follow Windows and Windows already gives that language). Not fatal.
+Function ApplyInstallerLanguage
+    WriteRegStr HKLM "${UNINSTALL_KEY}" "InstallerLanguage" "$LANGUAGE"
+    StrCpy $0 "en-US"
+    ${If} $LANGUAGE == ${LANG_SIMPCHINESE}
+        StrCpy $0 "zh-CN"
+    ${EndIf}
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" set-ui-language "$PROFILE\zhiyi\default.json" $0'
+    Pop $1
+    ${If} $1 != "0"
+        DetailPrint "Settings language not changed ($1)"
+    ${EndIf}
+FunctionEnd
+
 Function .onInit
     StrCpy $InstallLockNotice 0
     StrCpy $InstallLockDetailsVisible 0
@@ -72,6 +106,7 @@ Function .onInit
     ${EndIf}
 
     Call AcquireInstallerMutex
+    Call ChooseInstallerLanguage
     SetShellVarContext all
     SetRegView 64
     StrCpy $INSTDIR "$PROGRAMFILES64\ZhiyiIME"
@@ -223,6 +258,13 @@ Function un.onInit
     StrCpy $UninstallRemoveUserData 0
     StrCpy $UninstallCleanupWarning 0
     StrCpy $UninstallUserDataDir "$PROFILE\zhiyi"
+    ; The language chosen at installation (else NSIS's match of the Windows UI language).
+    ClearErrors
+    ReadRegStr $0 HKLM "${UNINSTALL_KEY}" "InstallerLanguage"
+    ${IfNot} ${Errors}
+    ${AndIf} $0 != ""
+        StrCpy $LANGUAGE $0
+    ${EndIf}
     StrCpy $InstallBaseDir "$INSTDIR"
     ClearErrors
     ReadRegStr $InstallBaseDir HKLM "${UNINSTALL_KEY}" "InstallBaseLocation"

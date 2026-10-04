@@ -53,11 +53,11 @@ int wmain(int argc, wchar_t** argv) {
     if (argc == 4 && std::wstring(argv[1]) == L"set-ui-language") {
         return cxxime::installer::set_ui_language_command(argv[2], argv[3]);
     }
-    if (argc == 3 && std::wstring(argv[1]) == L"get-experience-program") {
-        return cxxime::installer::get_experience_program_command(argv[2]);
+    if (argc == 3 && std::wstring(argv[1]) == L"get-privacy") {
+        return cxxime::installer::get_privacy_command(argv[2]);
     }
-    if (argc == 4 && std::wstring(argv[1]) == L"set-experience-program") {
-        return cxxime::installer::set_experience_program_command(argv[2], argv[3]);
+    if (argc == 5 && std::wstring(argv[1]) == L"set-privacy") {
+        return cxxime::installer::set_privacy_command(argv[2], argv[3], argv[4]);
     }
     if (argc == 4 && std::wstring(argv[1]) == L"compare-version") {
         return cxxime::installer::compare_version_command(argv[2], argv[3]);

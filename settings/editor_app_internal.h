@@ -37,6 +37,10 @@ HWND make_edit(int id, int x, int y, int width, HWND parent);
 HWND make_combo(int id, int x, int y, int width, HWND parent);
 void set_combo_drop_count(HWND combo, int count);
 HWND make_check(int id, const wchar_t* text, int x, int y, int width, HWND parent);
+// A web link (opened in the browser; right-click copies it). Its address comes from
+// web_link_url(id).
+constexpr int kPrivacyDocLinkId = 5004;  // docs/privacy*.md on GitHub (ui string privacy.doc_url)
+HWND make_web_link(int id, const wchar_t* text, int x, int y, int width, HWND parent);
 HWND make_radio(int id, const wchar_t* text, int x, int y, int width, HWND parent, bool group);
 void combo_add(HWND combo, const wchar_t* text);
 void combo_sel(HWND combo, const wchar_t* text);

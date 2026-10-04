@@ -14,6 +14,7 @@
 #include <shellapi.h>
 
 #include <cxxime/diagnostic_log_path.h>
+#include <cxxime/experience_log.h>
 #include <cxxime/keyboard_shortcut.h>
 #include <cxxime/lexicon_control.h>
 #include <cxxime/user_dict.h>
@@ -47,6 +48,7 @@ enum ControlId {
     kLearningId = 1201,
     kClearLearningId,
     kExperienceId = 1251,
+    kCollectInputId,
     kOpenLogsId,
     kDeleteLogsId,
     kFuzzyEnabledId = 1301,
@@ -145,7 +147,7 @@ void apply_switch_key_choice(Config& config, const KeyChoice& choice) {
 
 } // namespace
 
-HWND EditorApp::make_hint(const wchar_t* text, int x, int y, int width, HWND parent) {
+HWND EditorApp::make_hint(const wchar_t* text, int x, int y, int width, HWND parent, int lines) {
     RECT panel_rect = {};
     GetClientRect(parent, &panel_rect);
     width = (std::min)(width, static_cast<int>(panel_rect.right) - x - S(8));
@@ -154,9 +156,9 @@ HWND EditorApp::make_hint(const wchar_t* text, int x, int y, int width, HWND par
                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  CLEARTYPE_QUALITY, 0, L"Microsoft YaHei UI");
     }
-    // Two lines: long hints wrap.
+    // Two lines by default: long hints wrap.
     HWND control = CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_LEFT, x, y,
-                                   width, S(2 * (kFontPt + 6)), parent, nullptr,
+                                   width, S(lines * (kFontPt + 6)), parent, nullptr,
                                    GetModuleHandle(nullptr), nullptr);
     SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(hHintFont_), TRUE);
     hints_.push_back(control);
@@ -305,18 +307,41 @@ void EditorApp::create_dictionary_panel(HWND panel) {
     make_button(kClearLearningId, tr("dictionary.clear"), x0, y, S(160), panel);
 }
 
+// Two tiers (cxxime/experience_log.h, docs/privacy.md): input collection needs the
+// experience program, so checking it checks the program (after a confirmation) and unchecking
+// the program unchecks it. Revoking keeps the logs; "Delete all records" removes both tiers'.
 void EditorApp::create_privacy_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     int y = kPanelPadTop;
-    hExperience_ = make_check(kExperienceId, tr("privacy.experience"), x0, y, S(420), panel);
+    hExperience_ = make_check(kExperienceId, tr("privacy.experience"), x0, y, S(460), panel);
     y += kRowH;
-    // What is kept and what never is (docs/privacy.md has the full list).
     make_hint(tr("privacy.what"), x0 + S(20), y - S(6), S(460), panel);
-    y += kRowH + S(6);
-    make_hint(tr("privacy.never"), x0 + S(20), y - S(6), S(460), panel);
-    y += kRowH + S(14);
+    y += kRowH + S(8);
+    hCollectInput_ =
+        make_check(kCollectInputId, tr("privacy.collect_input"), x0, y, S(460), panel);
+    y += kRowH;
+    make_hint(tr("privacy.input_what"), x0 + S(20), y - S(6), S(460), panel);
+    y += kRowH + S(8);
+    make_hint(tr("privacy.local"), x0, y - S(6), S(480), panel, 1);
+    y += S(kFontPt + 10);
+    // The full list of what each tier records (docs/privacy*.md on GitHub).
+    make_web_link(kPrivacyDocLinkId, tr("privacy.doc_link"), x0, y, S(300), panel);
+    y += kRowH + S(8);
     make_button(kOpenLogsId, tr("privacy.open_logs"), x0, y, S(160), panel);
     make_button(kDeleteLogsId, tr("privacy.delete_logs"), x0 + S(172), y, S(160), panel);
+}
+
+void EditorApp::on_privacy_check(int control_id) {
+    if (control_id == kCollectInputId && get_check(hCollectInput_)) {
+        if (MessageBoxW(hwnd_, tr("privacy.input_confirm"), tr("window.title"),
+                        MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDYES) {
+            set_check(hExperience_, true);
+        } else {
+            set_check(hCollectInput_, false);
+        }
+    } else if (control_id == kExperienceId && !get_check(hExperience_)) {
+        set_check(hCollectInput_, false);
+    }
 }
 
 void EditorApp::open_log_folder() {
@@ -327,11 +352,11 @@ void EditorApp::open_log_folder() {
 }
 
 void EditorApp::delete_experience_log() {
-    const std::wstring directory = diagnostic_log_directory();
-    if (directory.empty()) return;
-    for (const wchar_t* name : {L"\\experience.jsonl", L"\\experience.1.jsonl"}) {
-        DeleteFileW((directory + name).c_str());
+    if (MessageBoxW(hwnd_, tr("privacy.delete_confirm"), tr("window.title"),
+                    MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES) {
+        return;
     }
+    ExperienceLog::delete_all_logs();
     MessageBoxW(hwnd_, tr("privacy.deleted"), tr("window.title"), MB_OK | MB_ICONINFORMATION);
 }
 
@@ -364,6 +389,7 @@ void EditorApp::populate_controls() {
 
     set_check(hLearning_, config_.candidate_learning);
     set_check(hExperience_, config_.experience_program);
+    set_check(hCollectInput_, config_.experience_program && config_.collect_input);
     set_check(hFuzzyEnabled_, config_.fuzzy_pinyin);
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
         set_check(hFuzzyGroups_[i], (config_.fuzzy_groups & (1 << i)) != 0);
@@ -388,6 +414,7 @@ bool EditorApp::read_controls(bool report_errors) {
     apply_switch_key_choice(c, key_capture_get(hSwitchKey_));
     c.candidate_learning = get_check(hLearning_);
     c.experience_program = get_check(hExperience_);
+    c.collect_input = c.experience_program && get_check(hCollectInput_);
     c.fuzzy_pinyin = get_check(hFuzzyEnabled_);
     c.fuzzy_groups = 0;
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
@@ -515,6 +542,12 @@ bool EditorApp::handle_command(int control_id, int notification) {
     case kRestoreKeysId:
         if (notification == BN_CLICKED) {
             restore_default_keys();
+        }
+        return true;
+    case kExperienceId:
+    case kCollectInputId:
+        if (notification == BN_CLICKED) {
+            on_privacy_check(control_id);
         }
         return true;
     case kOpenLogsId:

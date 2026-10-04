@@ -99,42 +99,59 @@ bool write_ui_language(const std::wstring& user_config_path, const std::string& 
     return write_config(user_config_path, config);
 }
 
-std::string read_experience_program(const std::wstring& user_config_path) {
-    nlohmann::json config;
-    bool missing = false;
-    if (!read_config(user_config_path, &config, &missing)) return {};
+namespace {
+
+std::string privacy_answer(const nlohmann::json& config, const char* key) {
     if (config.contains("privacy") && config["privacy"].is_object() &&
-        config["privacy"].contains("experience_program") &&
-        config["privacy"]["experience_program"].is_boolean()) {
-        return config["privacy"]["experience_program"].get<bool>() ? "on" : "off";
+        config["privacy"].contains(key) && config["privacy"][key].is_boolean()) {
+        return config["privacy"][key].get<bool>() ? "on" : "off";
     }
     return "unset";
 }
 
-bool write_experience_program(const std::wstring& user_config_path, bool join) {
+}  // namespace
+
+PrivacyAnswers read_privacy(const std::wstring& user_config_path) {
+    nlohmann::json config;
+    bool missing = false;
+    if (!read_config(user_config_path, &config, &missing)) return {};
+    return {privacy_answer(config, "experience_program"), privacy_answer(config, "collect_input")};
+}
+
+bool write_privacy(const std::wstring& user_config_path, bool join, bool collect_input) {
     nlohmann::json config;
     bool missing = false;
     if (!read_config(user_config_path, &config, &missing)) return false;
-    const std::string current = read_experience_program(user_config_path);
-    if (current == (join ? "on" : "off") || (!join && current == "unset")) return true;
-    if (!config.contains("privacy") || !config["privacy"].is_object()) {
-        config["privacy"] = nlohmann::json::object();
+    collect_input = collect_input && join;
+    bool changed = false;
+    for (const auto& [key, value] : {std::pair{"experience_program", join},
+                                     std::pair{"collect_input", collect_input}}) {
+        const std::string current = privacy_answer(config, key);
+        if (current == (value ? "on" : "off") || (!value && current == "unset")) continue;
+        if (!config.contains("privacy") || !config["privacy"].is_object()) {
+            config["privacy"] = nlohmann::json::object();
+        }
+        config["privacy"][key] = value;
+        changed = true;
     }
-    config["privacy"]["experience_program"] = join;
-    return write_config(user_config_path, config);
+    return !changed || write_config(user_config_path, config);
 }
 
-int get_experience_program_command(const wchar_t* user_config_path) {
-    const std::string value = read_experience_program(user_config_path);
-    if (value.empty()) return 1;
-    std::fputs(value.c_str(), stdout);
+int get_privacy_command(const wchar_t* user_config_path) {
+    const PrivacyAnswers answers = read_privacy(user_config_path);
+    if (answers.experience_program.empty()) return 1;
+    std::fputs((answers.experience_program + " " + answers.collect_input).c_str(), stdout);
     return 0;
 }
 
-int set_experience_program_command(const wchar_t* user_config_path, const wchar_t* value) {
-    const std::string answer = narrow(value);
-    if (answer != "on" && answer != "off") return 64;
-    return write_experience_program(user_config_path, answer == "on") ? 0 : 1;
+int set_privacy_command(const wchar_t* user_config_path, const wchar_t* join,
+                        const wchar_t* collect_input) {
+    const std::string program = narrow(join);
+    const std::string input = narrow(collect_input);
+    for (const std::string& answer : {program, input}) {
+        if (answer != "on" && answer != "off") return 64;
+    }
+    return write_privacy(user_config_path, program == "on", input == "on") ? 0 : 1;
 }
 
 int get_ui_language_command(const wchar_t* user_config_path) {

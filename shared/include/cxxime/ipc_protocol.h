@@ -150,6 +150,9 @@ enum class IPCCommand : uint32_t {
     SEARCH_CANDIDATES = 25,
     SEARCH_CANDIDATE_RESULT = 26,
     OPEN_SETTINGS = 27,
+    // The program and window title of the focused input (search_query: program file name,
+    // search_result: window title, UTF-8). Sent only while input collection is allowed.
+    SET_INPUT_TARGET = 28,
 };
 
 enum class IPCStatus : uint32_t {

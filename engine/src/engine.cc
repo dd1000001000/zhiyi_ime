@@ -167,6 +167,16 @@ void Engine::init_per_session(const Config& config) {
     LayaRerank::instance().preload(config);
 }
 
+std::string Engine::laya_context(std::size_t max_chars) const {
+    std::size_t begin = laya_history_.size();
+    std::size_t chars = 0;
+    while (begin > 0 && chars < max_chars) {
+        --begin;
+        if ((static_cast<unsigned char>(laya_history_[begin]) & 0xC0) != 0x80) ++chars;
+    }
+    return laya_history_.substr(begin);
+}
+
 void Engine::remember_commit(const std::string& text) {
     if (text.empty()) return;
     laya_history_ += text;

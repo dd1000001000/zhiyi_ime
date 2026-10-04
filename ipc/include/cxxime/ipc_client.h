@@ -42,6 +42,8 @@ public:
     bool commit_composition(uint32_t session_id, IPCResponse& response);
     bool clear_composition(uint32_t session_id);
     bool focus_in(uint32_t session_id);
+    bool set_input_target(uint32_t session_id, const std::string& app,
+                          const std::string& window_title);
     bool focus_out(uint32_t session_id);
 
     bool toggle_chinese(uint32_t session_id, IPCResponse& response);

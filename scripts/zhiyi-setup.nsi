@@ -127,6 +127,8 @@ Var UninstallTsfX86Registered
 Var UninstallCleanupWarning
 Var ExperienceProgram
 Var ExperienceCheckbox
+Var CollectInput
+Var CollectInputCheckbox
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "license.txt"

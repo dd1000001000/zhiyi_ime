@@ -13,6 +13,8 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+
+#include <cxxime/experience_log.h>
 #include <utility>
 #include <vector>
 
@@ -120,6 +122,13 @@ struct SessionEntry {
     uint64_t candidate_revision = 0;
     SharedResourceSnapshot resources;
     std::mutex mutex;  // per-session concurrency protection
+    // Input collection (second tier of the experience program): the input target reported by
+    // the client and the input being typed.
+    std::string input_app;
+    std::string input_window_title;
+    cxxime::InputRecord input;
+    std::chrono::steady_clock::time_point input_start;
+    bool input_open = false;
 };
 
 void apply_resource_snapshot(SessionEntry& entry, const SharedResourceSnapshot& resources);
@@ -177,6 +186,8 @@ public:
     ProcessKeyResult commit_composition(uint32_t id);
     ProcessKeyResult clear_composition(uint32_t id);
     ProcessKeyResult focus_in(uint32_t id);
+    // The program and window title the client's input goes to (input collection only).
+    bool set_input_target(uint32_t id, const std::string& app, const std::string& window_title);
     ProcessKeyResult focus_out(uint32_t id);
 
     cxxime::IPCStatus add_user_entry(cxxime::UserDictKind kind, const std::string& text,

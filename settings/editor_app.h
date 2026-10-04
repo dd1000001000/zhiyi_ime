@@ -39,6 +39,7 @@ private:
     void create_privacy_panel(HWND panel);
     void open_log_folder();
     void delete_experience_log();
+    void on_privacy_check(int control_id);
     void create_about_panel(HWND panel, int panel_width);
     void show_panel(int idx);
     void release_fonts();
@@ -71,7 +72,7 @@ private:
     HFONT hAboutTitleFont_ = nullptr;
     HFONT hHintFont_ = nullptr;
     std::vector<HWND> hints_;  // secondary text, drawn smaller and gray
-    HWND make_hint(const wchar_t* text, int x, int y, int width, HWND parent);
+    HWND make_hint(const wchar_t* text, int x, int y, int width, HWND parent, int lines = 2);
     int panel_ = 0;
     cxxime::SettingsPanel initial_panel_ = cxxime::SettingsPanel::kInput;
     static constexpr int kPanelCount = 6;
@@ -102,6 +103,7 @@ private:
 
     // Privacy
     HWND hExperience_ = nullptr;
+    HWND hCollectInput_ = nullptr;
 
     cxxime::Config config_;
     cxxime::Config loaded_config_;  // the files as last read or written

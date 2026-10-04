@@ -1,7 +1,12 @@
 // Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 
 #include <atomic>
+#include <fstream>
 #include <map>
+
+#include <json.hpp>
+
+#include <cxxime/experience_log.h>
 
 #include "config_store.h"
 #include "config_write_coordinator.h"
@@ -435,6 +440,59 @@ TEST(SessionIntegration, capslock_shift_space_still_toggles_shape) {
         ASSERT_EQ(manager.process_key(id, release).result,
                   cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
     }
+}
+
+TEST(SessionIntegration, input_collection_logs_handled_keys_of_one_input) {
+    wchar_t temp[MAX_PATH] = {};
+    GetTempPathW(MAX_PATH, temp);
+    const std::wstring dir = std::wstring(temp) + L"zhiyi_input_collection_test";
+    CreateDirectoryW(dir.c_str(), nullptr);
+    cxxime::ExperienceLog::delete_all_logs(dir);
+    cxxime::ExperienceLog::instance().set_directory_for_testing(dir);
+
+    auto config = std::make_shared<cxxime::Config>();
+    config->experience_program = true;
+    config->collect_input = true;
+    SessionManager manager;
+    ASSERT_TRUE(manager.initialize(setup_test_dict(), config));
+    const uint32_t id = manager.create_session();
+    ASSERT_TRUE(manager.set_input_target(id, "notepad.exe", "a.txt - Notepad"));
+
+    // Not part of any input: Ctrl+C while idle goes to the program.
+    cxxime::KeyEvent copy = make_key('C');
+    copy.set_ctrl();
+    ASSERT_EQ(manager.process_key(id, copy).result, cxxime::ProcessResult::REJECTED);
+    manager.process_key(id, make_key('N'));
+    manager.process_key(id, make_key('I'));
+    const ProcessKeyResult committed = manager.process_key(id, make_key(VK_SPACE));
+    ASSERT_TRUE(!committed.commit_text.empty());
+
+    std::wstring input_path;
+    WIN32_FIND_DATAW data = {};
+    HANDLE find = FindFirstFileW((dir + L"\\input-*.jsonl").c_str(), &data);
+    ASSERT_TRUE(find != INVALID_HANDLE_VALUE);
+    input_path = dir + L"\\" + data.cFileName;
+    FindClose(find);
+    std::ifstream file(input_path);
+    std::string line;
+    ASSERT_TRUE(static_cast<bool>(std::getline(file, line)));
+    const nlohmann::json record = nlohmann::json::parse(line);
+    ASSERT_TRUE(record["event"] == "input");
+    ASSERT_TRUE(record["app"] == "notepad.exe");
+    ASSERT_TRUE(record["window_title"] == "a.txt - Notepad");
+    ASSERT_TRUE(record["mode"] == "pinyin");
+    ASSERT_TRUE(record["code"] == "ni");
+    ASSERT_TRUE(record["keys"] == nlohmann::json::array({"n", "i", "SPACE"}));
+    ASSERT_TRUE(record["committed"] == committed.commit_text);
+    ASSERT_EQ(record["picked"].get<int>(), 0);
+    ASSERT_TRUE(!record["candidates"].empty());
+    ASSERT_TRUE(!static_cast<bool>(std::getline(file, line)));  // one input only
+    file.close();
+
+    auto off = std::make_shared<cxxime::Config>();
+    cxxime::ExperienceLog::instance().configure(*off);
+    cxxime::ExperienceLog::delete_all_logs(dir);
+    RemoveDirectoryW(dir.c_str());
 }
 
 TEST(SessionIntegration, english_enter_passes_to_application) {

@@ -89,27 +89,33 @@ TEST(InstallerUiLanguage, existing_settings_are_kept) {
     RemoveDirectoryW(dir.c_str());
 }
 
-TEST(InstallerExperienceProgram, answer_is_saved_and_other_settings_kept) {
+TEST(InstallerExperienceProgram, answers_are_saved_and_other_settings_kept) {
     const std::wstring dir = temp_dir(L"zhiyi_experience_program");
     CreateDirectoryW(dir.c_str(), nullptr);
     const std::wstring path = dir + L"\\default.json";
     DeleteFileW(path.c_str());
 
     // No config yet: unset; "off" (the default) leaves no file behind.
-    ASSERT_EQ(cxxime::installer::read_experience_program(path), "unset");
-    ASSERT_TRUE(cxxime::installer::write_experience_program(path, false));
+    ASSERT_EQ(cxxime::installer::read_privacy(path).experience_program, "unset");
+    ASSERT_TRUE(cxxime::installer::write_privacy(path, false, false));
     ASSERT_TRUE(GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES);
 
     write_text(path, R"({"engine": {"page_size": 9}})");
-    ASSERT_TRUE(cxxime::installer::write_experience_program(path, true));
-    ASSERT_EQ(cxxime::installer::read_experience_program(path), "on");
+    ASSERT_TRUE(cxxime::installer::write_privacy(path, true, true));
+    auto answers = cxxime::installer::read_privacy(path);
+    ASSERT_EQ(answers.experience_program, "on");
+    ASSERT_EQ(answers.collect_input, "on");
     ASSERT_TRUE(read_text(path).find("\"page_size\": 9") != std::string::npos);
-    ASSERT_TRUE(cxxime::installer::write_experience_program(path, false));
-    ASSERT_EQ(cxxime::installer::read_experience_program(path), "off");
+
+    // Input collection needs the program.
+    ASSERT_TRUE(cxxime::installer::write_privacy(path, false, true));
+    answers = cxxime::installer::read_privacy(path);
+    ASSERT_EQ(answers.experience_program, "off");
+    ASSERT_EQ(answers.collect_input, "off");
 
     write_text(path, "{not json");
-    ASSERT_EQ(cxxime::installer::read_experience_program(path), "");
-    ASSERT_TRUE(!cxxime::installer::write_experience_program(path, true));
+    ASSERT_EQ(cxxime::installer::read_privacy(path).experience_program, "");
+    ASSERT_TRUE(!cxxime::installer::write_privacy(path, true, false));
 
     DeleteFileW(path.c_str());
     RemoveDirectoryW(dir.c_str());

@@ -2,6 +2,7 @@
 
 #include "text_service.h"
 
+#include <algorithm>
 #include <iterator>
 #include <new>
 
@@ -220,6 +221,7 @@ void TextService::_synchronize_activation_focus() {
         _schedule_caps_lock_refresh();
         if (_sessionId && _client.ensure_connected()) {
             _client.focus_in(_sessionId);
+            _report_input_target();
         }
     }
 
@@ -319,6 +321,43 @@ HRESULT TextService::_unregister_key_event_sink() {
     HRESULT hr = pKeystrokeMgr->UnadviseKeyEventSink(_clientId);
     pKeystrokeMgr->Release();
     return hr;
+}
+
+namespace {
+
+std::string utf8_of(const std::wstring& text) {
+    if (text.empty()) return {};
+    const int size = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()),
+                                         nullptr, 0, nullptr, nullptr);
+    std::string out(static_cast<size_t>((std::max)(size, 0)), '\0');
+    if (size > 0) {
+        WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), out.data(),
+                            size, nullptr, nullptr);
+    }
+    return out;
+}
+
+}  // namespace
+
+void TextService::_report_input_target() {
+    if (!_config.experience_program || !_config.collect_input || !_sessionId) {
+        _reportedInputTarget.clear();
+        return;
+    }
+    wchar_t module[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, module, MAX_PATH);
+    std::wstring app = module;
+    const size_t slash = app.find_last_of(L"\\/");
+    if (slash != std::wstring::npos) app.erase(0, slash + 1);
+    wchar_t title[256] = {};
+    if (HWND window = GetForegroundWindow()) {
+        GetWindowTextW(window, title, static_cast<int>(std::size(title)));
+    }
+    const std::wstring target = app + L"\n" + title;
+    if (target == _reportedInputTarget) return;
+    if (_client.set_input_target(_sessionId, utf8_of(app), utf8_of(title))) {
+        _reportedInputTarget = target;
+    }
 }
 
 void TextService::_register_switch_keys() {

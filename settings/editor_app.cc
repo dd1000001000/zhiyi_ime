@@ -258,6 +258,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(english.correction);
     KEEP_PAGE_EDIT(candidate_learning);
     KEEP_PAGE_EDIT(experience_program);
+    KEEP_PAGE_EDIT(collect_input);
     KEEP_PAGE_EDIT(fuzzy_pinyin);
     KEEP_PAGE_EDIT(fuzzy_groups);
 #undef KEEP_PAGE_EDIT
@@ -384,12 +385,16 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         a->rebuild_ui();
         return 0;
     }
-    case WM_ACTIVATE:
-        // Back from the status bar or another program: show what changed there.
-        if (LOWORD(wp) != WA_INACTIVE && a->hList_) {
+    case WM_ACTIVATE: {
+        // Back from the status bar or another program: show what changed there. Not when one of
+        // this window's own message boxes closes (its caller is still updating the page).
+        DWORD other_process = 0;
+        if (lp) GetWindowThreadProcessId(reinterpret_cast<HWND>(lp), &other_process);
+        if (LOWORD(wp) != WA_INACTIVE && a->hList_ && other_process != GetCurrentProcessId()) {
             a->refresh_config();
         }
         break;
+    }
     case WM_DESTROY:
         a->release_fonts();
         PostQuitMessage(0);

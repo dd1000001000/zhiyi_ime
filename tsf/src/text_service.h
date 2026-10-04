@@ -262,6 +262,9 @@ private:
     // Chinese IME/non-IME toggle on Ctrl+Space) cannot take them first.
     void _register_switch_keys();
     void _unregister_switch_keys();
+    // Input collection (second tier of the experience program): tells the server the program
+    // and window title of the input when they changed; nothing while not allowed.
+    void _report_input_target();
     HRESULT _register_thread_mgr_event_sink();
     HRESULT _register_thread_focus_sink();
     void _unregister_thread_sinks();
@@ -437,6 +440,7 @@ private:
     bool _ipcHealthy = true;
     std::string _lastInputBlockReason;
     std::wstring _lastInlineCompositionText;
+    std::wstring _reportedInputTarget;  // program + window title last sent to the server
     std::optional<std::wstring> _hostTerminationCompositionText;
     cxxime_tsf::CandidatePresentation _candidatePresentation;
     CandidateUIElement* _candidateUiElement = nullptr;

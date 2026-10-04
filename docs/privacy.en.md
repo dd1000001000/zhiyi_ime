@@ -1,0 +1,82 @@
+# Privacy: user experience improvement program
+
+[中文](privacy.md)
+
+Zhiyi IME's user experience improvement program has two tiers. **Both are off by default**; nothing
+is recorded unless you check them in the installer or in Settings > Privacy.
+
+| Tier | Option | Setting (`%USERPROFILE%\zhiyi\default.json`) |
+|---|---|---|
+| 1 | Join the user experience improvement program | `privacy.experience_program` |
+| 2 | Allow collecting your input | `privacy.collect_input` |
+
+- Tier 2 needs tier 1: checking tier 2 asks for confirmation and checks tier 1 too; unchecking tier
+  1 unchecks tier 2.
+- **Everything stays on your computer and is never uploaded.** Others see it only if you send the
+  files yourself (for example, a `collect_diagnostics.ps1 -IncludeLogs` bundle sent to the
+  developers).
+- Unchecking stops recording at once and keeps the existing records; "Delete all records" in
+  Settings > Privacy deletes the records of both tiers.
+- The records are written by the background service `zhiyi-server.exe`; see
+  `engine/src/experience_log.cc`.
+
+## Tier 1: basic information
+
+File: `%USERPROFILE%\zhiyi\logs\experience.jsonl`, one JSON record per line; at 1 MB it is renamed
+to `experience.1.jsonl` (only that one old file is kept). Every record has `t` (UTC time) and
+`event` (the record type).
+
+| Record | Written | Contents |
+|---|---|---|
+| `start` | when the background service starts | `version` IME version; `windows` Windows version number; `cpu_count` logical CPUs; `memory_gb` memory size (GB) |
+| `config` | when first enabled and when settings change | `settings`: Chinese input (pinyin / Wubi), pinyin scheme, initials mode, fuzzy pinyin and its pairs, self-learning, candidates per page, font size, theme, interface language, recommendation model on/off, English spelling correction, English word mode, renderer, horizontal / vertical layout, whether input collection is allowed, the 4 switch keys and the tap Shift / Ctrl setting |
+| `health` | checked every 30 minutes, written only after errors or when the recommendation model state changes | `errors` responses that could not be built (the key then reaches the program unhandled); `laya` recommendation model state (off / ready / failed) |
+
+Tier 1 does **not** include anything you type, any keys, the programs you use, or usage counts.
+
+## Tier 2: input
+
+Files: `%USERPROFILE%\zhiyi\logs\input-YYYYMMDD.jsonl` (one per UTC day). Only the last 7 days are
+kept, and 10 MB in all at most: the oldest files are deleted first.
+
+### `input`: one record per input
+
+From the first key the IME handles for an input (e.g. the first pinyin letter) to its commit or
+cancel:
+
+| Field | Contents |
+|---|---|
+| `t` | time written (UTC) |
+| `app` | file name of the program typed into, e.g. `WINWORD.EXE` |
+| `window_title` | title of its foreground window (often the document or page title) |
+| `mode` | input mode: pinyin / wubi / mixed / english / symbol |
+| `keys` | the keys the IME handled in this input, e.g. `["n", "i", "SPACE"]` (including backspace, arrows, paging and digit picks) |
+| `code` | the typed code, e.g. the pinyin `nihao` |
+| `candidates` | the page of candidates shown before the commit, and which one was recommended |
+| `picked` | the position picked (from 0; -1 when not picked from the candidates) |
+| `committed` | the committed text (empty when cancelled) |
+| `laya_context` | the preceding text given to the recommendation model: up to 48 characters committed before this input |
+| `duration_ms` | how long the input took, in milliseconds |
+
+### `stats`: usage statistics every 30 minutes
+
+`minutes` period length; `keys` keys handled by the IME; `latency_ms_buckets` key handling time
+distribution (counts under 5, 10, 20, 50, 100, 200 ms and 200 ms or more); `max_latency_ms` longest
+time; `picks_by_position` picks of candidates 1 to 10; `picks_with_recommendation` picks while a
+recommendation was shown; `recommendation_picked` of those, picks of the recommendation;
+`laya_calls`, `laya_reordered`, `laya_last_ms` recommendation model calls, reorderings and the
+latest inference time.
+
+### Never recorded, even in tier 2
+
+- **Keys the IME does not handle**: letters typed straight into the program in English mode,
+  shortcuts (such as Ctrl+C), and other keys pressed outside an input.
+- **Password fields**: Windows turns the IME off in password fields, so those keys never reach it.
+- Identity information such as user name, computer name, IP address or hardware serial numbers,
+  and full file paths.
+
+## Developer diagnostics (not part of this program)
+
+`diagnostics.trace_mode` (default `off`) is a detailed developer trace that records typed codes,
+written as `*-trace.jsonl` in the same `logs` folder. Settings has no switch for it, and the user
+experience improvement program never turns it on.

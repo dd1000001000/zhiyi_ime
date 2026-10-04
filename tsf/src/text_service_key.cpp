@@ -72,8 +72,10 @@ STDMETHODIMP TextService::OnSetFocus(BOOL fForeground) {
         if (_synchronize_effective_edit_target_from_thread_mgr("key_sink_focus")) {
             _refresh_caps_lock_on_focus("key_sink_focus");
             _schedule_caps_lock_refresh();
-            if (_sessionId && _client.ensure_connected())
+            if (_sessionId && _client.ensure_connected()) {
                 _client.focus_in(_sessionId);
+                _report_input_target();
+            }
         } else {
             if (_sessionId && _client.is_connected())
                 _client.focus_out(_sessionId);
@@ -251,6 +253,9 @@ bool TextService::_ProcessKeyEvent(ITfContext* pic, WPARAM wParam, LPARAM lParam
     _key_event_start = std::chrono::steady_clock::now();
 
     CXXIME_LOG(L"_ProcessKeyEvent: vk=%u, mods=%u, composing=%d", (unsigned int)wParam, modifiers, _composing);
+    if (starts_new_composition) {
+        _report_input_target();  // the window title may have changed (another document)
+    }
 
     cxxime::IPCResponse response = {};
     uint32_t engine_calls = 0;

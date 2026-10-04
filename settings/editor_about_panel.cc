@@ -27,6 +27,8 @@ const wchar_t* about_link_url(UINT_PTR control_id) {
         return kProjectUrl;
     case kUpstreamLinkId:
         return kUpstreamUrl;
+    case kPrivacyDocLinkId:
+        return tr("privacy.doc_url");  // the document in the UI language
     default:
         return nullptr;
     }
@@ -100,6 +102,17 @@ void EditorApp::create_about_panel(HWND panel, int panel_width) {
     make_link(kProjectLinkId, kProjectUrl, top + kRowH * 4 - S(6));
     make_text(tr("about.based_on"), top + kRowH * 5, kCtrlH, get_font());
     make_link(kUpstreamLinkId, kUpstreamUrl, top + kRowH * 6 - S(6));
+}
+
+HWND make_web_link(int id, const wchar_t* text, int x, int y, int width, HWND parent) {
+    const std::wstring markup = std::wstring(L"<a>") + text + L"</a>";
+    HWND link = CreateWindowExW(0, WC_LINK, markup.c_str(), WS_CHILD | WS_VISIBLE | WS_TABSTOP, x,
+                                y, width, kCtrlH, parent,
+                                reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
+                                GetModuleHandle(nullptr), nullptr);
+    SendMessageW(link, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
+    SetWindowSubclass(link, AboutLinkProc, id, 0);
+    return link;
 }
 
 bool EditorApp::handle_about_notify(LPARAM notification) {

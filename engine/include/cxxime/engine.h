@@ -53,6 +53,9 @@ public:
     const Context& context() const;
     Context& context();
     bool select_candidate(int index);
+    // The trailing committed text the Laya model gets as context (at most `max_chars`
+    // characters).
+    std::string laya_context(std::size_t max_chars) const;
     // The last candidate pick, once (empty when nothing was picked since the last call).
     std::optional<CandidatePick> take_candidate_pick() {
         auto pick = last_pick_;

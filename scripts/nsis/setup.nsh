@@ -48,16 +48,23 @@ Function ChooseInstallerLanguage
     !insertmacro MUI_LANGDLL_DISPLAY
 FunctionEnd
 
-; User experience improvement program: asked on its own page, unchecked unless the user joined
-; before (privacy.experience_program). Silent installs keep the current answer.
+; User experience improvement program, two tiers (docs\privacy.md): the program (basic
+; information) and input collection, which needs the program. Both unchecked unless the user
+; chose them before; silent installs keep the current answers.
 Function LoadExperienceProgram
     StrCpy $ExperienceProgram ${BST_UNCHECKED}
-    nsExec::ExecToStack '"$PLUGINSDIR\zhiyi-installer-helper.exe" get-experience-program "$PROFILE\zhiyi\default.json"'
+    StrCpy $CollectInput ${BST_UNCHECKED}
+    nsExec::ExecToStack '"$PLUGINSDIR\zhiyi-installer-helper.exe" get-privacy "$PROFILE\zhiyi\default.json"'
     Pop $0
     Pop $1
     ${If} $0 == "0"
-    ${AndIf} $1 == "on"
-        StrCpy $ExperienceProgram ${BST_CHECKED}
+        ${If} $1 == "on on"
+            StrCpy $ExperienceProgram ${BST_CHECKED}
+            StrCpy $CollectInput ${BST_CHECKED}
+        ${ElseIf} $1 == "on off"
+        ${OrIf} $1 == "on unset"
+            StrCpy $ExperienceProgram ${BST_CHECKED}
+        ${EndIf}
     ${EndIf}
 FunctionEnd
 
@@ -68,20 +75,57 @@ Function ExperiencePage
     ${If} $0 == error
         Abort
     ${EndIf}
-    ${NSD_CreateLabel} 0u 0u -10u 36u "$(L_111)"
-    Pop $0
-    ${NSD_CreateLabel} 0u 40u -10u 36u "$(L_112)"
-    Pop $0
-    ${NSD_CreateCheckbox} 0u 84u -10u 14u "$(L_113)"
+    ${NSD_CreateCheckbox} 0u 0u -10u 12u "$(L_113)"
     Pop $ExperienceCheckbox
     ${NSD_SetState} $ExperienceCheckbox $ExperienceProgram
-    ${NSD_CreateLabel} 12u 102u -22u 20u "$(L_114)"
+    ${NSD_OnClick} $ExperienceCheckbox ExperienceCheckboxClick
+    ${NSD_CreateLabel} 12u 14u -22u 18u "$(L_111)"
     Pop $0
+    ${NSD_CreateCheckbox} 0u 38u -10u 12u "$(L_115)"
+    Pop $CollectInputCheckbox
+    ${NSD_SetState} $CollectInputCheckbox $CollectInput
+    ${NSD_OnClick} $CollectInputCheckbox CollectInputCheckboxClick
+    ${NSD_CreateLabel} 12u 52u -22u 18u "$(L_112)"
+    Pop $0
+    ${NSD_CreateLabel} 0u 80u -10u 18u "$(L_114)"
+    Pop $0
+    ; The full list of what each tier records (docs on GitHub, in the setup language).
+    ${NSD_CreateLink} 0u 102u -10u 12u "$(L_117)"
+    Pop $0
+    ${NSD_OnClick} $0 OpenPrivacyDocument
     nsDialogs::Show
+FunctionEnd
+
+Function OpenPrivacyDocument
+    Pop $0
+    ExecShell "open" "$(L_118)"
+FunctionEnd
+
+; Unchecking the program unchecks input collection.
+Function ExperienceCheckboxClick
+    Pop $0
+    ${NSD_GetState} $ExperienceCheckbox $1
+    ${If} $1 != ${BST_CHECKED}
+        ${NSD_SetState} $CollectInputCheckbox ${BST_UNCHECKED}
+    ${EndIf}
+FunctionEnd
+
+; Checking input collection asks first, then checks the program too.
+Function CollectInputCheckboxClick
+    Pop $0
+    ${NSD_GetState} $CollectInputCheckbox $1
+    ${If} $1 == ${BST_CHECKED}
+        MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "$(L_116)" IDYES collect_input_confirmed
+        ${NSD_SetState} $CollectInputCheckbox ${BST_UNCHECKED}
+        Return
+        collect_input_confirmed:
+        ${NSD_SetState} $ExperienceCheckbox ${BST_CHECKED}
+    ${EndIf}
 FunctionEnd
 
 Function ExperiencePageLeave
     ${NSD_GetState} $ExperienceCheckbox $ExperienceProgram
+    ${NSD_GetState} $CollectInputCheckbox $CollectInput
 FunctionEnd
 
 Function ApplyExperienceProgram
@@ -89,10 +133,14 @@ Function ApplyExperienceProgram
     ${If} $ExperienceProgram == ${BST_CHECKED}
         StrCpy $0 "on"
     ${EndIf}
-    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" set-experience-program "$PROFILE\zhiyi\default.json" $0'
+    StrCpy $2 "off"
+    ${If} $CollectInput == ${BST_CHECKED}
+        StrCpy $2 "on"
+    ${EndIf}
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" set-privacy "$PROFILE\zhiyi\default.json" $0 $2'
     Pop $1
     ${If} $1 != "0"
-        DetailPrint "Experience program setting not changed ($1)"
+        DetailPrint "Experience program settings not changed ($1)"
     ${EndIf}
 FunctionEnd
 

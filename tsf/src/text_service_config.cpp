@@ -84,6 +84,8 @@ void TextService::_apply_config_snapshot() {
 
     _inputIndicator.set_status_visible(_config.status_window.enable);
     _register_switch_keys();  // the switch keys may have changed
+    _reportedInputTarget.clear();  // input collection may have been turned on
+    _report_input_target();
     if (_localCandidateWindow) {
         _localCandidateWindow->set_config(_config);
     }

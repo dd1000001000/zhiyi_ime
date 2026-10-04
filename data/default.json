@@ -66,7 +66,8 @@
         "activate_ime": "disabled"
     },
     "privacy": {
-        "experience_program": false
+        "experience_program": false,
+        "collect_input": false
     },
     "theme": "moon_light",
     "ui": {

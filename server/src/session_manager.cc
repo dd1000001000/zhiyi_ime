@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <chrono>
 #include <fstream>
 #include <limits>
@@ -1434,6 +1435,122 @@ std::pair<cxxime::IPCStatus, cxxime::ImeStatus> SessionManager::sync_caps_lock(u
     return {cxxime::IPCStatus::OK, entry->ime_status};
 }
 
+namespace {
+
+// A key the IME handled, for the input log: "n", "3", "SPACE", "Ctrl+Space" ...
+std::string input_key_name(const cxxime::KeyEvent& event) {
+    std::string name;
+    if (event.is_ctrl()) name += "Ctrl+";
+    if (event.is_alt()) name += "Alt+";
+    const uint32_t vk = event.keycode;
+    if ((vk >= 'A' && vk <= 'Z')) {
+        const bool upper = event.is_shift() != event.is_caps_lock();
+        name += static_cast<char>(upper ? vk : vk - 'A' + 'a');
+        return name;
+    }
+    if (event.is_shift()) name += "Shift+";
+    if (vk >= '0' && vk <= '9') return name + static_cast<char>(vk);
+    switch (vk) {
+    case VK_SPACE: return name + "SPACE";
+    case VK_BACK: return name + "BACK";
+    case VK_RETURN: return name + "ENTER";
+    case VK_ESCAPE: return name + "ESC";
+    case VK_TAB: return name + "TAB";
+    case VK_DELETE: return name + "DEL";
+    case VK_LEFT: return name + "LEFT";
+    case VK_RIGHT: return name + "RIGHT";
+    case VK_UP: return name + "UP";
+    case VK_DOWN: return name + "DOWN";
+    case VK_HOME: return name + "HOME";
+    case VK_END: return name + "END";
+    case VK_PRIOR: return name + "PGUP";
+    case VK_NEXT: return name + "PGDN";
+    default: {
+        char hex[8] = {};
+        std::snprintf(hex, sizeof(hex), "VK%02X", vk);
+        return name + hex;
+    }
+    }
+}
+
+std::string composition_code(const cxxime::Context& context) {
+    std::string code;
+    for (const auto& segment : context.composition().converted_segments()) {
+        code += segment.raw_input;
+    }
+    return code + context.composition().active().input;
+}
+
+const char* composition_mode(cxxime::CompositionScheme scheme) {
+    switch (scheme) {
+    case cxxime::CompositionScheme::kPinyin: return "pinyin";
+    case cxxime::CompositionScheme::kWubi: return "wubi";
+    case cxxime::CompositionScheme::kMixed: return "mixed";
+    case cxxime::CompositionScheme::kSymbol: return "symbol";
+    case cxxime::CompositionScheme::kInlineAscii: return "english";
+    }
+    return "other";
+}
+
+// Second tier of the experience program: one record per input, from its first handled key to
+// its commit or cancel. Keys the IME does not handle are not part of any input.
+void track_input(SessionEntry& s, const cxxime::KeyEvent* event, bool was_composing,
+                 bool handled, const ProcessKeyResult& ret,
+                 const std::optional<cxxime::CandidatePick>& pick) {
+    cxxime::ExperienceLog& log = cxxime::ExperienceLog::instance();
+    if (!log.collecting_input()) {
+        s.input_open = false;
+        return;
+    }
+    const bool committed = !ret.commit_text.empty();
+    if (!handled || (!was_composing && !ret.composing && !committed)) return;
+    const cxxime::Engine& engine = *s.engine;
+    if (!s.input_open) {
+        s.input = {};
+        s.input.app = s.input_app;
+        s.input.window_title = s.input_window_title;
+        s.input_start = std::chrono::steady_clock::now();
+        s.input_open = true;
+    }
+    if (event) s.input.keys.push_back(input_key_name(*event));
+    if (pick) s.input.picked = pick->index;
+    const int context_chars =
+        s.resources.runtime ? s.resources.runtime->config().laya.context_chars : 48;
+    if (ret.composing) {
+        s.input.code = composition_code(engine.context());
+        s.input.mode = composition_mode(engine.context().composition().active().scheme);
+        s.input.candidates.clear();
+        for (const auto& item : ret.presentation.items) {
+            s.input.candidates.emplace_back(item.text, item.recommended);
+        }
+        // The context of this input: the text committed before it.
+        s.input.laya_context = engine.laya_context(static_cast<std::size_t>(context_chars));
+        return;
+    }
+    if (s.input.mode.empty()) {
+        s.input.mode = composition_mode(engine.context().composition().active().scheme);
+    }
+    s.input.committed = ret.commit_text;
+    s.input.duration_ms = static_cast<uint32_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
+                                                              s.input_start)
+            .count());
+    log.record_input(s.input);
+    s.input_open = false;
+}
+
+}  // namespace
+
+bool SessionManager::set_input_target(uint32_t id, const std::string& app,
+                                      const std::string& window_title) {
+    auto entry = lookup_session(id);
+    if (!entry) return false;
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    entry->input_app = app;
+    entry->input_window_title = window_title;
+    return true;
+}
+
 ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent& event,
                                              uint32_t visible_candidate_count) {
     // Two-phase lock: lookup session and copy shared_ptr, then lock session
@@ -1488,15 +1605,17 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     engine.set_trace_session_id(id);
 
     // 4. call Engine
+    const bool was_composing = engine.context().is_composing();
     const auto key_start = std::chrono::steady_clock::now();
     auto result = engine.process_key(event, opts, static_cast<int>(visible_candidate_count));
+    std::optional<cxxime::CandidatePick> pick = engine.take_candidate_pick();
     if (!event.is_key_up) {
         cxxime::ExperienceLog& experience = cxxime::ExperienceLog::instance();
         experience.record_key(static_cast<uint32_t>(
             std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - key_start)
                 .count()));
-        if (const auto pick = engine.take_candidate_pick()) experience.record_pick(*pick);
+        if (pick) experience.record_pick(*pick);
     }
 
     // 5. Publish shared mode changes and retain this session's base language mode.
@@ -1570,6 +1689,10 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     }
     advance_candidate_revision(s, candidate_state_before);
     fill_session_presentation(s, ret);
+    if (!event.is_key_up) {
+        track_input(s, &event, was_composing, result != cxxime::ProcessResult::REJECTED, ret,
+                    pick);
+    }
 
     // trace log
     if (trace_enabled && engine.last_trace().should_log()) {
@@ -1690,10 +1813,11 @@ ProcessKeyResult SessionManager::select_candidate(uint32_t id, int index,
     }
 
     const CandidateStateToken candidate_state_before = candidate_state_token(*s.engine);
+    const bool was_composing = s.engine->context().is_composing();
+    std::optional<cxxime::CandidatePick> pick;
     if (s.engine->select_candidate(index)) {
-        if (const auto pick = s.engine->take_candidate_pick()) {
-            cxxime::ExperienceLog::instance().record_pick(*pick);
-        }
+        pick = s.engine->take_candidate_pick();
+        if (pick) cxxime::ExperienceLog::instance().record_pick(*pick);
         if (s.engine->context().is_composing()) {
             ret.result = cxxime::ProcessResult::ACCEPTED;
         } else {
@@ -1707,6 +1831,8 @@ ProcessKeyResult SessionManager::select_candidate(uint32_t id, int index,
     }
     advance_candidate_revision(s, candidate_state_before);
     fill_session_presentation(s, ret);
+    // A mouse pick: part of the current input, without a key.
+    track_input(s, nullptr, was_composing, pick.has_value(), ret, pick);
     return ret;
 }
 

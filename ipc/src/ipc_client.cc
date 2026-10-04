@@ -301,6 +301,26 @@ bool IpcClient::focus_in(uint32_t session_id) {
     return send_request(req, resp);
 }
 
+bool IpcClient::set_input_target(uint32_t session_id, const std::string& app,
+                                 const std::string& window_title) {
+    IPCRequest req = {};
+    req.command = IPCCommand::SET_INPUT_TARGET;
+    req.session_id = session_id;
+    // Truncated at a UTF-8 character boundary, NUL-terminated.
+    auto copy = [](char* dst, size_t size, const std::string& src) {
+        size_t n = (std::min)(src.size(), size - 1);
+        while (n > 0 && n < src.size() && (static_cast<unsigned char>(src[n]) & 0xC0) == 0x80) {
+            --n;
+        }
+        std::memcpy(dst, src.data(), n);
+        dst[n] = '\0';
+    };
+    copy(req.search_query, sizeof(req.search_query), app);
+    copy(req.search_result, sizeof(req.search_result), window_title);
+    IPCResponse resp = {};
+    return send_request(req, resp);
+}
+
 bool IpcClient::focus_out(uint32_t session_id) {
     IPCRequest req = {};
     req.command = IPCCommand::FOCUS_OUT;

@@ -493,6 +493,17 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
         break;
     }
 
+    case cxxime::IPCCommand::SET_INPUT_TARGET: {
+        const std::string app(request.search_query,
+                              strnlen_s(request.search_query, sizeof(request.search_query)));
+        const std::string title(request.search_result,
+                                strnlen_s(request.search_result, sizeof(request.search_result)));
+        response.status = session_mgr_.set_input_target(request.session_id, app, title)
+                              ? cxxime::IPCStatus::OK
+                              : cxxime::IPCStatus::ERR_INVALID_SESSION;
+        break;
+    }
+
     case cxxime::IPCCommand::FOCUS_OUT: {
         const auto r = session_mgr_.focus_out(request.session_id);
         fill_process_response(r, &response);

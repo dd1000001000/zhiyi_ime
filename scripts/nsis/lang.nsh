@@ -4,8 +4,8 @@
 
 LangString L_001 ${LANG_ENGLISH} "Open Zhiyi IME settings"
 LangString L_001 ${LANG_SIMPCHINESE} "启动知意输入法设置"
-LangString L_002 ${LANG_ENGLISH} "Zhiyi IME has been uninstalled. A few program files still in use will be removed the next time Windows restarts."
-LangString L_002 ${LANG_SIMPCHINESE} "知意输入法已卸载。少量正在使用的程序文件将在下次重新启动 Windows 后自动删除。"
+LangString L_002 ${LANG_ENGLISH} "Zhiyi IME has been uninstalled. A few program files are still in use and will be removed when Windows restarts. Restart now or later?"
+LangString L_002 ${LANG_SIMPCHINESE} "知意输入法已卸载。少量程序文件仍在使用中，将在重新启动 Windows 后自动删除。要现在重新启动吗？"
 LangString L_003 ${LANG_ENGLISH} "Could not confirm that the Zhiyi IME service has stopped; files were not overwritten."
 LangString L_003 ${LANG_SIMPCHINESE} "无法确认知意输入法后台已终止，未继续覆盖文件。"
 LangString L_004 ${LANG_ENGLISH} "Could not safely recover the previous unfinished Zhiyi IME installation."

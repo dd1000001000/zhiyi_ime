@@ -180,8 +180,12 @@ def check_installer_flow(
             "Fresh install directory",
         )
 
-    if text.count("!define MUI_FINISHPAGE_NOREBOOTSUPPORT") != 2:
-        errors.append("Finish pages: install and uninstall must both suppress restart choices")
+    # The install finish page never asks to restart; the uninstall one offers restart now /
+    # later when files in use are left for the next restart (later preselected).
+    if text.count("!define MUI_FINISHPAGE_NOREBOOTSUPPORT") != 1:
+        errors.append("Finish pages: only the install finish page suppresses restart choices")
+    if text.count("!define MUI_FINISHPAGE_REBOOTLATER_DEFAULT") != 1:
+        errors.append("Finish pages: the uninstall restart choice must default to later")
     if text.count('StrCpy $LifecycleResultPath "$PLUGINSDIR\\zhiyi-lifecycle.ini"') != 2:
         errors.append("Lifecycle result path: must be initialized after each InitPluginsDir")
 

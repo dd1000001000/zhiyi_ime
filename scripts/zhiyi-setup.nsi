@@ -141,7 +141,10 @@ UninstPage custom un.ConfirmPage un.ConfirmPageLeave
 !insertmacro MUI_UNPAGE_INSTFILES
 !define MUI_UNTEXT_FINISH_INFO_REBOOT \
     "$(L_002)"
-!define MUI_FINISHPAGE_NOREBOOTSUPPORT
+; Files still in use are deleted at the next restart (SetRebootFlag in
+; un.CommitInstallLifecycle): the finish page then offers to restart now or later (later is
+; preselected so nobody restarts by accident).
+!define MUI_FINISHPAGE_REBOOTLATER_DEFAULT
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.FinishPageShow
 !insertmacro MUI_UNPAGE_FINISH
 ; The installer asks for its language (ChooseInstallerLanguage in nsis\setup.nsh): the

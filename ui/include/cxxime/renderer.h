@@ -20,7 +20,13 @@ public:
 
 private:
     void draw_preedit(const RenderContext& ctx);
+    // Laya recommendation: the gradient wash under the candidate, and the star over it.
+    void draw_recommend_wash(const D2D1_ROUNDED_RECT& box, const RECT& mark, float t,
+                             bool highlighted, float wash_opacity);
     void draw_sparkle(const RECT& mark, float t, bool highlighted);
+    // Blue-to-purple from the bottom-left to the top-right of `area`.
+    ID2D1LinearGradientBrush* make_recommend_gradient(const D2D1_RECT_F& area, const Color& from,
+                                                      const Color& to, float opacity);
 
     ID2D1Factory* d2d_factory_ = nullptr;
     ID2D1HwndRenderTarget* render_target_ = nullptr;

@@ -66,7 +66,7 @@ struct CandidateRect {
 };
 
 // Width reserved after a recommended candidate for its sparkle mark.
-inline int recommendation_mark_width(int row_height) { return row_height / 2; }
+inline int recommendation_mark_width(int row_height) { return row_height * 9 / 20; }
 
 Theme make_light_theme();
 Theme make_dark_theme();

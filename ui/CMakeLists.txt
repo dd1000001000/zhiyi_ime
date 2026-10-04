@@ -20,5 +20,6 @@ target_link_libraries(cxxime-ui PUBLIC
     d2d1
     dwmapi
     dwrite
+    msimg32
     windowscodecs
 )

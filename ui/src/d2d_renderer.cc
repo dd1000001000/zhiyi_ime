@@ -272,9 +272,15 @@ void D2DRenderer::render(const RenderContext& ctx) {
                   i == ctx.hovered_candidate_index;
         D2D1_RECT_F hr = {(float)cr.highlight_rect.left, (float)cr.highlight_rect.top,
                           (float)cr.highlight_rect.right, (float)cr.highlight_rect.bottom};
-        if (hl || hv) {
-            D2D1_ROUNDED_RECT rr = {hr, corner, corner};
+        const bool recommended = cr.recommended && cr.mark_rect.right > cr.mark_rect.left;
+        const D2D1_ROUNDED_RECT rr = {hr, corner, corner};
+        if ((hl && !recommended) || (hv && !hl)) {
             render_target_->FillRoundedRectangle(rr, hl ? highlight_brush_ : hover_brush_);
+        }
+        if (recommended) {
+            draw_recommend_wash(rr, cr.mark_rect, ctx.sparkle_t, hl,
+                                ctx.theme ? recommend_wash_opacity(ctx.theme->background)
+                                          : 0.13f);
         }
         // Label
         std::wstring label = candidate_label(i);
@@ -298,7 +304,7 @@ void D2DRenderer::render(const RenderContext& ctx) {
             render_target_->DrawText(wc.c_str(), (UINT32)wc.length(), fmt_left_,
                                     comment_rect, brush);
         }
-        if (cr.recommended && cr.mark_rect.right > cr.mark_rect.left) {
+        if (recommended) {
             draw_sparkle(cr.mark_rect, ctx.sparkle_t, hl);
         }
     }
@@ -332,30 +338,89 @@ void D2DRenderer::render(const RenderContext& ctx) {
     render_target_->EndDraw();
 }
 
+ID2D1LinearGradientBrush* D2DRenderer::make_recommend_gradient(const D2D1_RECT_F& area,
+                                                             const Color& from, const Color& to,
+                                                             float opacity) {
+    const D2D1_GRADIENT_STOP stops[] = {{0.0f, c2d(from)}, {1.0f, c2d(to)}};
+    ID2D1GradientStopCollection* collection = nullptr;
+    if (FAILED(render_target_->CreateGradientStopCollection(stops, 2, &collection))) {
+        return nullptr;
+    }
+    ID2D1LinearGradientBrush* brush = nullptr;
+    render_target_->CreateLinearGradientBrush(
+        D2D1::LinearGradientBrushProperties(D2D1::Point2F(area.left, area.bottom),
+                                            D2D1::Point2F(area.right, area.top)),
+        D2D1::BrushProperties(opacity), collection, &brush);
+    collection->Release();
+    return brush;
+}
+
+void D2DRenderer::draw_recommend_wash(const D2D1_ROUNDED_RECT& box, const RECT& mark, float t,
+                                      bool highlighted, float wash_opacity) {
+    // Highlighted: the highlight itself turns blue-to-purple. Otherwise a light wash.
+    if (ID2D1LinearGradientBrush* wash = make_recommend_gradient(
+            box.rect, highlighted ? kRecommendHighlightBlue : kRecommendBlue,
+            highlighted ? kRecommendHighlightPurple : kRecommendPurple,
+            highlighted ? 1.0f : wash_opacity)) {
+        render_target_->FillRoundedRectangle(box, wash);
+        wash->Release();
+    }
+    // A soft glow behind the star, inside the candidate box.
+    const SparkleStar star = sparkle_star(mark, t);
+    const Color glow = highlighted ? Color{255, 255, 255, 255} : kRecommendPurple;
+    const D2D1_GRADIENT_STOP stops[] = {
+        {0.0f, D2D1::ColorF(glow.r / 255.0f, glow.g / 255.0f, glow.b / 255.0f,
+                            highlighted ? 0.30f : 0.32f)},
+        {1.0f, D2D1::ColorF(glow.r / 255.0f, glow.g / 255.0f, glow.b / 255.0f, 0.0f)},
+    };
+    ID2D1GradientStopCollection* collection = nullptr;
+    if (FAILED(render_target_->CreateGradientStopCollection(stops, 2, &collection))) return;
+    ID2D1RadialGradientBrush* brush = nullptr;
+    const float radius = (box.rect.bottom - box.rect.top) * 0.85f;
+    render_target_->CreateRadialGradientBrush(
+        D2D1::RadialGradientBrushProperties(D2D1::Point2F(star.cx, star.cy), D2D1::Point2F(),
+                                            radius, radius),
+        collection, &brush);
+    collection->Release();
+    if (brush) {
+        render_target_->FillRoundedRectangle(box, brush);
+        brush->Release();
+    }
+}
+
 void D2DRenderer::draw_sparkle(const RECT& mark, float t, bool highlighted) {
-    const COLORREF c = sparkle_color(highlighted);
-    ID2D1SolidColorBrush* brush = nullptr;
-    if (FAILED(render_target_->CreateSolidColorBrush(
-            D2D1::ColorF(GetRValue(c) / 255.0f, GetGValue(c) / 255.0f, GetBValue(c) / 255.0f), &brush))) {
-        return;
-    }
-    for (const SparkleStar& star : sparkle_stars(mark, t)) {
-        if (star.r < 0.5f || star.alpha < 0.02f) continue;
-        ID2D1PathGeometry* path = nullptr;
-        ID2D1GeometrySink* sink = nullptr;
-        if (SUCCEEDED(d2d_factory_->CreatePathGeometry(&path)) && SUCCEEDED(path->Open(&sink))) {
-            const auto pts = sparkle_points(star);
-            sink->BeginFigure(D2D1::Point2F(pts[0].x, pts[0].y), D2D1_FIGURE_BEGIN_FILLED);
-            for (size_t i = 1; i < pts.size(); ++i) sink->AddLine(D2D1::Point2F(pts[i].x, pts[i].y));
-            sink->EndFigure(D2D1_FIGURE_END_CLOSED);
-            sink->Close();
-            brush->SetOpacity(star.alpha);
-            render_target_->FillGeometry(path, brush);
+    const SparkleStar star = sparkle_star(mark, t);
+    if (star.r < 0.5f) return;
+    ID2D1PathGeometry* path = nullptr;
+    ID2D1GeometrySink* sink = nullptr;
+    if (SUCCEEDED(d2d_factory_->CreatePathGeometry(&path)) && SUCCEEDED(path->Open(&sink))) {
+        const auto c = sparkle_curve(star);
+        sink->BeginFigure(D2D1::Point2F(c[0].x, c[0].y), D2D1_FIGURE_BEGIN_FILLED);
+        for (size_t i = 1; i + 2 < c.size(); i += 3) {
+            sink->AddBezier(D2D1::BezierSegment(D2D1::Point2F(c[i].x, c[i].y),
+                                                D2D1::Point2F(c[i + 1].x, c[i + 1].y),
+                                                D2D1::Point2F(c[i + 2].x, c[i + 2].y)));
         }
-        if (sink) sink->Release();
-        if (path) path->Release();
+        sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+        sink->Close();
+        // White on the gradient highlight; blue-to-purple elsewhere.
+        const D2D1_RECT_F area = {star.cx - star.r, star.cy - star.r, star.cx + star.r,
+                                  star.cy + star.r};
+        ID2D1Brush* brush = nullptr;
+        if (highlighted) {
+            ID2D1SolidColorBrush* white = nullptr;
+            render_target_->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.96f), &white);
+            brush = white;
+        } else {
+            brush = make_recommend_gradient(area, kRecommendBlue, kRecommendPurple, 1.0f);
+        }
+        if (brush) {
+            render_target_->FillGeometry(path, brush);
+            brush->Release();
+        }
     }
-    brush->Release();
+    if (sink) sink->Release();
+    if (path) path->Release();
 }
 
 void D2DRenderer::resize(int w, int h) { if (render_target_) render_target_->Resize(D2D1::SizeU(w, h)); }

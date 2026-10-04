@@ -226,7 +226,31 @@ void GdiRenderer::render(HDC hdc, const RECT& clip, const RenderContext& ctx) {
         bool hv = ctx.hovered_target == CandidateHoverTarget::Candidate &&
                   i == ctx.hovered_candidate_index;
 
-        if (hl || hv) {
+        const bool recommended = cr.recommended && cr.mark_rect.right > cr.mark_rect.left &&
+                                 ctx.theme;
+        if (hl && recommended) {
+            // The gradient highlight of a recommended candidate.
+            TRIVERTEX v[2] = {};
+            v[0].x = cr.highlight_rect.left;
+            v[0].y = cr.highlight_rect.top;
+            v[0].Red = kRecommendHighlightBlue.r << 8;
+            v[0].Green = kRecommendHighlightBlue.g << 8;
+            v[0].Blue = kRecommendHighlightBlue.b << 8;
+            v[1].x = cr.highlight_rect.right;
+            v[1].y = cr.highlight_rect.bottom;
+            v[1].Red = kRecommendHighlightPurple.r << 8;
+            v[1].Green = kRecommendHighlightPurple.g << 8;
+            v[1].Blue = kRecommendHighlightPurple.b << 8;
+            GRADIENT_RECT gr = {0, 1};
+            HRGN round = CreateRoundRectRgn(cr.highlight_rect.left, cr.highlight_rect.top,
+                                            cr.highlight_rect.right + 1,
+                                            cr.highlight_rect.bottom + 1, corner, corner);
+            const int saved = SaveDC(target_dc);
+            ExtSelectClipRgn(target_dc, round, RGN_AND);
+            GradientFill(target_dc, v, 2, &gr, 1, GRADIENT_FILL_RECT_H);
+            RestoreDC(target_dc, saved);
+            DeleteObject(round);
+        } else if (hl || hv) {
             HBRUSH use = hl ? hl_brush_ : hover_brush_;
             HBRUSH ob = (HBRUSH)SelectObject(target_dc, use);
             HPEN op = (HPEN)SelectObject(target_dc, GetStockObject(NULL_PEN));
@@ -246,24 +270,16 @@ void GdiRenderer::render(HDC hdc, const RECT& clip, const RenderContext& ctx) {
         SetTextColor(target_dc, hl ? hl_text_color_ : text_color_);
         DrawTextW(target_dc, to_wstr(cr.text).c_str(), -1, const_cast<RECT*>(&cr.text_rect),
             DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-        if (cr.recommended && cr.mark_rect.right > cr.mark_rect.left && ctx.theme) {
-            // GDI has no per-shape opacity: blend the star color with the background instead.
-            const Color& back = hl ? ctx.theme->hilited_back : ctx.theme->background;
-            const COLORREF star_color = sparkle_color(hl);
-            for (const SparkleStar& star : sparkle_stars(cr.mark_rect, ctx.sparkle_t)) {
-                if (star.r < 0.5f || star.alpha < 0.02f) continue;
-                auto mix = [&](int fg, int bg) { return static_cast<int>(bg + (fg - bg) * star.alpha); };
-                HBRUSH brush = CreateSolidBrush(RGB(mix(GetRValue(star_color), back.r),
-                                                    mix(GetGValue(star_color), back.g),
-                                                    mix(GetBValue(star_color), back.b)));
+        if (recommended) {
+            // GDI fallback: a solid star (white on the gradient highlight, purple elsewhere).
+            const SparkleStar star = sparkle_star(cr.mark_rect, ctx.sparkle_t);
+            if (star.r >= 0.5f) {
+                const Color c = hl ? Color{255, 255, 255, 255} : kRecommendPurple;
+                HBRUSH brush = CreateSolidBrush(RGB(c.r, c.g, c.b));
                 HBRUSH ob = (HBRUSH)SelectObject(target_dc, brush);
                 HPEN op = (HPEN)SelectObject(target_dc, GetStockObject(NULL_PEN));
-                POINT pts[8];
-                const auto sp = sparkle_points(star);
-                for (int k = 0; k < 8; ++k) {
-                    pts[k] = {static_cast<LONG>(std::lround(sp[k].x)), static_cast<LONG>(std::lround(sp[k].y))};
-                }
-                Polygon(target_dc, pts, 8);
+                const auto pts = sparkle_polygon(star);
+                Polygon(target_dc, pts.data(), static_cast<int>(pts.size()));
                 SelectObject(target_dc, op);
                 SelectObject(target_dc, ob);
                 DeleteObject(brush);

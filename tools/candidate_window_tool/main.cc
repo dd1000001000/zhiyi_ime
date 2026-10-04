@@ -248,6 +248,9 @@ int main() {
     g_config.load(cxxime::data_path("default.json"));
     g_config.load_themes(cxxime::data_path("themes.json"));
     g_config.page_size = 7;
+    // Screenshots: ZHIYIIME_TOOL_THEME=moon_dark, ZHIYIIME_TOOL_BACKEND=gdi.
+    if (const char* theme = std::getenv("ZHIYIIME_TOOL_THEME")) g_config.theme = theme;
+    if (const char* backend = std::getenv("ZHIYIIME_TOOL_BACKEND")) g_config.render_backend = backend;
     g_d2d = (g_config.render_backend != "gdi");
     g_window.create(nullptr, g_config);
 

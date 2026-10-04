@@ -42,6 +42,10 @@ private:
 
     // Config <-> controls
     bool load_config();
+    bool read_config_files(cxxime::Config& config, bool report_errors);
+    // Picks up changes made elsewhere since the last load (status bar, another settings window)
+    // while keeping the unsaved choices on the pages.
+    void refresh_config();
     void populate_controls();
     // False when a value is invalid (with a message box if report_errors).
     bool read_controls(bool report_errors = true);
@@ -93,6 +97,7 @@ private:
     HWND hLearning_ = nullptr;
 
     cxxime::Config config_;
+    cxxime::Config loaded_config_;  // the files as last read or written
     std::string ui_language_;  // resolved code of the strings in use
     static LRESULT CALLBACK wndproc(HWND, UINT, WPARAM, LPARAM);
 };

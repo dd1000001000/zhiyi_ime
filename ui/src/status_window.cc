@@ -328,6 +328,11 @@ void StatusWindow::update_state(const ButtonState& state) {
     if (layered_ready_) RedrawLayered();
 }
 
+void StatusWindow::set_theme(const StatusTheme& theme) {
+    theme_ = theme;
+    if (layered_ready_) RedrawLayered();
+}
+
 void StatusWindow::set_position(int x, int y) {
     if (hwnd_) {
         const RECT requested = status_window_rect(x, y, win_w_, win_h_);
@@ -749,9 +754,9 @@ void StatusWindow::ComputeButtonDrawInfo(std::vector<ButtonDrawInfo>& out) {
         Color bg_col = theme_.inactive_back;
         Color txt_col = theme_.inactive_text;
         if (pressed) {
-            bg_col = blend(bg_col, {0, 0, 0, 255}, 0.25f);
+            bg_col = blend(bg_col, theme_.hover_tint, 0.25f);
         } else if (hover) {
-            bg_col = blend(bg_col, {0, 0, 0, 255}, 0.15f);
+            bg_col = blend(bg_col, theme_.hover_tint, 0.15f);
         }
         if (!is_enabled_) {
             bg_col.a = (uint8_t)(bg_col.a * 0.4);
@@ -783,9 +788,9 @@ void StatusWindow::ComputeButtonDrawInfo(std::vector<ButtonDrawInfo>& out) {
 
         Color set_col = theme_.inactive_back;
         if (sp) {
-            set_col = blend(set_col, {0, 0, 0, 255}, 0.25f);
+            set_col = blend(set_col, theme_.hover_tint, 0.25f);
         } else if (sh) {
-            set_col = blend(set_col, {0, 0, 0, 255}, 0.15f);
+            set_col = blend(set_col, theme_.hover_tint, 0.15f);
         }
         if (!is_enabled_) set_col.a = (uint8_t)(set_col.a * 0.4);
 

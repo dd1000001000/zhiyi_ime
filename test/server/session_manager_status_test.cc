@@ -30,6 +30,10 @@ using TestDictEntry = std::tuple<std::string, std::string, int>;
 
 static bool _status_init = []() {
     GetTempPathA(MAX_PATH, temp_path);
+    // Own folder: the dictionary manifest is written next to the test dictionaries, and
+    // test programs running in parallel would share %TEMP%\dictionary_manifest.json.
+    strcat_s(temp_path, "zhiyi-status-test\\");
+    CreateDirectoryA(temp_path, nullptr);
     return true;
 }();
 

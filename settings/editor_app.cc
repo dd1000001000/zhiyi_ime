@@ -225,26 +225,77 @@ void EditorApp::release_fonts() {
 }
 
 bool EditorApp::load_config() {
-    config_ = {};
+    Config config;
+    if (!read_config_files(config, true)) {
+        return false;
+    }
+    config_ = config;
+    loaded_config_ = std::move(config);
+    return true;
+}
+
+void EditorApp::refresh_config() {
+    Config disk;
+    if (!read_config_files(disk, false)) {
+        return;
+    }
+    read_controls(false);
+    // Start from the files; a value changed on a page since the last load stays.
+    Config merged = disk;
+    const Config& ui = config_;
+    const Config& before = loaded_config_;
+#define KEEP_PAGE_EDIT(member) \
+    if (!(ui.member == before.member)) merged.member = ui.member
+    KEEP_PAGE_EDIT(input_mode);
+    KEEP_PAGE_EDIT(pinyin_initials);
+    KEEP_PAGE_EDIT(theme);
+    KEEP_PAGE_EDIT(font_size);
+    KEEP_PAGE_EDIT(page_size);
+    KEEP_PAGE_EDIT(ui_language);
+    KEEP_PAGE_EDIT(english.correction);
+    KEEP_PAGE_EDIT(candidate_learning);
+    KEEP_PAGE_EDIT(fuzzy_pinyin);
+    KEEP_PAGE_EDIT(fuzzy_groups);
+#undef KEEP_PAGE_EDIT
+    // The switch keys move together, so a merge never repeats a key.
+    if (!(ui.ascii_switch_key == before.ascii_switch_key) ||
+        ui.ascii_toggle_shortcut != before.ascii_toggle_shortcut ||
+        ui.english_style_shortcut != before.english_style_shortcut ||
+        ui.punct_toggle_shortcut != before.punct_toggle_shortcut ||
+        ui.shape_toggle_shortcut != before.shape_toggle_shortcut) {
+        merged.ascii_switch_key = ui.ascii_switch_key;
+        merged.ascii_toggle_shortcut = ui.ascii_toggle_shortcut;
+        merged.english_style_shortcut = ui.english_style_shortcut;
+        merged.punct_toggle_shortcut = ui.punct_toggle_shortcut;
+        merged.shape_toggle_shortcut = ui.shape_toggle_shortcut;
+    }
+    config_ = std::move(merged);
+    loaded_config_ = std::move(disk);
+    populate_controls();
+}
+
+bool EditorApp::read_config_files(Config& config, bool report_errors) {
+    config = {};
     // Defaults from the program directory, then %USERPROFILE%\zhiyi\default.json.
     const std::string default_path = cxxime::data_path("default.json");
     const std::string user_path = cxxime::user_data_path("default.json");
     const std::string themes_path = cxxime::data_path("themes.json");
-    auto show_load_error = [this](const std::string& path) {
+    auto show_load_error = [this, report_errors](const std::string& path) {
+        if (!report_errors) return;
         std::wstring message = tr("error.load");
         message += L"\n\n";
         message += path_for_display(path);
         MessageBoxW(hwnd_, message.c_str(), tr("window.title"), MB_OK | MB_ICONERROR);
     };
 
-    if (!config_.load(default_path)) {
+    if (!config.load(default_path)) {
         show_load_error(default_path);
         return false;
     }
     const std::wstring wide_user_path = path_for_display(user_path);
     const DWORD user_attributes = GetFileAttributesW(wide_user_path.c_str());
     if (user_attributes != INVALID_FILE_ATTRIBUTES) {
-        if ((user_attributes & FILE_ATTRIBUTE_DIRECTORY) != 0 || !config_.load_user(user_path)) {
+        if ((user_attributes & FILE_ATTRIBUTE_DIRECTORY) != 0 || !config.load_user(user_path)) {
             show_load_error(user_path);
             return false;
         }
@@ -255,7 +306,7 @@ bool EditorApp::load_config() {
             return false;
         }
     }
-    if (!config_.load_themes(themes_path)) {
+    if (!config.load_themes(themes_path)) {
         show_load_error(themes_path);
         return false;
     }
@@ -266,6 +317,7 @@ bool EditorApp::save_config() {
     if (!read_controls()) {
         return false;
     }
+    refresh_config();  // keep what changed elsewhere (e.g. the status bar) since the last load
     unsigned long error_code = ERROR_SUCCESS;
     if (!replace_user_config(config_.to_user_json(), nullptr, &error_code)) {
         MessageBoxW(hwnd_,
@@ -274,6 +326,7 @@ bool EditorApp::save_config() {
                     tr("window.title"), MB_OK | MB_ICONERROR);
         return false;
     }
+    loaded_config_ = config_;
     return true;
 }
 
@@ -283,6 +336,7 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     const UINT navigate_message = settings_navigate_message();
     if (navigate_message != 0 && msg == navigate_message) {
+        a->refresh_config();
         a->show_panel(settings_panel_index(static_cast<cxxime::SettingsPanel>(wp)));
         return 0;
     }
@@ -326,6 +380,12 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         a->rebuild_ui();
         return 0;
     }
+    case WM_ACTIVATE:
+        // Back from the status bar or another program: show what changed there.
+        if (LOWORD(wp) != WA_INACTIVE && a->hList_) {
+            a->refresh_config();
+        }
+        break;
     case WM_DESTROY:
         a->release_fonts();
         PostQuitMessage(0);
@@ -335,7 +395,10 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         const int notification = HIWORD(wp);
         if (control_id == kListId && notification == LBN_SELCHANGE) {
             const int idx = static_cast<int>(SendMessageW(a->hList_, LB_GETCURSEL, 0, 0));
-            if (idx >= 0) a->show_panel(idx);
+            if (idx >= 0) {
+                a->refresh_config();
+                a->show_panel(idx);
+            }
             return 0;
         }
         switch (control_id) {

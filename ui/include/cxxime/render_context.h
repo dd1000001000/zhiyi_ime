@@ -50,6 +50,7 @@ struct StatusTheme {
     Color wubi_mode_text{179, 68, 63, 255};
     Color mixed_mode_text{15, 118, 110, 255};
     Color separator{212, 212, 212, 255};
+    Color hover_tint{0, 0, 0, 255};  // buttons darken (light) or lighten (dark) under the mouse
 };
 
 struct CandidateRect {
@@ -73,6 +74,8 @@ Theme get_theme(const std::string& scheme_name);
 
 struct Config;
 Theme build_theme_from_config(const Config& cfg);
+// The status bar follows the candidate window: dark when its background is dark.
+StatusTheme build_status_theme_from_config(const Config& cfg);
 
 struct LayoutConfig;
 enum class CandidateHoverTarget { None, Candidate, PreviousPage, NextPage };

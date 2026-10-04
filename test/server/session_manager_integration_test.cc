@@ -558,6 +558,10 @@ TEST(SessionIntegration, user_data_merge_skips_failed_file_and_continues) {
 
 int main() {
     GetTempPathA(MAX_PATH, temp_path);
+    // Own folder: the dictionary manifest is written next to the test dictionaries, and
+    // test programs running in parallel would share %TEMP%\dictionary_manifest.json.
+    strcat_s(temp_path, "zhiyi-integration-test\\");
+    CreateDirectoryA(temp_path, nullptr);
     const std::string directory_name =
         "zhiyi-session-integration-" + std::to_string(GetCurrentProcessId());
     test_user_data_dir = make_temp_path(directory_name.c_str());

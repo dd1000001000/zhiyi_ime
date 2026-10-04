@@ -397,6 +397,7 @@ private:
         current_config_ = config;
         candidate_window_.set_config(*current_config_);
         candidate_window_.set_layout(current_config_->layout);
+        status_window_.set_theme(cxxime::build_status_theme_from_config(*current_config_));
         if (is_initial_config) {
             const bool has_saved_position = current_config_->status_window.x != -1 ||
                                             current_config_->status_window.y != -1;

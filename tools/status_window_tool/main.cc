@@ -149,7 +149,14 @@ static LRESULT CALLBACK ParentWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 }
 
 // ── Entry point ──────────────────────────────────────────────
-int main() {
+int main(int argc, char** argv) {
+    if (argc > 1) {
+        // A color scheme from data/themes.json, e.g. moon_dark.
+        cxxime::Config config;
+        config.load_themes(cxxime::data_path("themes.json"));
+        config.theme = argv[1];
+        g_theme = cxxime::build_status_theme_from_config(config);
+    }
     wprintf(L"=== Zhiyi IME Status Window Tool ===\n");
     wprintf(L"Keys:  1     = Toggle 中/英\n");
     wprintf(L"       2     = Toggle 全/半\n");

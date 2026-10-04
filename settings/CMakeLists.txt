@@ -38,6 +38,7 @@ target_link_libraries(cxxime-settings PRIVATE
     cxxime-shared
     cxxime-ui
     comctl32.lib
+    imm32.lib
 )
 
 set_target_properties(cxxime-settings PROPERTIES OUTPUT_NAME "zhiyi-settings")

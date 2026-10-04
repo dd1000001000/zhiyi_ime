@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cwchar>
 
+#include <imm.h>
+
 #include <cxxime/key_event.h>
 
 #include "editor_app_internal.h"
@@ -125,6 +127,12 @@ void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam) {
         vk == VK_SCROLL) {
         reject(window, state, tr("keys.unsupported"));
         return;
+    }
+    if (vk == VK_PROCESSKEY) {
+        // An input method took the key (e.g. its own Ctrl+Space): the scan code tells which.
+        const UINT scan = static_cast<UINT>((lparam >> 16) & 0xFF) |
+                          ((lparam & (1 << 24)) != 0 ? 0xE000 : 0);
+        vk = MapVirtualKeyW(scan, MAPVK_VSC_TO_VK_EX);
     }
     state->other_key_seen = true;
     const KeyboardShortcut shortcut = {modifiers_down(), vk};
@@ -323,10 +331,14 @@ void register_class() {
 
 HWND create_key_capture(int id, int x, int y, int width, int height, HWND parent, bool allow_tap) {
     register_class();
-    return CreateWindowExW(0, kClassName, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP, x, y, width,
-                           height, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
-                           GetModuleHandleW(nullptr),
-                           allow_tap ? reinterpret_cast<LPVOID>(1) : nullptr);
+    HWND control = CreateWindowExW(
+        0, kClassName, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP, x, y, width, height, parent,
+        reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), GetModuleHandleW(nullptr),
+        allow_tap ? reinterpret_cast<LPVOID>(1) : nullptr);
+    // No input method in the box: the active one (this IME included) would otherwise take its
+    // own switch keys, such as Ctrl+Space, before the box sees them.
+    if (control) ImmAssociateContextEx(control, nullptr, 0);
+    return control;
 }
 
 void key_capture_set(HWND control, const KeyChoice& choice) {

@@ -71,6 +71,7 @@ public:
     void set_enabled(bool enabled);
 
     void update_state(const ButtonState& state);
+    void set_theme(const StatusTheme& theme);
     void set_position(int x, int y);
     void get_position(int& x, int& y) const;
     void set_click_callback(StatusButtonClickCallback callback);

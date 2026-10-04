@@ -383,7 +383,6 @@ STDMETHODIMP TextService::Deactivate() {
     _unregister_thread_sinks();
 
     _unregister_key_event_sink();
-    _unregister_preserved_key();
 
     if (_threadMgr) {
         _threadMgr->Release();

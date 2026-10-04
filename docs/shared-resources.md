@@ -319,7 +319,6 @@ Engine 持有指针引用外部资源（`pinyin_dict_`, `spellings_`, `syllabifi
 | `engine_source_test.cc` | 源码级 Engine 行为 |
 | `trace_test.cc` | 查询追踪 |
 | `session_manager_status_test.cc` | 全局状态同步（含 CapsLock） |
-| `status_window_test.cc` | 状态窗口 |
 | `benchmark_test.cc` | 性能基准 |
 | `config_test.cc` | 配置解析 |
 | `candidate_window_test.cc` | 候选窗口 |

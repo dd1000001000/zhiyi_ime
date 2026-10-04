@@ -416,17 +416,10 @@ bool TextService::_ProcessKeyUp(WPARAM wParam, LPARAM lParam) {
     return handled;
 }
 
-STDMETHODIMP TextService::OnPreservedKey(ITfContext* pic, REFGUID rguid, BOOL* pfEaten) {
-    if (IsEqualGUID(rguid, c_guidPreservedKey_Toggle) && !_composing) {
-        //_chinese_mode = !_chinese_mode;
-        cxxime::IPCResponse resp = {};
-        if (_ensure_ipc_session() &&
-            _client.toggle_chinese(_sessionId, resp) && resp.status == cxxime::IPCStatus::OK) {
-            _sync_ime_status(resp.ime_status);
-        }
-        CXXIME_LOG(L"Mode toggled (preserved key): %s", _chinese_mode ? L"Chinese" : L"English");
-        *pfEaten = TRUE;
-    } else {
+// No preserved keys are registered: the switch shortcuts are configurable and matched by the
+// engine.
+STDMETHODIMP TextService::OnPreservedKey(ITfContext*, REFGUID, BOOL* pfEaten) {
+    if (pfEaten) {
         *pfEaten = FALSE;
     }
     return S_OK;

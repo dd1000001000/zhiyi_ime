@@ -206,8 +206,6 @@ void TextService::_initialize_optional_activation_services() {
     cxxime_tsf::trace_activation_step("display_attribute", "complete", display_attribute_hr,
                                             false);
 
-    // No preserved keys: the switch shortcuts are configurable and matched by the engine (a
-    // preserved Ctrl+Space used to switch Chinese/English before the engine saw the key).
 
     cxxime_tsf::trace_activation_step("conversion_sink", "attempt", S_OK, false);
     _register_conversion_compartment_sink();
@@ -317,19 +315,6 @@ HRESULT TextService::_unregister_key_event_sink() {
         return E_FAIL;
 
     HRESULT hr = pKeystrokeMgr->UnadviseKeyEventSink(_clientId);
-    pKeystrokeMgr->Release();
-    return hr;
-}
-
-HRESULT TextService::_unregister_preserved_key() {
-    if (!_threadMgr)
-        return E_FAIL;
-
-    ITfKeystrokeMgr* pKeystrokeMgr = nullptr;
-    if (FAILED(_threadMgr->QueryInterface(IID_ITfKeystrokeMgr, (void**)&pKeystrokeMgr)))
-        return E_FAIL;
-
-    HRESULT hr = pKeystrokeMgr->UnpreserveKey(c_guidPreservedKey_Toggle, nullptr);
     pKeystrokeMgr->Release();
     return hr;
 }

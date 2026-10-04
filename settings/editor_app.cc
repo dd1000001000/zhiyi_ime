@@ -64,7 +64,7 @@ int EditorApp::run(HINSTANCE hInst, float dpiScale, cxxime::SettingsPanel initia
     app.initial_panel_ = initialPanel;
 
     INITCOMMONCONTROLSEX icc = {sizeof(icc),
-                                ICC_STANDARD_CLASSES | ICC_HOTKEY_CLASS | ICC_LINK_CLASS};
+                                ICC_STANDARD_CLASSES | ICC_LINK_CLASS};
     InitCommonControlsEx(&icc);
 
     WNDCLASSEXW wc = {};

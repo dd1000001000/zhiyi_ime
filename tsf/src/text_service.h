@@ -258,10 +258,21 @@ private:
     void _synchronize_activation_focus();
     HRESULT _register_key_event_sink();
     HRESULT _unregister_key_event_sink();
-    // The configured switch shortcuts are preserved keys, so system hotkeys (such as the
-    // Chinese IME/non-IME toggle on Ctrl+Space) cannot take them first.
+    // The configured switch shortcuts are preserved keys. Where Windows' own input method
+    // hotkeys still take the key first (Ctrl+Space open/close, Shift+Space full/half width,
+    // Ctrl+. punctuation, in plain edit boxes), only the open/close or conversion compartment
+    // changes: the switch key held at that moment is then run here
+    // (_run_held_switch_key, text_service_compartment.cpp).
     void _register_switch_keys();
     void _unregister_switch_keys();
+    void _register_open_close_compartment_sink();
+    void _unregister_open_close_compartment_sink();
+    // The configured switch key (c_guidPreservedKey* order) held now, else -1.
+    int _held_switch_key() const;
+    // True once per press: false when the same switch key was run in the last moment (the
+    // key event, the preserved key and a system hotkey can all report one press).
+    bool _claim_switch_key_press(int slot);
+    bool _run_held_switch_key();
     // Input collection (second tier of the experience program): tells the server the program
     // and window title of the input when they changed; nothing while not allowed.
     void _report_input_target();
@@ -412,6 +423,10 @@ private:
     cxxime_tsf::EffectiveEditTargetSnapshot _effectiveEditTarget;
     ITfCompartment* _conversionCompartment = nullptr;
     ITfSource* _conversionCompartmentSource = nullptr;
+    ITfCompartment* _openCloseCompartment = nullptr;
+    ITfSource* _openCloseCompartmentSource = nullptr;
+    DWORD _dwOpenCloseCompartmentCookie = TF_INVALID_COOKIE;
+    ULONGLONG _switchKeyTicks[4] = {};  // when each switch key was last run
 
     cxxime::IpcClient _client;
     uint32_t _sessionId = 0;
@@ -448,6 +463,7 @@ private:
     cxxime::Config _config;
     // Registered preserved switch keys, in c_guidPreservedKey* order (disabled when unset).
     cxxime::KeyboardShortcut _preservedSwitchKeys[4] = {};
+    cxxime::KeyboardShortcut _switch_key(int slot) const;
     std::unique_ptr<cxxime::CandidateWindow> _localCandidateWindow;
     std::uint64_t _localCandidatePlacementTargetGeneration = 0;
     cxxime::ConfigGeneration _configGeneration;

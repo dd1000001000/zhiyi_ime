@@ -112,6 +112,13 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
         return S_OK;
     }
 
+    const int switch_slot = _held_switch_key();
+    if (switch_slot >= 0 && wParam == _switch_key(switch_slot).virtual_key &&
+        !_claim_switch_key_press(switch_slot)) {
+        *pfEaten = TRUE;  // already run for this press (a system hotkey)
+        _fTestKeyDownPending = true;
+        return S_OK;
+    }
     *pfEaten = _ProcessKeyEvent(pic, wParam, lParam, pfEaten);
     if (wParam == VK_CAPITAL) {
         *pfEaten = TRUE;
@@ -150,6 +157,12 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lPara
         return S_OK;
     }
     // Some apps call OnKeyDown without OnTestKeyDown (e.g. QQ2012)
+    const int switch_slot = _held_switch_key();
+    if (switch_slot >= 0 && wParam == _switch_key(switch_slot).virtual_key &&
+        !_claim_switch_key_press(switch_slot)) {
+        *pfEaten = TRUE;  // already run for this press (a system hotkey)
+        return S_OK;
+    }
     *pfEaten = _ProcessKeyEvent(pic, wParam, lParam, pfEaten);
         if (wParam == VK_CAPITAL) {
         *pfEaten = TRUE;
@@ -433,6 +446,10 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext* pic, REFGUID rguid, BOOL* p
                           &c_guidPreservedKeyPunct, &c_guidPreservedKeyShape};
     for (size_t i = 0; i < std::size(keys); ++i) {
         if (IsEqualGUID(rguid, *keys[i]) && _preservedSwitchKeys[i].enabled()) {
+            if (!_claim_switch_key_press(static_cast<int>(i))) {
+                *pfEaten = TRUE;  // already run for this press (a system hotkey)
+                break;
+            }
             BOOL eaten = FALSE;
             *pfEaten = _ProcessKeyEvent(pic, _preservedSwitchKeys[i].virtual_key, 0, &eaten)
                            ? TRUE

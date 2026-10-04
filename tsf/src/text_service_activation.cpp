@@ -212,6 +212,7 @@ void TextService::_initialize_optional_activation_services() {
 
     cxxime_tsf::trace_activation_step("conversion_sink", "attempt", S_OK, false);
     _register_conversion_compartment_sink();
+    _register_open_close_compartment_sink();
     cxxime_tsf::trace_activation_step("conversion_sink", "complete", S_OK, false);
 }
 

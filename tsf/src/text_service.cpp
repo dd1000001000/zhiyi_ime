@@ -318,6 +318,7 @@ STDMETHODIMP TextService::Deactivate() {
     _inputTargetUnavailable = false;
     _stop_state_poll_timer();
     _unregister_conversion_compartment_sink();
+    _unregister_open_close_compartment_sink();
 
     if (_sessionId && _composing) {
         cxxime::IPCResponse response = {};

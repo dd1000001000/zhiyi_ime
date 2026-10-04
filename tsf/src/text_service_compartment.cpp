@@ -5,6 +5,7 @@
 #include <cxxime/logging.h>
 
 #include "engine_response.h"
+#include "tsf_activation.h"
 #include "tsf_imm_mode.h"
 
 namespace {
@@ -93,6 +94,96 @@ void TextService::_unregister_conversion_compartment_sink() {
     }
 }
 
+void TextService::_register_open_close_compartment_sink() {
+    _unregister_open_close_compartment_sink();
+    ITfCompartmentMgr* compartment_manager = nullptr;
+    if (!_threadMgr || FAILED(_threadMgr->QueryInterface(
+                           IID_ITfCompartmentMgr,
+                           reinterpret_cast<void**>(&compartment_manager)))) {
+        return;
+    }
+    const HRESULT hr = compartment_manager->GetCompartment(
+        GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &_openCloseCompartment);
+    compartment_manager->Release();
+    if (FAILED(hr) || !_openCloseCompartment ||
+        FAILED(_openCloseCompartment->QueryInterface(
+            IID_ITfSource, reinterpret_cast<void**>(&_openCloseCompartmentSource))) ||
+        FAILED(_openCloseCompartmentSource->AdviseSink(
+            IID_ITfCompartmentEventSink, static_cast<ITfCompartmentEventSink*>(this),
+            &_dwOpenCloseCompartmentCookie))) {
+        cxxime_tsf::trace_activation_step("open_close_sink", "failed", hr, false);
+        _unregister_open_close_compartment_sink();
+    }
+}
+
+void TextService::_unregister_open_close_compartment_sink() {
+    if (_openCloseCompartmentSource && _dwOpenCloseCompartmentCookie != TF_INVALID_COOKIE) {
+        _openCloseCompartmentSource->UnadviseSink(_dwOpenCloseCompartmentCookie);
+    }
+    _dwOpenCloseCompartmentCookie = TF_INVALID_COOKIE;
+    if (_openCloseCompartmentSource) {
+        _openCloseCompartmentSource->Release();
+        _openCloseCompartmentSource = nullptr;
+    }
+    if (_openCloseCompartment) {
+        _openCloseCompartment->Release();
+        _openCloseCompartment = nullptr;
+    }
+}
+
+cxxime::KeyboardShortcut TextService::_switch_key(int slot) const {
+    switch (slot) {
+    case 0: return _config.ascii_toggle_shortcut;
+    case 1: return _config.english_style_shortcut;
+    case 2: return _config.punct_toggle_shortcut;
+    case 3: return _config.shape_toggle_shortcut;
+    default: return {};
+    }
+}
+
+// The key state of the message being handled (GetKeyState), so a press is recognized while
+// Windows handles its hotkey.
+int TextService::_held_switch_key() const {
+    auto down = [](int key) { return (GetKeyState(key) & 0x8000) != 0; };
+    for (int slot = 0; slot < 4; ++slot) {
+        const cxxime::KeyboardShortcut key = _switch_key(slot);
+        if (!key.enabled() || !down(static_cast<int>(key.virtual_key))) continue;
+        if (down(VK_CONTROL) == ((key.modifiers & cxxime::kKeyModifierControl) != 0) &&
+            down(VK_MENU) == ((key.modifiers & cxxime::kKeyModifierAlt) != 0) &&
+            down(VK_SHIFT) == ((key.modifiers & cxxime::kKeyModifierShift) != 0)) {
+            return slot;
+        }
+    }
+    return -1;
+}
+
+bool TextService::_claim_switch_key_press(int slot) {
+    constexpr ULONGLONG kSamePressMs = 300;
+    if (slot < 0 || slot >= 4) return false;
+    const ULONGLONG now = GetTickCount64();
+    if (_switchKeyTicks[slot] != 0 && now - _switchKeyTicks[slot] < kSamePressMs) return false;
+    _switchKeyTicks[slot] = now;
+    return true;
+}
+
+// A system input method hotkey changed a compartment: when a configured switch key is held,
+// that key is run (once per press) and the compartment change itself is not applied.
+bool TextService::_run_held_switch_key() {
+    const int slot = _held_switch_key();
+    if (slot < 0) return false;
+    if (_claim_switch_key_press(slot)) {
+        const UINT key = _switch_key(slot).virtual_key;
+        ITfContext* context = _current_edit_context_for_composition();
+        BOOL eaten = FALSE;
+        _ProcessKeyEvent(context, key, 0, &eaten);
+        if (context) context->Release();
+        // Its key-up may never reach the text service: end the shortcut in the engine now.
+        _ProcessKeyUp(key, 0);
+        cxxime_tsf::trace_activation_step("switch_key", "system_hotkey", S_OK, false);
+    }
+    return true;
+}
+
 HRESULT TextService::_read_conversion_mode_compartment(
     DWORD* conversion_mode,
     VARTYPE* value_type) const {
@@ -124,9 +215,17 @@ HRESULT TextService::_read_conversion_mode_compartment(
 }
 
 STDMETHODIMP TextService::OnChange(REFGUID rguid) {
+    if (IsEqualGUID(rguid, GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)) {
+        // Only a system hotkey on a configured switch key matters (e.g. Ctrl+Space).
+        if (_activated) _run_held_switch_key();
+        return S_OK;
+    }
     if (!IsEqualGUID(
             rguid, GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION)) {
         return S_OK;
+    }
+    if (_activated && !_writingConversionCompartment && _run_held_switch_key()) {
+        return S_OK;  // e.g. Shift+Space or Ctrl+. changed the conversion mode
     }
 
     DWORD conversion_mode = 0;

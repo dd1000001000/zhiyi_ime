@@ -70,6 +70,29 @@ class InstallPayloadTest(unittest.TestCase):
             self.assertNotIn("zhiyi_tsf_x86.dll", files)
             self.assertNotIn("zhiyi-ime-host-probe-x86.exe", files)
 
+    def test_laya_runtime_and_model_are_optional(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            self.create_payload(directory, include_x86=False, host_diagnostics=False)
+            write_install_payload(directory, False, False)
+            with open(os.path.join(directory, "install-manifest.json"), encoding="utf-8") as source:
+                files = json.load(source)["files"]
+            self.assertNotIn("onnxruntime.dll", files)
+            self.assertFalse(any(name.startswith("laya/") for name in files))
+
+            os.makedirs(os.path.join(directory, "laya"))
+            for name in ("onnxruntime.dll", os.path.join("laya", "laya.int8g.onnx")):
+                with open(os.path.join(directory, name), "w", encoding="ascii") as output:
+                    output.write("x")
+            write_install_payload(directory, False, False)
+            with open(os.path.join(directory, "install-manifest.json"), encoding="utf-8") as source:
+                files = json.load(source)["files"]
+            with open(os.path.join(directory, "install_payload.nsh"), encoding="utf-8") as source:
+                macro = source.read()
+            self.assertIn("onnxruntime.dll", files)
+            self.assertIn("laya/laya.int8g.onnx", files)
+            self.assertIn('SetOutPath "$StageDir\\laya"', macro)
+            self.assertIn('File "laya\\laya.int8g.onnx"', macro)
+
 
 if __name__ == "__main__":
     unittest.main()

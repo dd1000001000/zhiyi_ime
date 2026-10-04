@@ -339,6 +339,26 @@ def built_binary_path(build_dir: str, config: str, subdir: str, name: str) -> st
     return src
 
 
+LAYA_RUNTIME_DLLS = ("onnxruntime.dll", "onnxruntime_providers_shared.dll")
+LAYA_MODEL_FILES = ("laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json")
+
+
+def copy_laya_runtime(build_dir: str, config: str) -> None:
+    """Copy ONNX Runtime and the Laya model (models/laya) beside zhiyi-server.exe."""
+    for name in LAYA_RUNTIME_DLLS:
+        copy_binary(build_dir, config, "server", name)
+    model_dir = os.path.join(ROOT, "models", "laya")
+    if not all(os.path.isfile(os.path.join(model_dir, f)) for f in LAYA_MODEL_FILES):
+        print("  WARNING: Laya model not found in models/laya (run scripts/fetch_model.py); "
+              "packaging without context reranking")
+        return
+    dest = os.path.join(DIST_DIR, "laya")
+    os.makedirs(dest, exist_ok=True)
+    for name in LAYA_MODEL_FILES:
+        shutil.copy2(os.path.join(model_dir, name), os.path.join(dest, name))
+        print(f"  laya/{name}")
+
+
 def copy_binaries(
     build_dir: str,
     x86_build_dir: str,
@@ -368,6 +388,7 @@ def copy_binaries(
             )
     copy_binary(build_dir, config, "resource", "zhiyi-resources.dll")
     copy_binary(build_dir, config, "server", "zhiyi-server.exe")
+    copy_laya_runtime(build_dir, config)
     copy_binary(build_dir, config, "settings", "zhiyi-settings.exe")
     copy_binary(
         build_dir,

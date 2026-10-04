@@ -2,6 +2,12 @@
 
 [English](README_EN.md) | **中文**
 
+[![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/17)
+[![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
+[![CMake](https://img.shields.io/badge/CMake-3.15%2B-064F8C?style=flat-square&logo=cmake&logoColor=white)](https://cmake.org)
+[![Windows CI](https://img.shields.io/github/actions/workflow/status/dd1000001000/zhiyi_ime/windows-ci.yml?branch=main&label=Windows%20CI&style=flat-square)](https://github.com/dd1000001000/zhiyi_ime/actions/workflows/windows-ci.yml)
+[![License](https://img.shields.io/github/license/dd1000001000/zhiyi_ime?style=flat-square)](LICENSE)
+
 > 轻量 · 开源 · 懂上文 —— 在本地 CPU 上根据上文推荐候选的 Windows 中英文输入法
 
 知意输入法是一款 Windows TSF 输入法，支持简体中文拼音、英文单词补全与英文字母输入。
@@ -29,7 +35,7 @@
 | 中文同音词（800 条） | 77.4% | 88.5% |
 | 英文单词补全（840 条） | 73.2% | 86.3% |
 
-评测、训练与量化流程见 [bench/README.md](bench/README.md)。
+模型权重随 [Release](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-r64) 发布；训练代码与训练、评测数据涉及第三方语料版权，不公开。
 
 ## 从源码构建
 
@@ -42,8 +48,7 @@ build_laya.bat test                   :: 运行单元测试
 
 环境要求：Windows 10/11 x64、Visual Studio 2022 或更新版本（C++ 工作负载）、CMake 3.15+、Python 3.10+。
 仅支持 64 位。没有模型时输入法照常工作，只是不做上文推荐。
-英文词表 `data\english.words.tsv` 已随仓库提供，可用 `data\tools\build_english_dictionary.py` 重新生成；
-模型的训练、评测与量化在 [bench/](bench/README.md)。
+英文词表 `data\english.words.tsv` 已随仓库提供，可用 `data\tools\build_english_dictionary.py` 重新生成。
 
 ## 致谢与许可证
 

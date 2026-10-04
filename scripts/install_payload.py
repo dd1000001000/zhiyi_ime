@@ -30,9 +30,16 @@ def write_install_payload(
         if include_x86_modules:
             root_files.append("zhiyi-ime-host-probe-x86.exe")
 
+    # Laya reranking: ONNX Runtime and the model are optional (the IME works without them).
+    for name in ("onnxruntime.dll", "onnxruntime_providers_shared.dll"):
+        if os.path.isfile(os.path.join(dist_dir, name)):
+            root_files.append(name)
+
     payload_files = list(root_files)
-    for directory in ("data", "licenses"):
+    for directory in ("data", "licenses", "laya"):
         source_dir = os.path.join(dist_dir, directory)
+        if directory == "laya" and not os.path.isdir(source_dir):
+            continue
         for entry in sorted(os.scandir(source_dir), key=lambda item: item.name):
             if entry.is_file():
                 payload_files.append(f"{directory}/{entry.name}")
@@ -60,13 +67,13 @@ def write_install_payload(
     macro_lines = ["!macro InstallVersionPayload"]
     for directory, names in grouped.items():
         destination = "$StageDir" if not directory else f"$StageDir\\{directory}"
-        if directory == "data":
+        if directory in ("data", "laya"):
             macro_lines.extend(["    !ifdef FAST", "        SetCompress off", "    !endif"])
         macro_lines.append(f'    SetOutPath "{destination}"')
         for name in names:
             source = name if not directory else f"{directory}\\{name}"
             macro_lines.append(f'    File "{source}"')
-        if directory == "data":
+        if directory in ("data", "laya"):
             macro_lines.extend(["    !ifdef FAST", "        SetCompress auto", "    !endif"])
     macro_lines.extend([
         '    SetOutPath "$StageDir"',

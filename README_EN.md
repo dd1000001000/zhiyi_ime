@@ -2,6 +2,12 @@
 
 **English** | [中文](README.md)
 
+[![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/17)
+[![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
+[![CMake](https://img.shields.io/badge/CMake-3.15%2B-064F8C?style=flat-square&logo=cmake&logoColor=white)](https://cmake.org)
+[![Windows CI](https://img.shields.io/github/actions/workflow/status/dd1000001000/zhiyi_ime/windows-ci.yml?branch=main&label=Windows%20CI&style=flat-square)](https://github.com/dd1000001000/zhiyi_ime/actions/workflows/windows-ci.yml)
+[![License](https://img.shields.io/github/license/dd1000001000/zhiyi_ime?style=flat-square)](LICENSE)
+
 > Lightweight · Open source · Context-aware — a Windows Chinese/English input method that picks
 > candidates from what you have already typed, on your own CPU
 
@@ -33,7 +39,8 @@ First-candidate accuracy on the test sets (int8 model on CPU):
 | Chinese homophones (800 samples) | 77.4% | 88.5% |
 | English completions (840 samples) | 73.2% | 86.3% |
 
-Evaluation, training and quantization are described in [bench/README.md](bench/README.md).
+The model weights are published as a [release](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-r64); the training code and the training and evaluation data are not published because the
+corpora are subject to third-party copyright.
 
 ## Building
 
@@ -47,8 +54,7 @@ build_laya.bat test                   :: unit tests
 Requires Windows 10/11 x64, Visual Studio 2022 or newer (C++ workload), CMake 3.15+ and Python 3.10+.
 64-bit only. Without the model the IME works normally, just without context reranking.
 The English word list `data\english.words.tsv` is included (regenerate it with
-`data\tools\build_english_dictionary.py`); model training, evaluation and quantization live in
-[bench/](bench/README.md).
+`data\tools\build_english_dictionary.py`).
 
 ## Credits and licenses
 

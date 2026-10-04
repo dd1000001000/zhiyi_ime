@@ -9,6 +9,7 @@
 #include <imm.h>
 #include <shlwapi.h>
 #include <cwchar>
+#include <string>
 
 #pragma comment(lib, "shlwapi.lib")
 
@@ -204,6 +205,14 @@ HRESULT create_legacy_ime_hkl_manually(LANGID langid, HKL* hkl) {
         }
         if (set_result == ERROR_SUCCESS) {
             set_result = set_string(L"Layout Text", TEXTSERVICE_DESC);
+        }
+        // Localized name for the keyboard layout list: "@<resource dll>,-<string id>".
+        wchar_t resource_dll[MAX_PATH] = {};
+        if (set_result == ERROR_SUCCESS &&
+            cxxime_tsf::get_resource_dll_path(resource_dll, ARRAYSIZE(resource_dll))) {
+            const std::wstring display_name = std::wstring(L"@") + resource_dll + L",-" +
+                                              std::to_wstring(IDS_DISPLAY_NAME);
+            set_result = set_string(L"Layout Display Name", display_name.c_str());
         }
 
         RegCloseKey(layout_key);
@@ -411,8 +420,22 @@ HRESULT register_profiles() {
         0,        // flags
         TRUE,     // enable
         0);
-
     pProfileMgr->Release();
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    // The name in the Windows input list comes from the resource DLL, so it follows the
+    // display language (the description above is the fallback).
+    ITfInputProcessorProfilesEx* pProfiles = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER,
+                                   IID_ITfInputProcessorProfilesEx,
+                                   reinterpret_cast<void**>(&pProfiles)))) {
+        pProfiles->SetLanguageProfileDisplayName(c_clsidTextService, TEXTSERVICE_LANGID_HANS,
+                                                 c_guidProfile, achIconFile, cchIconFile,
+                                                 IDS_DISPLAY_NAME);
+        pProfiles->Release();
+    }
     return hr;
 }
 

@@ -2,6 +2,7 @@
 
 #include "display_attribute.h"
 #include "globals.h"
+#include "resource_loader.h"
 
 // DisplayAttributeInfo
 DisplayAttributeInfo::DisplayAttributeInfo(REFGUID guid, TF_DA_ATTR_INFO attribute)
@@ -44,7 +45,7 @@ STDMETHODIMP DisplayAttributeInfo::GetGUID(GUID* pguid) {
 
 STDMETHODIMP DisplayAttributeInfo::GetDescription(BSTR* pbstrDesc) {
     if (pbstrDesc)
-        *pbstrDesc = SysAllocString(TEXTSERVICE_DESC);
+        *pbstrDesc = SysAllocString(cxxime_tsf::localized_display_name());
     return S_OK;
 }
 

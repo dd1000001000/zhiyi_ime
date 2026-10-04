@@ -5,6 +5,8 @@
 
 #include <cstdint>
 
+#include <windows.h>
+
 #include <cxxime/ipc_protocol.h>
 
 namespace cxxime {
@@ -21,24 +23,34 @@ enum class ImeMenuCommand : uint32_t {
 
 struct ImeMenuItem {
     ImeMenuCommand command;
-    const wchar_t* label;
+    const wchar_t* label;     // Chinese
+    const wchar_t* label_en;  // English
     bool starts_group;
 };
 
 inline constexpr ImeMenuItem kImeMenuItems[] = {
-    {ImeMenuCommand::kPinyin, L"拼音", false},
-    {ImeMenuCommand::kWubi, L"五笔", false},
-    {ImeMenuCommand::kToggleStatusWindow, nullptr, true},
-    {ImeMenuCommand::kSettings, L"设置", false},
-    {ImeMenuCommand::kAbout, L"关于", true},
+    {ImeMenuCommand::kPinyin, L"拼音", L"Pinyin", false},
+    {ImeMenuCommand::kWubi, L"五笔", L"Wubi", false},
+    {ImeMenuCommand::kToggleStatusWindow, nullptr, nullptr, true},
+    {ImeMenuCommand::kSettings, L"设置", L"Settings", false},
+    {ImeMenuCommand::kAbout, L"关于", L"About", true},
 };
+
+// Menu labels follow the Windows display language: Chinese, or English for any other language.
+inline bool ime_menu_uses_chinese() {
+    return PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_CHINESE;
+}
 
 inline const wchar_t* ime_menu_item_label(const ImeMenuItem& item,
                                            bool status_window_visible) {
+    const bool chinese = ime_menu_uses_chinese();
     if (item.command == ImeMenuCommand::kToggleStatusWindow) {
-        return status_window_visible ? L"隐藏状态窗口" : L"显示状态窗口";
+        if (chinese) {
+            return status_window_visible ? L"隐藏状态窗口" : L"显示状态窗口";
+        }
+        return status_window_visible ? L"Hide status window" : L"Show status window";
     }
-    return item.label;
+    return chinese ? item.label : item.label_en;
 }
 
 inline bool ime_menu_command_checked(ImeMenuCommand command, InputMode input_mode) {

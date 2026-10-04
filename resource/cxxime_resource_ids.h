@@ -8,4 +8,7 @@
 #define IDI_ICON_EN 103
 #define IDI_ICON_C 104
 
+// Input method name shown in the Windows input list (zh-CN, en-US; English otherwise).
+#define IDS_DISPLAY_NAME 200
+
 #endif  // CXXIME_RESOURCE_CXXIME_RESOURCE_IDS_H_

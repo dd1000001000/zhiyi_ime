@@ -1,7 +1,30 @@
 // Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 // Stable resource DLL for Windows input profile registration.
+//
+// Modified by Zhiyi IME Contributors: bilingual display name.
+
+#pragma code_page(65001)
+
+#include <winres.h>
 
 #include "cxxime_resource_ids.h"
+
+// The input method name follows the Windows display language. There is deliberately no neutral
+// table (the loader would prefer it over the user's language); for other languages the loader
+// falls back to the first table, en-US (0x0409).
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+STRINGTABLE
+BEGIN
+    IDS_DISPLAY_NAME "知意输入法"
+END
+
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+STRINGTABLE
+BEGIN
+    IDS_DISPLAY_NAME "Zhiyi IME"
+END
+
+LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 
 IDI_CXXIME       ICON "resource\\zhiyi.ico"
 IDI_ICON_ZH      ICON "resource\\icon_zh.ico"

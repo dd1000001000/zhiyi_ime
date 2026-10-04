@@ -42,7 +42,9 @@ inline void show_about_dialog(HWND parent = nullptr) {
     wc.lpszClassName = L"ZhiyiIMEAboutClass";
     RegisterClassExW(&wc);
 
-    HWND hwnd = CreateWindowExW(WS_EX_TOPMOST, L"ZhiyiIMEAboutClass", L"关于知意输入法",
+    // Chinese for a Chinese Windows display language, English otherwise.
+    const bool zh = PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_CHINESE;
+    HWND hwnd = CreateWindowExW(WS_EX_TOPMOST, L"ZhiyiIMEAboutClass", zh ? L"关于知意输入法" : L"About Zhiyi IME",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
         x, y, w, h, parent, nullptr, GetModuleHandle(nullptr), nullptr);
     if (!hwnd) return;
@@ -66,13 +68,17 @@ inline void show_about_dialog(HWND parent = nullptr) {
         SendMessageW(h, WM_SETFONT, (WPARAM)font, TRUE);
     };
 
-    label(L"知意输入法", 16, 24, hBold);
-    label(L"版本 " CXXIME_VERSION_WSTRING L" — GPL-3.0", 44, 20, hFont);
-    label(L"轻量 · 开源 · 懂上文的中英文输入法（Zhiyi IME）", 68, 20, hFont);
-    label(L"基于 CxxIME 修改（Apache License 2.0），原项目：", 96, 20, hFont);
+    label(zh ? L"知意输入法" : L"Zhiyi IME", 16, 24, hBold);
+    label(zh ? L"版本 " CXXIME_VERSION_WSTRING L" · GPL-3.0"
+             : L"Version " CXXIME_VERSION_WSTRING L" · GPL-3.0", 44, 20, hFont);
+    label(zh ? L"轻量 · 开源 · 懂上文的中英文输入法"
+             : L"Lightweight, open-source, context-aware Chinese and English input method",
+          68, 20, hFont);
+    label(zh ? L"基于 CxxIME 修改（Apache License 2.0），原项目："
+             : L"Based on CxxIME (Apache License 2.0):", 96, 20, hFont);
     label(L"https://github.com/deanxyuan/cxx-ime", 120, 20, hFont);
 
-    HWND hBtn = CreateWindowExW(0, L"BUTTON", L"确定",
+    HWND hBtn = CreateWindowExW(0, L"BUTTON", zh ? L"确定" : L"OK",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
         (cw - 80) / 2, ch - 36, 80, 26, hwnd, (HMENU)IDOK,
         GetModuleHandle(nullptr), nullptr);

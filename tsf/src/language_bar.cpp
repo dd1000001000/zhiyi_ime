@@ -100,7 +100,7 @@ STDMETHODIMP CLangBarItemButton::GetInfo(TF_LANGBARITEMINFO* pInfo) {
     pInfo->guidItem = _guid;
     pInfo->dwStyle = TF_LBI_STYLE_SHOWNINTRAY | TF_LBI_STYLE_BTN_BUTTON | TF_LBI_STYLE_BTN_MENU;
     pInfo->ulSort = 0;
-    wcscpy_s(pInfo->szDescription, TEXTSERVICE_DESC);
+    wcscpy_s(pInfo->szDescription, cxxime_tsf::localized_display_name());
     return S_OK;
 }
 
@@ -133,8 +133,10 @@ STDMETHODIMP CLangBarItemButton::Show(BOOL fShow) {
 STDMETHODIMP CLangBarItemButton::GetTooltipString(BSTR* pbstrToolTip) {
     if (!pbstrToolTip)
         return E_INVALIDARG;
-    const wchar_t* tip = _caps_lock ? L"知意 - Caps Lock"
-                                    : (_chinese_mode ? L"知意 - 中文" : L"知意 - English");
+    const bool chinese = cxxime_tsf::ui_language_is_chinese();
+    const wchar_t* tip = _caps_lock      ? (chinese ? L"知意 - Caps Lock" : L"Zhiyi - Caps Lock")
+                         : _chinese_mode ? (chinese ? L"知意 - 中文" : L"Zhiyi - Chinese")
+                                         : (chinese ? L"知意 - 英文" : L"Zhiyi - English");
     *pbstrToolTip = SysAllocString(tip);
     return S_OK;
 }
@@ -219,7 +221,7 @@ STDMETHODIMP CLangBarItemButton::GetIcon(HICON* phIcon) {
 STDMETHODIMP CLangBarItemButton::GetText(BSTR* pbstrText) {
     if (!pbstrText)
         return E_INVALIDARG;
-    *pbstrText = SysAllocString(L"知意输入法");
+    *pbstrText = SysAllocString(cxxime_tsf::localized_display_name());
     return S_OK;
 }
 

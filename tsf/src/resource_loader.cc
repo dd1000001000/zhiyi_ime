@@ -34,6 +34,14 @@ HMODULE resource_module() {
 
 }  // namespace
 
+bool ui_language_is_chinese() {
+    return PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_CHINESE;
+}
+
+const wchar_t* localized_display_name() {
+    return ui_language_is_chinese() ? L"知意输入法" : L"Zhiyi IME";
+}
+
 bool get_resource_dll_path(wchar_t* path, DWORD path_chars) {
     if (!path || path_chars == 0) {
         return false;

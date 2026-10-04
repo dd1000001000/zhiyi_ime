@@ -14,6 +14,7 @@
 #include "candidate_ui_element.h"
 #include "config_coordinator.h"
 #include "globals.h"
+#include "resource_loader.h"
 #include "reading_ui_element.h"
 #include "search_candidate_list.h"
 #include "tsf_activation.h"
@@ -122,7 +123,7 @@ STDMETHODIMP TextService::GetDescription(BSTR* description) {
     if (!description) {
         return E_INVALIDARG;
     }
-    *description = SysAllocString(TEXTSERVICE_DESC);
+    *description = SysAllocString(cxxime_tsf::localized_display_name());
     return *description ? S_OK : E_OUTOFMEMORY;
 }
 

@@ -36,8 +36,11 @@ CandidatePage candidate_page_from_snapshot(const UiPresentationSnapshot& snapsho
         Candidate candidate;
         candidate.text = packet_text(source_candidate.text, source_candidate.text_length,
                                      sizeof(source_candidate.text));
-        candidate.comment = packet_text(source_candidate.hint, source_candidate.hint_length,
-                                        sizeof(source_candidate.hint));
+        const UiCandidateComment& comment = snapshot.candidate_comments[index];
+        candidate.comment = comment.length > 0
+            ? packet_text(comment.text, comment.length, sizeof(comment.text))
+            : packet_text(source_candidate.hint, source_candidate.hint_length,
+                          sizeof(source_candidate.hint));
         candidate.recommended = (snapshot.candidate_recommended_mask >> index & 1u) != 0;
         page.candidates.push_back(std::move(candidate));
     }

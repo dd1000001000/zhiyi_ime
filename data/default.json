@@ -27,7 +27,7 @@
         "layout": "horizontal",
         "render_backend": "d2d",
         "candidate_count": 7,
-        "inline_preedit": false,
+        "inline_preedit": true,
         "preedit_type": "composition"
     },
     "layout": {

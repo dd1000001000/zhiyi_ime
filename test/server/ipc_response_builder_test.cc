@@ -48,6 +48,34 @@ TEST(IpcResponseBuilder, serializes_complete_segmented_presentation) {
     ASSERT_EQ(response.highlighted, 1u);
 }
 
+// A fuzzy pinyin annotation does not fit the 4-byte hint field; it used to fail the whole
+// response, so the key went on to the application ("woshi" -> "i" in the document).
+TEST(IpcResponseBuilder, long_candidate_hints_travel_as_comments) {
+    ProcessKeyResult result;
+    result.status = cxxime::IPCStatus::OK;
+    result.composing = true;
+    result.preedit = "wo'shi";
+    result.preedit_cursor = result.preedit.size();
+    result.presentation.page_size = 7;
+    result.presentation.items.push_back({"我是", ""});
+    result.presentation.items.push_back({"我司", "wo si"});
+    result.presentation.items.push_back({"字", "abc"});
+    const std::string long_hint(80, 'a');
+    result.presentation.items.push_back({"长", long_hint});
+
+    cxxime::IPCResponse response = {};
+    fill_process_response(result, &response);
+
+    ASSERT_EQ(response.status, cxxime::IPCStatus::OK);
+    ASSERT_EQ(response.candidate_count, 4u);
+    ASSERT_EQ(std::string(response.candidate_comments[1]), "wo si");
+    ASSERT_EQ(std::string(response.candidate_hints[1]), "");  // does not fit: left empty
+    ASSERT_EQ(std::string(response.candidate_comments[2]), "abc");
+    ASSERT_EQ(std::string(response.candidate_hints[2]), "abc");
+    ASSERT_EQ(std::string(response.candidate_comments[3]).size(),
+              cxxime::kCandidateCommentCapacity - 1);
+}
+
 TEST(IpcResponseBuilder, serializes_explicit_focused_preedit_range) {
     ProcessKeyResult result;
     result.status = cxxime::IPCStatus::OK;

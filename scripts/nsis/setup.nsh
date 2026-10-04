@@ -327,23 +327,25 @@ Function un.ConfirmPage
         Abort
     ${EndIf}
 
-    ${NSD_CreateLabel} 20u 16u 100% 28u \
+    ; Negative widths leave the same margin on the right, so long lines wrap inside the page.
+    ${NSD_CreateLabel} 20u 16u -40u 28u \
         "$(L_076)"
     Pop $0
-    ${NSD_CreateLabel} 20u 48u 100% 24u \
+    ${NSD_CreateLabel} 20u 48u -40u 24u \
         "$(L_077)"
     Pop $0
-    ${NSD_CreateCheckbox} 20u 82u 100% 20u "$(L_078)"
+    ${NSD_CreateCheckbox} 20u 82u -40u 20u "$(L_078)"
     Pop $UninstallRemoveUserDataCheckbox
     ${NSD_SetState} $UninstallRemoveUserDataCheckbox $UninstallRemoveUserData
-    ${NSD_CreateLabel} 38u 106u 100% 18u "$(L_079)"
+    ${NSD_CreateLabel} 38u 106u -58u 18u "$(L_079)"
     Pop $UninstallRemoveUserDataWarning
     ${NSD_OnClick} $UninstallRemoveUserDataCheckbox un.ToggleRemoveUserDataWarning
     StrCmp $UninstallRemoveUserData "${BST_CHECKED}" un_remove_user_data_warning_ready
         ShowWindow $UninstallRemoveUserDataWarning ${SW_HIDE}
     un_remove_user_data_warning_ready:
     GetDlgItem $0 $HWNDPARENT 1
-    SendMessage $0 ${WM_SETTEXT} 0 "$(L_080)"
+    ; "STR:" must be written here: inside a language string it is shown as text (empty button).
+    SendMessage $0 ${WM_SETTEXT} 0 "STR:$(L_080)"
     nsDialogs::Show
 FunctionEnd
 

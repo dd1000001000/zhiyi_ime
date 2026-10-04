@@ -275,6 +275,10 @@ struct IPCResponse {
     uint32_t candidate_extent_complete = 1;
     // Bit i: candidates[i] is the Laya recommendation (sparkle mark).
     uint32_t candidate_recommended_mask = 0;
+    // Text shown after candidates[i]: the Wubi remaining code or the correct pinyin of a fuzzy
+    // match ("zhong guo"). candidate_hints only fits 3 letters; it keeps short hints for older
+    // clients.
+    char candidate_comments[kCandidateCapacity][kCandidateCommentCapacity] = {};
 };
 
 static_assert(std::is_standard_layout<IPCResponse>::value,
@@ -316,6 +320,8 @@ static_assert(offsetof(IPCResponse, candidate_extent_state) ==
 static_assert(offsetof(IPCResponse, candidate_extent_complete) ==
                   IPC_RESPONSE_BASELINE_SIZE + 32,
               "IPCResponse candidate extent completeness extension moved");
+static_assert(offsetof(IPCResponse, candidate_comments) == IPC_RESPONSE_BASELINE_SIZE + 40,
+              "IPCResponse candidate comments extension moved");
 
 } // namespace cxxime
 

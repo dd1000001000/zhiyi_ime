@@ -564,7 +564,7 @@ TEST(Config, style_modes_parse_current_values_and_reject_unknown_values) {
     cxxime::Config configured;
     ASSERT_TRUE(
         configured.load_json(R"({"style":{"inline_preedit":false,"preedit_type":"preview"}})"));
-    ASSERT_TRUE(!configured.inline_preedit);
+    ASSERT_TRUE(configured.inline_preedit);  // always inline; old configs said false
     ASSERT_EQ(configured.preedit_type, "preview");
 
     cxxime::Config unknown;

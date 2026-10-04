@@ -88,8 +88,54 @@ void choose(cxxime::Engine& engine, const std::string& gold) {
 
 }  // namespace
 
+// laya_smoke --keys <config.json> <code>...: types each code key by key with that config and
+// prints every key's result, latency and page (latency investigations with a user's config).
+int keys_mode(int argc, char** argv) {
+    const std::string dict = project_path("data/pinyin.dict.bin");
+    cxxime::Engine engine;
+    if (!engine.initialize(dict, argv[2])) {
+        std::printf("engine initialization failed\n");
+        return 1;
+    }
+    for (int i = 0; i < 120 && !cxxime::LayaRerank::instance().stats().model_ready; ++i) {
+        if (cxxime::LayaRerank::instance().stats().model_failed) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    }
+    std::printf("model ready: %d\n", cxxime::LayaRerank::instance().stats().model_ready ? 1 : 0);
+    engine.set_trace_enabled(true);
+    engine.set_partial_selection_enabled(true);  // as the TSF client requests
+    for (int a = 3; a < argc; ++a) {
+        const std::string code = argv[a];
+        engine.clear();
+        std::printf("%s\n", code.c_str());
+        for (size_t i = 0; i < code.size(); ++i) {
+            cxxime::KeyEvent ev;
+            ev.keycode = static_cast<uint32_t>(toupper(static_cast<unsigned char>(code[i])));
+            auto t0 = std::chrono::steady_clock::now();
+            const auto r = engine.process_key(ev);
+            const double ms =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            ev.is_key_up = true;
+            engine.process_key(ev);
+            std::printf("  %c result=%d %7.1f ms  input=%s  %s\n", code[i], static_cast<int>(r), ms,
+                        engine.context().composition().active().input.c_str(),
+                        join(marked_page(engine)).c_str());
+            const cxxime::QueryTrace& tr = engine.last_trace();
+            std::printf("      trace: cache=%d paths=%d live=%d cand=%d known=%d state=%u"
+                        " complete=%u deadline=%d trunc=%d mixed=%d\n",
+                        tr.cache_hit, tr.syllable_path_count, tr.live_path_count,
+                        tr.candidate_count, tr.candidate_known_count, tr.candidate_extent_state,
+                        tr.candidate_extent_complete, tr.deadline_exceeded, tr.truncated,
+                        tr.mixed_cache_hit);
+        }
+    }
+    engine.finalize();
+    return 0;
+}
+
 int main(int argc, char** argv) {
     SetConsoleOutputCP(CP_UTF8);
+    if (argc >= 3 && std::string(argv[1]) == "--keys") return keys_mode(argc, argv);
     const std::string model_dir = argc > 1 ? argv[1] : project_path("models/laya");
     const std::string dict = project_path("data/pinyin.dict.bin");
 

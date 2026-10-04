@@ -258,9 +258,18 @@ void merge_or_append_visible_candidate(std::vector<CandidateEntry>& entries,
         }
         return;
     }
+    const auto* existing_action = std::get_if<TextSelectionAction>(&existing->selection);
+    const auto* candidate_action = std::get_if<TextSelectionAction>(&candidate.selection);
+    // The same word with the same reading keeps its full-span place: "zhongwe" is 中文 being
+    // typed (we -> wen), not 中文 for "zhongw" (w = wen) followed by a new "e". (The same text
+    // with another reading still moves into the partial group.)
+    if (existing_action && candidate_action &&
+        existing_action->consumed_input_bytes == input_size &&
+        candidate_action->consumed_input_bytes < input_size &&
+        existing->candidate.syllables == candidate.candidate.syllables) {
+        return;
+    }
     if (should_prefer_visible_selection(candidate.selection, existing->selection, input_size)) {
-        const auto* existing_action = std::get_if<TextSelectionAction>(&existing->selection);
-        const auto* candidate_action = std::get_if<TextSelectionAction>(&candidate.selection);
         const bool moves_from_full_to_partial =
             existing_action && candidate_action &&
             existing_action->consumed_input_bytes == input_size &&

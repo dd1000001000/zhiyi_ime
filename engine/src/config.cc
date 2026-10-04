@@ -249,7 +249,6 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         if (config.font_size < 8) config.font_size = 8;
         if (config.font_size > 72) config.font_size = 72;
         load_string(s, "layout", config.layout);
-        load_bool(s, "inline_preedit", config.inline_preedit);
         load_string(s, "render_backend", config.render_backend);
         load_string(s, "preedit_type", config.preedit_type);
         if (config.preedit_type != "composition" && config.preedit_type != "preview")

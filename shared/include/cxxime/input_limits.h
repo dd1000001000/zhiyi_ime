@@ -11,6 +11,8 @@ constexpr std::size_t kMaxInputCodeLength = 64;
 constexpr std::size_t kMaxWubiCodeLength = 4;
 constexpr std::size_t kCandidateCapacity = 10;
 constexpr std::size_t kCandidateTextCapacity = 256;
+// Annotation after a candidate (IPCResponse::candidate_comments), with its terminator.
+constexpr std::size_t kCandidateCommentCapacity = 64;
 
 } // namespace cxxime
 

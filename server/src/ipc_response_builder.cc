@@ -21,6 +21,23 @@ bool response_copy_field(char* dst, size_t dst_size, const std::string& src) {
     return true;
 }
 
+// A candidate annotation cut to `capacity - 1` bytes at a space (pinyin syllables) or at
+// least a UTF-8 boundary: an annotation never fails the response.
+std::string fit_comment(const std::string& text, size_t capacity) {
+    if (text.size() < capacity) {
+        return text;
+    }
+    size_t end = capacity - 1;
+    while (end > 0 && (static_cast<unsigned char>(text[end]) & 0xc0) == 0x80) {
+        --end;
+    }
+    const size_t space = text.rfind(' ', end);
+    if (space != std::string::npos && space > 0) {
+        end = space;
+    }
+    return text.substr(0, end);
+}
+
 bool is_valid_utf8_field(const std::string& value) {
     if (value.find('\0') != std::string::npos) {
         return false;
@@ -114,12 +131,18 @@ void fill_process_response(const ProcessKeyResult& result, cxxime::IPCResponse* 
         if (!cxxime::candidate_text_fits(item.text) || !is_valid_utf8_field(item.text) ||
             !is_valid_utf8_field(item.hint) ||
             !response_copy_field(response->candidates[index], sizeof(response->candidates[index]),
-                                 item.text) ||
-            (!item.hint.empty() &&
-             !response_copy_field(response->candidate_hints[index],
-                                  sizeof(response->candidate_hints[index]), item.hint))) {
+                                 item.text)) {
             response->status = cxxime::IPCStatus::ERR_ENGINE_PROCESS_FAILED;
             return;
+        }
+        if (!item.hint.empty()) {
+            const std::string comment =
+                fit_comment(item.hint, sizeof(response->candidate_comments[index]));
+            response_copy_field(response->candidate_comments[index],
+                                sizeof(response->candidate_comments[index]), comment);
+            // Older clients read the short field only (Wubi codes fit).
+            response_copy_field(response->candidate_hints[index],
+                                sizeof(response->candidate_hints[index]), item.hint);
         }
         if (item.recommended) response->candidate_recommended_mask |= 1u << index;
     }

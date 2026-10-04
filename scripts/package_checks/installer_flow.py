@@ -218,7 +218,7 @@ def check_installer_flow(
             "$(L_077)",  # 用户配置和词库默认保留
             "$(L_078)",  # 删除用户配置和词库数据
             "$(L_079)",  # 个人数据将永久删除，无法撤销
-            'SendMessage $0 ${WM_SETTEXT} 0 "$(L_080)"',  # STR:卸载
+            'SendMessage $0 ${WM_SETTEXT} 0 "STR:$(L_080)"',  # 卸载
             "Function un.ToggleRemoveUserDataWarning",
             "ShowWindow $UninstallRemoveUserDataWarning ${SW_SHOW}",
         ],

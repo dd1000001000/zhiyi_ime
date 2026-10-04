@@ -470,8 +470,11 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
 
     IndexedFastResult fast;
     auto finish_complete_fast_path = [&]() {
+        // A short Top-N list is not trusted even when marked complete: mixed keys such as
+        // "zhongwe" can hold a single long phrase (中文歌曲) while the runtime lookup finds
+        // 中文 / 中卫 / ... through terminal completion.
         if (require_runtime_paths || !fast.complete_index_hit ||
-            (sentence_composition_enabled_ && static_cast<int>(fast.candidates.size()) < need)) {
+            static_cast<int>(fast.candidates.size()) < need) {
             return false;
         }
         auto& sorted = fast.candidates;
@@ -752,9 +755,17 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     collect_live_paths(0);
 
     // If valid full-syllable paths have no dictionary continuation, retry with
-    // terminal syllable completion (for example, "ji" -> "jie").
-    if (live_path_indices.empty() && pinyin_resources_ && !deadline_hit &&
-        !pinyin_query_policy_.initials_only) {
+    // terminal syllable completion (for example, "ji" -> "jie"). Also when only
+    // abbreviation or mixed paths matched: "zhongwe" splits as zhong+w+e and finds a long
+    // phrase (中文歌曲), while the intended 中文 / 中卫 need "we" completed to wen / wei.
+    const bool only_partial_paths =
+        !live_path_indices.empty() &&
+        std::none_of(live_path_indices.begin(), live_path_indices.end(), [&](size_t index) {
+            return path_tiers[index] == PathMatchTier::kNormal ||
+                   path_tiers[index] == PathMatchTier::kFuzzy;
+        });
+    if ((live_path_indices.empty() || only_partial_paths) && pinyin_resources_ &&
+        !deadline_hit && !pinyin_query_policy_.initials_only) {
         SyllabifierOptions completion_options;
         completion_options.enable_fuzzy = pinyin_query_policy_.enable_fuzzy;
         completion_options.fuzzy_groups = pinyin_query_policy_.fuzzy_groups;

@@ -67,6 +67,13 @@ struct UiCandidate {
     char hint[kUiCandidateHintCapacity] = {};
 };
 
+// The text after a candidate when it does not fit UiCandidate::hint (the correct pinyin of a
+// fuzzy match, "zhong guo").
+struct UiCandidateComment {
+    std::uint32_t length = 0;
+    char text[kCandidateCommentCapacity] = {};
+};
+
 struct UiCandidatePage {
     std::uint32_t count = 0;
     std::uint32_t offset = 0;
@@ -107,6 +114,9 @@ struct UiPresentationSnapshot {
     std::uint64_t local_candidate_window = 0;
     // Bit i: candidate_page.candidates[i] is the Laya recommendation (sparkle mark).
     std::uint32_t candidate_recommended_mask = 0;
+    // Full candidate hints; candidate_page.candidates[i].hint keeps the first 4 bytes for older
+    // receivers.
+    UiCandidateComment candidate_comments[kCandidateCapacity] = {};
 };
 
 enum class UiCommandType : std::uint32_t {

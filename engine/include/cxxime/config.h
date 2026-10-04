@@ -69,7 +69,11 @@ struct Config {
     int font_size = 14;
     std::string layout = "horizontal";  // horizontal | vertical
     std::string render_backend = "d2d";  // gdi | d2d
-    bool inline_preedit = false;
+    // What is typed is shown in the document, underlined (pinyin with syllable boundaries,
+    // the English word being typed). Always on: style.inline_preedit is no longer read, because
+    // the popup-only mode left a placeholder character in the document and older user configs
+    // still hold false.
+    bool inline_preedit = true;
     std::string preedit_type = "composition";
 
     // theme

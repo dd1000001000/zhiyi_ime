@@ -249,7 +249,18 @@ void TextService::_publish_ui_presentation() {
         cxxime::UiCandidate& target = snapshot.candidate_page.candidates[index];
         if (candidate.recommended) snapshot.candidate_recommended_mask |= 1u << index;
         copy_packet_text(target.text, sizeof(target.text), &target.text_length, candidate.text);
-        copy_packet_text(target.hint, sizeof(target.hint), &target.hint_length, candidate.hint);
+        // Short hints (Wubi codes) fit the hint field; the full text goes to the comments.
+        if (candidate.hint.size() <= sizeof(target.hint)) {
+            copy_packet_text(target.hint, sizeof(target.hint), &target.hint_length, candidate.hint);
+        }
+        cxxime::UiCandidateComment& comment = snapshot.candidate_comments[index];
+        std::string full = candidate.hint;
+        if (full.size() > sizeof(comment.text)) {
+            std::size_t end = sizeof(comment.text);
+            while (end > 0 && (static_cast<unsigned char>(full[end]) & 0xc0) == 0x80) --end;
+            full.resize(end);
+        }
+        copy_packet_text(comment.text, sizeof(comment.text), &comment.length, full);
     }
     if (snapshot.candidate_page.count != 0) {
         snapshot.flags |= cxxime::ui_snapshot_flag(cxxime::UiSnapshotFlag::kHasCandidates);

@@ -4,6 +4,10 @@
 
 #include <cxxime/logging.h>
 
+#include <cstdarg>
+#include <cstdio>
+
+#include "config_coordinator.h"
 #include "engine_response.h"
 #include "tsf_activation.h"
 #include "tsf_imm_mode.h"
@@ -24,6 +28,21 @@ private:
     bool& flag_;
     bool previous_;
 };
+
+// Switch key and mode decisions for DebugView-style tools (rare events, also in release).
+void debug_switch(const char* format, ...) {
+    char text[256];
+    va_list args;
+    va_start(args, format);
+    _vsnprintf_s(text, sizeof(text), _TRUNCATE, format, args);
+    va_end(args);
+    char line[300];
+    _snprintf_s(line, sizeof(line), _TRUNCATE, "[ZhiyiIME] switch: %s\n", text);
+    OutputDebugStringA(line);
+}
+
+constexpr UINT kConversionSettleMs = 150;
+constexpr ULONGLONG kFocusRestoreMs = 400;
 
 } // namespace
 
@@ -171,10 +190,36 @@ bool TextService::_claim_switch_key_press(int slot) {
 bool TextService::_run_held_switch_key() {
     const int slot = _held_switch_key();
     if (slot < 0 || slot == 1) return false;  // the style key is no system hotkey
-    if (_claim_switch_key_press(slot) && !_apply_switch_key(slot)) {
+    const bool claimed = _claim_switch_key_press(slot);
+    const bool applied = claimed && _apply_switch_key(slot);
+    if (claimed && !applied) {
         _switchKeyTicks[slot] = 0;  // not done: the key event may still do it
     }
+    debug_switch("system hotkey slot=%d claimed=%d applied=%d chinese=%d", slot, claimed,
+                 applied, _chinese_mode);
     return true;
+}
+
+void TextService::_settle_conversion_change() {
+    const ULONGLONG changed = _conversionChangeTick;
+    _conversionChangeTick = 0;
+    if (!changed || !_activated) return;
+    if (_focusChangeTick != 0 && _focusChangeTick + kFocusRestoreMs >= changed) {
+        // Restored by the focus change (just before or after): the IME's mode stays.
+        cxxime::ImeStatus status;
+        bool have_status = false;
+        {
+            std::lock_guard<std::mutex> lock(_lastImeStatusMutex);
+            have_status = _has_synced_ime_status();
+            status = _lastImeStatus;
+        }
+        if (have_status) _sync_conversion_mode_compartment(status);
+        debug_switch("conversion restored by focus: kept chinese=%d", _chinese_mode);
+        return;
+    }
+    debug_switch("conversion set by a program: applying");
+    ScopedFlag deferred(_applyingDeferredConversion);
+    OnChange(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION);
 }
 
 bool TextService::_apply_switch_key(int slot) {
@@ -290,6 +335,13 @@ STDMETHODIMP TextService::OnChange(REFGUID rguid) {
     }
     if (before_chinese == requested_chinese) {
         trace_change(false, false, false, 0, "already_aligned");
+        return S_OK;
+    }
+    if (!_applyingDeferredConversion && _configWindow &&
+        SetTimer(_configWindow, cxxime_tsf::TIMER_CXXIME_CONVERSION_SETTLE, kConversionSettleMs,
+                 nullptr)) {
+        _conversionChangeTick = GetTickCount64();  // judged in _settle_conversion_change
+        trace_change(false, false, false, 0, "deferred");
         return S_OK;
     }
 

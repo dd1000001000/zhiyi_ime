@@ -317,6 +317,7 @@ bool TextService::_synchronize_effective_edit_target_from_thread_mgr(const char*
 }
 
 STDMETHODIMP TextService::OnSetThreadFocus() {
+    _note_focus_change();
     if (!_activated) {
         return S_OK;
     }
@@ -352,6 +353,7 @@ STDMETHODIMP TextService::OnUninitDocumentMgr(ITfDocumentMgr* pDocMgr) {
 STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* pDocMgrFocus,
                                      ITfDocumentMgr* pDocMgrPrevFocus) {
     UNREFERENCED_PARAMETER(pDocMgrPrevFocus);
+    _note_focus_change();  // the IMM layer may restore this box's own mode now
     if (!_activated) {
         return S_OK;
     }

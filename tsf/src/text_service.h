@@ -276,6 +276,11 @@ private:
     // Chinese/English, punctuation or full/half width switched directly (no input box
     // needed); false for the style key or when the server did not answer.
     bool _apply_switch_key(int slot);
+    // Windows keeps a Chinese/English mode per input box (the IMM layer) and restores it when
+    // the box gets focus. Like Microsoft Pinyin, the IME keeps one mode everywhere: such a
+    // restore is written back over; a change by a program at another time is applied.
+    void _settle_conversion_change();
+    void _note_focus_change() { _focusChangeTick = GetTickCount64(); }
     // Input collection (second tier of the experience program): tells the server the program
     // and window title of the input when they changed; nothing while not allowed.
     void _report_input_target();
@@ -430,6 +435,9 @@ private:
     ITfSource* _openCloseCompartmentSource = nullptr;
     DWORD _dwOpenCloseCompartmentCookie = TF_INVALID_COOKIE;
     ULONGLONG _switchKeyTicks[4] = {};  // when each switch key was last run
+    ULONGLONG _focusChangeTick = 0;       // the last focus change in this thread
+    ULONGLONG _conversionChangeTick = 0;  // an outside conversion change waiting to settle
+    bool _applyingDeferredConversion = false;
 
     cxxime::IpcClient _client;
     uint32_t _sessionId = 0;

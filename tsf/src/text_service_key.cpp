@@ -64,6 +64,7 @@ bool indicates_unavailable_input_target(const char* block_reason) {
 
 // ITfKeyEventSink
 STDMETHODIMP TextService::OnSetFocus(BOOL fForeground) {
+    _note_focus_change();
     if (!_activated) {
         return S_OK;
     }
@@ -452,9 +453,11 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext* pic, REFGUID rguid, BOOL* p
                 break;
             }
             if (_apply_switch_key(slot)) {
+                OutputDebugStringA("[ZhiyiIME] switch: preserved key applied\n");
                 *pfEaten = TRUE;
                 break;
             }
+            OutputDebugStringA("[ZhiyiIME] switch: preserved key not applied\n");
             _switchKeyTicks[slot] = 0;
             BOOL eaten = FALSE;
             *pfEaten = _ProcessKeyEvent(pic, _preservedSwitchKeys[i].virtual_key, 0, &eaten)

@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
-// Scores bench samples with the C++ reranker (the code the IME runs) and reports top-1 accuracy;
+// Scores evaluation samples with the C++ reranker (the code the IME runs) and reports top-1 accuracy;
 // with an output path, also writes the probabilities so they can be compared with Python
-// (bench/eval_int8.py uses the same model files).
+// (the Python evaluation uses the same model files).
 //
 //   laya_parity <model_dir> <samples.jsonl> [limit] [probs_out.jsonl]
 #include <windows.h>

@@ -17,7 +17,7 @@ struct MemoryInfo;
 
 namespace laya {
 
-// 与 bench/eval_models.py 的 INSTRUCTIONS / INSTRUCTIONS_EN / decision_state 保持一致 (模型就是按这个格式训练的)。
+// 必须与训练时的 INSTRUCTIONS / INSTRUCTIONS_EN / decision_state 格式完全一致 (模型就是按这个格式训练的)。
 enum class Task { kPinyin, kEnglish };  // 拼音同音词 / 英文单词补全
 extern const char* const kInstructions;
 extern const char* const kInstructionsEnglish;

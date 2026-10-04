@@ -4,7 +4,7 @@
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ for a release upload
 
 The model (laya.int8g.onnx, ~335 MB) is too large for git; it is published as a GitHub release
-asset. It can also be rebuilt from bench/ (see bench/README.md: train, then export_int8g.py).
+asset. The training code and data are not published.
 """
 import argparse
 import hashlib

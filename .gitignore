@@ -53,23 +53,8 @@ third_party/onnxruntime/
 models/
 *.log
 
-# bench: Python environment, caches and reproducible artifacts
+# Python caches
 __pycache__/
 *.pyc
-bench/.venv/
-# HF cache (Laya base model)
-bench/models/
-# training outputs and ONNX exports
-bench/runs/
-# Laya source (git clone, see bench/README.md)
-bench/vendor/
-bench/logs/
-# per-sample results; summary.txt is kept
-bench/results/*.jsonl
-# fetched corpora (fetch_real.py / fetch_english.py)
-bench/data/real/
-bench/data/real_en/
-# train / dev sets (rebuilt by build_*.py); the test sets are kept
-bench/data/*.jsonl
-!bench/data/testset.jsonl
-!bench/data/en_test.jsonl
+# Model training / evaluation (kept private: code and data are not published)
+/bench/

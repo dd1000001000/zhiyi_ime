@@ -7,7 +7,7 @@ add_custom_command(TARGET laya_smoke POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LAYA_ORT_RUNTIME_FILES} $<TARGET_FILE_DIR:laya_smoke>
 )
 
-# C++ reranker accuracy / parity on bench samples (bench/data/*.jsonl).
+# C++ reranker accuracy / parity on evaluation samples (jsonl; the evaluation sets are private).
 add_executable(laya_parity laya_parity.cc)
 target_include_directories(laya_parity PRIVATE ${CMAKE_SOURCE_DIR}/engine/src)
 target_compile_options(laya_parity PRIVATE /utf-8)

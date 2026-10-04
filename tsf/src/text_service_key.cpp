@@ -446,10 +446,16 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext* pic, REFGUID rguid, BOOL* p
                           &c_guidPreservedKeyPunct, &c_guidPreservedKeyShape};
     for (size_t i = 0; i < std::size(keys); ++i) {
         if (IsEqualGUID(rguid, *keys[i]) && _preservedSwitchKeys[i].enabled()) {
-            if (!_claim_switch_key_press(static_cast<int>(i))) {
+            const int slot = static_cast<int>(i);
+            if (!_claim_switch_key_press(slot)) {
                 *pfEaten = TRUE;  // already run for this press (a system hotkey)
                 break;
             }
+            if (_apply_switch_key(slot)) {
+                *pfEaten = TRUE;
+                break;
+            }
+            _switchKeyTicks[slot] = 0;
             BOOL eaten = FALSE;
             *pfEaten = _ProcessKeyEvent(pic, _preservedSwitchKeys[i].virtual_key, 0, &eaten)
                            ? TRUE

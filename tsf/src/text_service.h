@@ -273,6 +273,9 @@ private:
     // key event, the preserved key and a system hotkey can all report one press).
     bool _claim_switch_key_press(int slot);
     bool _run_held_switch_key();
+    // Chinese/English, punctuation or full/half width switched directly (no input box
+    // needed); false for the style key or when the server did not answer.
+    bool _apply_switch_key(int slot);
     // Input collection (second tier of the experience program): tells the server the program
     // and window title of the input when they changed; nothing while not allowed.
     void _report_input_target();

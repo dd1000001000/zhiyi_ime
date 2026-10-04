@@ -170,17 +170,31 @@ bool TextService::_claim_switch_key_press(int slot) {
 // that key is run (once per press) and the compartment change itself is not applied.
 bool TextService::_run_held_switch_key() {
     const int slot = _held_switch_key();
-    if (slot < 0) return false;
-    if (_claim_switch_key_press(slot)) {
-        const UINT key = _switch_key(slot).virtual_key;
+    if (slot < 0 || slot == 1) return false;  // the style key is no system hotkey
+    if (_claim_switch_key_press(slot) && !_apply_switch_key(slot)) {
+        _switchKeyTicks[slot] = 0;  // not done: the key event may still do it
+    }
+    return true;
+}
+
+bool TextService::_apply_switch_key(int slot) {
+    if (slot != 0 && slot != 2 && slot != 3) return false;
+    cxxime::IPCResponse response = {};
+    if (!_ensure_ipc_session()) return false;
+    const bool sent = slot == 0 ? _client.set_chinese_mode(_sessionId, !_chinese_mode, response)
+                      : slot == 2 ? _client.toggle_punct(_sessionId, response)
+                                  : _client.toggle_shape(_sessionId, response);
+    if (!sent || response.status != cxxime::IPCStatus::OK) return false;
+    if (slot == 0) {
+        // Like a status change from outside: an open composition is committed as typed.
         ITfContext* context = _current_edit_context_for_composition();
         BOOL eaten = FALSE;
-        _ProcessKeyEvent(context, key, 0, &eaten);
+        _apply_engine_response(context, response, &eaten);
         if (context) context->Release();
-        // Its key-up may never reach the text service: end the shortcut in the engine now.
-        _ProcessKeyUp(key, 0);
-        cxxime_tsf::trace_activation_step("switch_key", "system_hotkey", S_OK, false);
+    } else {
+        _sync_ime_status(response.ime_status);
     }
+    cxxime_tsf::trace_activation_step("switch_key", "applied", S_OK, false);
     return true;
 }
 

@@ -48,6 +48,9 @@ public:
         caps_lock_overlay_active_ = false;
     }
     bool is_temporary_ascii() const { return temporary_ascii_; }
+    // Chinese/English switch shortcut (Config::ascii_toggle_shortcut): like tapping a switch
+    // modifier with the "code" style, the letters typed so far are committed as they are.
+    void toggle_by_shortcut(Context& ctx);
     void finish_temporary_ascii();
     void sync_caps_lock(bool caps_lock, Context& ctx) { apply_caps_lock_overlay(caps_lock, ctx); }
 

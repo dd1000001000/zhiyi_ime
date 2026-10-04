@@ -305,6 +305,13 @@ void AsciiComposer::toggle_mode(uint32_t key_code, Context& ctx) {
     }
 }
 
+void AsciiComposer::toggle_by_shortcut(Context& ctx) {
+    if (ctx.is_composing()) {
+        commit_raw_composition(ctx);
+    }
+    set_ascii_mode_from_switch(!ascii_mode_);
+}
+
 void AsciiComposer::finish_temporary_ascii() {
     if (temporary_ascii_) {
         set_ascii_mode_from_switch(false);

@@ -218,6 +218,36 @@ TEST(Config, shortcut_validation_accepts_current_bindings_and_disables_invalid_o
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.activate_ime_shortcut) == "F4");
 }
 
+TEST(Config, chinese_english_switch_shortcut_loads_and_wins_over_style) {
+    cxxime::Config config;
+    ASSERT_TRUE(!config.ascii_toggle_shortcut.enabled());  // tapping Shift by default
+    ASSERT_TRUE(config.load_json(R"({"shortcuts":{"ascii_toggle":"Ctrl+Shift+E"}})"));
+    ASSERT_EQ(config.ascii_toggle_shortcut.modifiers,
+              cxxime::kKeyModifierControl | cxxime::kKeyModifierShift);
+    ASSERT_EQ(config.ascii_toggle_shortcut.virtual_key, static_cast<uint32_t>('E'));
+
+    // A plain letter would block typing.
+    config = {};
+    ASSERT_TRUE(config.load_json(R"({"shortcuts":{"ascii_toggle":"E"}})"));
+    ASSERT_TRUE(!config.ascii_toggle_shortcut.enabled());
+
+    config = {};
+    ASSERT_TRUE(config.load_json(R"({"shortcuts":{
+        "ascii_toggle":"Ctrl+Space",
+        "english_style":"Ctrl+Space"
+    }})"));
+    ASSERT_TRUE(config.ascii_toggle_shortcut.enabled());
+    ASSERT_TRUE(!config.english_style_shortcut.enabled());
+
+    cxxime::Config saved;
+    saved.theme = "dark";
+    saved.preset_color_schemes["dark"].text_color = 0x11223344;  // a runtime snapshot needs it
+    ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Alt+Q", &saved.ascii_toggle_shortcut));
+    cxxime::Config loaded;
+    ASSERT_TRUE(loaded.load_runtime_json(saved.to_runtime_json()));
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.ascii_toggle_shortcut) == "Alt+Q");
+}
+
 TEST(Config, conflicting_shortcuts_disable_style_switch) {
     cxxime::Config config;
     ASSERT_TRUE(config.load_json(R"({"shortcuts":{

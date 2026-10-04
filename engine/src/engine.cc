@@ -158,6 +158,7 @@ bool Engine::apply_runtime_state(std::shared_ptr<const EngineRuntimeState> runti
 void Engine::init_per_session(const Config& config) {
     ascii_composer_.load_config(config);
     english_style_shortcut_ = config.english_style_shortcut;
+    ascii_toggle_shortcut_ = config.ascii_toggle_shortcut;
     english_word_mode_ = config.english.word_mode;
     pinyin_initials_ = config.pinyin_initials;
     // Start loading the Laya model in the background so it is ready by the first keystroke.
@@ -277,6 +278,22 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         event.keycode != handled_shortcut_key_) {
         handled_shortcut_key_ = 0;
     }
+    // Chinese/English switch shortcut (a key combination; tapping a modifier alone is handled
+    // by the AsciiComposer above). Its key-up is swallowed like the style shortcut's.
+    if (!event.is_key_up && ascii_toggle_shortcut_.matches(event)) {
+        record_total_us(trace_, total_start, trace_enabled_);
+        if (handled_shortcut_key_ != 0) {
+            return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;  // auto-repeat
+        }
+        handled_shortcut_key_ = event.keycode;
+        ascii_composer_.toggle_by_shortcut(context_);
+        if (!context_.committed_text.empty()) {
+            apply_commit_learning_plan();
+            return ProcessResult::COMMITTED;
+        }
+        return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+    }
+
     // Style shortcut: in English mode word completion <-> letter by letter (a word being typed
     // stays open; the new style applies from the next word); in Chinese pinyin mode full
     // pinyin <-> initials. Not used in Wubi mode.

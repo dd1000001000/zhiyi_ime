@@ -311,9 +311,20 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
                                is_valid_activate_ime_shortcut);
         load_keyboard_shortcut(shortcuts, "english_style", config.english_style_shortcut,
                                is_valid_input_mode_shortcut);
-        // The IME activation shortcut wins over an identical English style shortcut.
+        load_keyboard_shortcut(shortcuts, "ascii_toggle", config.ascii_toggle_shortcut,
+                               is_valid_input_mode_shortcut);
+        // The IME activation shortcut wins over identical switch shortcuts, and the
+        // Chinese/English switch over an identical style switch.
         if (config.english_style_shortcut.enabled() &&
             config.english_style_shortcut == config.activate_ime_shortcut) {
+            config.english_style_shortcut = {};
+        }
+        if (config.ascii_toggle_shortcut.enabled() &&
+            config.ascii_toggle_shortcut == config.activate_ime_shortcut) {
+            config.ascii_toggle_shortcut = {};
+        }
+        if (config.english_style_shortcut.enabled() &&
+            config.english_style_shortcut == config.ascii_toggle_shortcut) {
             config.english_style_shortcut = {};
         }
     }
@@ -592,6 +603,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
 
     j["shortcuts"]["activate_ime"] = keyboard_shortcut_string(config.activate_ime_shortcut);
     j["shortcuts"]["english_style"] = keyboard_shortcut_string(config.english_style_shortcut);
+    j["shortcuts"]["ascii_toggle"] = keyboard_shortcut_string(config.ascii_toggle_shortcut);
 
     return j;
 }

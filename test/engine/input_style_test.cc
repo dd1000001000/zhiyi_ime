@@ -3,6 +3,7 @@
 // Input styles: pinyin initials matching and the style shortcut (Ctrl+Space by default), which
 // switches full pinyin / initials in Chinese pinyin mode and words / letters in English mode.
 
+#include <cstdio>
 #include <string>
 
 #include <windows.h>
@@ -109,6 +110,63 @@ TEST(FuzzyPinyin, correct_pinyin_is_shown_only_for_fuzzy_matches) {
     ASSERT_TRUE(!resources->matches_without_fuzzy("zongguo", "zhong:guo"));
     resources.reset();
     DeleteFileA(path.c_str());
+}
+
+TEST(AsciiToggle, combination_switches_chinese_english_once_and_commits_the_letters) {
+    const std::string dict_path = temp_file("zhiyi_ascii_toggle.bin");
+    const std::string config_path = temp_file("zhiyi_ascii_toggle.json");
+    ASSERT_TRUE(cxxime::Dict::create_test_dict(dict_path, {{"ni", "你", 100}}));
+    {
+        FILE* f = std::fopen(config_path.c_str(), "wb");
+        ASSERT_TRUE(f != nullptr);
+        std::fputs(R"({"shortcuts":{"ascii_toggle":"Ctrl+Shift+E"}})", f);
+        std::fclose(f);
+    }
+    cxxime::Engine engine;
+    ASSERT_TRUE(engine.initialize(dict_path, config_path));
+    engine.set_trace_enabled(false);
+    cxxime::OutputOptions chinese;
+    chinese.chinese_mode = true;
+
+    auto key = [&](uint32_t vk, uint32_t modifiers, bool up) {
+        cxxime::KeyEvent event;
+        event.keycode = vk;
+        event.modifiers = modifiers;
+        event.is_key_up = up;
+        return engine.process_key(event, chinese);
+    };
+    const uint32_t ctrl = cxxime::kKeyModifierControl;
+    const uint32_t ctrl_shift = ctrl | cxxime::kKeyModifierShift;
+
+    key('N', 0, false);
+    key('N', 0, true);
+    key('I', 0, false);
+    key('I', 0, true);
+    ASSERT_TRUE(engine.context().is_composing());
+    ASSERT_TRUE(!engine.ascii_composer().is_ascii_mode());
+
+    // Ctrl down, Shift down, E down/up, Shift up, Ctrl up: one switch, no modifier tap.
+    key(VK_CONTROL, ctrl, false);
+    key(VK_SHIFT, ctrl_shift, false);
+    ASSERT_EQ(key('E', ctrl_shift, false), cxxime::ProcessResult::COMMITTED);
+    ASSERT_TRUE(engine.take_commit_text_with_source().first == "ni");
+    ASSERT_EQ(key('E', ctrl_shift, true), cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
+    key(VK_SHIFT, ctrl, true);
+    key(VK_CONTROL, 0, true);
+    ASSERT_TRUE(engine.ascii_composer().is_ascii_mode());
+
+    // Again, with nothing typed: back to Chinese.
+    key(VK_CONTROL, ctrl, false);
+    key(VK_SHIFT, ctrl_shift, false);
+    ASSERT_EQ(key('E', ctrl_shift, false), cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
+    key('E', ctrl_shift, true);
+    key(VK_SHIFT, ctrl, true);
+    key(VK_CONTROL, 0, true);
+    ASSERT_TRUE(!engine.ascii_composer().is_ascii_mode());
+
+    engine.finalize();
+    DeleteFileA(dict_path.c_str());
+    DeleteFileA(config_path.c_str());
 }
 
 TEST(InputStyle, shortcut_toggles_pinyin_style_in_chinese_and_english_style_in_english) {

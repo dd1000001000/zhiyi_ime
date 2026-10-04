@@ -263,7 +263,6 @@ private:
     void _unregister_thread_sinks();
     void _register_conversion_compartment_sink();
     void _unregister_conversion_compartment_sink();
-    HRESULT _register_preserved_key();
     HRESULT _unregister_preserved_key();
     bool _register_display_attribute_atom();
     HRESULT _end_composition(ITfContext* pic, bool sync = false);

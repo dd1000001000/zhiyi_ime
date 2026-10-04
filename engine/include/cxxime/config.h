@@ -87,6 +87,9 @@ struct Config {
     KeyboardShortcut activate_ime_shortcut;
     // Switches English mode between word completion and letter-by-letter input.
     KeyboardShortcut english_style_shortcut = {kKeyModifierControl, 0x20 /* VK_SPACE */};
+    // Chinese/English switch by a key combination (shortcuts.ascii_toggle, e.g. Ctrl+Shift+E),
+    // instead of or next to tapping a modifier alone (ascii_composer.switch_key).
+    KeyboardShortcut ascii_toggle_shortcut;
 
     // status_window
     struct StatusWindowConfig {

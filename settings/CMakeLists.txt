@@ -10,6 +10,8 @@ add_executable(cxxime-settings WIN32
     editor_general_panel.cc
     i18n.cc
     i18n.h
+    key_capture.cc
+    key_capture.h
     settings.manifest
     settings.rc
 )

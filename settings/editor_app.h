@@ -82,8 +82,7 @@ private:
     HWND hFuzzyGroups_[7] = {};
 
     // Keys
-    HWND hSwitchKey_ = nullptr;
-    HWND hStyleEnabled_ = nullptr;
+    HWND hSwitchKey_ = nullptr;  // key capture boxes (key_capture.h)
     HWND hStyleKey_ = nullptr;
 
     // Dictionary

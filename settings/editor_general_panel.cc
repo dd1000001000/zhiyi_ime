@@ -15,6 +15,7 @@
 #include <cxxime/user_dict.h>
 
 #include "editor_app_internal.h"
+#include "key_capture.h"
 
 namespace cxxime {
 namespace settings {
@@ -34,7 +35,6 @@ enum ControlId {
     kPageSizeId,
     kEnglishCorrectionId,
     kSwitchKeyId = 1101,
-    kStyleEnabledId,
     kStyleKeyId,
     kLearningId = 1201,
     kClearLearningId,
@@ -55,12 +55,9 @@ constexpr char kDarkTheme[] = "moon_dark";
 constexpr int kFontSmall = 12;
 constexpr int kFontMedium = 14;
 constexpr int kFontLarge = 17;
-constexpr KeyboardShortcut kDefaultStyleShortcut = {kKeyModifierControl, VK_SPACE};
 constexpr int kMinPageSize = 3;
 constexpr int kMaxPageSize = 10;
 
-// Chinese/English switch key choices (combo order) -> ascii_composer switch_key actions.
-enum SwitchKey { kSwitchShift = 0, kSwitchCtrl = 1, kSwitchNone = 2 };
 
 // Width of the right-aligned label column: the widest label of the page (labels differ in
 // length between languages).
@@ -88,41 +85,37 @@ HWND make_button(int id, const wchar_t* text, int x, int y, int width, HWND pare
     return control;
 }
 
-void set_shortcut_control(HWND control, const KeyboardShortcut& shortcut) {
-    SendMessageW(control, HKM_SETHOTKEY,
-                 MAKEWORD(static_cast<BYTE>(shortcut.virtual_key),
-                          static_cast<BYTE>(shortcut.modifiers)),
-                 0);
-}
-
-KeyboardShortcut shortcut_from_control(HWND control) {
-    const WORD value = static_cast<WORD>(SendMessageW(control, HKM_GETHOTKEY, 0, 0));
-    return {HIBYTE(value) & kShortcutModifierMask, LOBYTE(value)};
-}
-
 bool switch_action_enabled(const Config& config, const char* key) {
     const auto found = config.ascii_switch_key.find(key);
     return found != config.ascii_switch_key.end() && found->second != "noop";
 }
 
-int switch_key_choice(const Config& config) {
+// Chinese/English switch: a combination (shortcuts.ascii_toggle), else Shift or Ctrl tapped
+// alone (ascii_composer switch_key, either side), else none.
+KeyChoice switch_key_choice(const Config& config) {
+    if (config.ascii_toggle_shortcut.enabled()) {
+        return KeyChoice::of(config.ascii_toggle_shortcut);
+    }
     if (switch_action_enabled(config, "Shift_L") || switch_action_enabled(config, "Shift_R")) {
-        return kSwitchShift;
+        return KeyChoice::tap(VK_SHIFT);
     }
     if (switch_action_enabled(config, "Control_L") || switch_action_enabled(config, "Control_R")) {
-        return kSwitchCtrl;
+        return KeyChoice::tap(VK_CONTROL);
     }
-    return kSwitchNone;
+    return KeyChoice::none();
 }
 
-void apply_switch_key_choice(Config& config, int choice) {
+void apply_switch_key_choice(Config& config, const KeyChoice& choice) {
     // "code": the keys typed so far are committed as letters, then the mode switches.
-    const char* shift = choice == kSwitchShift ? "code" : "noop";
-    const char* ctrl = choice == kSwitchCtrl ? "code" : "noop";
+    const bool tap = choice.kind == KeyChoice::Kind::kTap;
+    const char* shift = tap && choice.tap_key == VK_SHIFT ? "code" : "noop";
+    const char* ctrl = tap && choice.tap_key == VK_CONTROL ? "code" : "noop";
     config.ascii_switch_key["Shift_L"] = shift;
     config.ascii_switch_key["Shift_R"] = shift;
     config.ascii_switch_key["Control_L"] = ctrl;
     config.ascii_switch_key["Control_R"] = ctrl;
+    config.ascii_toggle_shortcut =
+        choice.kind == KeyChoice::Kind::kCombo ? choice.combo : KeyboardShortcut{};
 }
 
 } // namespace
@@ -230,22 +223,21 @@ void EditorApp::create_keys_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     int y = kPanelPadTop;
     const int labels = label_width({"keys.switch", "keys.style"});
+    const int box_width = S(260);
+    // Chinese/English: Shift or Ctrl tapped alone, or a combination.
     int x = make_aligned_label(tr("keys.switch"), x0, labels, y, panel);
-    hSwitchKey_ = make_combo(kSwitchKeyId, x, y, S(220), panel);
-    combo_add(hSwitchKey_, L"Shift");
-    combo_add(hSwitchKey_, L"Ctrl");
-    combo_add(hSwitchKey_, tr("keys.none"));
+    hSwitchKey_ = create_key_capture(kSwitchKeyId, x, y, box_width, kCtrlH, panel, true);
+    y += kRowH;
+    make_hint(tr("keys.switch_hint"), x, y - S(6), S(380), panel);
     y += kRowH;
 
+    // Style switch: a combination only (Shift / Ctrl alone already type).
     x = make_aligned_label(tr("keys.style"), x0, labels, y, panel);
-    hStyleEnabled_ = make_check(kStyleEnabledId, tr("keys.enable"), x, y, S(80), panel);
-    hStyleKey_ = CreateWindowExW(WS_EX_CLIENTEDGE, HOTKEY_CLASSW, L"",
-                                 WS_CHILD | WS_VISIBLE | WS_TABSTOP, x + S(86), y, S(180), kCtrlH,
-                                 panel, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kStyleKeyId)),
-                                 GetModuleHandle(nullptr), nullptr);
-    SendMessageW(hStyleKey_, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
+    hStyleKey_ = create_key_capture(kStyleKeyId, x, y, box_width, kCtrlH, panel, false);
     y += kRowH;
     make_hint(tr("keys.style_hint"), x, y - S(6), S(380), panel);
+    y += kRowH + S(8);
+    make_hint(tr("keys.capture_hint"), x0, y, S(460), panel);
 }
 
 void EditorApp::create_dictionary_panel(HWND panel) {
@@ -283,11 +275,8 @@ void EditorApp::populate_controls() {
     combo_set_index(hLanguage_, language_index);
     set_check(hEnglishCorrection_, config_.english.correction);
 
-    combo_set_index(hSwitchKey_, switch_key_choice(config_));
-    set_check(hStyleEnabled_, config_.english_style_shortcut.enabled());
-    set_shortcut_control(hStyleKey_, config_.english_style_shortcut.enabled()
-                                         ? config_.english_style_shortcut
-                                         : kDefaultStyleShortcut);
+    key_capture_set(hSwitchKey_, switch_key_choice(config_));
+    key_capture_set(hStyleKey_, KeyChoice::of(config_.english_style_shortcut));
 
     set_check(hLearning_, config_.candidate_learning);
     set_check(hFuzzyEnabled_, config_.fuzzy_pinyin);
@@ -311,7 +300,7 @@ bool EditorApp::read_controls(bool report_errors) {
                         ? languages_[language_index - 1].code
                         : kAutoUiLanguage;
     c.english.correction = get_check(hEnglishCorrection_);
-    apply_switch_key_choice(c, (std::max)(0, combo_index(hSwitchKey_)));
+    apply_switch_key_choice(c, key_capture_get(hSwitchKey_));
     c.candidate_learning = get_check(hLearning_);
     c.fuzzy_pinyin = get_check(hFuzzyEnabled_);
     c.fuzzy_groups = 0;
@@ -321,21 +310,22 @@ bool EditorApp::read_controls(bool report_errors) {
         }
     }
 
-    KeyboardShortcut style_shortcut;
-    if (get_check(hStyleEnabled_)) {
-        style_shortcut = shortcut_from_control(hStyleKey_);
-        if (!style_shortcut.enabled() || !is_valid_input_mode_shortcut(style_shortcut)) {
-            if (report_errors) {
-                MessageBoxW(hwnd_, tr("keys.invalid"), tr("window.title"), MB_OK | MB_ICONERROR);
-            }
-            return false;
+    const KeyChoice style = key_capture_get(hStyleKey_);
+    const KeyboardShortcut style_shortcut =
+        style.kind == KeyChoice::Kind::kCombo ? style.combo : KeyboardShortcut{};
+    auto fail = [&](const char* message) {
+        if (report_errors) {
+            MessageBoxW(hwnd_, tr(message), tr("window.title"), MB_OK | MB_ICONERROR);
         }
-        if (style_shortcut == c.activate_ime_shortcut) {
-            if (report_errors) {
-                MessageBoxW(hwnd_, tr("keys.conflict"), tr("window.title"), MB_OK | MB_ICONERROR);
-            }
-            return false;
-        }
+        return false;
+    };
+    for (const KeyboardShortcut& shortcut : {c.ascii_toggle_shortcut, style_shortcut}) {
+        if (!shortcut.enabled()) continue;
+        if (!is_valid_input_mode_shortcut(shortcut)) return fail("keys.invalid");
+        if (shortcut == c.activate_ime_shortcut) return fail("keys.conflict");
+    }
+    if (style_shortcut.enabled() && style_shortcut == c.ascii_toggle_shortcut) {
+        return fail("keys.same");
     }
     c.english_style_shortcut = style_shortcut;
     return true;
@@ -345,7 +335,6 @@ void EditorApp::update_enabled_controls() {
     const bool pinyin = get_check(hPinyin_);
     EnableWindow(hFullPinyin_, pinyin);
     EnableWindow(hInitials_, pinyin);
-    EnableWindow(hStyleKey_, get_check(hStyleEnabled_));
     // The pairs keep their check marks but are grayed out while fuzzy pinyin is off.
     const bool fuzzy = get_check(hFuzzyEnabled_);
     for (HWND group : hFuzzyGroups_) {
@@ -357,7 +346,6 @@ bool EditorApp::handle_command(int control_id, int notification) {
     switch (control_id) {
     case kPinyinId:
     case kWubiId:
-    case kStyleEnabledId:
     case kFuzzyEnabledId:
         if (notification == BN_CLICKED) {
             update_enabled_controls();

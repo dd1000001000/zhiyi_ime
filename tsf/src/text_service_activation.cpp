@@ -206,9 +206,8 @@ void TextService::_initialize_optional_activation_services() {
     cxxime_tsf::trace_activation_step("display_attribute", "complete", display_attribute_hr,
                                             false);
 
-    cxxime_tsf::trace_activation_step("preserved_key", "attempt", S_OK, false);
-    const HRESULT preserved_key_hr = _register_preserved_key();
-    cxxime_tsf::trace_activation_step("preserved_key", "complete", preserved_key_hr, false);
+    // No preserved keys: the switch shortcuts are configurable and matched by the engine (a
+    // preserved Ctrl+Space used to switch Chinese/English before the engine saw the key).
 
     cxxime_tsf::trace_activation_step("conversion_sink", "attempt", S_OK, false);
     _register_conversion_compartment_sink();
@@ -318,29 +317,6 @@ HRESULT TextService::_unregister_key_event_sink() {
         return E_FAIL;
 
     HRESULT hr = pKeystrokeMgr->UnadviseKeyEventSink(_clientId);
-    pKeystrokeMgr->Release();
-    return hr;
-}
-
-HRESULT TextService::_register_preserved_key() {
-    if (!_threadMgr)
-        return E_FAIL;
-
-    ITfKeystrokeMgr* pKeystrokeMgr = nullptr;
-    if (FAILED(_threadMgr->QueryInterface(IID_ITfKeystrokeMgr, (void**)&pKeystrokeMgr)))
-        return E_FAIL;
-
-    // Register Ctrl+Space as preserved key for mode toggle
-    TF_PRESERVEDKEY prekey = {};
-    prekey.uVKey = VK_SPACE;
-    prekey.uModifiers = TF_MOD_CONTROL;
-    HRESULT hr = pKeystrokeMgr->PreserveKey(
-        _clientId,
-        c_guidPreservedKey_Toggle,
-        &prekey,
-        L"Toggle Chinese/English",
-        (ULONG)wcslen(L"Toggle Chinese/English"));
-
     pKeystrokeMgr->Release();
     return hr;
 }

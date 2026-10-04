@@ -180,8 +180,9 @@ CapsLock 支持 `code`、`candidate`、`clear`、`append`、`noop`。`append` �
 
 ## 9. 快捷键与模式边界
 
-- Shift+Space 切换全角、半角。
-- Ctrl+. 切换中文、英文标点。
+- 全角/半角切换键（`shortcuts.shape_toggle`，默认 Shift+Space）。
+- 中英文标点切换键（`shortcuts.punct_toggle`，默认 Ctrl+.）。
+- 两者都可以在设置的"按键"页改成其他组合或清空；切换键之间不能重复。
 - 其他 Ctrl、Alt 组合默认交给应用，不能修改活动 preedit。
 - 持久 ASCII 模式空闲时，字母和空格直接输出；Enter 交给应用。
 

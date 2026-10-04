@@ -429,6 +429,11 @@ TEST(SessionIntegration, capslock_shift_space_still_toggles_shape) {
         ASSERT_TRUE(result.ime_status.caps_lock());
         ASSERT_TRUE(result.commit_text.empty());
         ASSERT_TRUE(!result.composing);
+        // Released before the next press (a held key repeats without switching again).
+        cxxime::KeyEvent release = make_key(VK_SPACE, true, true);
+        release.is_key_up = true;
+        ASSERT_EQ(manager.process_key(id, release).result,
+                  cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
     }
 }
 

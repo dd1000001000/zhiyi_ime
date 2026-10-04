@@ -28,7 +28,13 @@ struct KeyboardShortcut {
 std::string keyboard_shortcut_string(const KeyboardShortcut& shortcut);
 bool parse_keyboard_shortcut(const std::string& value, KeyboardShortcut* shortcut);
 bool is_valid_keyboard_shortcut(const KeyboardShortcut& shortcut);
+// A switch key (Chinese/English, style, punctuation, full/half width): F1-F11, Shift+Space, or
+// Ctrl/Alt (optionally with Shift) with a letter, digit, punctuation key or Space; never one of
+// the common application shortcuts below.
 bool is_valid_input_mode_shortcut(const KeyboardShortcut& shortcut);
+// Copy, paste, undo, save, find ... and Alt+F4 / Alt+Space, which a switch key would take away
+// from applications.
+bool is_common_app_shortcut(const KeyboardShortcut& shortcut);
 bool is_valid_activate_ime_shortcut(const KeyboardShortcut& shortcut);
 uint32_t keyboard_shortcut_win32_modifiers(const KeyboardShortcut& shortcut);
 

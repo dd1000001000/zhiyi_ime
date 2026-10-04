@@ -216,4 +216,43 @@ TEST(InputStyle, pinyin_style_follows_the_setter) {
     DeleteFileA(dict_path.c_str());
 }
 
+TEST(SwitchKeys, punctuation_and_width_keys_follow_the_config) {
+    const std::string dict_path = temp_file("zhiyi_switch_keys.bin");
+    const std::string config_path = temp_file("zhiyi_switch_keys.json");
+    ASSERT_TRUE(cxxime::Dict::create_test_dict(dict_path, {{"ni", "你", 100}}));
+    {
+        FILE* f = std::fopen(config_path.c_str(), "wb");
+        ASSERT_TRUE(f != nullptr);
+        std::fputs(R"({"shortcuts":{"punct_toggle":"F8","shape_toggle":"disabled"}})", f);
+        std::fclose(f);
+    }
+    cxxime::Engine engine;
+    ASSERT_TRUE(engine.initialize(dict_path, config_path));
+    engine.set_trace_enabled(false);
+    cxxime::OutputOptions chinese;
+    chinese.chinese_mode = true;
+    auto key = [&](uint32_t vk, uint32_t modifiers, bool up) {
+        cxxime::KeyEvent event;
+        event.keycode = vk;
+        event.modifiers = modifiers;
+        event.is_key_up = up;
+        return engine.process_key(event, chinese);
+    };
+
+    // F8 switches punctuation once; auto-repeat and the key-up are swallowed.
+    ASSERT_EQ(key(VK_F8, 0, false), cxxime::ProcessResult::TOGGLE_PUNCT);
+    ASSERT_EQ(key(VK_F8, 0, false), cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
+    ASSERT_EQ(key(VK_F8, 0, true), cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED);
+
+    // The old keys no longer switch: Ctrl+. goes to the application, Shift+Space types.
+    ASSERT_TRUE(key(VK_OEM_PERIOD, cxxime::kKeyModifierControl, false) !=
+                cxxime::ProcessResult::TOGGLE_PUNCT);
+    ASSERT_TRUE(key(VK_SPACE, cxxime::kKeyModifierShift, false) !=
+                cxxime::ProcessResult::TOGGLE_SHAPE);
+
+    engine.finalize();
+    DeleteFileA(dict_path.c_str());
+    DeleteFileA(config_path.c_str());
+}
+
 RUN_ALL_TESTS()

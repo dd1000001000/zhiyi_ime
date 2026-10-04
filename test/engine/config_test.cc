@@ -203,7 +203,8 @@ TEST(Config, shortcut_validation_accepts_current_bindings_and_disables_invalid_o
     cxxime::Config config;
     ASSERT_TRUE(
         config.load_json(R"({"shortcuts":{"english_style":"M","activate_ime":"Shift+C"}})"));
-    ASSERT_TRUE(!config.english_style_shortcut.enabled());
+    // An invalid switch key resets the switch keys to the defaults.
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.english_style_shortcut) == "Ctrl+Space");
     ASSERT_TRUE(!config.activate_ime_shortcut.enabled());
 
     config = {};
@@ -218,7 +219,7 @@ TEST(Config, shortcut_validation_accepts_current_bindings_and_disables_invalid_o
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.activate_ime_shortcut) == "F4");
 }
 
-TEST(Config, chinese_english_switch_shortcut_loads_and_wins_over_style) {
+TEST(Config, chinese_english_switch_shortcut_loads) {
     cxxime::Config config;
     ASSERT_TRUE(!config.ascii_toggle_shortcut.enabled());  // tapping Shift by default
     ASSERT_TRUE(config.load_json(R"({"shortcuts":{"ascii_toggle":"Ctrl+Shift+E"}})"));
@@ -234,10 +235,11 @@ TEST(Config, chinese_english_switch_shortcut_loads_and_wins_over_style) {
     config = {};
     ASSERT_TRUE(config.load_json(R"({"shortcuts":{
         "ascii_toggle":"Ctrl+Space",
-        "english_style":"Ctrl+Space"
+        "english_style":"Ctrl+Shift+Space"
     }})"));
-    ASSERT_TRUE(config.ascii_toggle_shortcut.enabled());
-    ASSERT_TRUE(!config.english_style_shortcut.enabled());
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.ascii_toggle_shortcut) == "Ctrl+Space");
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.english_style_shortcut) ==
+                "Ctrl+Shift+Space");
 
     cxxime::Config saved;
     saved.theme = "dark";
@@ -248,14 +250,67 @@ TEST(Config, chinese_english_switch_shortcut_loads_and_wins_over_style) {
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.ascii_toggle_shortcut) == "Alt+Q");
 }
 
-TEST(Config, conflicting_shortcuts_disable_style_switch) {
+TEST(Config, switch_key_conflicting_with_activation_resets_switch_keys) {
     cxxime::Config config;
     ASSERT_TRUE(config.load_json(R"({"shortcuts":{
         "english_style":"Ctrl+Alt+C",
+        "punct_toggle":"F8",
         "activate_ime":"Ctrl+Alt+C"
     }})"));
-    ASSERT_TRUE(!config.english_style_shortcut.enabled());
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.english_style_shortcut) == "Ctrl+Space");
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.punct_toggle_shortcut) == "Ctrl+.");
     ASSERT_TRUE(config.activate_ime_shortcut.enabled());
+
+    // A default equal to the activation shortcut is left unset.
+    config = {};
+    ASSERT_TRUE(config.load_json(R"({"shortcuts":{"activate_ime":"Ctrl+Space"}})"));
+    ASSERT_TRUE(!config.english_style_shortcut.enabled());
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.punct_toggle_shortcut) == "Ctrl+.");
+}
+
+TEST(Config, punctuation_and_width_switch_keys_load_save_and_clear) {
+    cxxime::Config config;
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.punct_toggle_shortcut) == "Ctrl+.");
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.shape_toggle_shortcut) == "Shift+Space");
+    ASSERT_TRUE(config.load_json(R"({"shortcuts":{
+        "ascii_toggle":"Ctrl+Space",
+        "english_style":"disabled",
+        "punct_toggle":"Ctrl+Alt+P",
+        "shape_toggle":"F9"
+    }})"));
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.ascii_toggle_shortcut) == "Ctrl+Space");
+    ASSERT_TRUE(!config.english_style_shortcut.enabled());
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.punct_toggle_shortcut) == "Ctrl+Alt+P");
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.shape_toggle_shortcut) == "F9");
+
+    config.theme = "dark";
+    config.preset_color_schemes["dark"].text_color = 0x11223344;  // a runtime snapshot needs it
+    cxxime::Config loaded;
+    ASSERT_TRUE(loaded.load_runtime_json(config.to_runtime_json()));
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.punct_toggle_shortcut) == "Ctrl+Alt+P");
+    ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.shape_toggle_shortcut) == "F9");
+    ASSERT_TRUE(!loaded.english_style_shortcut.enabled());
+}
+
+TEST(Config, repeated_or_common_switch_keys_reset_all_switch_keys) {
+    for (const char* json : {
+             R"({"shortcuts":{"punct_toggle":"Ctrl+Alt+P","shape_toggle":"Ctrl+Alt+P"}})",
+             R"({"shortcuts":{"ascii_toggle":"Ctrl+.","english_style":"F2"}})",
+             R"({"shortcuts":{"shape_toggle":"Ctrl+C","english_style":"F2"}})",
+             R"({"shortcuts":{"punct_toggle":"Hello","english_style":"F2"}})"}) {
+        cxxime::Config config;
+        config.ascii_switch_key["Control_L"] = "code";
+        ASSERT_TRUE(config.load_json(json));
+        ASSERT_TRUE(cxxime::switch_keys_valid(config));
+        ASSERT_TRUE(!config.ascii_toggle_shortcut.enabled());
+        ASSERT_TRUE(config.ascii_switch_key["Shift_L"] == "code");
+        ASSERT_TRUE(config.ascii_switch_key["Control_L"] == "noop");
+        ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.english_style_shortcut) ==
+                    "Ctrl+Space");
+        ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.punct_toggle_shortcut) == "Ctrl+.");
+        ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.shape_toggle_shortcut) ==
+                    "Shift+Space");
+    }
 }
 
 TEST(Config, initial_state_round_trip) {

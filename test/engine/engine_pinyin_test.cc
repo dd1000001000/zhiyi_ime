@@ -325,6 +325,49 @@ TEST(Engine, translate_fuzzy_cifan) {
     DeleteFileA(spellings_path.c_str());
 }
 
+// The typed sound comes first: a fuzzy word (xian -> 想 through an=ang) counts a tenth of its
+// frequency and only passes an exact word that is far less common.
+TEST(Engine, translate_fuzzy_prefers_the_typed_sound) {
+    std::string dict_path = make_temp_path("test_fuzzy_xian_dict.bin");
+    std::string spellings_path = make_temp_path("test_fuzzy_xian_spellings.bin");
+
+    cxxime::Dict::create_test_dict(dict_path, {
+        {"xian", "先", 1000},
+        {"xiang", "想", 5000},
+        {"xiang", "响", 50000},
+    });
+    ASSERT_TRUE(cxxime::SpellingsIndex::create_test_trie(spellings_path, {
+        {"xian", "xian", 0, 0.0f},
+        {"xian", "xiang", 1, -0.693f},
+        {"xiang", "xiang", 0, 0.0f},
+    }));
+
+    cxxime::Dict dict{cxxime::UserDictKind::PINYIN};
+    ASSERT_TRUE(dict.open_dict(dict_path));
+    auto pinyin_resources = cxxime::PinyinResourceSet::create(
+        "full_pinyin", cxxime::PinyinSchemeKind::kFullPinyin, spellings_path);
+    ASSERT_TRUE(pinyin_resources != nullptr);
+    cxxime::PinyinTranslator translator;
+    translator.set_dict(&dict);
+    translator.bind_pinyin(pinyin_resources, {});
+
+    auto page = translator.translate_page("xian", 0, 10);
+    ASSERT_EQ(page.candidates.size(), 3u);
+    ASSERT_TRUE(page.candidates[0].text == "响");
+    ASSERT_TRUE(page.candidates[1].text == "先");
+    ASSERT_TRUE(page.candidates[2].text == "想");
+
+    // Typed exactly, xiang keeps its own order.
+    page = translator.translate_page("xiang", 0, 10);
+    ASSERT_GE(page.candidates.size(), 2u);
+    ASSERT_TRUE(page.candidates[0].text == "响");
+    ASSERT_TRUE(page.candidates[1].text == "想");
+
+    dict.close();
+    DeleteFileA(dict_path.c_str());
+    DeleteFileA(spellings_path.c_str());
+}
+
 // --- Edge cases ---
 
 TEST(Engine, translate_empty_input) {

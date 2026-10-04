@@ -28,16 +28,16 @@ namespace {
 constexpr int kDisabledTopnOverfetch = 16;
 // Keep fallback tiers aligned with scripts/build_pinyin_topn.py.
 constexpr int kExactCompleteBase = 100000000;
-// Fuzzy pinyin treats both spellings of a pair as the same sound (xin = xing): fuzzy matches
-// share the exact tiers and frequency decides (fuzzy is only searched when the user enabled it).
-constexpr int kFuzzyCompleteBase = kExactCompleteBase;
 constexpr int kExactPrefixBase = 80000000;
 constexpr int kAbbreviationCompleteBase = 60000000;
 constexpr int kMixedCompleteBase = 50000000;
-constexpr int kFuzzyPrefixBase = kExactPrefixBase;
 constexpr int kAbbreviationPrefixBase = 30000000;
 constexpr int kMixedPrefixBase = 20000000;
 constexpr int kMaxRankedSourceFrequency = 99999900;
+// Fuzzy pinyin matches (xian -> 想 through an=ang) share the exact tiers but count a tenth of
+// their frequency: the typed sound comes first (先, 现, 线 ...) and a fuzzy word only passes an
+// exact one that is far more common.
+constexpr int kFuzzyFrequencyDivisor = 10;
 
 enum class PathMatchTier {
     kNormal,
@@ -79,13 +79,15 @@ void rank_fallback_candidate(Candidate& candidate, PathMatchTier tier,
                              std::size_t query_syllable_count) {
     const bool complete = candidate_syllable_count(candidate) == query_syllable_count;
     int base = 0;
+    int divisor = 100;
     switch (tier) {
         case PathMatchTier::kNormal:
+        case PathMatchTier::kCompletion:
             base = complete ? kExactCompleteBase : kExactPrefixBase;
             break;
         case PathMatchTier::kFuzzy:
-        case PathMatchTier::kCompletion:
-            base = complete ? kFuzzyCompleteBase : kFuzzyPrefixBase;
+            base = complete ? kExactCompleteBase : kExactPrefixBase;
+            divisor *= kFuzzyFrequencyDivisor;
             break;
         case PathMatchTier::kAbbreviation:
             base = complete ? kAbbreviationCompleteBase : kAbbreviationPrefixBase;
@@ -95,7 +97,8 @@ void rank_fallback_candidate(Candidate& candidate, PathMatchTier tier,
             break;
     }
     const int source_frequency = (std::max)(0, candidate.source_frequency);
-    candidate.frequency = base + (std::min)(source_frequency, kMaxRankedSourceFrequency) / 100;
+    candidate.frequency =
+        base + (std::min)(source_frequency, kMaxRankedSourceFrequency) / divisor;
 }
 
 struct CompositionPathSpec {
@@ -850,9 +853,9 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         if (pinyin_scheme() == PinyinSchemeKind::kShuangpin) {
             rank_shuangpin_path(path_query_keys[live_path_index], candidates);
         }
+        // A word reached through several paths keeps its best rank (exact over fuzzy).
         for (auto& c : candidates) {
-            if (!contains_text(merged.items(), c.text))
-                merged.offer(std::move(c));
+            merged.offer_unique(std::move(c));
         }
     }
 

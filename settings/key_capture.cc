@@ -16,6 +16,8 @@ namespace settings {
 namespace {
 
 constexpr wchar_t kClassName[] = L"ZhiyiKeyCapture";
+constexpr UINT_PTR kNoticeTimer = 1;
+constexpr UINT kNoticeMs = 2500;
 
 struct State {
     KeyChoice choice;
@@ -23,6 +25,8 @@ struct State {
     bool capturing = false;
     bool hover = false;
     const wchar_t* message = nullptr;  // why the last key was not taken (while capturing)
+    std::wstring notice;               // why the key was kept (shown for a moment afterwards)
+    KeyCaptureCheck check;
     // The key presses of one capture: modifiers seen, and whether another key came with them.
     uint32_t modifiers_seen = 0;
     bool other_key_seen = false;
@@ -67,7 +71,15 @@ void notify_changed(HWND window) {
                  reinterpret_cast<LPARAM>(window));
 }
 
+void clear_notice(HWND window, State* state) {
+    if (state->notice.empty()) return;
+    state->notice.clear();
+    KillTimer(window, kNoticeTimer);
+    InvalidateRect(window, nullptr, TRUE);
+}
+
 void start_capture(HWND window, State* state) {
+    clear_notice(window, state);
     state->capturing = true;
     state->message = nullptr;
     state->modifiers_seen = 0;
@@ -82,6 +94,17 @@ void stop_capture(HWND window, State* state) {
 }
 
 void accept(HWND window, State* state, const KeyChoice& choice) {
+    if (choice.kind != KeyChoice::Kind::kNone && state->check) {
+        std::wstring notice = state->check(choice);
+        if (!notice.empty()) {
+            // Used by another box: keep the previous key.
+            stop_capture(window, state);
+            state->notice = std::move(notice);
+            SetTimer(window, kNoticeTimer, kNoticeMs, nullptr);
+            return;
+        }
+    }
+    clear_notice(window, state);
     state->choice = choice;
     stop_capture(window, state);
     notify_changed(window);
@@ -109,13 +132,13 @@ void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam) {
         stop_capture(window, state);  // cancel, keep the key
         return;
     }
+    if (is_common_app_shortcut(shortcut)) {
+        reject(window, state, tr("keys.common"));
+        return;
+    }
     if (!is_valid_input_mode_shortcut(shortcut)) {
         reject(window, state, is_valid_keyboard_shortcut(shortcut) ? tr("keys.need_combo")
                                                                    : tr("keys.unsupported"));
-        return;
-    }
-    if (is_reserved_shortcut(shortcut)) {
-        reject(window, state, tr("keys.reserved"));
         return;
     }
     accept(window, state, KeyChoice::of(shortcut));
@@ -162,6 +185,9 @@ void paint(HWND window, State* state) {
     if (state->capturing) {
         text = state->message ? state->message : tr("keys.press");
         color = state->message ? RGB(196, 43, 28) : RGB(0, 103, 192);
+    } else if (!state->notice.empty()) {
+        text = state->notice;
+        color = RGB(196, 43, 28);
     } else {
         text = key_choice_text(state->choice, tr("keys.none"));
         if (state->choice.kind == KeyChoice::Kind::kNone) color = RGB(130, 130, 130);
@@ -190,6 +216,12 @@ LRESULT CALLBACK key_capture_proc(HWND window, UINT message, WPARAM wparam, LPAR
         SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(initial));
         break;
     }
+    case WM_TIMER:
+        if (state && wparam == kNoticeTimer) {
+            clear_notice(window, state);
+            return 0;
+        }
+        break;
     case WM_NCDESTROY:
         delete state;
         SetWindowLongPtrW(window, GWLP_USERDATA, 0);
@@ -299,10 +331,30 @@ HWND create_key_capture(int id, int x, int y, int width, int height, HWND parent
 
 void key_capture_set(HWND control, const KeyChoice& choice) {
     if (State* state = state_of(control)) {
+        clear_notice(control, state);
         state->choice = choice;
         state->capturing = false;
         state->message = nullptr;
         InvalidateRect(control, nullptr, TRUE);
+    }
+}
+
+void key_capture_set_check(HWND control, KeyCaptureCheck check) {
+    if (State* state = state_of(control)) {
+        state->check = std::move(check);
+    }
+}
+
+bool same_key_choice(const KeyChoice& left, const KeyChoice& right) {
+    if (left.kind != right.kind) return false;
+    switch (left.kind) {
+    case KeyChoice::Kind::kTap:
+        return left.tap_key == right.tap_key;
+    case KeyChoice::Kind::kCombo:
+        return left.combo == right.combo;
+    case KeyChoice::Kind::kNone:
+    default:
+        return true;
     }
 }
 
@@ -332,12 +384,6 @@ std::wstring key_choice_text(const KeyChoice& choice, const wchar_t* none) {
     default:
         return none;
     }
-}
-
-bool is_reserved_shortcut(const KeyboardShortcut& shortcut) {
-    const KeyboardShortcut punctuation = {kKeyModifierControl, VK_OEM_PERIOD};
-    const KeyboardShortcut shape = {kKeyModifierShift, VK_SPACE};
-    return shortcut == punctuation || shortcut == shape;
 }
 
 }  // namespace settings

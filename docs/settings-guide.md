@@ -82,15 +82,15 @@
 
 ### 模糊拼音
 
-**配置项**：`engine.fuzzy_pinyin`（布尔值）
+**配置项**：`engine.fuzzy_pinyin`（布尔值）、`engine.fuzzy_groups`（启用的组）
 
-启用后，部分声母/韵母可互通，例如：
+启用后，所选的声母/韵母组可互通：
 
-- `z`/`zh`、`c`/`ch`、`s`/`sh`
-- `n`/`l`、`f`/`h`、`r`/`l`
-- `an`/`ang`、`en`/`eng`、`in`/`ing`
+- `z_zh`、`c_ch`、`s_sh`、`n_l`
+- `an_ang`、`en_eng`、`in_ing`
 
-适合发音不标准的用户。关闭后要求精确拼音。
+出厂开启，只勾选 `en_eng`、`in_ing`。模糊音得到的字排在实际拼出的音之后（字频按十分之一计），
+只有常用得多时才会排到前面；经常选的字仍会被学习到前面。
 
 ### 候选数量
 
@@ -293,16 +293,22 @@ CapsLock 键在输入法中的行为模式。下拉框提供 5 个选项：
 
 > **注**：CapsLock 模式仅影响 A-Z 字母键。数字键、标点键在所有模式下行为一致。若直接编辑配置文件设为 `inline_ascii` / `set_ascii_mode` / `unset_ascii_mode`（与 CapsLock 的开关性质不兼容，设置界面不提供这些选项），引擎会自动降级为 `clear`。
 
-### 自定义快捷键
+### 切换键
 
-除 Shift / Control / CapsLock 行为外，还可配置两个全局快捷键（出厂均关闭）：
+设置的"按键"页有 4 个切换键。左键点击按键框后按下新按键（Esc 取消），右键点击清空（不使用快捷键）。
 
-| 配置项 | 说明 |
-|--------|------|
-| `shortcuts.input_mode_switch` | 切换输入模式（拼音 / 五笔 / 混输） |
-| `shortcuts.activate_ime` | 切换到 CxxIME |
+| 功能 | 配置项 | 默认 |
+|------|--------|------|
+| 中英切换 | `ascii_composer.switch_key`（单独轻按 Shift / Ctrl）或 `shortcuts.ascii_toggle`（组合键） | 轻按 Shift |
+| 输入方式切换（全拼/首字母，单词/字母） | `shortcuts.english_style` | Ctrl+Space |
+| 中英文标点 | `shortcuts.punct_toggle` | Ctrl+. |
+| 全角/半角 | `shortcuts.shape_toggle` | Shift+Space |
 
-每个快捷键包含"启用"复选框与热键输入框。两个快捷键不能设置为相同组合；"切换到 CxxIME"仅接受可注册且未被其他程序占用的组合。
+- 可用的键：F1–F11、Shift+Space，或 Ctrl/Alt（可再加 Shift）与字母、数字、常用标点或空格的组合。单独轻按 Shift / Ctrl 只用于中英切换。
+- 常用快捷键不能使用：Ctrl+C / V / X / Z / Y / A / S / F、Alt+F4、Alt+Space。
+- 设置界面里按下的键已被另一项使用时，这一项保持原来的设置。
+- 配置文件中的切换键有重复、写错、用了常用快捷键，或与 `shortcuts.activate_ime` 相同时，4 个切换键全部恢复默认。
+- "恢复默认"按钮确认后把 4 个切换键恢复为默认，点击"确定"或"应用"后生效。
 
 ---
 
@@ -454,8 +460,11 @@ CapsLock 键在输入法中的行为模式。下拉框提供 5 个选项：
         }
     },
     "shortcuts": {
-        "input_mode_switch": "disabled",
-        "activate_ime": "disabled"
+        "activate_ime": "disabled",
+        "ascii_toggle": "disabled",
+        "english_style": "Ctrl+Space",
+        "punct_toggle": "Ctrl+.",
+        "shape_toggle": "Shift+Space"
     },
     "theme": "moon_light",
     "status_window": {

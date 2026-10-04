@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <iterator>
 #include <utility>
 
 #include <json.hpp>
@@ -30,22 +31,59 @@ static void load_bool(Json& obj, const char* key, bool& val) {
     if (obj.contains(key) && obj[key].is_boolean()) val = obj[key].get<bool>();
 }
 
+// False when the key is present but not a valid shortcut (the value is then disabled).
 template <typename Json>
-static void load_keyboard_shortcut(Json& obj, const char* key, KeyboardShortcut& value,
+static bool load_keyboard_shortcut(Json& obj, const char* key, KeyboardShortcut& value,
                                    bool (*validator)(const KeyboardShortcut&)) {
-    if (!obj.contains(key) || !obj[key].is_string()) {
-        return;
+    if (!obj.contains(key)) {
+        return true;
     }
     KeyboardShortcut parsed;
-    if (parse_keyboard_shortcut(obj[key].template get<std::string>(), &parsed) &&
+    if (obj[key].is_string() &&
+        parse_keyboard_shortcut(obj[key].template get<std::string>(), &parsed) &&
         validator(parsed)) {
         value = parsed;
-    } else {
-        value = {};
+        return true;
     }
+    value = {};
+    return false;
 }
 
 // Fuzzy pinyin pairs in the config file ("fuzzy_groups": ["z_zh", ...]).
+bool switch_keys_valid(const Config& config) {
+    const KeyboardShortcut* keys[] = {&config.ascii_toggle_shortcut,
+                                      &config.english_style_shortcut,
+                                      &config.punct_toggle_shortcut,
+                                      &config.shape_toggle_shortcut};
+    for (size_t i = 0; i < std::size(keys); ++i) {
+        if (!keys[i]->enabled()) continue;
+        if (!is_valid_input_mode_shortcut(*keys[i]) || *keys[i] == config.activate_ime_shortcut) {
+            return false;
+        }
+        for (size_t j = 0; j < i; ++j) {
+            if (*keys[i] == *keys[j]) return false;
+        }
+    }
+    return true;
+}
+
+void reset_switch_keys(Config& config) {
+    const Config defaults;
+    config.ascii_toggle_shortcut = {};
+    config.english_style_shortcut = defaults.english_style_shortcut;
+    config.punct_toggle_shortcut = defaults.punct_toggle_shortcut;
+    config.shape_toggle_shortcut = defaults.shape_toggle_shortcut;
+    // "code": the letters typed so far are committed, then the mode switches.
+    config.ascii_switch_key["Shift_L"] = "code";
+    config.ascii_switch_key["Shift_R"] = "code";
+    config.ascii_switch_key["Control_L"] = "noop";
+    config.ascii_switch_key["Control_R"] = "noop";
+    for (KeyboardShortcut* key : {&config.english_style_shortcut, &config.punct_toggle_shortcut,
+                                  &config.shape_toggle_shortcut}) {
+        if (*key == config.activate_ime_shortcut) *key = {};
+    }
+}
+
 static const std::pair<uint8_t, const char*> kFuzzyGroupNames[] = {
     {0x01, "z_zh"}, {0x02, "c_ch"}, {0x04, "s_sh"}, {0x08, "n_l"},
     {0x10, "an_ang"}, {0x20, "en_eng"}, {0x40, "in_ing"},
@@ -304,28 +342,25 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         }
     }
 
+    bool switch_keys_loaded = true;
     if (j.contains("shortcuts") && j["shortcuts"].is_object()) {
         auto& shortcuts = j["shortcuts"];
         load_keyboard_shortcut(shortcuts, "activate_ime", config.activate_ime_shortcut,
                                is_valid_activate_ime_shortcut);
-        load_keyboard_shortcut(shortcuts, "english_style", config.english_style_shortcut,
-                               is_valid_input_mode_shortcut);
-        load_keyboard_shortcut(shortcuts, "ascii_toggle", config.ascii_toggle_shortcut,
-                               is_valid_input_mode_shortcut);
-        // The IME activation shortcut wins over identical switch shortcuts, and the
-        // Chinese/English switch over an identical style switch.
-        if (config.english_style_shortcut.enabled() &&
-            config.english_style_shortcut == config.activate_ime_shortcut) {
-            config.english_style_shortcut = {};
+        for (const auto& [key, value] :
+             {std::pair{"english_style", &config.english_style_shortcut},
+              std::pair{"ascii_toggle", &config.ascii_toggle_shortcut},
+              std::pair{"punct_toggle", &config.punct_toggle_shortcut},
+              std::pair{"shape_toggle", &config.shape_toggle_shortcut}}) {
+            if (!load_keyboard_shortcut(shortcuts, key, *value, is_valid_input_mode_shortcut)) {
+                switch_keys_loaded = false;
+            }
         }
-        if (config.ascii_toggle_shortcut.enabled() &&
-            config.ascii_toggle_shortcut == config.activate_ime_shortcut) {
-            config.ascii_toggle_shortcut = {};
-        }
-        if (config.english_style_shortcut.enabled() &&
-            config.english_style_shortcut == config.ascii_toggle_shortcut) {
-            config.english_style_shortcut = {};
-        }
+    }
+    // A broken or conflicting set of switch keys (edited by hand) falls back to the defaults.
+    if (!switch_keys_loaded || !switch_keys_valid(config)) {
+        CXXIME_LOG(L"Config: invalid or conflicting switch keys, using the defaults");
+        reset_switch_keys(config);
     }
 }
 
@@ -603,6 +638,8 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["shortcuts"]["activate_ime"] = keyboard_shortcut_string(config.activate_ime_shortcut);
     j["shortcuts"]["english_style"] = keyboard_shortcut_string(config.english_style_shortcut);
     j["shortcuts"]["ascii_toggle"] = keyboard_shortcut_string(config.ascii_toggle_shortcut);
+    j["shortcuts"]["punct_toggle"] = keyboard_shortcut_string(config.punct_toggle_shortcut);
+    j["shortcuts"]["shape_toggle"] = keyboard_shortcut_string(config.shape_toggle_shortcut);
 
     return j;
 }

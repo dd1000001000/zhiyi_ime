@@ -192,6 +192,26 @@ bool is_valid_keyboard_shortcut(const KeyboardShortcut& shortcut) {
            is_supported_virtual_key(shortcut.virtual_key);
 }
 
+bool is_common_app_shortcut(const KeyboardShortcut& shortcut) {
+    if (shortcut.modifiers == kKeyModifierControl) {
+        switch (shortcut.virtual_key) {
+        case 'A':
+        case 'C':
+        case 'F':
+        case 'S':
+        case 'V':
+        case 'X':
+        case 'Y':
+        case 'Z':
+            return true;
+        default:
+            return false;
+        }
+    }
+    return shortcut.modifiers == kKeyModifierAlt &&
+           (shortcut.virtual_key == VK_F4 || shortcut.virtual_key == VK_SPACE);
+}
+
 bool is_valid_input_mode_shortcut(const KeyboardShortcut& shortcut) {
     if (!is_valid_keyboard_shortcut(shortcut)) {
         return false;
@@ -199,7 +219,13 @@ bool is_valid_input_mode_shortcut(const KeyboardShortcut& shortcut) {
     if (!shortcut.enabled()) {
         return true;
     }
+    if (is_common_app_shortcut(shortcut)) {
+        return false;
+    }
     if (shortcut.virtual_key >= VK_F1 && shortcut.virtual_key <= VK_F11) {
+        return true;
+    }
+    if (shortcut.modifiers == kKeyModifierShift && shortcut.virtual_key == VK_SPACE) {
         return true;
     }
     return (shortcut.modifiers & (kKeyModifierControl | kKeyModifierAlt)) != 0;

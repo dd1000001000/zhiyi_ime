@@ -32,6 +32,17 @@ public:
             items_[min_i] = std::move(c);
     }
 
+    // Like offer(), but an item with the same text keeps the higher frequency.
+    void offer_unique(Candidate&& c) {
+        for (auto& item : items_) {
+            if (item.text == c.text) {
+                if (c.frequency > item.frequency) item = std::move(c);
+                return;
+            }
+        }
+        offer(std::move(c));
+    }
+
     size_t size() const { return items_.size(); }
     bool full() const { return k_ > 0 && items_.size() >= k_; }
     const std::vector<Candidate>& items() const { return items_; }

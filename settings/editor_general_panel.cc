@@ -2,7 +2,8 @@
 //
 // Settings pages: General (Chinese input, pinyin style, theme, font size, candidate count, UI
 // language, English spelling correction), Fuzzy pinyin,
-// Keys (Chinese/English switch, style switch shortcut) and Dictionary (self-learning).
+// Keys (Chinese/English, style, punctuation and full/half width switch keys) and Dictionary
+// (self-learning).
 
 #include "editor_app.h"
 
@@ -36,6 +37,9 @@ enum ControlId {
     kEnglishCorrectionId,
     kSwitchKeyId = 1101,
     kStyleKeyId,
+    kPunctKeyId,
+    kShapeKeyId,
+    kRestoreKeysId,
     kLearningId = 1201,
     kClearLearningId,
     kFuzzyEnabledId = 1301,
@@ -103,6 +107,20 @@ KeyChoice switch_key_choice(const Config& config) {
         return KeyChoice::tap(VK_CONTROL);
     }
     return KeyChoice::none();
+}
+
+KeyboardShortcut combo_of(const KeyChoice& choice) {
+    return choice.kind == KeyChoice::Kind::kCombo ? choice.combo : KeyboardShortcut{};
+}
+
+// "中英切换:" -> "中英切换" for messages.
+std::wstring label_name(const char* key) {
+    std::wstring name = tr(key);
+    while (!name.empty() && (name.back() == L':' || name.back() == L'\uFF1A' ||
+                             name.back() == L' ')) {
+        name.pop_back();
+    }
+    return name;
 }
 
 void apply_switch_key_choice(Config& config, const KeyChoice& choice) {
@@ -222,22 +240,52 @@ void EditorApp::create_fuzzy_panel(HWND panel) {
 void EditorApp::create_keys_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     int y = kPanelPadTop;
-    const int labels = label_width({"keys.switch", "keys.style"});
+    const int labels = label_width({"keys.switch", "keys.style", "keys.punct", "keys.shape"});
     const int box_width = S(260);
-    // Chinese/English: Shift or Ctrl tapped alone, or a combination.
-    int x = make_aligned_label(tr("keys.switch"), x0, labels, y, panel);
-    hSwitchKey_ = create_key_capture(kSwitchKeyId, x, y, box_width, kCtrlH, panel, true);
-    y += kRowH;
-    make_hint(tr("keys.switch_hint"), x, y - S(6), S(380), panel);
-    y += kRowH;
-
-    // Style switch: a combination only (Shift / Ctrl alone already type).
-    x = make_aligned_label(tr("keys.style"), x0, labels, y, panel);
-    hStyleKey_ = create_key_capture(kStyleKeyId, x, y, box_width, kCtrlH, panel, false);
-    y += kRowH;
-    make_hint(tr("keys.style_hint"), x, y - S(6), S(380), panel);
-    y += kRowH + S(8);
+    struct Row {
+        const char* label;
+        int id;
+        HWND* box;
+        const char* hint;
+    };
+    // Only the Chinese/English switch takes Shift or Ctrl tapped alone.
+    const Row rows[] = {
+        {"keys.switch", kSwitchKeyId, &hSwitchKey_, "keys.switch_hint"},
+        {"keys.style", kStyleKeyId, &hStyleKey_, "keys.style_hint"},
+        {"keys.punct", kPunctKeyId, &hPunctKey_, nullptr},
+        {"keys.shape", kShapeKeyId, &hShapeKey_, nullptr},
+    };
+    for (const Row& row : rows) {
+        const int x = make_aligned_label(tr(row.label), x0, labels, y, panel);
+        *row.box = create_key_capture(row.id, x, y, box_width, kCtrlH, panel,
+                                      row.box == &hSwitchKey_);
+        y += kRowH;
+        if (row.hint) {
+            make_hint(tr(row.hint), x, y - S(6), S(380), panel);
+            y += kRowH;
+        } else {
+            y += S(8);
+        }
+    }
+    // A key already used by another box is not taken: the box keeps its previous key.
+    for (const Row& row : rows) {
+        HWND self = *row.box;
+        key_capture_set_check(self, [self, rows](const KeyChoice& choice) {
+            for (const Row& other : rows) {
+                if (*other.box != self && same_key_choice(choice, key_capture_get(*other.box))) {
+                    std::wstring notice = tr("keys.taken");
+                    const size_t at = notice.find(L"{0}");
+                    if (at != std::wstring::npos) notice.replace(at, 3, label_name(other.label));
+                    return notice;
+                }
+            }
+            return std::wstring{};
+        });
+    }
+    y += S(8);
     make_hint(tr("keys.capture_hint"), x0, y, S(460), panel);
+    y += kRowH + S(8);
+    make_button(kRestoreKeysId, tr("keys.restore"), x0, y, S(160), panel);
 }
 
 void EditorApp::create_dictionary_panel(HWND panel) {
@@ -275,8 +323,7 @@ void EditorApp::populate_controls() {
     combo_set_index(hLanguage_, language_index);
     set_check(hEnglishCorrection_, config_.english.correction);
 
-    key_capture_set(hSwitchKey_, switch_key_choice(config_));
-    key_capture_set(hStyleKey_, KeyChoice::of(config_.english_style_shortcut));
+    set_switch_key_boxes(config_);
 
     set_check(hLearning_, config_.candidate_learning);
     set_check(hFuzzyEnabled_, config_.fuzzy_pinyin);
@@ -310,25 +357,47 @@ bool EditorApp::read_controls(bool report_errors) {
         }
     }
 
-    const KeyChoice style = key_capture_get(hStyleKey_);
-    const KeyboardShortcut style_shortcut =
-        style.kind == KeyChoice::Kind::kCombo ? style.combo : KeyboardShortcut{};
-    auto fail = [&](const char* message) {
+    // The boxes refuse repeated keys; the checks below guard the saved file.
+    Config keys = c;
+    keys.english_style_shortcut = combo_of(key_capture_get(hStyleKey_));
+    keys.punct_toggle_shortcut = combo_of(key_capture_get(hPunctKey_));
+    keys.shape_toggle_shortcut = combo_of(key_capture_get(hShapeKey_));
+    if (!switch_keys_valid(keys)) {
         if (report_errors) {
+            const char* message = "keys.same";
+            for (const KeyboardShortcut& shortcut :
+                 {keys.ascii_toggle_shortcut, keys.english_style_shortcut,
+                  keys.punct_toggle_shortcut, keys.shape_toggle_shortcut}) {
+                if (!shortcut.enabled()) continue;
+                if (!is_valid_input_mode_shortcut(shortcut)) message = "keys.invalid";
+                else if (shortcut == keys.activate_ime_shortcut) message = "keys.conflict";
+            }
             MessageBoxW(hwnd_, tr(message), tr("window.title"), MB_OK | MB_ICONERROR);
         }
         return false;
-    };
-    for (const KeyboardShortcut& shortcut : {c.ascii_toggle_shortcut, style_shortcut}) {
-        if (!shortcut.enabled()) continue;
-        if (!is_valid_input_mode_shortcut(shortcut)) return fail("keys.invalid");
-        if (shortcut == c.activate_ime_shortcut) return fail("keys.conflict");
     }
-    if (style_shortcut.enabled() && style_shortcut == c.ascii_toggle_shortcut) {
-        return fail("keys.same");
-    }
-    c.english_style_shortcut = style_shortcut;
+    c.english_style_shortcut = keys.english_style_shortcut;
+    c.punct_toggle_shortcut = keys.punct_toggle_shortcut;
+    c.shape_toggle_shortcut = keys.shape_toggle_shortcut;
     return true;
+}
+
+void EditorApp::set_switch_key_boxes(const Config& config) {
+    key_capture_set(hSwitchKey_, switch_key_choice(config));
+    key_capture_set(hStyleKey_, KeyChoice::of(config.english_style_shortcut));
+    key_capture_set(hPunctKey_, KeyChoice::of(config.punct_toggle_shortcut));
+    key_capture_set(hShapeKey_, KeyChoice::of(config.shape_toggle_shortcut));
+}
+
+void EditorApp::restore_default_keys() {
+    if (MessageBoxW(hwnd_, tr("keys.restore_confirm"), tr("window.title"),
+                    MB_YESNO | MB_ICONQUESTION) != IDYES) {
+        return;
+    }
+    // Shown in the boxes; saved with the other settings.
+    Config defaults = config_;
+    reset_switch_keys(defaults);
+    set_switch_key_boxes(defaults);
 }
 
 void EditorApp::update_enabled_controls() {
@@ -365,6 +434,11 @@ bool EditorApp::handle_command(int control_id, int notification) {
     case kClearLearningId:
         if (notification == BN_CLICKED) {
             clear_learning_data();
+        }
+        return true;
+    case kRestoreKeysId:
+        if (notification == BN_CLICKED) {
+            restore_default_keys();
         }
         return true;
     default:

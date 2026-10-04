@@ -138,6 +138,8 @@ private:
     bool pinyin_initials_ = false;
     KeyboardShortcut english_style_shortcut_;
     KeyboardShortcut ascii_toggle_shortcut_;
+    KeyboardShortcut punct_toggle_shortcut_;
+    KeyboardShortcut shape_toggle_shortcut_;
 
     std::shared_ptr<const EngineRuntimeState> runtime_;
 

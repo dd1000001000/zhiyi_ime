@@ -94,6 +94,10 @@ struct Config {
     // Chinese/English switch by a key combination (shortcuts.ascii_toggle, e.g. Ctrl+Shift+E),
     // instead of or next to tapping a modifier alone (ascii_composer.switch_key).
     KeyboardShortcut ascii_toggle_shortcut;
+    // Chinese/English punctuation (shortcuts.punct_toggle) and full/half width
+    // (shortcuts.shape_toggle).
+    KeyboardShortcut punct_toggle_shortcut = {kKeyModifierControl, 0xBE /* VK_OEM_PERIOD */};
+    KeyboardShortcut shape_toggle_shortcut = {kKeyModifierShift, 0x20 /* VK_SPACE */};
 
     // status_window
     struct StatusWindowConfig {
@@ -171,6 +175,14 @@ struct Config {
     std::unordered_map<std::string, SchemeColors> preset_color_schemes;
     std::vector<std::string> preset_color_scheme_order;
 };
+
+// The switch keys: Chinese/English (a combination, or Shift / Ctrl tapped alone), style,
+// punctuation and full/half width. Valid when every combination is a valid switch key and none
+// repeats another or the IME activation shortcut.
+bool switch_keys_valid(const Config& config);
+// Defaults: tap Shift, Ctrl+Space, Ctrl+., Shift+Space (one equal to the IME activation shortcut
+// is left unset).
+void reset_switch_keys(Config& config);
 
 } // namespace cxxime
 

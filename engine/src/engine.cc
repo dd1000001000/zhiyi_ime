@@ -159,6 +159,8 @@ void Engine::init_per_session(const Config& config) {
     ascii_composer_.load_config(config);
     english_style_shortcut_ = config.english_style_shortcut;
     ascii_toggle_shortcut_ = config.ascii_toggle_shortcut;
+    punct_toggle_shortcut_ = config.punct_toggle_shortcut;
+    shape_toggle_shortcut_ = config.shape_toggle_shortcut;
     english_word_mode_ = config.english.word_mode;
     pinyin_initials_ = config.pinyin_initials;
     // Start loading the Laya model in the background so it is ready by the first keystroke.
@@ -294,6 +296,21 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
     }
 
+    // Punctuation (Chinese/English) and full/half width shortcuts; auto-repeat and the key-up
+    // are swallowed like the other switch keys'.
+    for (const auto& [shortcut, toggle] :
+         {std::pair{&punct_toggle_shortcut_, ProcessResult::TOGGLE_PUNCT},
+          std::pair{&shape_toggle_shortcut_, ProcessResult::TOGGLE_SHAPE}}) {
+        if (!event.is_key_up && shortcut->matches(event)) {
+            record_total_us(trace_, total_start, trace_enabled_);
+            if (handled_shortcut_key_ != 0) {
+                return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+            }
+            handled_shortcut_key_ = event.keycode;
+            return toggle;
+        }
+    }
+
     // Style shortcut: in English mode word completion <-> letter by letter (a word being typed
     // stays open; the new style applies from the next word); in Chinese pinyin mode full
     // pinyin <-> initials. Not used in Wubi mode.
@@ -307,19 +324,6 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
                                     : ProcessResult::TOGGLE_ENGLISH_STYLE;
         }
         return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
-    }
-
-    // Handle keyboard shortcuts for mode toggles.
-    if (!event.is_key_up) {
-        // Shift+Space toggles full/half shape.
-        if (event.keycode == 0x20 && event.is_shift() && !event.is_ctrl() && !event.is_alt()) {
-            return ProcessResult::TOGGLE_SHAPE;
-        }
-        // Ctrl+. toggles Chinese/English punctuation.
-        if (event.keycode == 0xBE && event.is_ctrl() &&
-            !event.is_shift() && !event.is_alt()) {
-            return ProcessResult::TOGGLE_PUNCT;
-        }
     }
 
     // Application and system shortcuts own modified key combinations unless

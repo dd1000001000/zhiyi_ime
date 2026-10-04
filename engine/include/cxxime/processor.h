@@ -13,8 +13,8 @@ enum class ProcessResult {
     REJECTED,
     COMMITTED,
     CANDIDATE_SELECTED,
-    TOGGLE_SHAPE,   // full/half shape toggle (Shift+Space)
-    TOGGLE_PUNCT,   // Chinese/English punctuation toggle (Ctrl+.)
+    TOGGLE_SHAPE,   // full/half shape toggle (shortcuts.shape_toggle, Shift+Space)
+    TOGGLE_PUNCT,   // Chinese/English punctuation toggle (shortcuts.punct_toggle, Ctrl+.)
     // The first KeyDown switches; repeats and the matching KeyUp are only consumed.
     SWITCH_INPUT_MODE,
     INPUT_MODE_SHORTCUT_HANDLED,

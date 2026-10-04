@@ -1510,7 +1510,7 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     if (result == cxxime::ProcessResult::TOGGLE_SHAPE) {
         s.full_shape = !s.full_shape;
     } else if (result == cxxime::ProcessResult::TOGGLE_PUNCT) {
-        // In English mode, Ctrl+. also switches to Chinese mode
+        // In English mode, the punctuation switch also switches to Chinese mode
         if (!state.caps_lock && !s.base_chinese_mode) {
             s.base_chinese_mode = true;
             engine.ascii_composer().set_ascii_mode(false);

@@ -51,6 +51,8 @@ private:
     bool handle_about_notify(LPARAM notification);
     void update_enabled_controls();
     void clear_learning_data();
+    void set_switch_key_boxes(const cxxime::Config& config);
+    void restore_default_keys();
 
     HWND hwnd_ = nullptr;
     HWND hList_ = nullptr;
@@ -84,6 +86,8 @@ private:
     // Keys
     HWND hSwitchKey_ = nullptr;  // key capture boxes (key_capture.h)
     HWND hStyleKey_ = nullptr;
+    HWND hPunctKey_ = nullptr;
+    HWND hShapeKey_ = nullptr;
 
     // Dictionary
     HWND hLearning_ = nullptr;

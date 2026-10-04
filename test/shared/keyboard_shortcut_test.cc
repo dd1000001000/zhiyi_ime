@@ -80,9 +80,21 @@ TEST(KeyboardShortcut, validators_apply_context_specific_rules) {
     ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Shift+F4", &shortcut));
     ASSERT_TRUE(!cxxime::is_valid_activate_ime_shortcut(shortcut));
 
+    // Copy stays with the application.
     ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Ctrl+C", &shortcut));
-    ASSERT_TRUE(cxxime::is_valid_input_mode_shortcut(shortcut));
+    ASSERT_TRUE(cxxime::is_common_app_shortcut(shortcut));
+    ASSERT_TRUE(!cxxime::is_valid_input_mode_shortcut(shortcut));
     ASSERT_TRUE(cxxime::is_valid_activate_ime_shortcut(shortcut));
+
+    for (const char* common : {"Ctrl+V", "Ctrl+X", "Ctrl+Z", "Ctrl+Y", "Ctrl+A", "Ctrl+S",
+                               "Ctrl+F", "Alt+F4", "Alt+Space"}) {
+        ASSERT_TRUE(cxxime::parse_keyboard_shortcut(common, &shortcut));
+        ASSERT_TRUE(cxxime::is_common_app_shortcut(shortcut));
+        ASSERT_TRUE(!cxxime::is_valid_input_mode_shortcut(shortcut));
+    }
+    ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Ctrl+Shift+C", &shortcut));
+    ASSERT_TRUE(!cxxime::is_common_app_shortcut(shortcut));
+    ASSERT_TRUE(cxxime::is_valid_input_mode_shortcut(shortcut));
 
     ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Ctrl+/", &shortcut));
     ASSERT_TRUE(cxxime::is_valid_input_mode_shortcut(shortcut));
@@ -100,8 +112,9 @@ TEST(KeyboardShortcut, validators_apply_context_specific_rules) {
     ASSERT_TRUE(cxxime::is_valid_input_mode_shortcut(shortcut));
     ASSERT_TRUE(cxxime::is_valid_activate_ime_shortcut(shortcut));
 
+    // Shift+Space switches full/half width; Shift with other keys types.
     ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Shift+Space", &shortcut));
-    ASSERT_TRUE(!cxxime::is_valid_input_mode_shortcut(shortcut));
+    ASSERT_TRUE(cxxime::is_valid_input_mode_shortcut(shortcut));
     ASSERT_TRUE(!cxxime::is_valid_activate_ime_shortcut(shortcut));
 
     shortcut = {};

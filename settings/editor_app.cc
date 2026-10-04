@@ -28,8 +28,8 @@ constexpr int kOkId = 2001;
 constexpr int kCancelId = 2002;
 constexpr int kApplyId = 2003;
 
-const char* const kPanelKeys[] = {"nav.general", "nav.fuzzy", "nav.keys", "nav.dictionary",
-                                  "nav.about"};
+const char* const kPanelKeys[] = {"nav.general", "nav.fuzzy",   "nav.keys",
+                                  "nav.dictionary", "nav.privacy", "nav.about"};
 
 UINT settings_navigate_message() {
     static const UINT message = RegisterWindowMessageW(cxxime::kSettingsNavigateMessage);
@@ -42,8 +42,10 @@ int settings_panel_index(cxxime::SettingsPanel panel) {
         return 2;
     case cxxime::SettingsPanel::kDictionary:
         return 3;
-    case cxxime::SettingsPanel::kAbout:
+    case cxxime::SettingsPanel::kDiagnostics:
         return 4;
+    case cxxime::SettingsPanel::kAbout:
+        return 5;
     default:
         return 0;
     }
@@ -155,7 +157,8 @@ void EditorApp::create_controls(HWND window) {
     create_fuzzy_panel(hPanels_[1]);
     create_keys_panel(hPanels_[2]);
     create_dictionary_panel(hPanels_[3]);
-    create_about_panel(hPanels_[4], panel_width);
+    create_privacy_panel(hPanels_[4]);
+    create_about_panel(hPanels_[5], panel_width);
 
     const struct {
         int id;
@@ -254,6 +257,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(ui_language);
     KEEP_PAGE_EDIT(english.correction);
     KEEP_PAGE_EDIT(candidate_learning);
+    KEEP_PAGE_EDIT(experience_program);
     KEEP_PAGE_EDIT(fuzzy_pinyin);
     KEEP_PAGE_EDIT(fuzzy_groups);
 #undef KEEP_PAGE_EDIT

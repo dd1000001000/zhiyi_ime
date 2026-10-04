@@ -342,6 +342,10 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         }
     }
 
+    if (j.contains("privacy") && j["privacy"].is_object()) {
+        load_bool(j["privacy"], "experience_program", config.experience_program);
+    }
+
     bool switch_keys_loaded = true;
     if (j.contains("shortcuts") && j["shortcuts"].is_object()) {
         auto& shortcuts = j["shortcuts"];
@@ -640,6 +644,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["shortcuts"]["ascii_toggle"] = keyboard_shortcut_string(config.ascii_toggle_shortcut);
     j["shortcuts"]["punct_toggle"] = keyboard_shortcut_string(config.punct_toggle_shortcut);
     j["shortcuts"]["shape_toggle"] = keyboard_shortcut_string(config.shape_toggle_shortcut);
+    j["privacy"]["experience_program"] = config.experience_program;
 
     return j;
 }

@@ -36,6 +36,9 @@ private:
     void create_fuzzy_panel(HWND panel);
     void create_keys_panel(HWND panel);
     void create_dictionary_panel(HWND panel);
+    void create_privacy_panel(HWND panel);
+    void open_log_folder();
+    void delete_experience_log();
     void create_about_panel(HWND panel, int panel_width);
     void show_panel(int idx);
     void release_fonts();
@@ -71,7 +74,7 @@ private:
     HWND make_hint(const wchar_t* text, int x, int y, int width, HWND parent);
     int panel_ = 0;
     cxxime::SettingsPanel initial_panel_ = cxxime::SettingsPanel::kInput;
-    static constexpr int kPanelCount = 5;
+    static constexpr int kPanelCount = 6;
     HWND hPanels_[kPanelCount] = {};
 
     // General
@@ -96,6 +99,9 @@ private:
 
     // Dictionary
     HWND hLearning_ = nullptr;
+
+    // Privacy
+    HWND hExperience_ = nullptr;
 
     cxxime::Config config_;
     cxxime::Config loaded_config_;  // the files as last read or written

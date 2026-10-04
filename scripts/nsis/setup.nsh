@@ -48,6 +48,54 @@ Function ChooseInstallerLanguage
     !insertmacro MUI_LANGDLL_DISPLAY
 FunctionEnd
 
+; User experience improvement program: asked on its own page, unchecked unless the user joined
+; before (privacy.experience_program). Silent installs keep the current answer.
+Function LoadExperienceProgram
+    StrCpy $ExperienceProgram ${BST_UNCHECKED}
+    nsExec::ExecToStack '"$PLUGINSDIR\zhiyi-installer-helper.exe" get-experience-program "$PROFILE\zhiyi\default.json"'
+    Pop $0
+    Pop $1
+    ${If} $0 == "0"
+    ${AndIf} $1 == "on"
+        StrCpy $ExperienceProgram ${BST_CHECKED}
+    ${EndIf}
+FunctionEnd
+
+Function ExperiencePage
+    !insertmacro MUI_HEADER_TEXT "$(L_109)" "$(L_110)"
+    nsDialogs::Create 1018
+    Pop $0
+    ${If} $0 == error
+        Abort
+    ${EndIf}
+    ${NSD_CreateLabel} 0u 0u -10u 36u "$(L_111)"
+    Pop $0
+    ${NSD_CreateLabel} 0u 40u -10u 36u "$(L_112)"
+    Pop $0
+    ${NSD_CreateCheckbox} 0u 84u -10u 14u "$(L_113)"
+    Pop $ExperienceCheckbox
+    ${NSD_SetState} $ExperienceCheckbox $ExperienceProgram
+    ${NSD_CreateLabel} 12u 102u -22u 20u "$(L_114)"
+    Pop $0
+    nsDialogs::Show
+FunctionEnd
+
+Function ExperiencePageLeave
+    ${NSD_GetState} $ExperienceCheckbox $ExperienceProgram
+FunctionEnd
+
+Function ApplyExperienceProgram
+    StrCpy $0 "off"
+    ${If} $ExperienceProgram == ${BST_CHECKED}
+        StrCpy $0 "on"
+    ${EndIf}
+    nsExec::Exec '"$PLUGINSDIR\zhiyi-installer-helper.exe" set-experience-program "$PROFILE\zhiyi\default.json" $0'
+    Pop $1
+    ${If} $1 != "0"
+        DetailPrint "Experience program setting not changed ($1)"
+    ${EndIf}
+FunctionEnd
+
 ; The chosen language: kept for the uninstaller and made the settings language (unless the
 ; settings follow Windows and Windows already gives that language). Not fatal.
 Function ApplyInstallerLanguage
@@ -107,6 +155,7 @@ Function .onInit
 
     Call AcquireInstallerMutex
     Call ChooseInstallerLanguage
+    Call LoadExperienceProgram
     SetShellVarContext all
     SetRegView 64
     StrCpy $INSTDIR "$PROGRAMFILES64\ZhiyiIME"

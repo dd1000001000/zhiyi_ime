@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <fstream>
 #include <limits>
 #include <map>
@@ -17,6 +18,7 @@
 #include <cxxime/diagnostics_config.h>
 #include <cxxime/disabled_system_lexicon.h>
 #include <cxxime/english_learning.h>
+#include <cxxime/experience_log.h>
 #include <cxxime/dictionary_manifest.h>
 #include <cxxime/input_limits.h>
 #include <cxxime/logging.h>
@@ -617,6 +619,7 @@ bool SessionManager::initialize(const std::string& dict_path,
     cxxime::set_diagnostics_config(config->diagnostics);
     cxxime::QueryTrace::set_enabled(config->diagnostics.trace_mode !=
                                     cxxime::DiagnosticTraceMode::kOff);
+    cxxime::ExperienceLog::instance().configure(*config);
     reset_global_state(shared_.snapshot());
     return true;
 }
@@ -1244,6 +1247,7 @@ bool SessionManager::apply_config(const std::shared_ptr<const cxxime::Config>& c
     cxxime::set_diagnostics_config(config->diagnostics);
     cxxime::QueryTrace::set_enabled(config->diagnostics.trace_mode !=
                                     cxxime::DiagnosticTraceMode::kOff);
+    cxxime::ExperienceLog::instance().configure(*config);
     auto resources = shared_.snapshot();
 
     std::vector<std::shared_ptr<SessionEntry>> entries;
@@ -1484,7 +1488,16 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     engine.set_trace_session_id(id);
 
     // 4. call Engine
+    const auto key_start = std::chrono::steady_clock::now();
     auto result = engine.process_key(event, opts, static_cast<int>(visible_candidate_count));
+    if (!event.is_key_up) {
+        cxxime::ExperienceLog& experience = cxxime::ExperienceLog::instance();
+        experience.record_key(static_cast<uint32_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - key_start)
+                .count()));
+        if (const auto pick = engine.take_candidate_pick()) experience.record_pick(*pick);
+    }
 
     // 5. Publish shared mode changes and retain this session's base language mode.
     const bool temporary_ascii = engine.ascii_composer().is_temporary_ascii();
@@ -1678,6 +1691,9 @@ ProcessKeyResult SessionManager::select_candidate(uint32_t id, int index,
 
     const CandidateStateToken candidate_state_before = candidate_state_token(*s.engine);
     if (s.engine->select_candidate(index)) {
+        if (const auto pick = s.engine->take_candidate_pick()) {
+            cxxime::ExperienceLog::instance().record_pick(*pick);
+        }
         if (s.engine->context().is_composing()) {
             ret.result = cxxime::ProcessResult::ACCEPTED;
         } else {

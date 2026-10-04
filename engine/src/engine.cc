@@ -1477,6 +1477,14 @@ bool Engine::dispatch_candidate_selection(int index, const QueryDeadline& deadli
     if (!current) {
         return false;
     }
+    CandidatePick pick;
+    pick.index = index;
+    pick.recommended = current->candidate.recommended;
+    for (int i = 0; i < context_.candidate_count() && !pick.had_recommendation; ++i) {
+        const CandidateEntry* entry = context_.candidate_entry(i);
+        pick.had_recommendation = entry && entry->candidate.recommended;
+    }
+    last_pick_ = pick;
     CandidateEntry entry = *current;
     if (const auto* replacement = std::get_if<ReplaceActiveInputAction>(&entry.selection)) {
         return replace_active_input(*replacement, deadline);

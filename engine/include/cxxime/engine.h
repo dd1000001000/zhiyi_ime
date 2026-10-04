@@ -30,6 +30,13 @@ namespace cxxime {
 
 class SymbolTable;
 
+// Which position the user picked (for the experience log): no text.
+struct CandidatePick {
+    int index = 0;                     // 0-based position in the candidate list
+    bool recommended = false;          // the Laya recommendation was picked
+    bool had_recommendation = false;   // the list had a recommendation
+};
+
 class Engine {
 public:
     // Self-contained Pinyin init: owns resources loaded from the supplied paths.
@@ -46,6 +53,12 @@ public:
     const Context& context() const;
     Context& context();
     bool select_candidate(int index);
+    // The last candidate pick, once (empty when nothing was picked since the last call).
+    std::optional<CandidatePick> take_candidate_pick() {
+        auto pick = last_pick_;
+        last_pick_.reset();
+        return pick;
+    }
     void set_partial_selection_enabled(bool enabled) {
         translation_policy_.allow_partial_selection = enabled;
     }
@@ -154,6 +167,7 @@ private:
     InputMode mode_ = InputMode::PINYIN;
     TranslationPolicy translation_policy_;
     uint32_t handled_shortcut_key_ = 0;
+    std::optional<CandidatePick> last_pick_;
 
     // Query trace (explicit ownership, not thread_local - see TraceContext constraints)
     QueryTrace trace_;

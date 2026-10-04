@@ -10,6 +10,7 @@
 
 #include <cxxime/candidate.h>
 #include <cxxime/candidate_presentation.h>
+#include <cxxime/experience_log.h>
 
 namespace {
 
@@ -55,7 +56,21 @@ bool is_valid_utf8_offset(const std::string& value, size_t offset) {
 
 } // namespace
 
+namespace {
+void fill_process_response_fields(const ProcessKeyResult& result,
+                                  cxxime::IPCResponse* response);
+}  // namespace
+
 void fill_process_response(const ProcessKeyResult& result, cxxime::IPCResponse* response) {
+    fill_process_response_fields(result, response);
+    if (response->status == cxxime::IPCStatus::ERR_ENGINE_PROCESS_FAILED) {
+        cxxime::ExperienceLog::instance().record_error();
+    }
+}
+
+namespace {
+void fill_process_response_fields(const ProcessKeyResult& result,
+                                  cxxime::IPCResponse* response) {
     if (!response) {
         return;
     }
@@ -147,3 +162,4 @@ void fill_process_response(const ProcessKeyResult& result, cxxime::IPCResponse* 
         if (item.recommended) response->candidate_recommended_mask |= 1u << index;
     }
 }
+}  // namespace

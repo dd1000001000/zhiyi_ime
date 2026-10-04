@@ -55,6 +55,10 @@ struct Config {
     bool wubi_restart_on_fifth_after_miss = true;
     bool wubi_code_hint = false;  // Show the shortest remaining Wubi code in candidates.
     bool candidate_learning = true;   // self-learning: picked candidates move up
+    // User experience improvement program (privacy.experience_program, opt-in): the server
+    // keeps a local log of how the IME runs (version, settings, speed, errors, which position
+    // was picked), never anything typed. See docs/privacy.md.
+    bool experience_program = false;
     bool pinyin_initials = false;     // pinyin style: full pinyin (false) or initials (true)
     // Fuzzy pinyin: master switch and the enabled pairs (FuzzyGroup bits, spellings_index.h).
     bool fuzzy_pinyin = false;

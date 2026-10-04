@@ -125,11 +125,15 @@ Var UninstallTransactionPhase
 Var UninstallTsfX64Registered
 Var UninstallTsfX86Registered
 Var UninstallCleanupWarning
+Var ExperienceProgram
+Var ExperienceCheckbox
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "license.txt"
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE ValidateInstallDirectory
 !insertmacro MUI_PAGE_DIRECTORY
+; User experience improvement program (opt-in; nsis\setup.nsh).
+Page custom ExperiencePage ExperiencePageLeave
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_NOREBOOTSUPPORT
 !define MUI_FINISHPAGE_RUN "$INSTDIR\zhiyi-settings.exe"
@@ -286,6 +290,7 @@ Section "Install"
     install_start_new_server:
     ; Before the server starts and reads the user config.
     Call ApplyInstallerLanguage
+    Call ApplyExperienceProgram
     Call StartNewServer
     Pop $0
     StrCmp $0 "1" install_prepare_system_ime

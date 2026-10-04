@@ -268,6 +268,16 @@ TEST(Config, switch_key_conflicting_with_activation_resets_switch_keys) {
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.punct_toggle_shortcut) == "Ctrl+.");
 }
 
+TEST(Config, experience_program_is_opt_in_and_saved) {
+    cxxime::Config config;
+    ASSERT_TRUE(!config.experience_program);
+    ASSERT_TRUE(config.load_json(R"({"privacy":{"experience_program":true}})"));
+    ASSERT_TRUE(config.experience_program);
+    cxxime::Config loaded;
+    ASSERT_TRUE(loaded.load_json(config.to_user_json()));
+    ASSERT_TRUE(loaded.experience_program);
+}
+
 TEST(Config, punctuation_and_width_switch_keys_load_save_and_clear) {
     cxxime::Config config;
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(config.punct_toggle_shortcut) == "Ctrl+.");

@@ -8,6 +8,7 @@
 #include <optional>
 
 #include <cxxime/candidate.h>
+#include <cxxime/experience_log.h>
 #include <cxxime/data_path.h>
 #include <cxxime/dictionary_manifest.h>
 #include <cxxime/ime_menu.h>
@@ -311,6 +312,7 @@ void ServerApp::prepare_user_data_shutdown() {
     if (!session_mgr_.freeze_and_stop_composition_learning()) {
         CXXIME_LOG(L"%s", L"composition_learning shutdown flush failed");
     }
+    cxxime::ExperienceLog::instance().flush();
     if (!session_mgr_.freeze_and_save_candidate_preferences()) {
         CXXIME_LOG(L"%s", L"candidate_preference shutdown flush failed");
     }

@@ -65,6 +65,9 @@
     "shortcuts": {
         "activate_ime": "disabled"
     },
+    "privacy": {
+        "experience_program": false
+    },
     "theme": "moon_light",
     "ui": {
         "language": "auto"

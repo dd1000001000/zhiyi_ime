@@ -257,6 +257,7 @@ add_cxxime_test(output_composer_test
 add_cxxime_test(engine_source_test SOURCES engine/engine_source_test.cc DEPS cxxime-engine)
 add_cxxime_test(input_style_test SOURCES engine/input_style_test.cc DEPS cxxime-engine)
 add_cxxime_test(english_correction_test SOURCES engine/english_correction_test.cc DEPS cxxime-engine)
+add_cxxime_test(experience_log_test SOURCES engine/experience_log_test.cc DEPS cxxime-engine)
 add_cxxime_test(symbol_input_test SOURCES engine/symbol_input_test.cc DEPS cxxime-engine)
 add_cxxime_test(symbol_table_test SOURCES engine/symbol_table_test.cc DEPS cxxime-engine)
 add_cxxime_test(wubi_engine_test

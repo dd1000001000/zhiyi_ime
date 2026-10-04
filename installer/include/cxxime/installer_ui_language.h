@@ -28,6 +28,17 @@ bool write_ui_language(const std::wstring& user_config_path, const std::string& 
 int get_ui_language_command(const wchar_t* user_config_path);
 int set_ui_language_command(const wchar_t* user_config_path, const wchar_t* code);
 
+// The user experience improvement program answer of the setup (privacy.experience_program):
+// "on", "off", or "unset" (no answer yet); empty when the config cannot be read.
+std::string read_experience_program(const std::wstring& user_config_path);
+// Other settings are kept; an unreadable config is not touched (returns false). Leaving an
+// unset value unset when the answer is "off" (the default) keeps the file as it was.
+bool write_experience_program(const std::wstring& user_config_path, bool join);
+// "get-experience-program <config>" prints on / off / unset;
+// "set-experience-program <config> on|off".
+int get_experience_program_command(const wchar_t* user_config_path);
+int set_experience_program_command(const wchar_t* user_config_path, const wchar_t* value);
+
 }  // namespace installer
 }  // namespace cxxime
 

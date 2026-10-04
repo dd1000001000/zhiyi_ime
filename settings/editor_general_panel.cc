@@ -2,8 +2,8 @@
 //
 // Settings pages: General (Chinese input, pinyin style, theme, font size, candidate count, UI
 // language, English spelling correction), Fuzzy pinyin,
-// Keys (Chinese/English, style, punctuation and full/half width switch keys) and Dictionary
-// (self-learning).
+// Keys (Chinese/English, style, punctuation and full/half width switch keys), Dictionary
+// (self-learning) and Privacy (user experience improvement program).
 
 #include "editor_app.h"
 
@@ -11,6 +11,9 @@
 #include <cwchar>
 #include <string>
 
+#include <shellapi.h>
+
+#include <cxxime/diagnostic_log_path.h>
 #include <cxxime/keyboard_shortcut.h>
 #include <cxxime/lexicon_control.h>
 #include <cxxime/user_dict.h>
@@ -43,6 +46,9 @@ enum ControlId {
     kRestoreKeysId,
     kLearningId = 1201,
     kClearLearningId,
+    kExperienceId = 1251,
+    kOpenLogsId,
+    kDeleteLogsId,
     kFuzzyEnabledId = 1301,
     kFuzzyGroupFirstId = 1311,  // .. 1317, FuzzyGroup bit order
 };
@@ -299,6 +305,36 @@ void EditorApp::create_dictionary_panel(HWND panel) {
     make_button(kClearLearningId, tr("dictionary.clear"), x0, y, S(160), panel);
 }
 
+void EditorApp::create_privacy_panel(HWND panel) {
+    const int x0 = kPanelPadLeft;
+    int y = kPanelPadTop;
+    hExperience_ = make_check(kExperienceId, tr("privacy.experience"), x0, y, S(420), panel);
+    y += kRowH;
+    // What is kept and what never is (docs/privacy.md has the full list).
+    make_hint(tr("privacy.what"), x0 + S(20), y - S(6), S(460), panel);
+    y += kRowH + S(6);
+    make_hint(tr("privacy.never"), x0 + S(20), y - S(6), S(460), panel);
+    y += kRowH + S(14);
+    make_button(kOpenLogsId, tr("privacy.open_logs"), x0, y, S(160), panel);
+    make_button(kDeleteLogsId, tr("privacy.delete_logs"), x0 + S(172), y, S(160), panel);
+}
+
+void EditorApp::open_log_folder() {
+    const std::wstring directory = diagnostic_log_directory();  // created when missing
+    if (!directory.empty()) {
+        ShellExecuteW(hwnd_, L"open", directory.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    }
+}
+
+void EditorApp::delete_experience_log() {
+    const std::wstring directory = diagnostic_log_directory();
+    if (directory.empty()) return;
+    for (const wchar_t* name : {L"\\experience.jsonl", L"\\experience.1.jsonl"}) {
+        DeleteFileW((directory + name).c_str());
+    }
+    MessageBoxW(hwnd_, tr("privacy.deleted"), tr("window.title"), MB_OK | MB_ICONINFORMATION);
+}
+
 void EditorApp::populate_controls() {
     set_check(hPinyin_, config_.input_mode != 1);
     set_check(hWubi_, config_.input_mode == 1);
@@ -327,6 +363,7 @@ void EditorApp::populate_controls() {
     set_switch_key_boxes(config_);
 
     set_check(hLearning_, config_.candidate_learning);
+    set_check(hExperience_, config_.experience_program);
     set_check(hFuzzyEnabled_, config_.fuzzy_pinyin);
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
         set_check(hFuzzyGroups_[i], (config_.fuzzy_groups & (1 << i)) != 0);
@@ -350,6 +387,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.english.correction = get_check(hEnglishCorrection_);
     apply_switch_key_choice(c, key_capture_get(hSwitchKey_));
     c.candidate_learning = get_check(hLearning_);
+    c.experience_program = get_check(hExperience_);
     c.fuzzy_pinyin = get_check(hFuzzyEnabled_);
     c.fuzzy_groups = 0;
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
@@ -477,6 +515,16 @@ bool EditorApp::handle_command(int control_id, int notification) {
     case kRestoreKeysId:
         if (notification == BN_CLICKED) {
             restore_default_keys();
+        }
+        return true;
+    case kOpenLogsId:
+        if (notification == BN_CLICKED) {
+            open_log_folder();
+        }
+        return true;
+    case kDeleteLogsId:
+        if (notification == BN_CLICKED) {
+            delete_experience_log();
         }
         return true;
     case kSwitchKeyId:

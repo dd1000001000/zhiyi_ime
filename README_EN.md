@@ -37,6 +37,15 @@
 - **Privacy**: an optional user experience program, off by default, with records kept on your computer
   only; see the [privacy notes](docs/privacy.en.md).
 
+## Recommendation accuracy
+
+How often the right word comes first among the same candidates: sorted by word frequency only
+(no context) versus Zhiyi IME (the context-aware model). The less you type (initials, an unfinished
+last syllable), the harder frequency alone guesses, and the more the context helps. Test details are
+in the [development notes](docs/development.md#上文推荐模型laya) (Chinese).
+
+<img src="docs/media/accuracy.en-US.svg" alt="First-candidate accuracy: Zhiyi IME vs word frequency only" width="100%">
+
 ## Installation
 
 **Requirements**: Windows 10 / 11 (64-bit).

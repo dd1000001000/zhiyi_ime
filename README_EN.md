@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/github/license/dd1000001000/zhiyi_ime?style=flat-square)](LICENSE)
 
 > Lightweight · Open source · Context-aware — a Windows Chinese/English input method that picks
-> candidates from what you have already typed
+> candidates by the text before the caret
 
 <a href="docs/media/zhiyi-intro.mp4"><img src="docs/media/zhiyi-intro-preview.webp" alt="Zhiyi IME intro video" width="100%"></a>
 
@@ -18,8 +18,8 @@
 
 ## Features
 
-- **Context-aware recommendation**: a small model running on your computer reads what you typed
-  before, puts the most likely candidate first and marks it with a blue-purple star (权利 / 权力 /
+- **Context-aware recommendation**: a small model running on your computer reads the text before
+  the caret, puts the most likely candidate first and marks it with a blue-purple star (权利 / 权力 /
   全力). The model works offline; nothing you type leaves your computer.
 - **Pinyin or Wubi**: pinyin accepts full pinyin, initials and a mix of both (`wsyige` → 我是一个),
   plus an initials mode where each letter is one character (`zgr` → 中国人).

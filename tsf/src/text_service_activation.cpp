@@ -1,6 +1,7 @@
 // Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 
 #include "text_service.h"
+#include "text_before_caret.h"
 
 #include <algorithm>
 #include <iterator>
@@ -386,6 +387,28 @@ void TextService::_report_input_target() {
     if (_client.set_input_target(_sessionId, utf8_of(app), utf8_of(title))) {
         _reportedInputTarget = target;
     }
+}
+
+void TextService::_send_text_before_caret(ITfContext* context) {
+    constexpr size_t kMaxChars = 256;  // more than the model gets (laya.*context_chars)
+    if (!_sessionId || !context) return;
+    std::wstring text;
+    const TextBeforeCaret read = read_text_before_caret(context, _clientId, kMaxChars, &text);
+    uint32_t flags = 0;
+    const uintptr_t target = reinterpret_cast<uintptr_t>(context);
+    if (target != _contextReadTarget) {
+        flags |= cxxime::kContextNewInputBox;
+        _contextReadTarget = target;
+    }
+    if (read == TextBeforeCaret::kPrivate) text.clear();  // a password: no context at all
+    if (read != TextBeforeCaret::kUnavailable) flags |= cxxime::kContextTextRead;
+    char line[128];
+    snprintf(line, sizeof(line), "[ZhiyiIME] context: %s, %u chars%s\n",
+             read == TextBeforeCaret::kRead ? "read" : read == TextBeforeCaret::kPrivate ? "private" : "unavailable",
+             static_cast<unsigned>(text.size()), (flags & cxxime::kContextNewInputBox) ? ", new input box" : "");
+    OutputDebugStringA(line);  // lengths only, never the text
+    if (flags == 0) return;  // the same box, unreadable: keep what the server remembers
+    _client.set_context(_sessionId, utf8_of(text), flags);
 }
 
 void TextService::_register_switch_keys() {

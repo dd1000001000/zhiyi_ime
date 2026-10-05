@@ -55,7 +55,7 @@ cancel:
 | `candidates` | the page of candidates shown before the commit, and which one was recommended |
 | `picked` | the position picked (from 0; -1 when not picked from the candidates) |
 | `committed` | the committed text (empty when cancelled) |
-| `laya_context` | the preceding text given to the recommendation model: up to 48 characters committed before this input |
+| `laya_context` | the context given to the recommendation model: the text before the caret when this input started (up to 128 Chinese / 192 English characters). It is read from the input box, so it may contain text not typed with Zhiyi IME, such as pasted text or what the box already held; where the program does not allow reading it, the text committed with Zhiyi IME before |
 | `duration_ms` | how long the input took, in milliseconds |
 
 ### `stats`: usage statistics every 30 minutes
@@ -71,9 +71,19 @@ latest inference time.
 
 - **Keys the IME does not handle**: letters typed straight into the program in English mode,
   shortcuts (such as Ctrl+C), and other keys pressed outside an input.
-- **Password fields**: Windows turns the IME off in password fields, so those keys never reach it.
+  (If such text is before the caret, it appears in `laya_context` as context.)
+- **Password fields**: Windows turns the IME off in password fields, so those keys never reach it;
+  the IME also never reads the text of password fields or other fields marked private.
 - Identity information such as user name, computer name, IP address or hardware serial numbers,
   and full file paths.
+
+## Context read by the recommendation model (not part of this program)
+
+To recommend candidates by context, the IME reads up to 256 characters before the caret when you
+start typing and gives them to the recommendation model running on your computer. The text is only
+used in memory: **nothing is sent over the network or written to a file**; only tier 2 writes it to
+`laya_context` as listed above. Password fields and fields marked private are never read. Turning
+the recommendation model off (`laya.enable`) stops the reading too.
 
 ## Update check (not part of this program)
 

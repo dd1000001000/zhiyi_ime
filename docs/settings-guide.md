@@ -112,7 +112,7 @@
 | `english.correction` | true | 英文拼写纠错 |
 | `english.mixed_in_chinese` | true | 中文模式下提供完整的英文单词 |
 | `laya.enable` / `laya.english` | true / true | 上文推荐（中文 / 英文） |
-| `laya.context_chars` / `laya.english_context_chars` | 48 / 96 | 交给模型的上文长度（字符） |
+| `laya.context_chars` / `laya.english_context_chars` | 128 / 192 | 交给模型的上文长度（光标前的字符数） |
 | `laya.threads` | 4 | 推理线程数 |
 | `privacy.experience_program` / `collect_input` | false / false | 用户体验改进计划两档 |
 | `update.notify` | true | 打开设置时检查更新 |

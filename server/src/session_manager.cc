@@ -1541,8 +1541,6 @@ void track_input(SessionEntry& s, const cxxime::KeyEvent* event, bool was_compos
     }
     if (event) s.input.keys.push_back(input_key_name(*event));
     if (pick) s.input.picked = pick->index;
-    const int context_chars =
-        s.resources.runtime ? s.resources.runtime->config().laya.context_chars : 48;
     if (ret.composing) {
         s.input.code = composition_code(engine.context());
         s.input.mode = composition_mode(engine.context().composition().active().scheme);
@@ -1550,7 +1548,12 @@ void track_input(SessionEntry& s, const cxxime::KeyEvent* event, bool was_compos
         for (const auto& item : ret.presentation.items) {
             s.input.candidates.emplace_back(item.text, item.recommended);
         }
-        // The context of this input: the text committed before it.
+        // The context of this input, as the recommendation model gets it: the text before the
+        // caret read from the input box (or the earlier commits where it cannot be read).
+        const auto* rt = s.resources.runtime.get();
+        const int context_chars = !rt ? 128
+                                  : s.input.mode == "english" ? rt->config().laya.english_context_chars
+                                                              : rt->config().laya.context_chars;
         s.input.laya_context = engine.laya_context(static_cast<std::size_t>(context_chars));
         return;
     }
@@ -1575,6 +1578,19 @@ bool SessionManager::set_input_target(uint32_t id, const std::string& app,
     std::lock_guard<std::mutex> lock(entry->mutex);
     entry->input_app = app;
     entry->input_window_title = window_title;
+    return true;
+}
+
+bool SessionManager::set_context(uint32_t id, const std::string& text, uint32_t flags) {
+    auto entry = lookup_session(id);
+    if (!entry) return false;
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    if (!entry->engine) return false;
+    if (flags & cxxime::kContextTextRead) {
+        entry->engine->set_text_before_caret(text);
+    } else if (flags & cxxime::kContextNewInputBox) {
+        entry->engine->clear_laya_context();
+    }
     return true;
 }
 

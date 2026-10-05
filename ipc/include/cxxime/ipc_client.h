@@ -45,6 +45,8 @@ public:
     bool set_input_target(uint32_t session_id, const std::string& app,
                           const std::string& window_title);
     bool focus_out(uint32_t session_id);
+    // SET_CONTEXT: keeps the tail of `text` that fits (about 510 bytes).
+    bool set_context(uint32_t session_id, const std::string& text, uint32_t flags);
 
     bool toggle_chinese(uint32_t session_id, IPCResponse& response);
     bool set_chinese_mode(uint32_t session_id, bool chinese_mode, IPCResponse& response);

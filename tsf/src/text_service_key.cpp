@@ -270,6 +270,15 @@ bool TextService::_ProcessKeyEvent(ITfContext* pic, WPARAM wParam, LPARAM lParam
     if (starts_new_composition) {
         _report_input_target();  // the window title may have changed (another document)
     }
+    if (!_composing && !status_key && _config.laya.enable && can_start_text_input(wParam, modifiers)) {
+        bool english_words = false;
+        {
+            std::lock_guard<std::mutex> lock(_lastImeStatusMutex);
+            english_words = _lastImeStatus.english_words();
+        }
+        // Only where the model recommends: pinyin, or English word completion.
+        if ((_chinese_mode || english_words) && _ensure_ipc_session()) _send_text_before_caret(pic);
+    }
 
     cxxime::IPCResponse response = {};
     uint32_t engine_calls = 0;

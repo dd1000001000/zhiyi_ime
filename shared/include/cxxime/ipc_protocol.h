@@ -157,7 +157,15 @@ enum class IPCCommand : uint32_t {
     // letter by letter), from the taskbar menu. candidate_index: bit 0 selects the English
     // style, bit 1 is the value (initials, word completion).
     SET_INPUT_STYLE = 29,
+    // The text before the caret, read when a composition starts (UTF-8, search_query then
+    // search_result continuing it). candidate_index: kContextTextRead = the text was read and
+    // replaces the context; kContextNewInputBox = another input box (an unreadable one clears
+    // the context remembered from the previous box).
+    SET_CONTEXT = 30,
 };
+
+constexpr uint32_t kContextTextRead = 1u << 0;
+constexpr uint32_t kContextNewInputBox = 1u << 1;
 
 enum class IPCStatus : uint32_t {
     OK = 0,

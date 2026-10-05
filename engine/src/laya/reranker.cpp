@@ -21,9 +21,17 @@ const char* const kInstructionsEnglish =
     "The user is typing English with word completion. "
     "Which candidate word is the user most likely typing, given the text typed so far?";
 
+const char* const kInstructionsGuess = "Which candidate word most likely comes next after the text so far?";
+
 std::string decision_state(const std::string& context, const std::string& input, Task task) {
   return "已输入的上文: " + context + (task == Task::kEnglish ? "\n正在输入的英文: " : "\n正在输入的拼音: ") + input;
 }
+
+namespace {
+
+std::string guess_state(const std::string& context) { return "已输入的上文: " + context; }
+
+}  // namespace
 
 Reranker::Reranker(const RerankerOptions& opt) {
   tok_ = std::make_unique<BpeTokenizer>(opt.model_dir + "/tokenizer.json");
@@ -33,6 +41,8 @@ Reranker::Reranker(const RerankerOptions& opt) {
     auto cfg = nlohmann::json::parse(cf);
     max_len_ = cfg.value("max_len", max_len_);
     head_max_len_ = cfg.value("head_max_len", head_max_len_);
+    // Our key, not Laya's: models fine-tuned on the guess prompt say so here.
+    guess_prompt_ = cfg.value("zhiyi_prompt", std::string()) == "guess";
   }
 
   env_ = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "laya");
@@ -44,10 +54,16 @@ Reranker::Reranker(const RerankerOptions& opt) {
   session_ = std::make_unique<Ort::Session>(*env_, path.c_str(), so);
   mem_ = std::make_unique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault));
 
-  std::string ins = replace_all(kInstructions, tok_->mask_token(), " ");
-  head_ids_ = tok_->encode(std::string("choice question: ") + ins);
-  head_ids_en_ = tok_->encode(std::string("choice question: ") +
-                              replace_all(kInstructionsEnglish, tok_->mask_token(), " "));
+  if (guess_prompt_) {
+    head_ids_ = tok_->encode(std::string("choice question: ") +
+                             replace_all(kInstructionsGuess, tok_->mask_token(), " "));
+    head_ids_en_ = head_ids_;
+  } else {
+    std::string ins = replace_all(kInstructions, tok_->mask_token(), " ");
+    head_ids_ = tok_->encode(std::string("choice question: ") + ins);
+    head_ids_en_ = tok_->encode(std::string("choice question: ") +
+                                replace_all(kInstructionsEnglish, tok_->mask_token(), " "));
+  }
 }
 
 Reranker::~Reranker() = default;
@@ -93,7 +109,8 @@ Sequence Reranker::build(const std::string& context, const std::string& pinyin,
   seq.ids.push_back(tok.sep_id());
 
   // build_sequence: 状态放在选项之后, 按剩余空间截断, 最后补 [SEP]。
-  auto state_ids = tok.encode(replace_all(decision_state(context, pinyin, task), mask, " "));
+  auto state_ids = tok.encode(replace_all(guess_prompt_ ? guess_state(context) : decision_state(context, pinyin, task),
+                                          mask, " "));
   long room = std::max<long>(0, static_cast<long>(max_len_) - static_cast<long>(seq.ids.size()) - 1);
   if (static_cast<long>(state_ids.size()) > room) state_ids.resize(static_cast<size_t>(room));
   seq.ids.insert(seq.ids.end(), state_ids.begin(), state_ids.end());

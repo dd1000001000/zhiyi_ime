@@ -53,9 +53,13 @@ public:
     const Context& context() const;
     Context& context();
     bool select_candidate(int index);
-    // The trailing committed text the Laya model gets as context (at most `max_chars`
-    // characters).
+    // The trailing text the Laya model gets as context (at most `max_chars` characters).
     std::string laya_context(std::size_t max_chars) const;
+    // The text before the caret, read from the input box when a composition starts: it
+    // replaces the context remembered from earlier commits.
+    void set_text_before_caret(const std::string& text);
+    // Another input box whose text cannot be read: forget the context of the previous one.
+    void clear_laya_context();
     // The last candidate pick, once (empty when nothing was picked since the last call).
     std::optional<CandidatePick> take_candidate_pick() {
         auto pick = last_pick_;
@@ -137,7 +141,7 @@ private:
     // already confirmed inside the current composition.
     void remember_commit(const std::string& text);
     std::string laya_context(const CompositionState& state) const;
-    std::string laya_history_;
+    std::string laya_history_;  // the model's context: the input box's text, or earlier commits
     // English words mixed into the first pinyin page (config.english.mixed_in_chinese).
     void add_english_candidates(const std::string& input, int page_size, TranslationResult& result) const;
     // English (ASCII) mode word completion (config.english.completion_in_ascii): letters build

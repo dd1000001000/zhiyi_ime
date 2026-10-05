@@ -43,9 +43,15 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 ## 上文推荐模型（Laya）
 
 - 微调后的 [Laya](https://huggingface.co/convaiinnovations/laya)（LoRA r64，中英联合训练），导出为 int8 ONNX，
-  在 CPU 上推理（默认 4 线程），每次约 30 ms。
-- 模型权重随 [Release model-zhen-r64](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-r64) 发布；
-  训练代码与训练、评测数据涉及第三方语料版权，不公开。
+  在 CPU 上推理（默认 4 线程），每次约 20–35 ms。
+- 模型只看上文和候选词，不看拼音或已打的字母（“猜词”提示词，模型目录的 `rl_agent_config.json` 中
+  `"zhiyi_prompt": "guess"`；没有这一项的旧模型仍用带拼音的提示词）。训练时中文上文是上一句加本句，
+  英文是最后 192 个字符。
+- 模型权重随 [Release model-zhen-guess-r64](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-guess-r64)
+  发布（`scripts/fetch_model.py`）；训练代码与训练、评测数据涉及第三方语料版权，不公开。
+- 上文：开始输入时，TSF 模块读取输入框里光标前（有选中文字时为选区之前）最多 256 个字（`SET_CONTEXT`），
+  模型取其中最后 128 个字 / 192 个英文字符。程序不允许读取时，改用之前上屏的文字，换到另一个输入框时清空；
+  密码框和标为私密的输入框不读取。实现见 `tsf/src/text_before_caret.cpp`。
 - 推荐规则：只处理第一页；模型在前 2 × 每页候选数个候选中，从与首选覆盖同一段输入、字数相同的同类候选里
   挑出一个放到第一位并加星标，其余保持词频顺序。英文单词模式下，补全与拼写纠正一起比较，纠正按改动量扣分。
   实现见 `engine/src/laya_rerank.cc`，配置项见 [设置指南](settings-guide.md) 的 `laya.*`。
@@ -54,8 +60,9 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 
 | | 只按词频排序 | 知意输入法 |
 |---|---|---|
-| 中文同音词（800 条） | 77.4% | 88.5% |
-| 英文单词补全（840 条） | 73.2% | 86.3% |
+| 中文同音词，上文只有本句（800 条） | 77.4% | 88.5% |
+| 中文同音词，上文含上一句（同 800 条） | 77.4% | 91.0% |
+| 英文单词补全（840 条） | 73.2% | 87.4% |
 
 ## 源码约定
 

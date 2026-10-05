@@ -193,6 +193,8 @@ public:
     ProcessKeyResult focus_in(uint32_t id);
     // The program and window title the client's input goes to (input collection only).
     bool set_input_target(uint32_t id, const std::string& app, const std::string& window_title);
+    // SET_CONTEXT: the text before the caret (flags: cxxime::kContextTextRead / kContextNewInputBox).
+    bool set_context(uint32_t id, const std::string& text, uint32_t flags);
     ProcessKeyResult focus_out(uint32_t id);
 
     cxxime::IPCStatus add_user_entry(cxxime::UserDictKind kind, const std::string& text,

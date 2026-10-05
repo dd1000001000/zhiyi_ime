@@ -17,10 +17,12 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEST = os.path.join(ROOT, "models", "laya")
 FILES = ["laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json"]
-ASSET = "laya-zhen-r64-int8g.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-r64/{ASSET}"
-# SHA-256 of laya.int8g.onnx (joint Chinese + English LoRA r64, int8 with quantized embeddings)
-ONNX_SHA256 = "def6890326d8382f8b7db3143715378784e21593267aa55a185c5fa0b9021bbb"
+ASSET = "laya-zhen-guess-r64-int8g.zip"
+URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-guess-r64/{ASSET}"
+# SHA-256 of laya.int8g.onnx: joint Chinese + English LoRA r64 on the guess prompt (context and
+# candidates only; rl_agent_config.json says "zhiyi_prompt": "guess") with long contexts, int8 with
+# quantized embeddings
+ONNX_SHA256 = "00d0701da77b45ec85daabb7fe4945f7e0193fba28ae15132aeadb3d5e64f4b0"
 
 
 def sha256(path):

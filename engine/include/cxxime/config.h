@@ -117,11 +117,11 @@ struct Config {
         std::string model_dir = "laya";        // relative to the server executable's directory
         std::string onnx = "laya.int8g.onnx";
         int min_candidates = 2;   // fewer comparable candidates: keep the translator's order
-        int context_chars = 48;   // trailing committed characters fed to the model
+        int context_chars = 128;  // trailing characters before the caret fed to the model
         int threads = 4;          // ONNX Runtime intra-op threads
         // English word mode (see EnglishConfig): completions are reranked too.
         bool english = true;
-        int english_context_chars = 96;    // English needs more characters for the same context
+        int english_context_chars = 192;   // English needs more characters for the same context
         double english_freq_weight = 0.0;  // weight of log P_freq next to log P_laya
         // Spelling corrections: log10 P penalty per unit of typing cost (1 = a wrong letter
         // costs a factor of 10), so the model does not prefer a correction over a completion

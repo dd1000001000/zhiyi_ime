@@ -321,6 +321,27 @@ bool IpcClient::set_input_target(uint32_t session_id, const std::string& app,
     return send_request(req, resp);
 }
 
+bool IpcClient::set_context(uint32_t session_id, const std::string& text, uint32_t flags) {
+    IPCRequest req = {};
+    req.command = IPCCommand::SET_CONTEXT;
+    req.session_id = session_id;
+    req.candidate_index = flags;
+    // The most recent text matters: keep the tail, starting at a UTF-8 character boundary.
+    const size_t room = sizeof(req.search_query) - 1 + sizeof(req.search_result) - 1;
+    size_t start = text.size() > room ? text.size() - room : 0;
+    while (start < text.size() && (static_cast<unsigned char>(text[start]) & 0xC0) == 0x80) ++start;
+    const std::string tail = text.substr(start);
+    size_t first = (std::min)(tail.size(), sizeof(req.search_query) - 1);
+    while (first > 0 && first < tail.size() && (static_cast<unsigned char>(tail[first]) & 0xC0) == 0x80) {
+        --first;
+    }
+    std::memcpy(req.search_query, tail.data(), first);
+    const size_t second = (std::min)(tail.size() - first, sizeof(req.search_result) - 1);
+    std::memcpy(req.search_result, tail.data() + first, second);
+    IPCResponse resp = {};
+    return send_request(req, resp) && resp.status == IPCStatus::OK;
+}
+
 bool IpcClient::focus_out(uint32_t session_id) {
     IPCRequest req = {};
     req.command = IPCCommand::FOCUS_OUT;

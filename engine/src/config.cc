@@ -259,6 +259,11 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(l, "threads", config.laya.threads);
         load_bool(l, "english", config.laya.english);
         load_int(l, "english_context_chars", config.laya.english_context_chars);
+        // Settings saves every key, so 48 / 96 in a user file are the defaults before 1.0
+        // (there is no control for them), not a choice: use the current defaults instead.
+        if (config.laya.context_chars == 48) config.laya.context_chars = Config::LayaConfig{}.context_chars;
+        if (config.laya.english_context_chars == 96)
+            config.laya.english_context_chars = Config::LayaConfig{}.english_context_chars;
         if (l.contains("english_freq_weight") && l["english_freq_weight"].is_number())
             config.laya.english_freq_weight = l["english_freq_weight"].template get<double>();
         if (l.contains("english_correction_weight") && l["english_correction_weight"].is_number())

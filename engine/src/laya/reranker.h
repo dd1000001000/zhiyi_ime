@@ -21,6 +21,9 @@ namespace laya {
 enum class Task { kPinyin, kEnglish };  // 拼音同音词 / 英文单词补全
 extern const char* const kInstructions;
 extern const char* const kInstructionsEnglish;
+// 猜词提示词 (rl_agent_config.json 里 "zhiyi_prompt": "guess" 的模型): 不给拼音 / 已打字母,
+// 只凭上文从候选里猜下一个词, 中英文共用。
+extern const char* const kInstructionsGuess;
 // kPinyin: input = "jin'tian"; kEnglish: input = 已打的字母 ("comp")
 std::string decision_state(const std::string& context, const std::string& input, Task task = Task::kPinyin);
 
@@ -50,6 +53,7 @@ class Reranker {
   std::vector<float> score(const Sequence& seq) const;
 
   const BpeTokenizer& tokenizer() const { return *tok_; }
+  bool guess_prompt() const { return guess_prompt_; }
 
  private:
   std::unique_ptr<BpeTokenizer> tok_;
@@ -60,6 +64,7 @@ class Reranker {
   std::vector<int64_t> head_ids_en_;  // 英文任务的 instructions
   int max_len_ = 1024;
   int head_max_len_ = 256;
+  bool guess_prompt_ = false;
 };
 
 }  // namespace laya

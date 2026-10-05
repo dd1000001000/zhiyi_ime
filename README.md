@@ -9,7 +9,7 @@
 [![Release](https://img.shields.io/github/v/release/dd1000001000/zhiyi_ime?style=flat-square)](https://github.com/dd1000001000/zhiyi_ime/releases/latest)
 [![License](https://img.shields.io/github/license/dd1000001000/zhiyi_ime?style=flat-square)](LICENSE)
 
-> 轻量 · 开源 · 懂上文 —— 根据你已经打过的字推荐候选的 Windows 中英文输入法
+> 轻量 · 开源 · 懂上文 —— 根据光标前的文字推荐候选的 Windows 中英文输入法
 
 <a href="docs/media/zhiyi-intro.mp4"><img src="docs/media/zhiyi-intro-preview.webp" alt="知意输入法宣传视频" width="100%"></a>
 
@@ -17,7 +17,7 @@
 
 ## 功能简介
 
-- **懂上文的推荐**：一个在本机运行的小模型读取你前面打过的字，从候选里挑出最可能的那个放在第一位，
+- **懂上文的推荐**：一个在本机运行的小模型读取输入框里光标前的文字，从候选里挑出最可能的那个放在第一位，
   并用蓝紫色星标标出（如“权利 / 权力 / 全力”）。模型不联网，输入内容不会离开你的电脑
 - **拼音或五笔**：拼音支持全拼、首字母简拼和二者混合（`wsyige` → 我是一个），也可以切换成首字母模式
   （每个字母对应一个字，`zgr` → 中国人）

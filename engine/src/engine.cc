@@ -167,29 +167,48 @@ void Engine::init_per_session(const Config& config) {
     LayaRerank::instance().preload(config);
 }
 
-std::string Engine::laya_context(std::size_t max_chars) const {
-    std::size_t begin = laya_history_.size();
+namespace {
+
+// The last `max_chars` characters of UTF-8 `text`.
+std::string tail_chars(const std::string& text, std::size_t max_chars) {
+    std::size_t begin = text.size();
     std::size_t chars = 0;
     while (begin > 0 && chars < max_chars) {
         --begin;
-        if ((static_cast<unsigned char>(laya_history_[begin]) & 0xC0) != 0x80) ++chars;
+        if ((static_cast<unsigned char>(text[begin]) & 0xC0) != 0x80) ++chars;
     }
-    return laya_history_.substr(begin);
+    return text.substr(begin);
 }
+
+// Appends, keeping a bounded tail (bytes); LayaRerank trims to config.laya.context_chars.
+void append_bounded(std::string& history, const std::string& text) {
+    history += text;
+    constexpr size_t kMaxHistoryBytes = 1024;
+    if (history.size() > kMaxHistoryBytes) {
+        size_t cut = history.size() - kMaxHistoryBytes / 2;
+        while (cut < history.size() && (static_cast<unsigned char>(history[cut]) & 0xC0) == 0x80) {
+            ++cut;  // do not split a UTF-8 sequence
+        }
+        history.erase(0, cut);
+    }
+}
+
+}  // namespace
+
+std::string Engine::laya_context(std::size_t max_chars) const {
+    return tail_chars(laya_history_, max_chars);
+}
+
+void Engine::set_text_before_caret(const std::string& text) {
+    laya_history_.clear();
+    append_bounded(laya_history_, text);
+}
+
+void Engine::clear_laya_context() { laya_history_.clear(); }
 
 void Engine::remember_commit(const std::string& text) {
     if (text.empty()) return;
-    laya_history_ += text;
-    // Keep a bounded tail (bytes); LayaRerank trims to config.laya.context_chars characters.
-    constexpr size_t kMaxHistoryBytes = 1024;
-    if (laya_history_.size() > kMaxHistoryBytes) {
-        size_t cut = laya_history_.size() - kMaxHistoryBytes / 2;
-        while (cut < laya_history_.size() &&
-               (static_cast<unsigned char>(laya_history_[cut]) & 0xC0) == 0x80) {
-            ++cut;  // do not split a UTF-8 sequence
-        }
-        laya_history_.erase(0, cut);
-    }
+    append_bounded(laya_history_, text);
 }
 
 std::string Engine::laya_context(const CompositionState& state) const {

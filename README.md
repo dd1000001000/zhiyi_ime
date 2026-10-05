@@ -13,7 +13,7 @@
 
 <a href="docs/media/zhiyi-intro.mp4"><img src="docs/media/zhiyi-intro-preview.webp" alt="知意输入法宣传视频" width="100%"></a>
 
-<p align="center"><a href="docs/media/zhiyi-intro.mp4">▶ 观看宣传视频：四个人、四个创新点（1 分 43 秒 · 中文配音 · 中英字幕）</a></p>
+<p align="center"><a href="docs/media/zhiyi-intro.mp4">▶ 观看宣传视频：每一句话，都有前文（1 分 25 秒 · 中文配音 · 中英字幕）</a></p>
 
 ## 功能简介
 

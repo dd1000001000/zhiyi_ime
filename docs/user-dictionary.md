@@ -149,7 +149,7 @@ text<TAB>code<TAB>frequency                   （3 列，旧格式）
 text<TAB>code<TAB>frequency<TAB>syllables     （4 列，新格式）
 ```
 
-文件：`%USERPROFILE%\cxxime\user_pinyin.tsv`、`%USERPROFILE%\cxxime\user_wubi.tsv`。
+文件：`%USERPROFILE%\zhiyi\user_pinyin.tsv`、`%USERPROFILE%\zhiyi\user_wubi.tsv`。
 
 ## 候选偏好
 
@@ -190,7 +190,7 @@ recency = (当前序号 - 条目序号 <= 1000) ? 1000 - 差值 : 0
 - TSV 6 列：`text<TAB>code<TAB>candidate_code<TAB>frequency<TAB>sequence<TAB>syllables`
 - `save_if_due(delay)` 按最近更新时间合并落盘（服务端默认 1500ms）；`save()` 立即写盘
 - `freeze()` 后拒绝记录/删除/清空，但允许保存既有数据
-- 文件：`%USERPROFILE%\cxxime\learning_pinyin.tsv`、`%USERPROFILE%\cxxime\learning_wubi.tsv`
+- 文件：`%USERPROFILE%\zhiyi\learning_pinyin.tsv`、`%USERPROFILE%\zhiyi\learning_wubi.tsv`
 
 ## 手动候选顺序（固定排序）
 
@@ -219,7 +219,7 @@ struct ManualCandidateOrderEntry {
 
 - 文件头 `# cxxime-candidate-order format=1` + 每行 5 列 TSV：`input_code<TAB>text<TAB>candidate_code<TAB>syllables<TAB>position`（position 从 1 开始）；
 - 写盘采用原子替换；写盘失败时内存状态保持不变；
-- 文件：`%USERPROFILE%\cxxime\candidate_order_pinyin.tsv`、`%USERPROFILE%\cxxime\candidate_order_wubi.tsv`。
+- 文件：`%USERPROFILE%\zhiyi\candidate_order_pinyin.tsv`、`%USERPROFILE%\zhiyi\candidate_order_wubi.tsv`。
 
 ### 查询与修改接口
 

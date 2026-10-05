@@ -2,7 +2,7 @@
 
 ## 1. 架构概览
 
-CxxIME 采用三层架构处理拼音到汉字的转换：
+知意输入法采用三层架构处理拼音到汉字的转换：
 
 ```
 用户输入 "nihao"
@@ -136,6 +136,9 @@ Engine
 ### 3.1 spellings.bin — 拼写索引（Prism 层）
 
 将输入字符串映射到音节解释。例如 `"d"` → `["da"(缩写), "di"(缩写), "de"(缩写)]`。
+
+> 知意输入法只提供全拼（含简拼与混合输入）：`scripts/dictionary_bundle_layout.py` 的 `SHUANGPIN_SCHEME_NAMES`
+> 为空，不生成、也不安装下面提到的双拼拼写表。双拼相关说明沿用自 CxxIME，引擎代码仍支持，供以后恢复时参考。
 
 运行时按拼音方案载入对应的拼写表：全拼用 `pinyin.spellings.bin`（`pinyin.full-pinyin.schema.json`）；微软双拼、小鹤双拼、
 自然码双拼、搜狗双拼分别用 `pinyin.<方案名>-shuangpin.spellings.bin`（同名 `pinyin.<方案名>-shuangpin.schema.json`，
@@ -424,10 +427,10 @@ python data/tools/build_runtime_dictionary.py -i data/pinyin.dict.db -o data/pin
 - `data/pinyin.spellings.bin` — Patricia trie 拼写索引（全拼）
 - `data/pinyin.<方案名>-shuangpin.spellings.bin` — Patricia trie 拼写索引（微软、小鹤、自然码、搜狗四种双拼各一份，由 `prepare_dictionary_bundle.py` 用对应双拼 schema 单独导出）
 - `data/pinyin.dict.bin` — 排序数组主词典
-- `data/pinyin.reverse.idx` — 词语反查索引（由 `prepare_dictionary_bundle.py` 生成，供 Settings 反查）
+- `data/pinyin.reverse.idx` — 词语反查索引（由 `prepare_dictionary_bundle.py` 生成）
 
 五笔：先在临时副本上剥离系统符号（emoji 与纯 P/S 符号，含旧 `co*` 扩展项），再用过滤后的词典生成 `dict.bin` + 完整前缀索引。
-剥离掉的符号不进入候选，而是并入独立清单 `data/symbol_catalog.json`，由 `generate_symbols.py` 生成引擎与设置面板共用的 `data/symbols.json`：
+剥离掉的符号不进入候选，而是并入独立清单 `data/symbol_catalog.json`，由 `generate_symbols.py` 生成引擎使用的 `data/symbols.json`：
 
 ```bash
 python data/tools/filter_dictionary_symbols.py --wubi-input data/wubi86.dict.db \
@@ -559,7 +562,7 @@ RUN_ALL_TESTS()                            // main 入口，自动发现并运�
 
 ### 8.2 测试覆盖
 
-与本模块相关的测试覆盖如下（完整测试套件由 CMake 自动注册，运行方式见项目 README）：
+与本模块相关的测试覆盖如下（完整测试套件由 CMake 自动注册，运行方式见 [开发说明](development.md)）：
 
 | 测试文件 | 测试内容 |
 |----------|----------|
@@ -588,7 +591,6 @@ RUN_ALL_TESTS()                            // main 入口，自动发现并运�
 ### 8.3 运行测试
 
 ```bash
-cd build
-ctest -C Debug                          # 运行全部测试
-build\test\Debug\engine_test.exe        # 单独运行某个测试
+build_laya.bat test                     # 构建并运行全部测试（等同于在 build\ 下 ctest）
+build\test\engine_test.exe              # 单独运行某个测试
 ```

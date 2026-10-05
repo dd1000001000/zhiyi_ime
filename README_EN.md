@@ -2,89 +2,60 @@
 
 **English** | [中文](README.md)
 
-[![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/17)
-[![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![CMake](https://img.shields.io/badge/CMake-3.15%2B-064F8C?style=flat-square&logo=cmake&logoColor=white)](https://cmake.org)
-[![Windows CI](https://img.shields.io/github/actions/workflow/status/dd1000001000/zhiyi_ime/windows-ci.yml?branch=main&label=Windows%20CI&style=flat-square)](https://github.com/dd1000001000/zhiyi_ime/actions/workflows/windows-ci.yml)
+[![Release](https://img.shields.io/github/v/release/dd1000001000/zhiyi_ime?style=flat-square)](https://github.com/dd1000001000/zhiyi_ime/releases/latest)
 [![License](https://img.shields.io/github/license/dd1000001000/zhiyi_ime?style=flat-square)](LICENSE)
 
 > Lightweight · Open source · Context-aware — a Windows Chinese/English input method that picks
-> candidates from what you have already typed, on your own CPU
-
-Zhiyi IME is a Windows TSF input method for Simplified Chinese pinyin, English word completion and
-plain English letters. A small fine-tuned decision model ([Laya](https://huggingface.co/convaiinnovations/laya),
-335 MB after int8 quantization) reads the text you have typed so far, picks the most likely candidate,
-puts it first and marks it with a gold sparkle. The model runs entirely offline; nothing you type
-leaves your computer.
+> candidates from what you have already typed
 
 ## Features
 
-- **Context-aware first candidate** for pinyin homophones (权利 / 权力 / 全力) and English completions,
-  marked with a sparkle. The model picks among the first 2 × (candidates per page) candidates; the
-  others keep their frequency order. About 30–40 ms per key on 4 CPU threads.
-- **Chinese input: pinyin or Wubi**, chosen in Settings. Pinyin offers full pinyin (initials are
-  accepted too) and an initials mode where each letter is one character (`zgr` → 中国人).
-- **Fuzzy pinyin**: z=zh, c=ch, s=sh, n=l, an=ang, en=eng, in=ing, each pair switchable; a word found
-  through a fuzzy pair shows its correct pinyin, e.g. `zongguo` → 中国(zhong guo).
-- **English input**: words (completions while typing, digits select) or plain letters.
-- **English spelling correction**: misspelled words get their correct spelling as a candidate
-  (`teh` → the, `recieve` → receive, `beautf` → beautiful); the first candidate always stays what
-  you typed, nothing is replaced automatically. A correction picked twice takes the recommended
-  slot; a word committed as typed twice (`kubectl`) is no longer corrected and completes.
-- **Switch keys**: Shift switches Chinese/English; `Ctrl+Space` switches full pinyin / initials in
-  Chinese pinyin mode and words / letters in English mode. Both are configurable; right-click the
-  中/英 taskbar indicator to switch any of the input states.
-- **Mixed input**: typing a complete English word in Chinese mode (`hello`, `wechat`) offers that word
-  second.
-- **Case follows what you type**: `hel` → hello, `Hel` → Hello, `HEL` → HELLO.
-- **Simple settings**: General (Chinese input, pinyin style, light/dark theme, font size, 3–10
-  candidates per page, UI language, English spelling correction), Fuzzy pinyin, Keys, Dictionary (self-learning, clear learning data) and
-  About. Settings and the installer are in Chinese and English: the installer asks for its language
-  (the Windows language is preselected) and the settings use the language chosen there.
-- **Compact dictionary**: about 400k entries (every character plus common words); rare words can be
-  typed character by character and are remembered by self-learning.
-- User data lives in `%USERPROFILE%\zhiyi\`; uninstalling asks whether to keep it.
+- **Context-aware recommendation**: a small model running on your computer reads what you typed
+  before, puts the most likely candidate first and marks it with a blue-purple star (权利 / 权力 /
+  全力). The model works offline; nothing you type leaves your computer.
+- **Pinyin or Wubi**: pinyin accepts full pinyin, initials and a mix of both (`wsyige` → 我是一个),
+  plus an initials mode where each letter is one character (`zgr` → 中国人).
+- **Fuzzy pinyin**: z=zh, c=ch, s=sh, n=l, an=ang, en=eng, in=ing, each pair on or off; words found
+  through a fuzzy pair show their correct pinyin.
+- **English input**: word completion or letter by letter; misspelled words get their correct spelling
+  as a candidate, never replaced automatically.
+- **Mixed input**: a complete English word typed in Chinese mode is offered among the candidates.
+- **Your own switch keys** for Chinese/English, input style, punctuation and full/half width, with
+  warnings about conflicts with Windows or other programs.
+- **Taskbar menu**: right-click the 中/英 indicator to switch Chinese/English, full pinyin / initials /
+  Wubi, punctuation, full width and more.
+- **Light and dark themes**, Chinese and English interface, self-learning (words you use move up).
+- **Automatic updates**: Settings checks for a new version when it opens and installs it in one click.
+- **Privacy**: an optional user experience program, off by default, with records kept on your computer
+  only; see the [privacy notes](docs/privacy.en.md).
 
-## Accuracy
+## Installation
 
-First-candidate accuracy on the test sets (int8 model on CPU):
+**Requirements**: Windows 10 / 11 (64-bit).
 
-| | Frequency order only | Zhiyi IME |
-|---|---|---|
-| Chinese homophones (800 samples) | 77.4% | 88.5% |
-| English completions (840 samples) | 73.2% | 86.3% |
+1. Download the latest `zhiyi-v<version>-setup.exe` from
+   [Releases](https://github.com/dd1000001000/zhiyi_ime/releases/latest) and run it (administrator
+   approval is needed).
+2. Press `Win + Space` to switch to Zhiyi IME, or make it the default input method in Windows Settings
+   > Time & language > Language & region.
+3. To open Settings, right-click 中/英 on the taskbar and choose Settings….
 
-The model weights are published as a [release](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-r64); the training code and the training and evaluation data are not published because the
-corpora are subject to third-party copyright.
+- **Updates**: when a new version is out, Settings tells you; click Update now on its Updates page.
+  Programs already open use the new version after they are reopened.
+- **Uninstalling**: uninstall Zhiyi IME in Windows Settings > Apps > Installed apps; you can keep your
+  personal data (settings and learned words in `%USERPROFILE%\zhiyi\`).
 
-## Building
+## Credits
 
-```cmd
-python scripts\fetch_onnxruntime.py   :: ONNX Runtime 1.30.0 -> third_party\onnxruntime\
-python scripts\fetch_model.py         :: Laya model (~260 MB, GitHub release) -> models\laya\
-build_laya.bat                        :: Ninja Release build into build\
-build_laya.bat test                   :: unit tests
-package_laya.bat                      :: installer (needs NSIS 3.x) into ..\output\
-```
+Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime). Thanks to:
 
-Requires Windows 10/11 x64, Visual Studio 2022 or newer (C++ workload), CMake 3.15+ and Python 3.10+.
-64-bit only. Without the model the IME works normally, just without context reranking.
-The English word list `data\english.words.tsv` is included (regenerate it with
-`data\tools\build_english_dictionary.py`).
+- [CxxIME](https://github.com/deanxyuan/cxx-ime): the input method framework, pinyin engine,
+  candidate window and settings app (Apache License 2.0)
+- [rime-ice](https://github.com/iDvel/rime-ice): the Chinese pinyin dictionary and English word list (GPL-3.0)
+- [Laya](https://huggingface.co/convaiinnovations/laya): the model behind the recommendations (Apache-2.0)
+- [wordfreq](https://github.com/rspeer/wordfreq): English word frequencies (CC BY-SA 4.0)
+- [ONNX Runtime](https://github.com/microsoft/onnxruntime): model inference (MIT)
 
-## Credits and licenses
-
-Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime) (Apache License 2.0,
-Copyright (c) 2026 CxxIME Contributors). It keeps CxxIME's TSF front end, pinyin engine, candidate
-window and settings app, and adds Laya context reranking, the English word mode, three-mode
-switching and the recommendation mark, with a new name, icon and system registration identifiers.
-See [NOTICE](NOTICE) for the list of changes.
-
-- Zhiyi IME as a whole is licensed under **GPL-3.0-only** ([LICENSE](LICENSE))
-- Source files taken from CxxIME keep their Apache License 2.0 notices (full text in
-  [data/licenses/Apache-2.0.txt](data/licenses/Apache-2.0.txt))
-- The Chinese pinyin dictionary and English word list come from [rime-ice](https://github.com/iDvel/rime-ice) (GPL-3.0-only)
-- English word frequencies: [wordfreq](https://github.com/rspeer/wordfreq) (data CC BY-SA 4.0)
-- The Laya model (Apache-2.0) and ONNX Runtime (MIT)
-
-Full notices: [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
+Zhiyi IME is licensed under [GPL-3.0-only](LICENSE); full notices are in [NOTICE](NOTICE) and
+[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt). Development and build notes:
+[docs/development.md](docs/development.md).

@@ -1,6 +1,6 @@
 # 词典数据与构建工具
 
-`data/` 保存 CxxIME 的词典源数据、默认配置和词典构建工具。运行时二进制词典由这里的源数据生成，
+`data/` 保存知意输入法的词典源数据、默认配置和词典构建工具。运行时二进制词典由这里的源数据生成，
 不应手工修改。
 
 ## 数据分类
@@ -9,22 +9,29 @@
 |------|------|---------|------|
 | 词典源数据 | `pinyin.dict.db.zip` | 是 | 拼音 SQLite 词典的压缩分发副本 |
 | 词典源数据 | `wubi86.dict.db.zip` | 是 | 未修改的五笔 86 词典源数据 |
+| 英文词表 | `english.words.tsv`、`english/` | 是 | 英文单词与词频（`tools/build_english_dictionary.py` 由 `english/` 下的 rime-ice 词表和 wordfreq 生成） |
+| 界面文字 | `ui.zh-CN.json`、`ui.en-US.json` | 是 | 设置程序的中英文界面文字 |
 | 授权材料 | `licenses/rime-ice-GPL-3.0.txt` | 是 | 雾凇拼音 GPL-3.0-only 完整许可证 |
 | 可审查派生数据 | `symbols.json` | 是 | 从五笔源词典拆出的独立符号分类 |
 | 默认配置 | `default.json`、`themes.json` 等 | 是 | 安装包使用的出厂配置 |
 | 临时源数据 | `*.dict.db` | 否 | 从压缩源解包或下载得到的 SQLite 文件 |
 | 运行时数据 | `*.dict.bin`、`*.dict.idx`、`*.spellings.bin`、`*.topn.bin`、`*.reverse.idx` | 否 | 打包阶段生成的二进制文件 |
 
+拼音运行时词典是精简版：`scripts/prepare_dictionary_bundle.py` 只保留全部单字和权重高于 rime-ice 默认值的词
+（约 40 万条，源数据约 190 万条），生僻词可以逐字输入并由自学习记住。
+
 `dictionary_manifest.json` 由打包流水线在所有运行时数据生成完毕后写入，记录文件角色、大小和
 SHA-256；它同样不作为源文件维护。
 
 ## 数据授权
 
-- 拼音词典派生自 [rime-ice](https：//github.com/iDvel/rime-ice)，按 GPL-3.0-only
+- 拼音词典派生自 [rime-ice](https://github.com/iDvel/rime-ice)，按 GPL-3.0-only
   发布。完整许可证保存在 `licenses/rime-ice-GPL-3.0.txt`，并随安装包分发。
 - 五笔词典和 `symbols.json` 派生自
-  [rime-wubi86-jidian](https：//github.com/KyleBing/rime-wubi86-jidian)，按
+  [rime-wubi86-jidian](https://github.com/KyleBing/rime-wubi86-jidian)，按
   Apache-2.0 发布。
+- 英文词表来自 rime-ice（GPL-3.0-only），词频来自 [wordfreq](https://github.com/rspeer/wordfreq)
+  （数据 CC BY-SA 4.0，只在生成时使用）。
 - 知意输入法整体按 GPL-3.0-only 发布，不替代上述第三方词典数据各自的许可证；
   Apache-2.0 全文见 `licenses/Apache-2.0.txt`。
 
@@ -99,7 +106,7 @@ wubi86.dict.db.zip
 ```text
 symbol_catalog.json(独立收录清单)
   -> generate_symbols.py
-  -> symbols.json(引擎、设置面板共用)
+  -> symbols.json(引擎使用)
 ```
 
 二进制文件必须从源数据重建，不应手工编辑或提交。
@@ -198,7 +205,6 @@ emoji，构建仍需识别完整序列，并让未知或畸形组合进入人工
 | pp | 偏旁 | 41 |
 
 单位由 `\dw`、数学由`\sx`、音符等由`\ts` 输入。
-设置"特殊符号"页支持分类浏览、复制和助记码提示，与引擎共用生成表。
 中文、中文标点、半角状态空闲时输入 `\` 可浏览分类。
 
 维护时只在对应分组中审核范围或显式码点及顺序，再运行：

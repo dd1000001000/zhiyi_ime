@@ -91,7 +91,7 @@
 
 - 匹配：以 `zh`、`ch`、`sh` 开头的拼音。
 - 效果：额外接受对应的平舌音形式（如 `zha`→`za`、`chang`→`cang`）。
-- 说明：该规则以 `derive` 开头，但 CxxIME 的 `generate_pinyin_spellings.py` 会将该模式识别为模糊派生，候选类型为模糊（K_FUZZY），可信度 -0.693。
+- 说明：该规则以 `derive` 开头，但知意输入法的 `generate_pinyin_spellings.py` 会将该模式识别为模糊派生，候选类型为模糊（K_FUZZY），可信度 -0.693。
 
 **10. `fuzz/^n(.*)/l$1/` — n ↔ l**
 

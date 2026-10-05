@@ -175,7 +175,7 @@ TSF 层（`tsf/src/text_service.cpp`）拥有独立于 QueryTrace 的追踪系�
 
 ### 日志路径与格式
 
-文件写入 `%USERPROFILE%\cxxime\logs\tsf-<pid>-trace.jsonl`，每行一个 JSON 事件：
+文件写入 `%USERPROFILE%\zhiyi\logs\tsf-<pid>-trace.jsonl`，每行一个 JSON 事件：
 
 ```json
 {"event":"ipc_session","detail":"ready","session":1,"focused":true,"chinese":true,"caps":false,"fg":"Notepad"}
@@ -270,19 +270,17 @@ woxiangshuruyiduanhenchangdepinyin
 
 ## 性能基线
 
-新功能开发或重构后，对比最新基线确认无回归。
-
-详细数据和历史对比见 [性能基准数据](benchmark-data.md)。
+新功能开发或重构后，用下面的命令重跑，与改动前的结果对比确认无回归（CxxIME 的历史基准数据未随本项目保留）。
 
 ### 重跑基准
 
 ```cmd
 # 离线查询 benchmark（无需 server）
-build\tools\query_bench\Release\query_bench.exe --data data --input s,sd,sdf,sddf,bj,srf,shrf,zguo,nihao,nihaoshijie --repeat 500
+build\tools\query_bench\query_bench.exe --data data --input s,sd,sdf,sddf,bj,srf,shrf,zguo,nihao,nihaoshijie --repeat 500
 
 # IPC 端到端 benchmark（需先启动 server）
 scripts\benchmark.bat
 
 # 单元 benchmark
-build\test\Release\benchmark_test.exe
+build\test\benchmark_test.exe
 ```

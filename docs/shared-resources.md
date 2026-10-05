@@ -1,6 +1,6 @@
 # 共享资源预加载（SharedResources）
 
-描述 CxxIME Server 的共享资源架构：SharedResources 结构、SessionManager 的可见状态全局化、热重载机制、Engine 侧适配。面向维护者。
+描述知意输入法 Server 的共享资源架构：SharedResources 结构、SessionManager 的可见状态全局化、热重载机制、Engine 侧适配。面向维护者。
 
 ---
 
@@ -207,7 +207,7 @@ struct ProcessKeyResult {
 
 ### 设置进程与控制通道
 
-设置程序（`cxxime-settings.exe`）通过 `ipc/` 下的**控制通道**与 Server 通信，协议定义在 `ipc/include/cxxime/control_protocol.h`，消息类型包括 `kSubscribe`、`kConfigSnapshot`、`kReplaceUserConfig`、`kPatchUserConfig`、`kMutationResult`、`kPing` / `kPong`、`kLexiconRequest` / `kLexiconResult`、`kUserBackupRequest` / `kUserBackupResult`。协议头携带 `server_epoch` 与 `revision`（`ConfigGeneration`），设置进程据此判断快照是否过期。
+设置程序（`zhiyi-settings.exe`）通过 `ipc/` 下的**控制通道**与 Server 通信，协议定义在 `ipc/include/cxxime/control_protocol.h`，消息类型包括 `kSubscribe`、`kConfigSnapshot`、`kReplaceUserConfig`、`kPatchUserConfig`、`kMutationResult`、`kPing` / `kPong`、`kLexiconRequest` / `kLexiconResult`、`kUserBackupRequest` / `kUserBackupResult`。协议头携带 `server_epoch` 与 `revision`（`ConfigGeneration`），设置进程据此判断快照是否过期。
 
 Server 侧的写入由 `server/src/config_write_coordinator.cc` 协调：
 

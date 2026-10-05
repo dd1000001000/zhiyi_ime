@@ -1,70 +1,53 @@
-# 安装与卸载
+# 安装、更新与卸载
 
-## 构建与打包
+面向维护者：安装包怎么生成、安装程序做了什么、怎么卸载和收集诊断信息。普通用户的安装说明见
+[README](../README.md)；构建环境见 [开发说明](development.md)。
 
-### 环境要求
-
-- Windows 10/11
-- Visual Studio 2017 或更新版本（或 Build Tools），需要 C++ 桌面开发工作负载
-- CMake 3.15+
-- Python 3.10+（词典生成、测试和打包时需要；运行安装包不需要）
-
-### 开发构建
+## 打包
 
 ```cmd
-build.bat debug          # Debug 构建（自动设置 CXXIME_PRODUCTION_BUILD=OFF）
-build.bat                # Release 构建
-build.bat clean          # 清理构建目录
+package_laya.bat
 ```
 
-`build.bat` 自动传入 `-DCXXIME_PRODUCTION_BUILD=OFF`，`data_dir()` 返回源码目录下的 `data/`，可直接运行测试和开发联调。
+`package_laya.bat` 下载 Laya 模型（`scripts\fetch_model.py`），构建 x64 与 x86 模块，再调用
+`scripts\package.py` 生成安装包 `..\output\zhiyi-v<version>-setup.exe`（`<version>` 取自 `VERSION`）。
+签名密钥存在时同时生成更新清单 `latest.json` 与 `latest.json.sig`，发布流程见
+[scripts/README.md](../scripts/README.md)。需要预先安装 [NSIS 3.x](https://nsis.sourceforge.io/)。
 
-### 打包分发
+`package.py` 的主要步骤：
 
-```cmd
-scripts\package.py                    # Release 打包
-scripts\package.py --debug            # Debug 打包
-scripts\package.py --fast --skip-dict # 快速复用已有 dist\data 词典打包
-scripts\package.py --host-diag        # 宿主诊断包
-```
+1. 构建（默认使用独立的 `build-package\` 与 `build-package-x86\` 目录，不影响开发构建 `build\`）
+2. 复制程序文件：`zhiyi_tsf_x64.dll` / `zhiyi_tsf_x86.dll`、`zhiyi_ime_x64.ime` / `zhiyi_ime_x86.ime`、
+   `zhiyi-resources.dll`、`zhiyi-server.exe`、`zhiyi-settings.exe`、`collect_diagnostics.ps1`，
+   以及 ONNX Runtime、VC++ 运行时和 `laya\` 模型目录
+3. 复制配置与界面数据：`default.json`、`themes.json`、`settings_presets.json`、`punctuation.json`、
+   `symbols.json`、`ui.*.json`、`english.words.tsv`
+4. 调用 `prepare_dictionary_bundle.py` 准备运行时词典（`.bin` / `.idx` / `pinyin.spellings.bin` / `.topn.bin` / 反查索引）
+5. 校验发布文件、运行时依赖与词典清单
+6. 调用 `makensis.exe` 编译安装脚本 `scripts\zhiyi-setup.nsi`
 
-安装包输出到 `..\output\cxxime-v<version>-setup.exe`；诊断包文件名包含
-`-host-diag` 后缀。`<version>` 取自仓库根目录的 `VERSION`。
-
-默认包关闭宿主诊断，不包含 IME Host Probe、宿主跟踪导出脚本及其快捷方式。
-`--host-diag` 同时启用产品内宿主诊断并打包这些工具。两种包都保留通用的
-`collect_diagnostics.ps1`。
-
-需要预先安装 [NSIS 3.x](https://nsis.sourceforge.io/)。`package.py` 执行：
-
-1. 检查并触发构建（如未构建）
-2. 复制 `cxxime_tsf_x64.dll`、`cxxime_tsf_x86.dll`、`cxxime-resources.dll`、`cxxime-server.exe`、`cxxime-settings.exe`、`collect_diagnostics.ps1`
-3. 复制 `default.json`、`themes.json`、`settings_presets.json`、`punctuation.json`
-4. 调用 `prepare_dictionary_bundle.py` 准备运行时词典（`.bin` / `.idx` / `.spellings.bin`（全拼与四种双拼各一份，共五份）/ `.topn.bin`）
-5. 校验发布数据文件、CRT 依赖和热路径日志
-6. 调用 `makensis.exe` 编译 NSIS 安装脚本
-7. 输出 `..\output\cxxime-v<version>-setup.exe`
-
-`package.py` 默认使用独立的 `build-package\` 构建目录，避免和 `build.bat` 使用的开发构建目录互相污染。 CMake 生成器默认交给 CMake 和当前命令行环境决定; 如需要显示指定，可使用：
-
-```cmd
-python scripts\package.py --generator "Visual Studio 17 2022" --platform x64
-python scripts\package.py --output-dir output    # 自定义安装包输出目录（默认 ..\output）
-```
+常用参数：`--fast`（复用已有构建）、`--skip-dict`（复用已有词典）、`--host-diag`（宿主诊断包，文件名带
+`-host-diag`，额外带 IME Host Probe 等工具）、`--output-dir <目录>`。
 
 ## 安装
 
-运行 `cxxime-v<version>-setup.exe`，按向导操作：
+安装程序的页面：选择语言（默认取已有设置的界面语言或 Windows 语言）→ 欢迎 → 许可协议 → 安装目录 →
+用户体验改进计划（两档，默认不勾，见 [隐私说明](privacy.md)）→ 安装 → 完成。安装需要管理员权限，主要步骤：
 
-1. 许可协议
-2. 选择安装基目录，默认 `C:\Program Files\CxxIME`；新版本会安装到 `<基目录>\<版本号>.<8位十六进制>\`
-3. 检查占用旧版 CxxIME 文件的应用（Restart Manager + 安装锁报告）
-4. 将新程序和出厂数据解压到同卷暂存目录（`<基目录>\update\`）
-5. 用 `Rename` 把暂存目录原子切换为新的版本目录 `<基目录>\<版本号>.<8位十六进制>\`
-6. 注册 TSF、启动服务端、准备系统 IMM 模块更新、写入安装标记
-7. 提交生命周期状态（`InstallLocation` 指向新版本，旧版本进入待清理列表），清理事务与待清理版本
-8. 把 `cxxime_ime_x64.ime` / `cxxime_ime_x86.ime` 复制为系统模块 `%WINDIR%\Sysnative\cxxime.ime` 与 `%WINDIR%\SysWOW64\cxxime.ime`（被占用时改为重启后替换）
-9. 初始化用户配置目录 `%USERPROFILE%\cxxime\`（已有 `default.json` 时不覆盖），创建快捷方式
+1. 检查占用旧版本文件的应用（Restart Manager + 安装锁报告），停止后台服务
+2. 将程序和出厂数据解压到同卷暂存目录（`<基目录>\update\`），再用 `Rename` 原子切换为新的版本目录
+   `<基目录>\<版本号>.<8位十六进制>\`（默认基目录 `C:\Program Files\ZhiyiIME`）
+3. 注册 TSF、写入安装信息与自启动项 `ZhiyiIMEServer`，写入所选界面语言与隐私选项，启动后台服务
+4. 把 `zhiyi_ime_x64.ime` / `zhiyi_ime_x86.ime` 复制为系统模块 `%WINDIR%\Sysnative\zhiyi.ime` 与
+   `%WINDIR%\SysWOW64\zhiyi.ime`（被占用时改为重启后替换）
+5. 提交生命周期状态（`InstallLocation` 指向新版本，旧版本进入待清理列表），创建开始菜单快捷方式
+   （知意输入法设置、Collect Diagnostics、卸载）
+
+### 更新模式
+
+设置程序“更新”页下载并校验安装包后，以 `/UPDATE` 参数运行安装程序：跳过语言、目录和隐私页面（沿用已有选择），
+直接安装；完成后通过资源管理器以普通权限重新打开设置。只有还需要重新打开程序或重启时才显示完成页。
+签名与下载的细节见 `update/include/cxxime/update.h`。
 
 ### 多版本安装
 
@@ -76,23 +59,24 @@ python scripts\package.py --output-dir output    # 自定义安装包输出目�
 - 暂存与新版本目录切换：程序先解压到 `<基目录>\update\`，再用 `Rename` 原子切换到目标版本目录；
 - 旧版本清理：无进程占用时在安装提交阶段删除；仍被占用时在安装完成页提示"部分应用仍使用上一版本，重新打开后即可切换"，并在后续安装或系统重启后清理。
 
-安装器使用 `Global\CxxIME.Installation` 命名互斥锁保证同一时间只有一个安装/卸载进程。切换程序目录前，安装器将旧程序状态、64 位和 32 位 TSF 模块的实际注册状态、系统 IMM 模块和安装注册表状态写入持久事务文件，不会根据 DLL 是否存在推断 TSF 是否已注册。TSF 注册、系统 IMM 模块复制或安装信息写入失败时，会按事务文件恢复原状态；安装提交成功后才删除事务数据和待清理版本。
+安装器使用 `Global\ZhiyiIME.Installation` 命名互斥锁保证同一时间只有一个安装/卸载进程。切换程序目录前，安装器将旧程序状态、64 位和 32 位 TSF 模块的实际注册状态、系统 IMM 模块和安装注册表状态写入持久事务文件，不会根据 DLL 是否存在推断 TSF 是否已注册。TSF 注册、系统 IMM 模块复制或安装信息写入失败时，会按事务文件恢复原状态；安装提交成功后才删除事务数据和待清理版本。
 
 如果安装进程异常终止，下次运行安装器会先停止服务端、检查暂存目录和备份目录的文件占用，再恢复未提交的安装或清理已经提交的备份。恢复未完成时不会继续覆盖文件。
 
 覆盖安装会沿用注册表记录的活动版本目录。安装程序不会覆盖
-`%USERPROFILE%\cxxime\default.json` 和用户数据（用户词库、选词偏好与手动候选顺序）。
+`%USERPROFILE%\zhiyi\default.json` 和用户数据（用户词库、选词偏好与手动候选顺序）。
 
-如果有应用正在使用 CxxIME，安装器会列出 Restart Manager 检测到的进程，要求关闭后
+如果有应用正在使用知意输入法，安装器会列出 Restart Manager 检测到的进程，要求关闭后
 重试。仅切换到其他输入法不能保证 TSF DLL 已从宿主进程卸载；Windows 系统进程仍占用文件时，
 需要注销或重启后再运行安装器。安装阶段不使用重启后延迟覆盖，避免新旧模块混装。
 
-安装完成后**注销并重新登录**，输入法出现在系统输入法列表中。按 `Ctrl+Space` 或 `Win+Space` 切换。
+安装完成后按 `Win+Space` 切换到知意输入法。已经打开的程序继续使用它们启动时加载的版本，重新打开后才用上新版本；若输入法列表里没有知意输入法，注销后重新登录。
 
 ## 卸载
 
-- **推荐：** 开始菜单 → CxxIME → 卸载 CxxIME
-- 或控制面板 → 添加/删除程序 → CxxIME
+- **推荐：** Windows 设置 → 应用 → 已安装的应用 → 知意输入法 → 卸载
+- 或开始菜单 → 知意输入法 → 卸载
+- 或控制面板 → 添加/删除程序 → 知意输入法
 
 卸载流程（NSIS `Section Uninstall`）：释放输入处理器 → 停止服务端 → 检查文件占用 →
 校验生命周期状态 → 创建卸载事务 → 准备系统 IMM 模块移除 → 反注册 TSF DLL →
@@ -100,7 +84,7 @@ python scripts\package.py --output-dir output    # 自定义安装包输出目�
 （勾选时）删除用户数据目录 → 删除快捷方式与基目录。
 
 默认卸载只删除程序文件、开始菜单快捷方式、TSF 注册项、自启动项和卸载项。用户目录
-`%USERPROFILE%\cxxime\` 下的配置、用户词库、选词偏好与手动候选顺序会保留，便于重新安装或升级后继续使用；卸载向导提供"删除用户配置和词库数据"复选框，勾选后才会删除用户目录。
+`%USERPROFILE%\zhiyi\` 下的配置、用户词库、选词偏好与手动候选顺序会保留，便于重新安装或升级后继续使用；卸载向导提供"删除用户配置和词库数据"复选框，勾选后才会删除用户目录。
 
 多版本布局下，卸载活动版本的同时会清理生命周期状态、待清理版本与 `<基目录>\update\` 残留。若 TSF DLL 或系统 IME 模块仍被占用，卸载进入**延期卸载**流程：相关文件与注册表项带 `/REBOOTOK` 标记，重启后由系统完成删除；卸载中断后可再次运行卸载器继续处理。
 
@@ -117,14 +101,14 @@ python scripts\package.py --output-dir output    # 自定义安装包输出目�
 
 ## 诊断包
 
-设置窗口"关于"页提供"导出诊断包"按钮，开始菜单也提供 "CxxIME → Collect Diagnostics" 入口。诊断导出不会修改系统状态，默认收集：
+开始菜单提供 "知意输入法 → Collect Diagnostics" 入口。诊断导出不会修改系统状态，默认收集：
 
 - 版本、系统、PowerShell、当前用户等环境信息
 - 安装目录、出厂数据目录、用户目录、日志目录
 - 关键程序文件和数据文件的大小、时间戳、SHA256
 - 日志文件清单和 trace-summary.txt 近期错误/慢路径摘要
-- CxxIME 注册表卸载项、TIP 注册项、键盘预加载状态
-- `cxxime-server.exe`、`cxxime-settings.exe` 的运行状态，以及 `cxxime_tsf_x64.dll` / `cxxime_tsf_x86.dll` 与系统 `cxxime.ime` 模块的文件信息
+- 知意输入法注册表卸载项、TIP 注册项、键盘预加载状态
+- `zhiyi-server.exe`、`zhiyi-settings.exe` 的运行状态，以及 `zhiyi_tsf_x64.dll` / `zhiyi_tsf_x86.dll` 与系统 `zhiyi.ime` 模块的文件信息
 
 默认不会复制日志、用户配置或用户数据（词库与偏好）。需要进一步排查时，可在安装目录运行：
 
@@ -135,90 +119,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File collect_diagnostics.ps1 -Inc
 
 注意：日志可能包含输入编码，用户数据包含个人词条与选词记录。对外反馈问题前应确认是否可以附带这些内容。
 
-## 安装模式
+## 程序与数据目录
 
-当前 NSIS 安装器使用多版本程序目录安装模式：
-
-| 类型 | 位置 | 说明 |
-|---|---|---|
-| 程序文件 | `C:\Program Files\CxxIME\<版本号>.<8位十六进制>\`（基目录可在安装向导中修改） | 每个版本自包含 `cxxime-server.exe`、`cxxime-settings.exe`、`cxxime_tsf_x64.dll`、`cxxime_tsf_x86.dll`、`cxxime_ime_x64.ime`、`cxxime_ime_x86.ime`、`cxxime-resources.dll`、`collect_diagnostics.ps1`、`uninstall.exe` |
-| 出厂数据 | `<版本目录>\data\` | 出厂配置、主题、标点、符号、二进制词典、Top-N 索引及清单 |
-| 用户数据 | `%USERPROFILE%\cxxime\` | 用户配置、主题覆盖、标点覆盖、用户词库、选词偏好、整句学习与手动候选顺序（跨版本共享） |
-
-用户数据目录由安装器初始化，后续覆盖安装不会覆盖已有用户配置。
-
-## 数据目录结构
-
-### 程序安装目录
-
-```
-<安装基目录>\
-├── <版本号>.<8位十六进制>\          活动版本（每个版本自包含以下结构）
-│   ├── cxxime_tsf_x64.dll
-│   ├── cxxime_tsf_x86.dll
-│   ├── cxxime_ime_x64.ime / cxxime_ime_x86.ime
-│   ├── cxxime-resources.dll
-│   ├── cxxime-server.exe
-│   ├── cxxime-settings.exe
-│   ├── collect_diagnostics.ps1
-│   ├── install-manifest.json
-│   ├── license.txt
-│   ├── THIRD_PARTY_NOTICES.txt
-│   ├── licenses\
-│   │   ├── miniz-MIT.txt
-│   │   └── rime-ice-GPL-3.0.txt
-│   ├── uninstall.exe
-│   └── data\
-│       ├── default.json
-│       ├── dictionary_manifest.json
-│       ├── settings_presets.json
-│       ├── themes.json
-│       ├── punctuation.json
-│       ├── symbols.json
-│       ├── pinyin.dict.bin
-│       ├── pinyin.dict.idx
-│       ├── pinyin.spellings.bin
-│       ├── pinyin.microsoft-shuangpin.spellings.bin
-│       ├── pinyin.xiaohe-shuangpin.spellings.bin
-│       ├── pinyin.ziranma-shuangpin.spellings.bin
-│       ├── pinyin.sogou-shuangpin.spellings.bin
-│       ├── pinyin.topn.bin
-│       ├── pinyin.reverse.idx
-│       ├── wubi86.dict.bin
-│       ├── wubi86.dict.idx
-│       └── wubi86.reverse.idx
-├── update\                       安装暂存目录
-├── maintenance\
-│   └── install-state.json        生命周期状态（active / prepared / retired）
-└── .cxxime-*                     安装与卸载事务标记
-```
-
-### 用户数据目录
-
-```
-%USERPROFILE%\cxxime\
-├── default.json
-├── themes.json
-├── punctuation.json
-├── user_pinyin.tsv           (自动生成)
-├── user_wubi.tsv             (自动生成)
-├── learning_pinyin.tsv       (自动生成)
-├── learning_wubi.tsv         (自动生成)
-├── learning_composition.tsv  (自动生成，整句学习)
-├── candidate_order_pinyin.tsv (自动生成)
-├── candidate_order_wubi.tsv   (自动生成)
-├── disabled_pinyin.tsv       (自动生成)
-└── disabled_wubi.tsv         (自动生成)
-```
+每个版本安装在独立的版本目录里，用户数据在 `%USERPROFILE%\zhiyi\`，跨版本共享，覆盖安装和更新都不会覆盖。
+两处目录的完整结构见 [路径解析](path-resolution.md)。
 
 ## 命令行参数
 
-### cxxime-server.exe
+### zhiyi-server.exe
 
 ```
-cxxime-server.exe --data "D:\MyData\CxxIME"    # 指定数据目录
-cxxime-server.exe --dict "D:\dict\pinyin.dict.bin"   # 指定词典路径
-cxxime-server.exe --config "D:\config.json"          # 指定配置文件
+zhiyi-server.exe --data "D:\MyData\知意输入法"    # 指定数据目录
+zhiyi-server.exe --dict "D:\dict\pinyin.dict.bin"   # 指定词典路径
+zhiyi-server.exe --config "D:\config.json"          # 指定配置文件
 ```
 
 | 参数 | 说明 |
@@ -227,31 +140,30 @@ cxxime-server.exe --config "D:\config.json"          # 指定配置文件
 | `--dict <path>` | 词典文件完整路径（`.bin` 格式） |
 | `--config <path>` | 配置文件完整路径 |
 
-## 配置编辑器
+## 设置程序
 
-运行开始菜单中的 "CxxIME 设置" 或直接启动 `cxxime-settings.exe`。
-
-编辑器按面板组织（输入 / 界面 / 高级布局 / 快捷键 / 词库管理 / 特殊符号 / 备份与导入 / 故障排查 / 关于），各面板与配置项详见 [设置指南](settings-guide.md)。修改配置后点击"确定 / 应用"，配置立即写入用户目录并经服务端热重载生效。
+从开始菜单的“知意输入法设置”或任务栏“中/英”的右键菜单打开 `zhiyi-settings.exe`，各页面与配置项见
+[设置指南](settings-guide.md)。
 
 ## 常见问题
 
-### 安装后输入法列表里找不到 CxxIME
+### 安装后输入法列表里找不到知意输入法
 
-1. 确认已注销并重新登录
+1. 注销并重新登录
 2. 检查 `regsvr32` 是否成功：手动运行以下命令注册 x64 和 x86 两个架构的 DLL（路径为活动版本目录）：
    ```cmd
-   regsvr32 "C:\Program Files\CxxIME\<版本号>.<8位十六进制>\cxxime_tsf_x64.dll"
-   regsvr32 "C:\Program Files\CxxIME\<版本号>.<8位十六进制>\cxxime_tsf_x86.dll"
+   regsvr32 "C:\Program Files\ZhiyiIME\<版本号>.<8位十六进制>\zhiyi_tsf_x64.dll"
+   regsvr32 "C:\Program Files\ZhiyiIME\<版本号>.<8位十六进制>\zhiyi_tsf_x86.dll"
    ```
 3. 在"设置 → 时间和语言 → 语言和区域 → 中文(简体)"中添加输入法
 
 ### 服务端启动后立即退出
 
-通常是词典文件缺失。检查 `C:\Program Files\CxxIME\<版本号>.<8位十六进制>\data\pinyin.dict.bin` 是否存在。若缺失，重新运行 `scripts\package.py` 生成二进制词典后重新安装。配置里把拼音方案选为某个双拼方案时，还需要同目录下对应的 `pinyin.<方案名>-shuangpin.spellings.bin`（如 `pinyin.microsoft-shuangpin.spellings.bin`），缺失会导致服务端启动失败。
+通常是词典文件缺失。检查 `C:\Program Files\ZhiyiIME\<版本号>.<8位十六进制>\data\pinyin.dict.bin` 是否存在。若缺失，重新安装。配置文件里不要把 `engine.pinyin_scheme` 改成双拼方案：知意输入法不带双拼拼写表，服务端会启动失败。
 
 ### 切换输入法后打字无反应
 
-使用 [DebugView](https://learn.microsoft.com/en-us/sysinternals/downloads/debugview) 查看日志输出（Debug 构建）。Release 构建不输出日志。
+先确认该程序是在安装或更新之后打开的（旧程序仍用旧版本）。Debug 构建的详细日志和 Release 构建的切换键日志（`[ZhiyiIME] switch:`）可以用 [DebugView](https://learn.microsoft.com/en-us/sysinternals/downloads/debugview) 查看；也可以在配置文件中把 `diagnostics.trace_mode` 设为 `normal`，日志写在 `%USERPROFILE%\zhiyi\logs\`。
 
 ### 覆盖安装后配置丢失
 

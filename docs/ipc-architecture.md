@@ -1,6 +1,6 @@
 # IPC 架构设计
 
-描述 CxxIME 的 IPC 模块：named pipe 通信模型、服务端 IOCP 事件循环、关闭协议与安全设计。
+描述知意输入法的 IPC 模块：named pipe 通信模型、服务端 IOCP 事件循环、关闭协议与安全设计。
 
 ## 概述
 
@@ -55,7 +55,7 @@ stop():
 
 ## 管道命名与安全
 
-- **每用户隔离：** `\\.\pipe\<username>\CxxIME`。`make_pipe_name()` 读取 Windows 用户名拼接到路径中，多用户同时登录时互不干扰。协议层基础名 `IPC_PIPE_BASE_NAME` 定义在 `ipc_protocol.h`。
+- **每用户隔离：** `\\.\pipe\<username>\ZhiyiIME`。`make_pipe_name()` 读取 Windows 用户名拼接到路径中，多用户同时登录时互不干扰。协议层基础名 `IPC_PIPE_BASE_NAME` 定义在 `ipc_protocol.h`。
 - **SDDL ACL**（`ipc/src/security_attributes.h`）：允许 SYSTEM、Everyone、UWP AppContainer 访问。
 
 ## Client 行为

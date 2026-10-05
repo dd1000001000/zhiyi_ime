@@ -1,12 +1,14 @@
-# CxxIME 开发工具
+# 开发工具
 
 以下命令基于 `cxx-ime/` 目录，可直接拷贝执行。
 
-前置：先编译。
+前置：先编译（Ninja Release 构建，可执行文件直接在各自目录下）。
 
 ```cmd
-build.bat debug
+build_laya.bat
 ```
+
+用 `build.bat`（Visual Studio 生成器）构建时，可执行文件在各目录下的 `Debug\` 或 `Release\` 子目录里。
 
 ---
 
@@ -15,13 +17,13 @@ build.bat debug
 拼音模式（需 `.bin` + `.spellings.bin`）：
 
 ```cmd
-.\build\tools\dict_query\Debug\dict_query.exe --mode pinyin --dict .\data\pinyin.dict.bin --spellings .\data\pinyin.spellings.bin
+.\build\tools\dict_query\dict_query.exe --mode pinyin --dict .\data\pinyin.dict.bin --spellings .\data\pinyin.spellings.bin
 ```
 
 五笔模式（需 `.bin`）：
 
 ```cmd
-.\build\tools\dict_query\Debug\dict_query.exe --mode wubi --dict .\data\wubi86.dict.bin
+.\build\tools\dict_query\dict_query.exe --mode wubi --dict .\data\wubi86.dict.bin
 ```
 
 | 输入 | 说明 |
@@ -35,7 +37,7 @@ build.bat debug
 ## sqlite_query — SQLite .db 直读工具
 
 ```cmd
-.\build\tools\sqlite_query\Debug\sqlite_query.exe .\data\wubi86.dict.db
+.\build\tools\sqlite_query\sqlite_query.exe .\data\wubi86.dict.db
 ```
 
 | 输入 | 说明 |
@@ -48,7 +50,7 @@ build.bat debug
 ## candidate_window_tool — 候选窗口可视化测试
 
 ```cmd
-.\build\tools\candidate_window_tool\Debug\candidate_window_tool.exe
+.\build\tools\candidate_window_tool\candidate_window_tool.exe
 ```
 
 | 按键 | 说明 |
@@ -72,13 +74,13 @@ build.bat debug
 ### 启动服务端
 
 ```cmd
-.\build\server\Debug\cxxime-server.exe --dict .\data\pinyin.dict.bin --config .\data\default.json
+.\build\server\zhiyi-server.exe --dict .\data\pinyin.dict.bin --config .\data\default.json
 ```
 
 ### 启动客户端
 
 ```cmd
-.\build\tools\ipc_test\Debug\ipc_tool.exe
+.\build\tools\ipc_test\ipc_tool.exe
 ```
 
 ### 命令列表
@@ -127,7 +129,7 @@ status=0 rtt=74us ascii=0 composing=1
 将 ICO 文件放入真实系统托盘，与系统图标并排查看实际效果。
 
 ```cmd
-.\build\tools\tray_icon_tool\Debug\tray_icon_tool.exe
+.\build\tools\tray_icon_tool\tray_icon_tool.exe
 ```
 
 启动后图标出现在系统托盘区域（右下角）。附带一个预览窗口展示所有变体。
@@ -146,7 +148,7 @@ status=0 rtt=74us ascii=0 composing=1
 ## tsf_position_tool — 候选窗口定位测试
 
 ```cmd
-.\build\tools\tsf_position_tool\Debug\tsf_position_tool.exe
+.\build\tools\tsf_position_tool\tsf_position_tool.exe
 ```
 
 验证候选窗口跟随光标定位、屏幕边缘 clamp 与多显示器适配逻辑。
@@ -167,7 +169,7 @@ status=0 rtt=74us ascii=0 composing=1
 ## punct_test — 标点映射测试
 
 ```cmd
-.\build\tools\punct_test\Debug\punct_test.exe
+.\build\tools\punct_test\punct_test.exe
 ```
 
 加载 `data/punctuation.json`，不经过 IPC 直接测试标点与全角转换逻辑（含成对与轮换标点状态）。
@@ -188,7 +190,7 @@ status=0 rtt=74us ascii=0 composing=1
 ## query_bench — 查询性能基准
 
 ```cmd
-.\build\tools\query_bench\Debug\query_bench.exe --data .\data --input s,sd,sdf,sddf,bj,srf,shrf,zguo,nihaoshijie --repeat 1000
+.\build\tools\query_bench\query_bench.exe --data .\data --input s,sd,sdf,sddf,bj,srf,shrf,zguo,nihaoshijie --repeat 1000
 ```
 
 | 参数 | 说明 |
@@ -213,12 +215,40 @@ status=0 rtt=74us ascii=0 composing=1
 
 ---
 
+## laya_smoke — 上文推荐检查
+
+用真实词库和 Laya 模型逐键打字，打印每个键的候选、耗时与查询 trace（`--keys` 模式）；
+不带参数时运行一组上文推荐的冒烟用例。
+
+```cmd
+.\build\tools\laya_smoke\laya_smoke.exe --keys .\data\default.json nihao wsyige
+.\build\tools\laya_smoke\laya_smoke.exe
+```
+
+`laya_parity` 对比 C++ 与 Python 推理结果（模型导出后的一致性检查）。
+
+---
+
+## zhiyi-update-tool — 更新检查
+
+按设置程序“更新”页的方式检查已发布的版本：读取 GitHub 最新 Release 的 `latest.json`，
+校验签名，`download` 时还会下载并校验安装包（不会运行安装程序）。
+
+```cmd
+.\build\tools\update_tool\zhiyi-update-tool.exe check
+.\build\tools\update_tool\zhiyi-update-tool.exe download %TEMP%\zhiyi-update
+```
+
+设置环境变量 `ZHIYI_UPDATE_TEST_BASE`（如 `http://127.0.0.1:8765/`）可改用本地服务器测试。
+
+---
+
 ## topn_index — Top-N 索引工具
 
 `topn_builder`：将 `scripts/build_pinyin_topn.py` 生成的中间文件转换为运行时索引：
 
 ```cmd
-.\build\tools\topn_index\Release\topn_builder.exe --input .\data\pinyin.topn.bin --output .\data\pinyin.topn.bin --format dat16
+.\build\tools\topn_index\topn_builder.exe --input .\data\pinyin.topn.bin --output .\data\pinyin.topn.bin --format dat16
 ```
 
 | 参数 | 说明 |
@@ -230,7 +260,7 @@ status=0 rtt=74us ascii=0 composing=1
 `topn_benchmark`：不同索引格式的读取基准：
 
 ```cmd
-.\build\tools\topn_index\Release\topn_benchmark.exe --baseline <intermediate> --dat16 <file> --queries 100000 --threads 4
+.\build\tools\topn_index\topn_benchmark.exe --baseline <intermediate> --dat16 <file> --queries 100000 --threads 4
 ```
 
 参数：`--baseline`、`--flat16`、`--dat16`、`--dat8`、`--queries`、`--threads`。

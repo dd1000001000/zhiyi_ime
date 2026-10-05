@@ -116,6 +116,12 @@ private:
 TextBeforeCaret read_text_before_caret(ITfContext* context, TfClientId client_id, size_t max_chars,
                                        std::wstring* text) {
     if (!context || client_id == TF_CLIENTID_NULL || max_chars == 0) return TextBeforeCaret::kUnavailable;
+    // Classic Win32 edit boxes reach TSF through the IMM compatibility layer, whose transitory
+    // documents hold only the composition: a read "succeeds" with no text.
+    TF_STATUS status = {};
+    if (SUCCEEDED(context->GetStatus(&status)) && (status.dwStaticFlags & TF_SS_TRANSITORY) != 0) {
+        return TextBeforeCaret::kUnavailable;
+    }
     ReadSession* session = new (std::nothrow) ReadSession(context, max_chars);
     if (!session) return TextBeforeCaret::kUnavailable;
     HRESULT session_hr = E_FAIL;

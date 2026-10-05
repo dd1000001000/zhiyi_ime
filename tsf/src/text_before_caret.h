@@ -14,7 +14,8 @@
 enum class TextBeforeCaret {
     kRead,         // `text` holds up to max_chars characters before the caret (or the selection)
     kPrivate,      // a password / private field: never read
-    kUnavailable,  // the app did not let us read it (the remembered context is used instead)
+    kUnavailable,  // the app did not let us read it, or its document is transitory (classic
+                   // Win32 edit boxes): the remembered context is used instead
 };
 
 // A synchronous read-only edit session; call it while handling a key.

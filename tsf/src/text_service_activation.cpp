@@ -395,7 +395,10 @@ void TextService::_send_text_before_caret(ITfContext* context) {
     std::wstring text;
     const TextBeforeCaret read = read_text_before_caret(context, _clientId, kMaxChars, &text);
     uint32_t flags = 0;
-    const uintptr_t target = reinterpret_cast<uintptr_t>(context);
+    // The context alone does not tell input boxes apart where the IMM layer serves several
+    // edit windows of a thread with one context: the focused window does.
+    const uintptr_t target = reinterpret_cast<uintptr_t>(context) ^
+                             (reinterpret_cast<uintptr_t>(GetFocus()) << 1);
     if (target != _contextReadTarget) {
         flags |= cxxime::kContextNewInputBox;
         _contextReadTarget = target;

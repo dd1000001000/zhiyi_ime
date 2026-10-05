@@ -84,7 +84,7 @@ stop():
 
 ### 交互测试（ipc_tool）
 
-`ipc_tool.exe`（源码 `tools/ipc_test/`）提供 IPC 交互调试命令：`connect` / `status` / `session start|end` / `key <vk>` / `select <n>` / `commit` / `focus in|out` / `bench` / `stress <n> <clients>` / `disconnect`。
+`ipc_tool.exe`（源码 `tools/ipc_test/`，不公开）提供 IPC 交互调试命令：`connect` / `status` / `session start|end` / `key <vk>` / `select <n>` / `commit` / `focus in|out` / `bench` / `stress <n> <clients>` / `disconnect`。
 
 ### 性能基准（迭代记录）
 

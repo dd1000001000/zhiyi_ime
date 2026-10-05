@@ -24,7 +24,7 @@ if(CXXIME_BUILD_TOOLS OR CXXIME_BUILD_TESTS)
     )
 endif()
 
-if(CXXIME_BUILD_TOOLS)
+if(CXXIME_BUILD_TOOLS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/benchmark.cc")
     add_executable(topn_benchmark benchmark.cc)
     target_link_libraries(topn_benchmark PRIVATE
         cxxime-topn-index-builder
@@ -32,7 +32,7 @@ if(CXXIME_BUILD_TOOLS)
     )
 endif()
 
-if(CXXIME_BUILD_TESTS)
+if(CXXIME_BUILD_TESTS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/topn_index_test.cc")
     add_executable(topn_index_test topn_index_test.cc)
     target_link_libraries(topn_index_test PRIVATE
         cxxime-topn-index-builder

@@ -550,6 +550,8 @@ CloseHandle(hFile);
 
 ## 8. 测试
 
+> 测试套件不在公开仓库中，以下内容仅供参考。
+
 ### 8.1 测试框架
 
 自定义测试框架 (`test/support/testutil.h`)，无外部依赖：
@@ -588,9 +590,3 @@ RUN_ALL_TESTS()                            // main 入口，自动发现并运�
 | `reverse_index_pipeline_test` | 反查索引流水线验证（Python） |
 | `dictionary_format_verifier_test` | 构建校验器对当前格式 magic/version 的检查（Python） |
 
-### 8.3 运行测试
-
-```bash
-build_laya.bat test                     # 构建并运行全部测试（等同于在 build\ 下 ctest）
-build\test\engine_test.exe              # 单独运行某个测试
-```

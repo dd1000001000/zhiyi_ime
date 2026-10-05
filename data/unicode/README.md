@@ -23,8 +23,6 @@
 ```bat
 python data/tools/generate_emoji_classification.py
 python data/tools/generate_symbol_ranges.py --source data/tools/dict_builder/emoji_classification.json --output shared/src/symbol_ranges.inc
-python test/data/unicode_classification_generator_test.py
-python test/data/symbol_catalog_test.py
 ```
 
 生成器默认读取本目录 `17.0/`，无需准备仓库外文件，也不会访问网络。

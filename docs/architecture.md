@@ -191,9 +191,8 @@ cxx-ime/
 ├── docs/            项目文档（设计与实现、安装、配置指南）
 ├── data/            词典文件、Python 工具和默认配置
 ├── resource/        图标与资源 DLL 素材
-├── scripts/         打包、词典准备、校验脚本
-├── tools/           开发调试工具
-├── test/            测试套件（C++ + Python）
+├── scripts/         依赖下载、词典准备与校验、诊断脚本
+├── tools/topn_index/ Top-N 索引构建器（生成词典时使用）
 └── third_party/     sqlite3, nlohmann/json, darts-clone, miniz（ONNX Runtime 下载到此处）
 ```
 

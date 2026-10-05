@@ -5,10 +5,16 @@
 ## 环境要求
 
 - Windows 10/11 x64（只支持 64 位）
-- Visual Studio 2022 或更新版本（C++ 桌面开发工作负载；默认路径见 `build_laya.bat` 与 `package_laya.bat`，
-  可用环境变量 `VS_PATH`、`VS_GENERATOR` 覆盖）
+- Visual Studio 2022 或更新版本（C++ 桌面开发工作负载；默认路径见 `build_laya.bat`，可用环境变量
+  `VS_PATH` 覆盖）
 - CMake 3.15+、Python 3.10+
-- 打包需要 [NSIS 3.x](https://nsis.sourceforge.io/)
+
+## 公开范围
+
+公开仓库包含输入法本身的全部源码（引擎、TSF 模块、后台服务、候选窗口、设置程序、更新、安装辅助程序、
+IMM 兼容模块）、构建脚本，以及生成运行时词典的工具（`data/tools/`、`scripts/` 中的词典脚本、`tools/topn_index`）。
+**打包与发布工具、测试、调试与基准工具不公开**；技术文档里提到的测试文件、工具名称和命令指向这些
+不公开的部分，仅供参考。CMake 只在这些目录存在时才构建它们。
 
 ## 构建与测试
 
@@ -16,28 +22,23 @@
 python scripts\fetch_onnxruntime.py   :: ONNX Runtime 1.30.0 -> third_party\onnxruntime\
 python scripts\fetch_model.py         :: Laya 模型（GitHub Release model-zhen-r64）-> models\laya\
 build_laya.bat                        :: Ninja Release 构建，产物在 build\
-build_laya.bat test                   :: 构建并运行全部测试
 ```
 
 - 开发构建（`CXXIME_PRODUCTION_BUILD=OFF`）直接读取源码目录下的 `data\`，不需要安装即可运行测试和工具。
 - 没有模型时输入法照常工作，只是不做上文推荐。
 - `build.bat` 是沿用自 CxxIME 的 Visual Studio 生成器构建（`build.bat debug` 为 Debug），产物在各目录的
   `Debug\` / `Release\` 子目录。
-- 调试工具见 [tools/README.md](../tools/README.md)，词典数据与生成工具见 [data/README.md](../data/README.md)。
+- 生成运行时词典见 [scripts/README.md](../scripts/README.md)，词典数据与工具见 [data/README.md](../data/README.md)。
 - 英文词表 `data\english.words.tsv` 已随仓库提供，可用 `data\tools\build_english_dictionary.py` 重新生成。
 
 已安装的输入法模块（TSF DLL）由各程序在启动时加载，测试新版本前要重新打开目标程序；可以用
 `Get-Process | ForEach-Object { $_.Modules } | Where-Object ModuleName -like 'zhiyi_tsf*'` 查看各进程加载的版本。
 
-## 打包与发布
+## 发布
 
-```cmd
-package_laya.bat                      :: 安装包 -> ..\output\zhiyi-v<VERSION>-setup.exe
-```
-
-安装包与安装流程见 [安装、更新与卸载](installation.md)；发布到 GitHub Release（含签名的更新清单
-`latest.json`）的步骤见 [scripts/README.md](../scripts/README.md)。版本号在仓库根目录的 `VERSION`，
-每个版本的更新说明放在 `docs/release-notes/<版本>.zh-CN.md` 与 `<版本>.en-US.md`。
+安装包和 GitHub Release（含签名的更新清单 `latest.json`）由维护者用不公开的打包工具生成，安装程序做了什么见
+[安装、更新与卸载](installation.md)。版本号在仓库根目录的 `VERSION`，每个版本的更新说明放在
+`docs/release-notes/<版本>.zh-CN.md` 与 `<版本>.en-US.md`。
 
 ## 上文推荐模型（Laya）
 

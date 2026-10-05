@@ -1,33 +1,8 @@
 # 安装、更新与卸载
 
-面向维护者：安装包怎么生成、安装程序做了什么、怎么卸载和收集诊断信息。普通用户的安装说明见
-[README](../README.md)；构建环境见 [开发说明](development.md)。
-
-## 打包
-
-```cmd
-package_laya.bat
-```
-
-`package_laya.bat` 下载 Laya 模型（`scripts\fetch_model.py`），构建 x64 与 x86 模块，再调用
-`scripts\package.py` 生成安装包 `..\output\zhiyi-v<version>-setup.exe`（`<version>` 取自 `VERSION`）。
-签名密钥存在时同时生成更新清单 `latest.json` 与 `latest.json.sig`，发布流程见
-[scripts/README.md](../scripts/README.md)。需要预先安装 [NSIS 3.x](https://nsis.sourceforge.io/)。
-
-`package.py` 的主要步骤：
-
-1. 构建（默认使用独立的 `build-package\` 与 `build-package-x86\` 目录，不影响开发构建 `build\`）
-2. 复制程序文件：`zhiyi_tsf_x64.dll` / `zhiyi_tsf_x86.dll`、`zhiyi_ime_x64.ime` / `zhiyi_ime_x86.ime`、
-   `zhiyi-resources.dll`、`zhiyi-server.exe`、`zhiyi-settings.exe`、`collect_diagnostics.ps1`，
-   以及 ONNX Runtime、VC++ 运行时和 `laya\` 模型目录
-3. 复制配置与界面数据：`default.json`、`themes.json`、`settings_presets.json`、`punctuation.json`、
-   `symbols.json`、`ui.*.json`、`english.words.tsv`
-4. 调用 `prepare_dictionary_bundle.py` 准备运行时词典（`.bin` / `.idx` / `pinyin.spellings.bin` / `.topn.bin` / 反查索引）
-5. 校验发布文件、运行时依赖与词典清单
-6. 调用 `makensis.exe` 编译安装脚本 `scripts\zhiyi-setup.nsi`
-
-常用参数：`--fast`（复用已有构建）、`--skip-dict`（复用已有词典）、`--host-diag`（宿主诊断包，文件名带
-`-host-diag`，额外带 IME Host Probe 等工具）、`--output-dir <目录>`。
+面向维护者：安装程序做了什么、怎么卸载和收集诊断信息。普通用户的安装说明见 [README](../README.md)；
+构建见 [开发说明](development.md)。安装包由维护者用不公开的打包工具（NSIS）生成，包含程序、Laya 模型、
+ONNX Runtime、VC++ 运行时与运行时词典。
 
 ## 安装
 

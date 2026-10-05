@@ -152,13 +152,7 @@ python data/tools/generate_emoji_classification.py
 脚本位置为基准，不依赖终端工作目录；`--source-dir` 可指定另一组待审核的原始输入，
 `--output` 可指定临时产物。所有输入在生成前必须通过固定 SHA-256 校验，
 缺少文件或内容不符会报错，且不会覆盖已有分类表；不自动下载、不猜测版本。
-普通构建使用冻结 JSON；再生成测试直接使用仓库内的三份 TXT，均无需联网。
-维护验证命令：
-
-```bat
-python test/data/unicode_classification_generator_test.py
-python test/data/symbol_catalog_test.py
-```
+普通构建使用冻结 JSON；再生成直接使用仓库内的三份 TXT，均无需联网。
 
 `emoji_classification.json` 是识别数据，不是供用户选择的 emoji 库。即使默认入口不收录
 emoji，构建仍需识别完整序列，并让未知或畸形组合进入人工审核，而不是猜测删留。

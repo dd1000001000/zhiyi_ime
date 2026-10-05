@@ -61,3 +61,27 @@ __pycache__/
 
 # Update signing keys (scripts/update_signing.py) never go into the repository
 *.pem
+
+# Not published (kept locally): packaging, release, tests and development tools.
+/package_laya.bat
+/scripts/RELEASING.md
+/scripts/package.py
+/scripts/install_payload.py
+/scripts/update_signing.py
+/scripts/verify_package.py
+/scripts/package_checks/
+/scripts/zhiyi-setup.nsi
+/scripts/nsis/
+/scripts/benchmark.bat
+/scripts/benchmark_topn.ps1
+/scripts/check_query_bench.py
+/scripts/run_sync_regression.bat
+/scripts/run_sync_regression.ps1
+/test/
+/tools/*
+!/tools/topn_index/
+/tools/topn_index/benchmark.cc
+/tools/topn_index/topn_index_test.cc
+/diagnostics/host_takeover/probe/
+/diagnostics/host_takeover/scripts/
+/.github/workflows/windows-release.yml

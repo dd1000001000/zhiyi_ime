@@ -16,9 +16,11 @@ concurrency:
   group: windows-ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Builds the input method and its runtime dictionaries. Tests, development tools and the
+# installer are not in the public repository.
 jobs:
-  test:
-    name: Build and test x64
+  build:
+    name: Build x64
     runs-on: windows-2022
     timeout-minutes: 60
     env:
@@ -41,7 +43,7 @@ jobs:
         shell: cmd
         run: build.bat
 
-      - name: Prepare test dictionaries
+      - name: Build runtime dictionaries
         shell: pwsh
         run: |
           python scripts/prepare_dictionary_bundle.py `
@@ -49,16 +51,3 @@ jobs:
             --output-dir data `
             --workers 2 `
             --topn-builder build/tools/topn_index/Release/topn_builder.exe
-
-      - name: Run tests
-        shell: pwsh
-        run: ctest --test-dir build -C Release --output-on-failure
-
-      - name: Upload test log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-ci-test-log-${{ github.run_id }}
-          path: build/Testing/Temporary/LastTest.log
-          if-no-files-found: ignore
-          retention-days: 7

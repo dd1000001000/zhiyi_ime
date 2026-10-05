@@ -70,14 +70,16 @@ add_subdirectory(ui)
 add_subdirectory(installer)
 add_subdirectory(update)
 
-if(CXXIME_BUILD_HOST_PROBE)
+# Development tools, tests and the host probe are not in the public repository; they are built
+# when a local copy is present.
+if(CXXIME_BUILD_HOST_PROBE AND EXISTS "${CMAKE_SOURCE_DIR}/diagnostics/host_takeover/probe/CMakeLists.txt")
     add_subdirectory(diagnostics/host_takeover/probe)
 endif()
 
 add_custom_target(cxxime-platform-modules
     DEPENDS cxxime-ime cxxime-tsf
 )
-if(CXXIME_BUILD_HOST_PROBE)
+if(TARGET cxxime-ime-host-probe)
     add_dependencies(cxxime-platform-modules cxxime-ime-host-probe)
 endif()
 
@@ -89,21 +91,17 @@ endif()
 # remain conditional inside this subdirectory.
 add_subdirectory(tools/topn_index)
 
-if(CXXIME_BUILD_TESTS)
+if(CXXIME_BUILD_TESTS AND EXISTS "${CMAKE_SOURCE_DIR}/test/CMakeLists.txt")
     add_subdirectory(test)
 endif()
 
 if(CXXIME_BUILD_TOOLS)
-    add_subdirectory(tools/dict_query)
-    add_subdirectory(tools/laya_smoke)
-    add_subdirectory(tools/sqlite_query)
-    add_subdirectory(tools/ipc_test)
-    add_subdirectory(tools/candidate_window_tool)
-    add_subdirectory(tools/tsf_position_tool)
-    add_subdirectory(tools/query_bench)
-    add_subdirectory(tools/tray_icon_tool)
-    add_subdirectory(tools/punct_test)
-    add_subdirectory(tools/update_tool)
+    foreach(tool dict_query laya_smoke sqlite_query ipc_test candidate_window_tool
+                 tsf_position_tool query_bench tray_icon_tool punct_test update_tool)
+        if(EXISTS "${CMAKE_SOURCE_DIR}/tools/${tool}/CMakeLists.txt")
+            add_subdirectory(tools/${tool})
+        endif()
+    endforeach()
 endif()
 
 add_subdirectory(settings)

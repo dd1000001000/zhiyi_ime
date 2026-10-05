@@ -216,7 +216,7 @@ text_service.cpp:  tsf_should_log_event() → tsf_queue_try_push() → tsf_write
 
 ## query_bench 工具
 
-新增命令行工具 `tools/query_bench/`，用于离线性能测试。
+命令行工具 `tools/query_bench/`，用于离线性能测试（测试与调试工具不在公开仓库中）。
 
 命令：
 
@@ -270,7 +270,7 @@ woxiangshuruyiduanhenchangdepinyin
 
 ## 性能基线
 
-新功能开发或重构后，用下面的命令重跑，与改动前的结果对比确认无回归（CxxIME 的历史基准数据未随本项目保留）。
+新功能开发或重构后，用下面的命令重跑，与改动前的结果对比确认无回归（测试与调试工具不在公开仓库中）。
 
 ### 重跑基准
 

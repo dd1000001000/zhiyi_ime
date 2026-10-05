@@ -8,6 +8,7 @@
 #ifndef CXXIME_LAYA_RERANK_H_
 #define CXXIME_LAYA_RERANK_H_
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -29,10 +30,11 @@ class LayaRerank {
 public:
     static LayaRerank& instance();
 
-    // Looks at the first 2 * config.page_size entries. When they hold at least
-    // `config.laya.min_candidates` same-length candidates
-    // covering the same input span as the first candidate, moves the model's pick among them to
-    // the first slot (the others keep their order) and marks it `recommended`.
+    // Looks at the first 2 * config.page_size entries. When at least
+    // `config.laya.min_candidates` of them cover the whole input (any length: 显示 / 西安市),
+    // moves the model's pick among those to the first of their slots and marks it
+    // `recommended`; every other entry keeps its order, and candidates for part of the input
+    // (飘 for "piaol") keep their places.
     // `input` is the raw pinyin the translator was queried with. Returns true if the order
     // changed.
     bool apply(const Config& config, const std::string& context, const std::string& input,
@@ -44,6 +46,12 @@ public:
     // Returns true when the model ran (words.front() is then its pick).
     bool apply_english(const Config& config, const std::string& context, const std::string& typed,
                        std::vector<EnglishWord>& words);
+
+    // Tools: called with what the model would compare (context, input, candidate texts in
+    // order) before it runs; returning false skips the model (the order stays). Not for the IME.
+    using CaptureFn = std::function<bool(const std::string& context, const std::string& input,
+                                         const std::vector<std::string>& texts)>;
+    void set_capture(CaptureFn capture);
 
     // Starts loading the model in the background (no-op when already loaded or loading).
     void preload(const Config& config);

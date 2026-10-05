@@ -79,7 +79,7 @@ Windows TSF 中英文输入法：中文拼音或五笔 86，英文单词联想 /
 | **ShortCodeCache** | 短码候选缓存（DAT-16 Top-N 索引，Darts trie 查找，短输入快速路径） | `ShortCodeCache` |
 | **Dict** | 词典加载与查询 | 二进制加载主词典 + 内存用户词库 / 候选偏好 / 手动候选顺序 |
 | **Config** | 配置加载 | JSON（nlohmann/json） |
-| **LayaRerank** | 上文推荐：按上文从同类候选中挑选首选（中文同音词、英文补全） | `LayaRerank`（`engine/src/laya_rerank.cc`、`engine/src/laya/`） |
+| **LayaRerank** | 上文推荐：按上文从同类候选中挑选首选（中文覆盖全部拼音的候选、英文补全） | `LayaRerank`（`engine/src/laya_rerank.cc`、`engine/src/laya/`） |
 | **English** | 英文单词补全、拼写纠错、中英混输 | `EnglishLexicon`（`engine/src/english_lexicon.cc`） |
 | **ExperienceLog** | 用户体验改进计划的本地记录（两档，默认关闭） | `ExperienceLog`（见 [隐私说明](privacy.md)） |
 

@@ -43,6 +43,7 @@ struct State {
     bool failed = false;
     std::unordered_map<std::string, std::vector<size_t>> cache;  // context|pinyin|cands -> order
     LayaRerankStats stats;
+    LayaRerank::CaptureFn capture;
 };
 
 // Intentionally leaked: the detached loader thread may still touch it during process exit.
@@ -158,6 +159,12 @@ void LayaRerank::preload(const Config& config) {
     if (config.laya.enable) get_model(config);
 }
 
+void LayaRerank::set_capture(CaptureFn capture) {
+    State& s = state();
+    std::lock_guard<std::mutex> lk(s.mu);
+    s.capture = std::move(capture);
+}
+
 LayaRerankStats LayaRerank::stats() const {
     State& s = state();
     std::lock_guard<std::mutex> lk(s.mu);
@@ -168,16 +175,9 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
                        TranslationResult& result) {
     const auto& lc = config.laya;
     if (!lc.enable || result.entries.size() < 2) return false;
-    auto model = get_model(config);
-    if (!model) return false;
 
-    // 1. Candidates comparable with the first one: same consumed input span and the same
-    //    number of characters (homophones of the same syllables). Longer completions such as
-    //    "今天是" for "jintian" keep their positions; the model was not trained on them.
-    const TextSelectionAction* head = text_action(result.entries[0]);
-    if (!head || head->consumed_input_bytes == 0 || head->consumed_input_bytes > input.size())
-        return false;
-    const size_t head_chars = laya::utf8_chars(result.entries[0].candidate.text).size();
+    // 1. The candidates covering the whole input, any length (显示 / 西安市, 今天 / 今天是).
+    //    Candidates for part of the input (飘 for "piaol") keep their places.
     // The model compares the first 2 * page_size candidates (the engine fetches that many for
     // the first page and shows page_size of them).
     const size_t limit = (std::min)(result.entries.size(),
@@ -185,14 +185,13 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     std::vector<size_t> idx;
     for (size_t i = 0; i < limit; ++i) {
         const TextSelectionAction* a = text_action(result.entries[i]);
-        if (a && a->consumed_input_bytes == head->consumed_input_bytes &&
-            laya::utf8_chars(result.entries[i].candidate.text).size() == head_chars)
+        if (a && a->consumed_input_bytes == input.size() && !result.entries[i].candidate.text.empty())
             idx.push_back(i);
     }
     if (static_cast<int>(idx.size()) < (std::max)(2, lc.min_candidates)) return false;
 
     // 2. Score with the model (cached).
-    const std::string pinyin = pinyin_for_model(input.substr(0, head->consumed_input_bytes));
+    const std::string pinyin = pinyin_for_model(input);
     const std::string ctx = laya::utf8_tail(context, static_cast<size_t>((std::max)(0, lc.context_chars)));
     std::vector<std::string> texts;
     std::string key = ctx + '\x1f' + pinyin;
@@ -202,6 +201,16 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     }
 
     State& s = state();
+    {
+        CaptureFn capture;
+        {
+            std::lock_guard<std::mutex> lk(s.mu);
+            capture = s.capture;
+        }
+        if (capture && !capture(ctx, input, texts)) return false;
+    }
+    auto model = get_model(config);
+    if (!model) return false;
     std::vector<size_t> order;
     {
         std::lock_guard<std::mutex> lk(s.mu);
@@ -230,16 +239,14 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
         }
     }
 
-    // 3. The model's pick takes the group's first slot (marked as recommended); the others keep
-    //    the translator's (frequency) order in the remaining slots.
+    // 3. The model's pick moves to the group's first slot (marked as recommended); every other
+    //    entry, partial-input ones included, keeps its order behind it.
     const size_t top = order.front();
     if (top != 0) {
-        std::vector<CandidateEntry> group;
-        group.reserve(idx.size());
-        group.push_back(result.entries[idx[top]]);
-        for (size_t k = 0; k < idx.size(); ++k)
-            if (k != top) group.push_back(result.entries[idx[k]]);
-        for (size_t j = 0; j < idx.size(); ++j) result.entries[idx[j]] = std::move(group[j]);
+        CandidateEntry pick = std::move(result.entries[idx[top]]);
+        result.entries.erase(result.entries.begin() + static_cast<std::ptrdiff_t>(idx[top]));
+        result.entries.insert(result.entries.begin() + static_cast<std::ptrdiff_t>(idx[0]),
+                              std::move(pick));
         std::lock_guard<std::mutex> lk(s.mu);
         ++s.stats.reordered;
     }

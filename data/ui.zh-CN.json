@@ -20,7 +20,7 @@
     "general.pinyin_style": "拼音方式:",
     "general.full_pinyin": "全拼",
     "general.initials": "首字母",
-    "general.pinyin_style_hint": "全拼也能识别首字母简拼；首字母模式下每个字母对应一个字",
+    "general.pinyin_style_hint": "全拼也能识别首字母简拼和混合输入（如 wsyige）；首字母模式下每个字母对应一个字",
     "general.theme": "主题:",
     "general.light": "浅色",
     "general.dark": "深色",

@@ -46,6 +46,19 @@ TEST(PinyinInitials, each_syllable_matches_one_typed_initial) {
     ASSERT_TRUE(cxxime::pinyin_matches_initials("chsh", "chang:shi"));
 }
 
+TEST(PinyinInitials, mixed_input_takes_each_syllable_in_full_or_as_its_initial) {
+    ASSERT_TRUE(cxxime::pinyin_matches_mixed("wsyige", "wo:shi:yi:ge"));
+    ASSERT_TRUE(cxxime::pinyin_matches_mixed("wshiyige", "wo:shi:yi:ge"));
+    ASSERT_TRUE(cxxime::pinyin_matches_mixed("woshiyg", "wo:shi:yi:ge"));
+    ASSERT_TRUE(cxxime::pinyin_matches_mixed("wsyg", "wo:shi:yi:ge"));
+    ASSERT_TRUE(cxxime::pinyin_matches_mixed("zhgren", "zhong:guo:ren"));
+    // A full syllable must be the word's syllable; every syllable is typed.
+    ASSERT_TRUE(!cxxime::pinyin_matches_mixed("wsyige", "wo:shi:yi:gei"));
+    ASSERT_TRUE(!cxxime::pinyin_matches_mixed("wsyige", "wu:suo:yi:gui"));
+    ASSERT_TRUE(!cxxime::pinyin_matches_mixed("wsyi", "wo:shi:yi:ge"));
+    ASSERT_TRUE(!cxxime::pinyin_matches_mixed("wsyigex", "wo:shi:yi:ge"));
+}
+
 TEST(PinyinInitials, full_syllables_and_other_lengths_do_not_match) {
     // A full syllable is not an initial ("xian" is four initials).
     ASSERT_TRUE(!cxxime::pinyin_matches_initials("xian", "xian"));

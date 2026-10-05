@@ -67,6 +67,30 @@ PathMatchTier classify_path(const SegmentedPath& path) {
     return has_fuzzy ? PathMatchTier::kFuzzy : PathMatchTier::kNormal;
 }
 
+// An initial typed before a full syllable ("wsyige": w, s, then yi, ge). Each initial expands
+// to all its syllables, so the enumerated paths (kMaxPaths) rarely reach the intended one;
+// such inputs are also looked up by their initials (lookup_mixed_by_initials).
+bool has_initial_before_full_syllable(const SegmentedPath& path) {
+    bool seen_abbreviation = false;
+    for (uint8_t type : path.spelling_types) {
+        if (type == kAbbreviation) {
+            seen_abbreviation = true;
+        } else if (seen_abbreviation && type <= kFuzzySpelling) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string initials_key(const SegmentedPath& path) {
+    std::string key;
+    for (const std::string& syllable : path.syllables) {
+        if (syllable.empty()) return {};
+        key.push_back(syllable[0]);
+    }
+    return key;
+}
+
 std::size_t candidate_syllable_count(const Candidate& candidate) {
     if (candidate.syllables.empty()) {
         return 0;
@@ -856,6 +880,38 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         // A word reached through several paths keeps its best rank (exact over fuzzy).
         for (auto& c : candidates) {
             merged.offer_unique(std::move(c));
+        }
+    }
+
+    // Full pinyin mixed with initials typed first ("wsyige" -> 我是一个): the words under the
+    // initials ("wsyg") whose syllables fit the input, full where typed in full.
+    if (pinyin_scheme() == PinyinSchemeKind::kFullPinyin && !pinyin_query_policy_.initials_only &&
+        !deadline_hit) {
+        static constexpr size_t kMaxMixedKeys = 3;
+        static constexpr int kMixedFetch = 64;
+        std::vector<std::string> keys;
+        for (size_t i = 0; i < segment_result.paths.size() && keys.size() < kMaxMixedKeys; ++i) {
+            const auto& path = segment_result.paths[i];
+            if (!path_consumes_entire_input(pinyin, path) ||
+                !has_initial_before_full_syllable(path)) {
+                continue;
+            }
+            std::string key = initials_key(path);
+            if (key.size() < 2 || std::find(keys.begin(), keys.end(), key) != keys.end()) {
+                continue;
+            }
+            keys.push_back(std::move(key));
+        }
+        for (const std::string& key : keys) {
+            IndexedFastResult found = lookup_indexed_fast(key, kMixedFetch, nullptr);
+            for (auto& candidate : found.candidates) {
+                if (!pinyin_matches_mixed(pinyin, candidate.syllables)) {
+                    continue;
+                }
+                rank_fallback_candidate(candidate, PathMatchTier::kMixed, key.size());
+                candidate.input_code = pinyin;
+                merged.offer_unique(std::move(candidate));
+            }
         }
     }
 

@@ -38,12 +38,30 @@ bool match_initials(std::string_view input, const std::vector<std::string_view>&
            match_initials(input, syllables, input_pos + 2, syllable_index + 1);
 }
 
-}  // namespace
-
-bool pinyin_matches_initials(std::string_view input, std::string_view syllables) {
-    if (input.empty() || syllables.empty()) {
+bool match_mixed(std::string_view input, const std::vector<std::string_view>& syllables,
+                 size_t input_pos, size_t syllable_index) {
+    if (syllable_index == syllables.size()) {
+        return input_pos == input.size();
+    }
+    const std::string_view syllable = syllables[syllable_index];
+    if (input_pos >= input.size() || syllable.empty() || input[input_pos] != syllable[0]) {
         return false;
     }
+    // The whole syllable typed.
+    if (input.substr(input_pos, syllable.size()) == syllable &&
+        match_mixed(input, syllables, input_pos + syllable.size(), syllable_index + 1)) {
+        return true;
+    }
+    // Its initial: one letter, or zh/ch/sh.
+    if (match_mixed(input, syllables, input_pos + 1, syllable_index + 1)) {
+        return true;
+    }
+    return syllable.size() >= 2 && syllable[1] == 'h' && input_pos + 1 < input.size() &&
+           input[input_pos + 1] == 'h' && is_initial_span(syllable, 2) &&
+           match_mixed(input, syllables, input_pos + 2, syllable_index + 1);
+}
+
+std::vector<std::string_view> split_syllables(std::string_view syllables) {
     std::vector<std::string_view> parts;
     size_t begin = 0;
     while (begin <= syllables.size()) {
@@ -54,6 +72,24 @@ bool pinyin_matches_initials(std::string_view input, std::string_view syllables)
         parts.push_back(syllables.substr(begin, end - begin));
         begin = end + 1;
     }
+    return parts;
+}
+
+}  // namespace
+
+bool pinyin_matches_mixed(std::string_view input, std::string_view syllables) {
+    if (input.empty() || syllables.empty()) {
+        return false;
+    }
+    const std::vector<std::string_view> parts = split_syllables(syllables);
+    return parts.size() <= input.size() && match_mixed(input, parts, 0, 0);
+}
+
+bool pinyin_matches_initials(std::string_view input, std::string_view syllables) {
+    if (input.empty() || syllables.empty()) {
+        return false;
+    }
+    const std::vector<std::string_view> parts = split_syllables(syllables);
     return parts.size() <= input.size() && match_initials(input, parts, 0, 0);
 }
 

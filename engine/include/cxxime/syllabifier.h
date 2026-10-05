@@ -52,6 +52,9 @@ struct SegmentResult {
 // initial, each typed as its first letter or, for zh/ch/sh, as the two letters ("zgr" and
 // "zhgr" both match zhong:guo:ren).
 bool pinyin_matches_initials(std::string_view input, std::string_view syllables);
+// Full pinyin mixed with initials: each syllable ("wo:shi:yi:ge") is typed in full or as its
+// initial (one letter, or zh/ch/sh), e.g. "wsyige", "woshiyg", "wshiyige".
+bool pinyin_matches_mixed(std::string_view input, std::string_view syllables);
 
 struct SyllabifierOptions {
     bool enable_fuzzy = true;

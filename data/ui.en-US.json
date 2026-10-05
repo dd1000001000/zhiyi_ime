@@ -20,7 +20,7 @@
     "general.pinyin_style": "Pinyin style:",
     "general.full_pinyin": "Full pinyin",
     "general.initials": "Initials",
-    "general.pinyin_style_hint": "Full pinyin also accepts initials; in initials mode each letter is one character",
+    "general.pinyin_style_hint": "Full pinyin also accepts initials and mixes (wsyige); in initials mode each letter is one character",
     "general.theme": "Theme:",
     "general.light": "Light",
     "general.dark": "Dark",

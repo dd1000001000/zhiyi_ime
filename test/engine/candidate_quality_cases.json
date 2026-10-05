@@ -19,6 +19,39 @@
       "require_cache_hit": true
     },
     {
+      "id": "pinyin-mixed-initials-first-wsyige",
+      "mode": "pinyin",
+      "input": "wsyige",
+      "contains": [
+        { "text": "我是一个", "max_rank": 1 }
+      ],
+      "expect_sources": {
+        "我是一个": "pinyin"
+      }
+    },
+    {
+      "id": "pinyin-mixed-initials-first-wshiyige",
+      "mode": "pinyin",
+      "input": "wshiyige",
+      "contains": [
+        { "text": "我是一个", "max_rank": 1 }
+      ],
+      "expect_sources": {
+        "我是一个": "pinyin"
+      }
+    },
+    {
+      "id": "pinyin-mixed-initials-first-zgren",
+      "mode": "pinyin",
+      "input": "zgren",
+      "contains": [
+        { "text": "中国人", "max_rank": 1 }
+      ],
+      "expect_sources": {
+        "中国人": "pinyin"
+      }
+    },
+    {
       "id": "pinyin-mixed-nhao-prefers-complete-two-syllable-word",
       "mode": "pinyin",
       "input": "nhao",

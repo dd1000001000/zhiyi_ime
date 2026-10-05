@@ -45,5 +45,27 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int) {
         LocalFree(argv);
     }
 
-    return cxxime::settings::EditorApp::run(hInst, dpiScale, initialPanel);
+    // One settings window: a second start (e.g. the installer's finish page after an update,
+    // which also opens settings itself) brings the open one forward instead.
+    HANDLE instance = CreateMutexW(nullptr, FALSE, L"Local\\ZhiyiIME.Settings.Instance");
+    if (instance && GetLastError() == ERROR_ALREADY_EXISTS) {
+        for (int attempt = 0; attempt < 30; ++attempt) {
+            HWND existing = FindWindowW(cxxime::kSettingsWindowClass, nullptr);
+            if (existing) {
+                if (IsIconic(existing)) ShowWindow(existing, SW_RESTORE);
+                SetForegroundWindow(existing);
+                if (initialPanel != cxxime::SettingsPanel::kInput) {
+                    PostMessageW(existing, RegisterWindowMessageW(cxxime::kSettingsNavigateMessage),
+                                 static_cast<WPARAM>(initialPanel), 0);
+                }
+                break;
+            }
+            Sleep(100);  // still starting
+        }
+        CloseHandle(instance);
+        return 0;
+    }
+    const int result = cxxime::settings::EditorApp::run(hInst, dpiScale, initialPanel);
+    if (instance) CloseHandle(instance);
+    return result;
 }

@@ -163,7 +163,11 @@ cxxime::KeyboardShortcut TextService::_switch_key(int slot) const {
 // The key state of the message being handled (GetKeyState), so a press is recognized while
 // Windows handles its hotkey.
 int TextService::_held_switch_key() const {
-    auto down = [](int key) { return (GetKeyState(key) & 0x8000) != 0; };
+    // Also the physical state: some programs (Chromium) see the hotkey before the thread's
+    // key state is updated.
+    auto down = [](int key) {
+        return (GetKeyState(key) & 0x8000) != 0 || (GetAsyncKeyState(key) & 0x8000) != 0;
+    };
     for (int slot = 0; slot < 4; ++slot) {
         const cxxime::KeyboardShortcut key = _switch_key(slot);
         if (!key.enabled() || !down(static_cast<int>(key.virtual_key))) continue;

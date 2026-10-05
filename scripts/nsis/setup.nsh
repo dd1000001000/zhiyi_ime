@@ -425,6 +425,9 @@ FunctionEnd
 
 Function FinishPageShow
     StrCpy $InstallLockDetailsVisible 0
+    ${If} $UpdateMode == 1
+        ShowWindow $mui.FinishPage.Run ${SW_HIDE}  ; settings already opened (FinishPagePre)
+    ${EndIf}
     StrCmp $InstallLockNotice "1" finish_page_occupied
     IfRebootFlag finish_page_reboot finish_page_done
 

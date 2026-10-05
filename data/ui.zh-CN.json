@@ -90,7 +90,7 @@
     "update.disk_failed": "无法保存安装包：磁盘空间不足或没有权限。",
     "update.install_cancelled": "已取消安装，可以再次点击“立即更新”。",
     "update.launch_failed": "无法启动安装程序。",
-    "update.updated": "已更新到 {0}。",
+    "update.updated": "已更新到 {0}。已经打开的程序要重新打开才会用上新版本。",
     "update.prompt_main": "知意输入法可以更新到 {0}（当前 {1}）",
     "update.prompt_later": "稍后提醒",
     "update.prompt_skip": "跳过这个版本",

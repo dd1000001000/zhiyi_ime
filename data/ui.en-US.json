@@ -90,7 +90,7 @@
     "update.disk_failed": "Could not save the installer: disk full or no permission.",
     "update.install_cancelled": "Installation cancelled. Click \"Update now\" to try again.",
     "update.launch_failed": "Could not start the installer.",
-    "update.updated": "Updated to {0}.",
+    "update.updated": "Updated to {0}. Programs already open use the new version after they are reopened.",
     "update.prompt_main": "Zhiyi IME {0} is available (you have {1})",
     "update.prompt_later": "Remind me later",
     "update.prompt_skip": "Skip this version",

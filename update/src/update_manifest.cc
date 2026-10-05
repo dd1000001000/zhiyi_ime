@@ -155,5 +155,33 @@ void clean_downloads(const std::wstring& directory, const std::wstring& keep) {
     }
 }
 
+void clean_installed_downloads(const std::wstring& directory, const std::string& current_version) {
+    std::error_code error;
+    for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
+        std::wstring name = entry.path().filename().wstring();
+        if (!entry.is_regular_file(error)) continue;
+        if (name.size() > 5 && name.compare(name.size() - 5, 5, L".part") == 0)
+            name.resize(name.size() - 5);
+        const std::wstring prefix = L"zhiyi-v", suffix = L"-setup.exe";
+        if (name.size() <= prefix.size() + suffix.size() || name.rfind(prefix, 0) != 0 ||
+            name.compare(name.size() - suffix.size(), suffix.size(), suffix) != 0)
+            continue;
+        const std::wstring wide = name.substr(prefix.size(), name.size() - prefix.size() - suffix.size());
+        std::string version;
+        for (const wchar_t ch : wide) {
+            if (ch > 0x7f) {
+                version.clear();
+                break;
+            }
+            version.push_back(static_cast<char>(ch));
+        }
+        installer::VersionOrder order;
+        if (version.empty() || !installer::compare_semantic_versions(version, current_version, &order) ||
+            order == installer::VersionOrder::kNewer)
+            continue;
+        std::filesystem::remove(entry.path(), error);
+    }
+}
+
 }  // namespace update
 }  // namespace cxxime

@@ -145,6 +145,7 @@ void EditorApp::init_update() {
         state.pending_version.clear();  // else the installation did not finish
         update::write_state(state);
     }
+    update::clean_installed_downloads(update::download_directory(), CXXIME_VERSION_STRING);
 }
 
 void EditorApp::start_update_check(bool automatic) {

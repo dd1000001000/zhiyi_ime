@@ -96,6 +96,10 @@ bool launch_installer(const std::wstring& path, const std::string& sha256, HWND 
 std::wstring download_directory();
 // Deletes downloaded installers except `keep` (a file name; empty: all).
 void clean_downloads(const std::wstring& directory, const std::wstring& keep = {});
+// Deletes downloaded installers (and partial downloads) of `current_version` or older. Run at
+// every settings start: right after an update the installer that opened settings may still be
+// running, so its file cannot be deleted yet.
+void clean_installed_downloads(const std::wstring& directory, const std::string& current_version);
 
 // %USERPROFILE%\zhiyi\update-state.json: a version the user skipped, and the version being
 // installed (so the next settings start can say it was updated).

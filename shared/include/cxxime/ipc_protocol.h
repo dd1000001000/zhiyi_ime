@@ -153,6 +153,10 @@ enum class IPCCommand : uint32_t {
     // The program and window title of the focused input (search_query: program file name,
     // search_result: window title, UTF-8). Sent only while input collection is allowed.
     SET_INPUT_TARGET = 28,
+    // The pinyin style (full pinyin / initials) or the English style (word completion /
+    // letter by letter), from the taskbar menu. candidate_index: bit 0 selects the English
+    // style, bit 1 is the value (initials, word completion).
+    SET_INPUT_STYLE = 29,
 };
 
 enum class IPCStatus : uint32_t {

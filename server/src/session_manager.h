@@ -174,6 +174,11 @@ public:
     std::pair<cxxime::IPCStatus, cxxime::ImeStatus> toggle_shape(uint32_t id);
     std::pair<cxxime::IPCStatus, cxxime::ImeStatus> toggle_punct(uint32_t id);
     std::pair<cxxime::IPCStatus, cxxime::ImeStatus> switch_input_mode(uint32_t id, cxxime::InputMode mode);
+    // Pinyin style (english_style false: initials) or English style (true: word completion),
+    // shared by all sessions and saved like the style shortcut.
+    std::pair<cxxime::IPCStatus, cxxime::ImeStatus> set_input_style(uint32_t id,
+                                                                   bool english_style,
+                                                                   bool value);
     cxxime::IPCStatus sync_ascii_mode(uint32_t id, bool ascii_mode);
     std::pair<cxxime::IPCStatus, cxxime::ImeStatus> sync_caps_lock(uint32_t id, bool caps_lock);
 

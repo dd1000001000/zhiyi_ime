@@ -41,18 +41,6 @@ struct Theme {
     std::wstring font_name = L"Microsoft YaHei UI";
 };
 
-struct StatusTheme {
-    Color back{243, 243, 243, 255};
-    Color border{200, 200, 200, 255};
-    Color inactive_back{232, 232, 232, 200};
-    Color inactive_text{72, 72, 72, 255};
-    Color pinyin_mode_text{42, 102, 173, 255};
-    Color wubi_mode_text{179, 68, 63, 255};
-    Color mixed_mode_text{15, 118, 110, 255};
-    Color separator{212, 212, 212, 255};
-    Color hover_tint{0, 0, 0, 255};  // buttons darken (light) or lighten (dark) under the mouse
-};
-
 struct CandidateRect {
     int index;
     std::string text;
@@ -74,8 +62,6 @@ Theme get_theme(const std::string& scheme_name);
 
 struct Config;
 Theme build_theme_from_config(const Config& cfg);
-// The status bar follows the candidate window: dark when its background is dark.
-StatusTheme build_status_theme_from_config(const Config& cfg);
 
 struct LayoutConfig;
 enum class CandidateHoverTarget { None, Candidate, PreviousPage, NextPage };

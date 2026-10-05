@@ -46,7 +46,9 @@ enum class UiOwnership : std::uint32_t {
 enum class UiSnapshotFlag : std::uint32_t {
     kComposing = 1u << 0,
     kCandidateVisible = 1u << 1,
-    kStatusVisible = 1u << 2,
+    // Set by input method modules before 0.7.5 (the removed floating status window);
+    // accepted and ignored.
+    kReservedStatusVisible = 1u << 2,
     kHasCaret = 1u << 3,
     kHasPreedit = 1u << 4,
     kHasCandidates = 1u << 5,
@@ -124,17 +126,12 @@ enum class UiCommandType : std::uint32_t {
     kSelectCandidate = 1,
     kPagePrevious = 2,
     kPageNext = 3,
-    kToggleChinese = 4,
-    kToggleShape = 5,
-    kTogglePunct = 6,
-    kOpenSettings = 7,
-    kToggleStatusWindow = 8,
+    // 4 - 8 and 14 were the floating status window's buttons and menu.
     kCommitComposition = 9,
     kCancelComposition = 10,
     kSwitchInputMode = 11,
     kOpenDictionary = 12,
     kOpenAbout = 13,
-    kMenuCommand = 14,
     kRefreshInputIndicator = 15,
 };
 

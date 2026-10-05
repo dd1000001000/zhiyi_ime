@@ -56,21 +56,21 @@ TEST(ConfigWriteCoordinator, batches_ordered_patches_without_dropping_fields) {
         apply_count.fetch_add(1);
     }));
 
-    ASSERT_TRUE(coordinator.enqueue_patch(R"({"status_window":{"enable":false}})"));
-    ASSERT_TRUE(coordinator.enqueue_patch(R"({"status_window":{"x":120}})"));
-    ASSERT_TRUE(coordinator.enqueue_patch(R"({"status_window":{"y":240}})"));
+    ASSERT_TRUE(coordinator.enqueue_patch(R"({"candidate_window":{"enable":false}})"));
+    ASSERT_TRUE(coordinator.enqueue_patch(R"({"candidate_window":{"x":120}})"));
+    ASSERT_TRUE(coordinator.enqueue_patch(R"({"candidate_window":{"y":240}})"));
     std::string snapshot;
     unsigned long error_code = ERROR_SUCCESS;
     ASSERT_TRUE(coordinator.snapshot_user_config(&snapshot, &error_code));
     ASSERT_EQ(error_code, static_cast<unsigned long>(ERROR_SUCCESS));
     ASSERT_EQ(apply_count.load(), 1);
     ASSERT_TRUE(file_was_visible.load());
-    ASSERT_EQ(nlohmann::json::parse(snapshot)["status_window"]["x"].get<int>(), 120);
+    ASSERT_EQ(nlohmann::json::parse(snapshot)["candidate_window"]["x"].get<int>(), 120);
 
     nlohmann::json saved = read_json(user_path);
-    ASSERT_EQ(saved["status_window"]["enable"].get<bool>(), false);
-    ASSERT_EQ(saved["status_window"]["x"].get<int>(), 120);
-    ASSERT_EQ(saved["status_window"]["y"].get<int>(), 240);
+    ASSERT_EQ(saved["candidate_window"]["enable"].get<bool>(), false);
+    ASSERT_EQ(saved["candidate_window"]["x"].get<int>(), 120);
+    ASSERT_EQ(saved["candidate_window"]["y"].get<int>(), 240);
 
     coordinator.stop();
     DeleteFileA(user_path.c_str());
@@ -87,19 +87,20 @@ TEST(ConfigWriteCoordinator, replacement_is_an_ordering_barrier) {
     ASSERT_TRUE(coordinator.start(
         &store, [&](const std::shared_ptr<const cxxime::Config>&) { apply_count.fetch_add(1); }));
 
-    ASSERT_TRUE(coordinator.enqueue_patch(R"({"status_window":{"x":1}})"));
+    ASSERT_TRUE(coordinator.enqueue_patch(R"({"candidate_window":{"x":1}})"));
     std::string runtime_json;
     unsigned long error_code = ERROR_SUCCESS;
     ASSERT_TRUE(coordinator.submit(cxxime::UserConfigMutationKind::kReplace,
-                                   R"({"status_window":{"y":7}})", &runtime_json, &error_code));
+                                   R"({"candidate_window":{"y":7},"engine":{"page_size":4}})",
+                                   &runtime_json, &error_code));
     ASSERT_EQ(error_code, static_cast<unsigned long>(ERROR_SUCCESS));
     ASSERT_EQ(apply_count.load(), 2);
 
     nlohmann::json saved = read_json(user_path);
-    ASSERT_TRUE(!saved["status_window"].contains("x"));
-    ASSERT_EQ(saved["status_window"]["y"].get<int>(), 7);
+    ASSERT_TRUE(!saved["candidate_window"].contains("x"));
+    ASSERT_EQ(saved["candidate_window"]["y"].get<int>(), 7);
     nlohmann::json runtime = nlohmann::json::parse(runtime_json);
-    ASSERT_EQ(runtime["status_window"]["y"].get<int>(), 7);
+    ASSERT_EQ(runtime["engine"]["page_size"].get<int>(), 4);  // the runtime has known keys only
 
     coordinator.stop();
     DeleteFileA(user_path.c_str());
@@ -146,7 +147,7 @@ TEST(ConfigWriteCoordinator, prepare_rejection_does_not_persist_or_apply) {
 
     unsigned long error_code = ERROR_SUCCESS;
     ASSERT_TRUE(!coordinator.submit(cxxime::UserConfigMutationKind::kMergePatch,
-                                    R"({"status_window":{"x":99}})", nullptr, &error_code));
+                                    R"({"candidate_window":{"x":99}})", nullptr, &error_code));
     ASSERT_EQ(error_code, static_cast<unsigned long>(ERROR_HOTKEY_ALREADY_REGISTERED));
     ASSERT_EQ(prepare_count.load(), 1);
     ASSERT_EQ(apply_count.load(), 0);
@@ -172,7 +173,7 @@ TEST(ConfigWriteCoordinator, commit_failure_cancels_prepared_runtime_change) {
 
     unsigned long error_code = ERROR_SUCCESS;
     ASSERT_TRUE(!coordinator.submit(cxxime::UserConfigMutationKind::kMergePatch,
-                                    R"({"status_window":{"x":99}})", nullptr, &error_code));
+                                    R"({"candidate_window":{"x":99}})", nullptr, &error_code));
     ASSERT_TRUE(error_code != ERROR_SUCCESS);
     ASSERT_EQ(apply_count.load(), 0);
     ASSERT_EQ(cancel_count.load(), 1);
@@ -189,14 +190,14 @@ TEST(ConfigWriteCoordinator, stop_persists_accepted_patches) {
 
     ConfigWriteCoordinator coordinator;
     ASSERT_TRUE(coordinator.start(&store, [](const std::shared_ptr<const cxxime::Config>&) {}));
-    ASSERT_TRUE(coordinator.enqueue_patch(R"({"status_window":{"x":321}})"));
-    ASSERT_TRUE(coordinator.enqueue_patch(R"({"status_window":{"y":654}})"));
+    ASSERT_TRUE(coordinator.enqueue_patch(R"({"candidate_window":{"x":321}})"));
+    ASSERT_TRUE(coordinator.enqueue_patch(R"({"candidate_window":{"y":654}})"));
 
     coordinator.stop();
 
     nlohmann::json saved = read_json(user_path);
-    ASSERT_EQ(saved["status_window"]["x"].get<int>(), 321);
-    ASSERT_EQ(saved["status_window"]["y"].get<int>(), 654);
+    ASSERT_EQ(saved["candidate_window"]["x"].get<int>(), 321);
+    ASSERT_EQ(saved["candidate_window"]["y"].get<int>(), 654);
     DeleteFileA(user_path.c_str());
 }
 

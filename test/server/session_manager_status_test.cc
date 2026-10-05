@@ -386,6 +386,29 @@ TEST(SessionStatus, input_mode_shortcut_is_disabled_by_default) {
     ASSERT_EQ(result.ime_status.input_mode, cxxime::InputMode::PINYIN);
 }
 
+TEST(SessionStatus, set_input_style_from_the_taskbar_menu_is_shared) {
+    SessionManager mgr;
+    ASSERT_TRUE(mgr.initialize(setup_test_dict()));
+    const uint32_t first = mgr.create_session();
+    const uint32_t second = mgr.create_session();
+
+    auto [initials_status, initials] = mgr.set_input_style(first, false, true);
+    ASSERT_EQ(initials_status, cxxime::IPCStatus::OK);
+    ASSERT_TRUE(initials.pinyin_initials());
+    auto [letters_status, letters] = mgr.set_input_style(first, true, false);
+    ASSERT_EQ(letters_status, cxxime::IPCStatus::OK);
+    ASSERT_TRUE(!letters.english_words());
+    ASSERT_TRUE(letters.pinyin_initials());  // the other style is kept
+
+    auto [other_status, other] = mgr.get_ime_status(second);  // all sessions share it
+    ASSERT_EQ(other_status, cxxime::IPCStatus::OK);
+    ASSERT_TRUE(other.pinyin_initials());
+    ASSERT_TRUE(!other.english_words());
+
+    auto [missing_status, missing] = mgr.set_input_style(9999, false, false);
+    ASSERT_EQ(missing_status, cxxime::IPCStatus::ERR_INVALID_SESSION);
+}
+
 TEST(SessionStatus, unrelated_config_update_preserves_pending_input_mode) {
     auto initial_config = std::make_shared<cxxime::Config>();
     SessionManager mgr;
@@ -398,7 +421,7 @@ TEST(SessionStatus, unrelated_config_update_preserves_pending_input_mode) {
     ASSERT_EQ(switched.input_mode, cxxime::InputMode::WUBI);
 
     auto unrelated_config = std::make_shared<cxxime::Config>(*initial_config);
-    unrelated_config->status_window.x = 123;
+    unrelated_config->update_notify = !unrelated_config->update_notify;
     mgr.apply_config(unrelated_config);
 
     auto [unrelated_status, after_unrelated] = mgr.get_ime_status(id);

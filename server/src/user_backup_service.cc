@@ -102,18 +102,8 @@ nlohmann::json take_device_settings(nlohmann::json* config) {
         device["diagnostics"] = (*config)["diagnostics"];
         config->erase("diagnostics");
     }
-    if (config->contains("status_window") && (*config)["status_window"].is_object()) {
-        nlohmann::json& status = (*config)["status_window"];
-        for (const char* key : {"x", "y"}) {
-            if (status.contains(key)) {
-                device["status_window"][key] = status[key];
-                status.erase(key);
-            }
-        }
-        if (status.empty()) {
-            config->erase("status_window");
-        }
-    }
+    // Backups before 0.7.5 also kept the floating status window position here; ignored.
+    config->erase("status_window");
     return device;
 }
 

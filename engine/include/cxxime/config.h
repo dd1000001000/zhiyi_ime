@@ -107,14 +107,6 @@ struct Config {
     KeyboardShortcut punct_toggle_shortcut = {kKeyModifierControl, 0xBE /* VK_OEM_PERIOD */};
     KeyboardShortcut shape_toggle_shortcut = {kKeyModifierShift, 0x20 /* VK_SPACE */};
 
-    // status_window
-    struct StatusWindowConfig {
-        bool enable = true;
-        int x = -1;
-        int y = -1;
-        bool show_on_startup = true;
-    };
-    StatusWindowConfig status_window;
 
     // Users control only trace_mode; rotation and thresholds remain package settings.
     DiagnosticsConfig diagnostics;

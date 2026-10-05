@@ -370,8 +370,8 @@ private:
     bool _has_synced_ime_status() const noexcept {
         return _hasLastImeStatus.load(std::memory_order_acquire);
     }
-    void _show_status_window_if_allowed(const char* reason = "input_allowed");
-    void _hide_status_window(const char* reason);
+    // Publishes the UI presentation after an input target change (traced with `reason`).
+    void _refresh_ui_presentation(const char* reason);
     void _show_candidate_window(const char* reason);
     void _hide_candidate_window(const char* reason);
     void _hide_candidate_projection(const char* reason);

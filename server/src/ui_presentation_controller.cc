@@ -18,8 +18,6 @@
 
 #include <cxxime/candidate_presentation.h>
 #include <cxxime/candidate_window.h>
-#include <cxxime/ime_menu.h>
-#include <cxxime/status_window.h>
 #include <cxxime/ui_presentation_trace.h>
 #include <cxxime/window_position.h>
 
@@ -28,7 +26,6 @@
 namespace {
 
 constexpr DWORD kUiThreadStartTimeoutMs = 5000;
-constexpr UINT kStatusHandoffDelayMs = 150;
 
 bool ui_timeline_enabled(const cxxime::Config& config) {
     return config.diagnostics.trace_mode == cxxime::DiagnosticTraceMode::kNormal ||
@@ -100,18 +97,6 @@ std::string packet_text(const char* text, std::uint32_t length, std::size_t capa
     return std::string(text, text + safe_length);
 }
 
-cxxime::ButtonState button_state_from_snapshot(const cxxime::UiPresentationSnapshot& snapshot) {
-    cxxime::ButtonState state;
-    state.chinese_mode = snapshot.ime_status.chinese_mode();
-    state.caps_lock = snapshot.ime_status.caps_lock();
-    state.full_shape = snapshot.ime_status.full_shape();
-    state.chinese_punct = snapshot.ime_status.chinese_punct();
-    state.english_words = snapshot.ime_status.english_words();
-    state.pinyin_initials = snapshot.ime_status.pinyin_initials();
-    state.input_mode = snapshot.ime_status.input_mode;
-    return state;
-}
-
 } // namespace
 
 class UiPresentationController::Impl {
@@ -126,9 +111,6 @@ public:
         bool candidate_requested = false;
         bool candidate_visible = false;
         bool candidate_ownerless = false;
-        bool status_requested = false;
-        bool status_suppressed_fullscreen = false;
-        bool status_visible = false;
         RECT source_caret = {};
         RECT caret = {};
         bool caret_transformed = false;
@@ -136,8 +118,8 @@ public:
 
     ~Impl() { stop(); }
 
-    bool start(const std::shared_ptr<const cxxime::Config>& config, CommandHandler command_handler,
-               PositionHandler position_handler) {
+    bool start(const std::shared_ptr<const cxxime::Config>& config,
+               CommandHandler command_handler) {
         if (!config) {
             return false;
         }
@@ -159,13 +141,11 @@ public:
         pending_config_ = config;
         trace_enabled_.store(ui_timeline_enabled(*config), std::memory_order_relaxed);
         command_handler_ = std::move(command_handler);
-        position_handler_ = std::move(position_handler);
         try {
             thread_ = std::thread(&Impl::run, this);
         } catch (...) {
             running_ = false;
             command_handler_ = {};
-            position_handler_ = {};
             close_events();
             return false;
         }
@@ -205,12 +185,10 @@ public:
         clear_visible_candidate_count();
         pending_config_.reset();
         command_handler_ = {};
-        position_handler_ = {};
         close_events();
     }
 
     void present(cxxime::UiEndpointId endpoint, const cxxime::UiPresentationSnapshot* snapshot,
-                 bool preserve_status_during_handoff,
                  std::uint64_t candidate_placement_cycle,
                  std::uint64_t router_revision) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -228,7 +206,6 @@ public:
             pending_snapshot_.reset();
         }
         pending_candidate_placement_cycle_ = candidate_placement_cycle;
-        pending_status_handoff_ = !snapshot && preserve_status_during_handoff;
         ++presentation_revision_;
         SetEvent(update_event_);
     }
@@ -274,7 +251,7 @@ private:
 
     void dispatch_command(cxxime::UiCommandType type, std::uint32_t candidate_index = 0,
                           std::uint32_t value = 0) {
-        if (!rendered_presentation_ || status_handoff_active_) {
+        if (!rendered_presentation_) {
             return;
         }
         CommandHandler handler;
@@ -314,140 +291,19 @@ private:
                 return;
             }
             store_visible_candidate_count(rendered_presentation_->snapshot);
-            reconcile_current_status_window_z_order();
         });
-        status_window_.set_click_callback([this](cxxime::StatusButton button) {
-            switch (button) {
-            case cxxime::StatusButton::CHINESE_MODE:
-                dispatch_command(cxxime::UiCommandType::kToggleChinese);
-                break;
-            case cxxime::StatusButton::FULL_SHAPE:
-                dispatch_command(cxxime::UiCommandType::kToggleShape);
-                break;
-            case cxxime::StatusButton::CHINESE_PUNCT:
-                dispatch_command(cxxime::UiCommandType::kTogglePunct);
-                break;
-            case cxxime::StatusButton::SETTINGS:
-                dispatch_command(cxxime::UiCommandType::kOpenSettings);
-                break;
-            }
-        });
-        status_window_.set_menu_command_callback([this](cxxime::ImeMenuCommand command) {
-            dispatch_command(cxxime::UiCommandType::kMenuCommand, 0,
-                             static_cast<std::uint32_t>(command));
-        });
-        status_window_.set_geometry_changed_callback([this]() {
-            reconcile_current_status_window_z_order();
-        });
-        status_window_.set_position_callback([this](int x, int y) {
-            reconcile_current_status_window_z_order();
-            PositionHandler handler;
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                handler = position_handler_;
-            }
-            if (handler) {
-                handler(x, y);
-            }
-        });
-    }
-
-    void reconcile_current_status_window_z_order() {
-        if (!applying_presentation_) {
-            reconcile_status_window_z_order(
-                status_window_.is_visible(),
-                rendered_presentation_ ? &rendered_presentation_->snapshot : nullptr);
-        }
-    }
-
-    void reconcile_status_window_z_order(bool status_visible,
-                                         const cxxime::UiPresentationSnapshot* snapshot) {
-        if (!status_visible) {
-            status_window_.hide();
-            return;
-        }
-        const bool local_candidate_visible =
-            snapshot && snapshot->ownership == cxxime::UiOwnership::kExternal &&
-            has_flag(*snapshot, cxxime::UiSnapshotFlag::kCandidateVisible) &&
-            has_flag(*snapshot, cxxime::UiSnapshotFlag::kTsfLocalCandidate);
-        const HWND candidate = local_candidate_visible
-                ? local_candidate_window(*snapshot)
-                : (candidate_window_.is_visible() ? candidate_window_.native_handle() : nullptr);
-        if (!candidate && local_candidate_visible) {
-            // Old senders have no HWND extension. A stale or unavailable local
-            // window likewise gives us no reason to raise status over its presenter.
-            status_window_.show_preserving_z_order();
-            return;
-        }
-        if (!candidate) {
-            status_window_.show();
-            return;
-        }
-
-        // Keep a stable priority even before overlap. A TSF-local candidate can
-        // move or resize on its own UI thread without publishing a new snapshot.
-        status_window_.show_below(candidate);
     }
 
     void apply_config(const std::shared_ptr<const cxxime::Config>& config) {
         if (!config) {
             return;
         }
-        const bool is_initial_config = !current_config_;
         current_config_ = config;
         candidate_window_.set_config(*current_config_);
         candidate_window_.set_layout(current_config_->layout);
-        status_window_.set_theme(cxxime::build_status_theme_from_config(*current_config_));
-        if (is_initial_config) {
-            const bool has_saved_position = current_config_->status_window.x != -1 ||
-                                            current_config_->status_window.y != -1;
-            if (has_saved_position) {
-                status_window_.set_position(current_config_->status_window.x,
-                                            current_config_->status_window.y);
-            }
-        }
-        if (!current_config_->status_window.enable) {
-            cancel_status_handoff();
-            status_window_.hide();
-        }
-    }
-
-    void cancel_status_handoff() {
-        if (status_handoff_timer_) {
-            KillTimer(nullptr, status_handoff_timer_);
-            status_handoff_timer_ = 0;
-        }
-        status_handoff_active_ = false;
-    }
-
-    bool begin_status_handoff() {
-        if (!status_window_.is_visible()) {
-            return false;
-        }
-        if (status_handoff_timer_) {
-            KillTimer(nullptr, status_handoff_timer_);
-        }
-        status_handoff_timer_ =
-            SetTimer(nullptr, next_status_handoff_timer_++, kStatusHandoffDelayMs, nullptr);
-        status_handoff_active_ = status_handoff_timer_ != 0;
-        return status_handoff_active_;
-    }
-
-    void finish_status_handoff() {
-        if (status_handoff_timer_) {
-            KillTimer(nullptr, status_handoff_timer_);
-        }
-        status_handoff_timer_ = 0;
-        if (!status_handoff_active_) {
-            return;
-        }
-        status_handoff_active_ = false;
-        status_window_.hide();
-        rendered_presentation_.reset();
     }
 
     void apply_presentation(const std::optional<RoutedPresentation>& presentation,
-                            bool preserve_status_during_handoff,
                             std::uint64_t candidate_placement_cycle) {
         if (candidate_placement_cycle != applied_candidate_placement_cycle_) {
             candidate_window_.reset_placement();
@@ -456,31 +312,14 @@ private:
         if (!presentation) {
             candidate_window_.hide();
             clear_visible_candidate_count();
-            if (preserve_status_during_handoff && begin_status_handoff()) {
-                return;
-            }
-            cancel_status_handoff();
-            status_window_.hide();
             rendered_presentation_.reset();
             return;
         }
 
-        cancel_status_handoff();
         const cxxime::UiPresentationSnapshot& current = presentation->snapshot;
-        status_window_.update_state(button_state_from_snapshot(current));
         AppliedPresentation applied;
-        applied.status_requested = current_config_ && current_config_->status_window.enable &&
-                                   has_flag(current, cxxime::UiSnapshotFlag::kStatusVisible);
-        applied.status_suppressed_fullscreen =
-            applied.status_requested &&
-            cxxime::is_fullscreen_window(reinterpret_cast<HWND>(current.target_window));
-        applied.status_visible =
-            applied.status_requested && !applied.status_suppressed_fullscreen;
         applied.source_caret = current.caret;
         applied.caret = current.caret;
-        if (!applied.status_visible) {
-            status_window_.hide();
-        }
 
         applied.candidate_requested =
             current.ownership == cxxime::UiOwnership::kExternal &&
@@ -496,12 +335,7 @@ private:
         if (!applied.candidate_visible) {
             candidate_window_.hide();
             clear_visible_candidate_count();
-            reconcile_status_window_z_order(applied.status_visible, &current);
-            if (applied.status_visible) {
-                rendered_presentation_ = presentation;
-            } else {
-                rendered_presentation_.reset();
-            }
+            rendered_presentation_.reset();
             trace_presentation(*presentation, applied);
             return;
         }
@@ -515,12 +349,7 @@ private:
             applied.candidate_visible = false;
             candidate_window_.hide();
             clear_visible_candidate_count();
-            reconcile_status_window_z_order(applied.status_visible, &current);
-            if (applied.status_visible) {
-                rendered_presentation_ = presentation;
-            } else {
-                rendered_presentation_.reset();
-            }
+            rendered_presentation_.reset();
             trace_presentation(*presentation, applied);
             return;
         }
@@ -557,16 +386,10 @@ private:
         if (!applied.candidate_visible) {
             candidate_window_.hide();
             clear_visible_candidate_count();
-            reconcile_status_window_z_order(applied.status_visible, &current);
-            if (applied.status_visible) {
-                rendered_presentation_ = presentation;
-            } else {
-                rendered_presentation_.reset();
-            }
+            rendered_presentation_.reset();
             trace_presentation(*presentation, applied);
             return;
         }
-        reconcile_status_window_z_order(applied.status_visible, &current);
         rendered_presentation_ = presentation;
         store_visible_candidate_count(current);
         trace_presentation(*presentation, applied);
@@ -581,11 +404,8 @@ private:
         }
 
         RECT candidate_rect = {};
-        RECT status_rect = {};
         const bool candidate_rect_valid =
             applied.candidate_visible && candidate_window_.get_window_rect(&candidate_rect);
-        const bool status_rect_valid =
-            applied.status_visible && status_window_.get_window_rect(&status_rect);
         cxxime::UiPresentationTrace trace;
         const std::uint64_t applied_time_100ns = cxxime::ui_presentation_timestamp_100ns();
         trace.timestamp_100ns = applied_time_100ns;
@@ -606,18 +426,12 @@ private:
             applied.candidate_ownerless && applied.candidate_visible;
         trace.candidate_requested = applied.candidate_requested;
         trace.candidate_visible = applied.candidate_visible;
-        trace.status_requested = applied.status_requested;
-        trace.status_suppressed_fullscreen = applied.status_suppressed_fullscreen;
-        trace.status_visible = applied.status_visible;
         trace.source_caret = applied.source_caret;
         trace.caret = applied.caret;
         trace.caret_transformed = applied.caret_transformed;
         trace.candidate_rect = candidate_rect;
         trace.candidate_rect_valid = candidate_rect_valid;
         trace.candidate_dpi = candidate_window_.dpi();
-        trace.status_rect = status_rect;
-        trace.status_rect_valid = status_rect_valid;
-        trace.status_dpi = status_window_.dpi();
         cxxime::enqueue_ui_presentation_trace(trace);
     }
 
@@ -654,7 +468,6 @@ private:
         std::uint64_t config_revision = 0;
         std::uint64_t presentation_revision = 0;
         std::uint64_t candidate_placement_cycle = 0;
-        bool preserve_status_during_handoff = false;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             ResetEvent(update_event_);
@@ -663,8 +476,6 @@ private:
             config_revision = config_revision_;
             presentation_revision = presentation_revision_;
             candidate_placement_cycle = pending_candidate_placement_cycle_;
-            preserve_status_during_handoff = pending_status_handoff_;
-            pending_status_handoff_ = false;
         }
         const bool config_changed = config_revision != applied_config_revision_;
         // Window geometry callbacks must not reconcile against the previous target
@@ -675,8 +486,7 @@ private:
             applied_config_revision_ = config_revision;
         }
         if (config_changed || presentation_revision != applied_presentation_revision_) {
-            apply_presentation(snapshot, preserve_status_during_handoff,
-                               candidate_placement_cycle);
+            apply_presentation(snapshot, candidate_placement_cycle);
             applied_presentation_revision_ = presentation_revision;
         }
         applying_presentation_ = false;
@@ -696,23 +506,21 @@ private:
 
         const bool candidate_created =
             initial_config && candidate_window_.create(nullptr, *initial_config);
-        const bool status_created = status_window_.create(cxxime::StatusTheme());
-        if (candidate_created && status_created) {
+        if (candidate_created) {
             configure_window_callbacks();
             candidate_window_.hide();
-            status_window_.hide();
             apply_config(initial_config);
             applied_config_revision_ = initial_config_revision;
         }
 
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            initialization_succeeded_ = candidate_created && status_created;
+            initialization_succeeded_ = candidate_created;
             initialized_ = true;
         }
         initialized_cv_.notify_all();
 
-        if (candidate_created && status_created) {
+        if (candidate_created) {
             HANDLE handles[] = {stop_event_, update_event_};
             bool stopping = false;
             while (!stopping) {
@@ -729,11 +537,6 @@ private:
                             stopping = true;
                             break;
                         }
-                        if (message.message == WM_TIMER &&
-                            message.wParam == status_handoff_timer_) {
-                            finish_status_handoff();
-                            continue;
-                        }
                         TranslateMessage(&message);
                         DispatchMessageW(&message);
                     }
@@ -743,9 +546,7 @@ private:
             }
         }
 
-        cancel_status_handoff();
         candidate_window_.destroy();
-        status_window_.destroy();
         current_config_.reset();
         if (SUCCEEDED(com_result)) {
             CoUninitialize();
@@ -765,16 +566,11 @@ private:
     HANDLE update_event_ = nullptr;
     std::thread thread_;
     CommandHandler command_handler_;
-    PositionHandler position_handler_;
     std::shared_ptr<const cxxime::Config> pending_config_;
     std::shared_ptr<const cxxime::Config> current_config_;
     std::optional<RoutedPresentation> pending_snapshot_;
     std::optional<RoutedPresentation> rendered_presentation_;
     bool applying_presentation_ = false;
-    bool pending_status_handoff_ = false;
-    bool status_handoff_active_ = false;
-    UINT_PTR status_handoff_timer_ = 0;
-    UINT_PTR next_status_handoff_timer_ = 1;
     std::uint64_t config_revision_ = 1;
     std::uint64_t presentation_revision_ = 0;
     std::uint64_t applied_config_revision_ = 0;
@@ -790,7 +586,6 @@ private:
     std::uint64_t visible_candidate_presentation_generation_ = 0;
     std::uint32_t visible_candidate_count_ = 0;
     cxxime::CandidateWindow candidate_window_;
-    cxxime::StatusWindow status_window_;
 
 };
 
@@ -800,20 +595,17 @@ UiPresentationController::UiPresentationController()
 UiPresentationController::~UiPresentationController() = default;
 
 bool UiPresentationController::start(const std::shared_ptr<const cxxime::Config>& config,
-                                     CommandHandler command_handler,
-                                     PositionHandler position_handler) {
-    return impl_->start(config, std::move(command_handler), std::move(position_handler));
+                                     CommandHandler command_handler) {
+    return impl_->start(config, std::move(command_handler));
 }
 
 void UiPresentationController::stop() { impl_->stop(); }
 
 void UiPresentationController::present(cxxime::UiEndpointId endpoint,
                                        const cxxime::UiPresentationSnapshot* snapshot,
-                                       bool preserve_status_during_handoff,
                                        std::uint64_t candidate_placement_cycle,
                                        std::uint64_t router_revision) {
-    impl_->present(endpoint, snapshot, preserve_status_during_handoff,
-                   candidate_placement_cycle, router_revision);
+    impl_->present(endpoint, snapshot, candidate_placement_cycle, router_revision);
 }
 
 void UiPresentationController::update_config(const std::shared_ptr<const cxxime::Config>& config) {

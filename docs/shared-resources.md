@@ -28,7 +28,7 @@
 | `wubi_dict` | `shared_ptr<Dict>` | 五笔字典（必需：manifest 缺失或加载失败时服务启动失败） |
 | `spellings` | `shared_ptr<SpellingsIndex>` | Patricia trie 拼音索引 |
 | `syllabifier` | `shared_ptr<Syllabifier>` | 拼音切分器（依赖 spellings） |
-| `config` | `shared_ptr<const Config>` | 当前配置（含 engine/style/theme/layout/ascii_composer/status_window/diagnostics） |
+| `config` | `shared_ptr<const Config>` | 当前配置（含 engine/style/theme/layout/ascii_composer/diagnostics） |
 | `punct_mapping` | `shared_ptr<const PunctMapping>` | 标点映射表（从 `punctuation.json` 加载） |
 | `config_path` | `string` | 配置文件路径（用于热重载） |
 | `punct_path` | `string` | 标点映射文件路径 |

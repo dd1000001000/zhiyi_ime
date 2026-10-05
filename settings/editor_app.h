@@ -52,7 +52,7 @@ private:
     // Config <-> controls
     bool load_config();
     bool read_config_files(cxxime::Config& config, bool report_errors);
-    // Picks up changes made elsewhere since the last load (status bar, another settings window)
+    // Picks up changes made elsewhere since the last load (taskbar menu, another settings window)
     // while keeping the unsaved choices on the pages.
     void refresh_config();
     void populate_controls();

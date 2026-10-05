@@ -325,13 +325,6 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_string(j["ui"], "language", config.ui_language);
     }
 
-    if (j.contains("status_window") && j["status_window"].is_object()) {
-        auto& sw = j["status_window"];
-        load_bool(sw, "enable", config.status_window.enable);
-        load_int(sw, "x", config.status_window.x);
-        load_int(sw, "y", config.status_window.y);
-        load_bool(sw, "show_on_startup", config.status_window.show_on_startup);
-    }
 
     if (j.contains("ascii_composer") && j["ascii_composer"].is_object()) {
         auto& ac = j["ascii_composer"];
@@ -619,10 +612,6 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["theme"] = config.theme;
     j["ui"]["language"] = config.ui_language;
 
-    j["status_window"]["enable"] = config.status_window.enable;
-    j["status_window"]["x"] = config.status_window.x;
-    j["status_window"]["y"] = config.status_window.y;
-    j["status_window"]["show_on_startup"] = config.status_window.show_on_startup;
 
     if (include_diagnostics) {
         j["diagnostics"]["trace_mode"] = diagnostic_trace_mode_name(config.diagnostics.trace_mode);

@@ -71,8 +71,7 @@ bool requests_visible_ui(const cxxime::UiPresentationSnapshot& snapshot) {
     if (snapshot.ownership == cxxime::UiOwnership::kHost) {
         return true;
     }
-    return has_flag(snapshot, cxxime::UiSnapshotFlag::kCandidateVisible) ||
-           has_flag(snapshot, cxxime::UiSnapshotFlag::kStatusVisible);
+    return has_flag(snapshot, cxxime::UiSnapshotFlag::kCandidateVisible);
 }
 
 bool is_candidate_command(cxxime::UiCommandType type) {
@@ -109,26 +108,6 @@ bool belongs_to_foreground(const cxxime::UiPresentationSnapshot& snapshot) {
     const HWND target_root = GetAncestor(target, GA_ROOT);
     const HWND foreground_root = GetAncestor(foreground, GA_ROOT);
     return target_root && target_root == foreground_root;
-}
-
-bool should_preserve_status_during_handoff(const cxxime::UiPresentationSnapshot& snapshot) {
-    if (!has_flag(snapshot, cxxime::UiSnapshotFlag::kStatusVisible) ||
-        snapshot.target_window == 0) {
-        return false;
-    }
-
-    const HWND target = reinterpret_cast<HWND>(snapshot.target_window);
-    const HWND foreground = GetForegroundWindow();
-    if (!foreground || !IsWindow(target)) {
-        return false;
-    }
-
-    const HWND target_root = GetAncestor(target, GA_ROOT);
-    const HWND foreground_root = GetAncestor(foreground, GA_ROOT);
-    if (foreground_root && foreground_root == GetShellWindow()) {
-        return false;
-    }
-    return target_root && foreground_root;
 }
 
 } // namespace
@@ -206,7 +185,7 @@ public:
             router_revision = ++router_revision_;
         }
         if (handler) {
-            handler(0, nullptr, false, 0, router_revision);
+            handler(0, nullptr, 0, router_revision);
         }
     }
 
@@ -259,7 +238,7 @@ public:
             }
         }
         if (handler) {
-            handler(0, nullptr, false, 0, router_revision);
+            handler(0, nullptr, 0, router_revision);
         }
         for (const auto& entry : commands) {
             channel_.send_command(entry.first, entry.second);
@@ -307,7 +286,6 @@ private:
         cxxime::UiEndpointId endpoint = 0;
         bool publish = false;
         bool clear = false;
-        bool preserve_status_during_handoff = false;
         std::uint64_t candidate_placement_cycle = 0;
         std::uint64_t router_revision = 0;
         {
@@ -330,8 +308,6 @@ private:
                         candidate_placement_cycle = found->second.candidate_placement_cycle;
                     }
                 }
-                preserve_status_during_handoff =
-                    clear && should_preserve_status_during_handoff(previous->snapshot);
             }
             if (publish || clear) {
                 router_revision = ++router_revision_;
@@ -342,10 +318,9 @@ private:
             return;
         }
         if (publish) {
-            handler(endpoint, &presentation, false, candidate_placement_cycle, router_revision);
+            handler(endpoint, &presentation, candidate_placement_cycle, router_revision);
         } else if (clear) {
-            handler(0, nullptr, preserve_status_during_handoff, candidate_placement_cycle,
-                    router_revision);
+            handler(0, nullptr, candidate_placement_cycle, router_revision);
         }
     }
 

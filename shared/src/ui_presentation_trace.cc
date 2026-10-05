@@ -136,18 +136,12 @@ void enqueue_ui_presentation_trace(const UiPresentationTrace& trace) {
     builder.bool_field("candidate_ownerless", trace.candidate_ownerless);
     builder.bool_field("candidate_requested", trace.candidate_requested);
     builder.bool_field("candidate_visible", trace.candidate_visible);
-    builder.bool_field("status_requested", trace.status_requested);
-    builder.bool_field("status_suppressed_fullscreen", trace.status_suppressed_fullscreen);
-    builder.bool_field("status_visible", trace.status_visible);
     builder.rect_field("source_caret", trace.source_caret);
     builder.rect_field("caret", trace.caret);
     builder.bool_field("caret_transformed", trace.caret_transformed);
     builder.rect_field("candidate_rect", trace.candidate_rect);
     builder.bool_field("candidate_rect_valid", trace.candidate_rect_valid);
     builder.uint_field("candidate_dpi", trace.candidate_dpi);
-    builder.rect_field("status_rect", trace.status_rect);
-    builder.bool_field("status_rect_valid", trace.status_rect_valid);
-    builder.uint_field("status_dpi", trace.status_dpi);
     enqueue_server_trace_json(json, builder.finish());
 }
 

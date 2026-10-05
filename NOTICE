@@ -19,7 +19,9 @@ Changes made to CxxIME (2026-10):
   matching; exact English words offered in Chinese mode
   (engine/src/english_lexicon.cc, engine/src/engine.cc).
 - Three input modes (Chinese / English words / English letters) with a configurable
-  English style shortcut (settings, server session state, status window).
+  English style shortcut (settings, server session state).
+- Removed the floating status window; the right-click menu of the taskbar input indicator
+  switches the input states (tsf/src/language_bar.cpp, shared/include/cxxime/ime_menu.h).
 - Relicensed the combined work under GPL-3.0-only.
 - Renamed to 知意输入法 / Zhiyi IME with new text service and UI GUIDs, pipe, mutex,
   window class, registry, file and data directory names, and new icons.

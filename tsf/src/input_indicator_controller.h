@@ -31,10 +31,10 @@ public:
                     const cxxime::ImeStatus& initial_status,
                     ToggleChineseCallback toggle_chinese_callback,
                     MenuCommandCallback menu_command_callback,
-                    bool status_visible);
+                    bool menu_chinese);
     void shutdown();
     void update_from_status(const cxxime::ImeStatus& status);
-    void set_status_visible(bool visible);
+    void set_menu_language(bool chinese);
     bool reconcile_host_registration();
 
 private:

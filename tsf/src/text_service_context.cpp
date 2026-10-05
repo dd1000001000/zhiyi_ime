@@ -2,12 +2,7 @@
 
 #include "text_service.h"
 
-void TextService::_show_status_window_if_allowed(const char* reason) {
-    _enqueue_event_trace("ui_presentation", reason);
-    _publish_ui_presentation();
-}
-
-void TextService::_hide_status_window(const char* reason) {
+void TextService::_refresh_ui_presentation(const char* reason) {
     _enqueue_event_trace("ui_presentation", reason);
     _publish_ui_presentation();
 }

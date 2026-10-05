@@ -193,7 +193,7 @@ TSF 层（`tsf/src/text_service.cpp`）拥有独立于 QueryTrace 的追踪系�
 | 事件 | detail 示例 | 触发时机 |
 |------|------------|----------|
 | `ipc_session` | `connect_failed`, `start_failed`, `ready`, `recreated`, `heartbeat_reconnect_failed`, `heartbeat_invalid_session`, `heartbeat_failed` | IPC 连接/重连/心跳 |
-| `status_window` | `hide:focus_query_unfocused`, `input_allowed` 等显隐原因字符串 | 状态窗口显示或隐藏时传递的 reason 参数 |
+| `ui_presentation` | `show:key_edit_target`, `hide:edit_target_clear` 等原因字符串 | 输入目标变化后刷新界面呈现时传递的 reason 参数 |
 | `candidate_window` | 显隐原因字符串 | 候选窗口显示或隐藏时传递的 reason 参数 |
 | `input_context` | `allowed` 或拒绝原因（如 `context_disabled`, `no_focus` 等） | `_trace_input_decision()` 在上下文状态变化时调用，重复原因自动去重 |
 

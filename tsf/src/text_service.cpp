@@ -292,7 +292,7 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* ptim, TfClientId tid, DWORD d
                 }
             },
             [this](cxxime::ImeMenuCommand command) { _handle_ime_menu_command(command); },
-            _config.status_window.enable)) {
+            cxxime::ime_menu_uses_chinese(_config.ui_language))) {
         CXXIME_LOG(L"input_indicator event=initialize result=degraded");
     }
 
@@ -350,7 +350,6 @@ STDMETHODIMP TextService::Deactivate() {
     _emptyCompositionPlaceholderActive = false;
     clear_applied_inline_composition_text();
 
-    _hide_status_window("hide:deactivate");
     _hide_candidate_window("hide:deactivate_candidates");
     _publish_ui_presentation();
     _stop_ui_presentation_channel();

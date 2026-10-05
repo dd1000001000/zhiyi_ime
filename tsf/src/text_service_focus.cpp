@@ -164,7 +164,7 @@ void TextService::_clear_effective_edit_target(const char* source, bool target_u
     if (_uiTargetGeneration == 0) {
         ++_uiTargetGeneration;
     }
-    _hide_status_window("hide:edit_target_clear");
+    _refresh_ui_presentation("hide:edit_target_clear");
     if (target_unavailable) {
         _stop_state_poll_timer();
     } else {

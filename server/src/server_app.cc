@@ -29,21 +29,7 @@ constexpr UINT kCancelConfigMessage = WM_APP + 3;
 
 std::optional<cxxime::SettingsPanel> settings_panel_for_ui_command(
     const cxxime::UiCommand& command) {
-    if (command.type == cxxime::UiCommandType::kOpenSettings) {
-        return cxxime::SettingsPanel::kInput;
-    }
     if (command.type == cxxime::UiCommandType::kOpenDictionary) {
-        return cxxime::SettingsPanel::kDictionary;
-    }
-    if (command.type != cxxime::UiCommandType::kMenuCommand) {
-        return std::nullopt;
-    }
-
-    const auto menu_command = static_cast<cxxime::ImeMenuCommand>(command.value);
-    if (menu_command == cxxime::ImeMenuCommand::kSettings) {
-        return cxxime::SettingsPanel::kInput;
-    }
-    if (menu_command == cxxime::ImeMenuCommand::kDictionary) {
         return cxxime::SettingsPanel::kDictionary;
     }
     return std::nullopt;
@@ -248,23 +234,15 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
                 return;
             }
             ui_presentation_router_.send_command(endpoint, command);
-        },
-        [this](int x, int y) {
-            const std::string patch =
-                "{\"status_window\":{\"x\":" + std::to_string(x) +
-                ",\"y\":" + std::to_string(y) + "}}";
-            config_writer_.enqueue_patch(patch);
         });
     if (!ui_controller_started) {
         CXXIME_LOG(L"%s", L"ui_presentation event=start_controller result=degraded");
     } else if (!ui_presentation_router_.start(
                    [this](cxxime::UiEndpointId endpoint,
                           const cxxime::UiPresentationSnapshot* snapshot,
-                          bool preserve_status_during_handoff,
                           std::uint64_t candidate_placement_cycle,
                           std::uint64_t router_revision) {
                        ui_presentation_controller_.present(endpoint, snapshot,
-                                                           preserve_status_during_handoff,
                                                            candidate_placement_cycle,
                                                            router_revision);
                    })) {
@@ -551,6 +529,18 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
     case cxxime::IPCCommand::SWITCH_INPUT_MODE: {
         const auto mode = static_cast<cxxime::InputMode>(request.candidate_index);
         auto [status, ime_status] = session_mgr_.switch_input_mode(request.session_id, mode);
+        if (status != cxxime::IPCStatus::OK) {
+            response.status = status;
+            break;
+        }
+        response.ime_status = ime_status;
+        break;
+    }
+
+    case cxxime::IPCCommand::SET_INPUT_STYLE: {
+        auto [status, ime_status] = session_mgr_.set_input_style(
+            request.session_id, (request.candidate_index & 1u) != 0,
+            (request.candidate_index & 2u) != 0);
         if (status != cxxime::IPCStatus::OK) {
             response.status = status;
             break;

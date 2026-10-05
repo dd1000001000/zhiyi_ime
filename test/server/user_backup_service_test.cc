@@ -49,7 +49,7 @@ TEST(UserBackupService, exports_and_imports_settings_and_user_lexicon) {
     }));
     std::string runtime;
     ASSERT_TRUE(writer.submit(cxxime::UserConfigMutationKind::kMergePatch,
-                              R"({"status_window":{"enable":true}})", &runtime, &error));
+                              R"({"update":{"notify":true}})", &runtime, &error));
     UserBackupService service(&manager, &writer);
     const std::string backup = make_temp_path("user-backup-service.zhiyi-backup");
     DeleteFileA(backup.c_str());
@@ -81,8 +81,8 @@ TEST(UserBackupService, exports_and_imports_settings_and_user_lexicon) {
                                           {{"备份词", "beifenci"}}),
               cxxime::IPCStatus::OK);
     ASSERT_TRUE(writer.submit(cxxime::UserConfigMutationKind::kMergePatch,
-                              R"({"status_window":{"enable":false,"x":321,"y":654}})", &runtime,
-                              &error));
+                              R"({"update":{"notify":false},"diagnostics":{"trace_mode":"error"}})",
+                              &runtime, &error));
     merge_user_data_for_test(manager, {
                                           {"user_pinyin.tsv", "新词\txinci\t100\txin:ci\n"},
                                           {"user_wubi.tsv", ""},
@@ -104,9 +104,9 @@ TEST(UserBackupService, exports_and_imports_settings_and_user_lexicon) {
 
     std::ifstream config_file(user_config);
     const nlohmann::json imported_config = nlohmann::json::parse(config_file);
-    ASSERT_EQ(imported_config["status_window"]["x"].get<int>(), 321);
-    ASSERT_EQ(imported_config["status_window"]["y"].get<int>(), 654);
-    ASSERT_TRUE(imported_config["status_window"]["enable"].get<bool>());
+    // Portable settings come back; device-specific ones (diagnostics) stay as they are.
+    ASSERT_TRUE(imported_config["update"]["notify"].get<bool>());
+    ASSERT_EQ(imported_config["diagnostics"]["trace_mode"].get<std::string>(), "error");
 
     writer.stop();
     DeleteFileA(backup.c_str());
@@ -118,7 +118,7 @@ TEST(UserBackupService, imports_other_data_when_one_config_section_is_rejected) 
     {
         std::ofstream config_file(user_config, std::ios::binary);
         config_file << R"({"engine":{"candidate_learning":true},)"
-                       R"("status_window":{"enable":true}})";
+                       R"("update":{"notify":true}})";
     }
     SessionManager manager;
     ASSERT_TRUE(manager.initialize(setup_test_dict()));
@@ -138,7 +138,7 @@ TEST(UserBackupService, imports_other_data_when_one_config_section_is_rejected) 
         &store,
         [&](const std::shared_ptr<const cxxime::Config>& config) { manager.apply_config(config); },
         [](const std::shared_ptr<const cxxime::Config>& config, unsigned long* prepare_error) {
-            if (config->status_window.enable) {
+            if (config->update_notify) {
                 *prepare_error = ERROR_HOTKEY_ALREADY_REGISTERED;
                 return false;
             }
@@ -164,7 +164,7 @@ TEST(UserBackupService, imports_other_data_when_one_config_section_is_rejected) 
     std::string runtime;
     ASSERT_TRUE(writer.submit(cxxime::UserConfigMutationKind::kMergePatch,
                               R"({"engine":{"candidate_learning":false},)"
-                              R"("status_window":{"enable":false}})",
+                              R"("update":{"notify":false}})",
                               &runtime, &error));
     merge_user_data_for_test(manager, {
                                           {"user_pinyin.tsv", "新词\txinci\t100\txin:ci\n"},
@@ -188,7 +188,7 @@ TEST(UserBackupService, imports_other_data_when_one_config_section_is_rejected) 
     std::ifstream config_file(user_config);
     const nlohmann::json merged_config = nlohmann::json::parse(config_file);
     ASSERT_TRUE(merged_config["engine"]["candidate_learning"].get<bool>());
-    ASSERT_TRUE(!merged_config["status_window"]["enable"].get<bool>());
+    ASSERT_TRUE(!merged_config["update"]["notify"].get<bool>());
 
     writer.stop();
     DeleteFileA(backup.c_str());

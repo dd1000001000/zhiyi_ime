@@ -240,11 +240,11 @@ bool TextService::_ProcessKeyEvent(ITfContext* pic, WPARAM wParam, LPARAM lParam
     if (_inputFocused) {
         _update_state_poll_timer();
         if (!input_was_focused) {
-            _show_status_window_if_allowed("show:key_edit_target");
+            _refresh_ui_presentation("show:key_edit_target");
         }
     } else {
         _update_state_poll_timer();
-        _hide_status_window("hide:key_context_status_only");
+        _refresh_ui_presentation("hide:key_context_status_only");
         _hide_candidate_window("hide:key_context_status_only");
         _end_reading_ui_element("hide:key_context_status_only_reading");
         _AbortComposition();

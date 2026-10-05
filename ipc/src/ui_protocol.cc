@@ -40,7 +40,7 @@ bool valid_candidate_extent_state(CandidateExtentState state) {
 constexpr std::uint32_t kKnownSnapshotFlags =
     ui_snapshot_flag(UiSnapshotFlag::kComposing) |
     ui_snapshot_flag(UiSnapshotFlag::kCandidateVisible) |
-    ui_snapshot_flag(UiSnapshotFlag::kStatusVisible) |
+    ui_snapshot_flag(UiSnapshotFlag::kReservedStatusVisible) |
     ui_snapshot_flag(UiSnapshotFlag::kHasCaret) |
     ui_snapshot_flag(UiSnapshotFlag::kHasPreedit) |
     ui_snapshot_flag(UiSnapshotFlag::kHasCandidates) |
@@ -49,8 +49,20 @@ constexpr std::uint32_t kKnownSnapshotFlags =
     ui_snapshot_flag(UiSnapshotFlag::kTsfLocalCandidate);
 
 bool valid_command_type(UiCommandType type) {
-    return type >= UiCommandType::kSelectCandidate &&
-           type <= UiCommandType::kRefreshInputIndicator;
+    switch (type) {
+    case UiCommandType::kSelectCandidate:
+    case UiCommandType::kPagePrevious:
+    case UiCommandType::kPageNext:
+    case UiCommandType::kCommitComposition:
+    case UiCommandType::kCancelComposition:
+    case UiCommandType::kSwitchInputMode:
+    case UiCommandType::kOpenDictionary:
+    case UiCommandType::kOpenAbout:
+    case UiCommandType::kRefreshInputIndicator:
+        return true;
+    default:
+        return false;  // also the removed status window commands (4 - 8, 14)
+    }
 }
 
 bool is_valid_utf8(const char* value, std::size_t length) {

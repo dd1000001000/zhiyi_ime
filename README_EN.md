@@ -32,8 +32,8 @@ leaves your computer.
   you typed, nothing is replaced automatically. A correction picked twice takes the recommended
   slot; a word committed as typed twice (`kubectl`) is no longer corrected and completes.
 - **Switch keys**: Shift switches Chinese/English; `Ctrl+Space` switches full pinyin / initials in
-  Chinese pinyin mode and words / letters in English mode. Both are configurable; the status window
-  shows the current style (拼 / 首 / 五, 英 / a).
+  Chinese pinyin mode and words / letters in English mode. Both are configurable; right-click the
+  中/英 taskbar indicator to switch any of the input states.
 - **Mixed input**: typing a complete English word in Chinese mode (`hello`, `wechat`) offers that word
   second.
 - **Case follows what you type**: `hel` → hello, `Hel` → Hello, `HEL` → HELLO.

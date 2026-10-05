@@ -18,41 +18,75 @@
 #include "tsf_imm_mode.h"
 #include "tsf_ui_element_observer.h"
 
+// The taskbar indicator's menu (cxxime::kImeMenuItems).
 void TextService::_handle_ime_menu_command(cxxime::ImeMenuCommand command) {
-    if (command == cxxime::ImeMenuCommand::kPinyin ||
-        command == cxxime::ImeMenuCommand::kWubi ||
-        command == cxxime::ImeMenuCommand::kMixed) {
-        cxxime::InputMode mode = cxxime::InputMode::PINYIN;
-        if (command == cxxime::ImeMenuCommand::kWubi) {
-            mode = cxxime::InputMode::WUBI;
-        } else if (command == cxxime::ImeMenuCommand::kMixed) {
-            mode = cxxime::InputMode::MIXED;
-        }
-
-        CXXIME_LOG(L"menu_command: input_mode=%d, sessionId=%u",
-                   static_cast<int>(mode), _sessionId);
-        cxxime::IPCResponse response = {};
-        if (_ensure_ipc_session()) {
-            _client.switch_input_mode(_sessionId, mode, response);
-        }
-        if (response.status == cxxime::IPCStatus::OK) {
+    cxxime::ImeStatus status;
+    {
+        std::lock_guard<std::mutex> lock(_lastImeStatusMutex);
+        status = _lastImeStatus;
+    }
+    cxxime::IPCResponse response = {};
+    auto apply_status = [&](bool sent) {
+        if (sent && response.status == cxxime::IPCStatus::OK) {
             _sync_ime_status(response.ime_status);
         }
-        return;
-    }
+    };
+    auto switch_mode = [&](cxxime::InputMode mode) {
+        if (status.input_mode == mode) return true;
+        response = {};
+        const bool sent = _ensure_ipc_session() &&
+                          _client.switch_input_mode(_sessionId, mode, response);
+        apply_status(sent);
+        return sent && response.status == cxxime::IPCStatus::OK;
+    };
+    auto set_style = [&](bool english_style, bool value) {
+        response = {};
+        apply_status(_ensure_ipc_session() &&
+                     _client.set_input_style(_sessionId, english_style, value, response));
+    };
 
     switch (command) {
+    case cxxime::ImeMenuCommand::kChinese:
+    case cxxime::ImeMenuCommand::kEnglish: {
+        const bool chinese = command == cxxime::ImeMenuCommand::kChinese;
+        if (chinese == _chinese_mode) break;
+        // Like a switch key: an open composition is committed as typed.
+        if (_ensure_ipc_session() && _client.set_chinese_mode(_sessionId, chinese, response) &&
+            response.status == cxxime::IPCStatus::OK) {
+            ITfContext* context = _current_edit_context_for_composition();
+            BOOL eaten = FALSE;
+            _apply_engine_response(context, response, &eaten);
+            if (context) context->Release();
+        }
+        break;
+    }
+    case cxxime::ImeMenuCommand::kPinyin:
+    case cxxime::ImeMenuCommand::kPinyinInitials:
+        if (switch_mode(cxxime::InputMode::PINYIN)) {
+            set_style(false, command == cxxime::ImeMenuCommand::kPinyinInitials);
+        }
+        break;
+    case cxxime::ImeMenuCommand::kWubi:
+        switch_mode(cxxime::InputMode::WUBI);
+        break;
+    case cxxime::ImeMenuCommand::kMixed:
+        switch_mode(cxxime::InputMode::MIXED);
+        break;
+    case cxxime::ImeMenuCommand::kEnglishWords:
+        set_style(true, !status.english_words());
+        break;
+    case cxxime::ImeMenuCommand::kChinesePunct:
+        apply_status(_ensure_ipc_session() && _client.toggle_punct(_sessionId, response));
+        break;
+    case cxxime::ImeMenuCommand::kFullShape:
+        apply_status(_ensure_ipc_session() && _client.toggle_shape(_sessionId, response));
+        break;
     case cxxime::ImeMenuCommand::kDictionary:
         if (!_ensure_ipc_session() ||
             !_client.open_settings(_sessionId, cxxime::SettingsPanel::kDictionary)) {
             CXXIME_LOG(L"%s", L"settings_request source=tsf panel=dictionary result=0");
         }
         break;
-    case cxxime::ImeMenuCommand::kToggleStatusWindow: {
-        bool enabled = !_config.status_window.enable;
-        cxxime_tsf::set_status_window_enabled(enabled);
-        break;
-    }
     case cxxime::ImeMenuCommand::kSettings:
         if (!_ensure_ipc_session() ||
             !_client.open_settings(_sessionId, cxxime::SettingsPanel::kInput)) {
@@ -61,10 +95,6 @@ void TextService::_handle_ime_menu_command(cxxime::ImeMenuCommand command) {
         break;
     case cxxime::ImeMenuCommand::kAbout:
         show_about_dialog();
-        break;
-    case cxxime::ImeMenuCommand::kPinyin:
-    case cxxime::ImeMenuCommand::kWubi:
-    case cxxime::ImeMenuCommand::kMixed:
         break;
     }
 }
@@ -226,9 +256,6 @@ void TextService::_synchronize_activation_focus() {
         }
     }
 
-    if (_config.status_window.enable && _config.status_window.show_on_startup && _inputFocused) {
-        _show_status_window_if_allowed("show:activate_startup");
-    }
     cxxime_tsf::trace_activation_step("activate", "complete", S_OK, true);
 }
 

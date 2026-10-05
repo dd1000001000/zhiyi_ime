@@ -41,11 +41,11 @@ public:
     STDMETHODIMP AdviseSink(REFIID riid, IUnknown* punk, DWORD* pdwCookie) override;
     STDMETHODIMP UnadviseSink(DWORD dwCookie) override;
 
-    void update_icon(bool chinese_mode);
     void update_from_status(const cxxime::ImeStatus& status);
     void set_toggle_chinese_callback(ToggleChineseCallback cb);
     void set_menu_command_callback(MenuCommandCallback cb);
-    void set_status_visible(bool visible);
+    // Menu and tooltip language (the IME interface language).
+    void set_menu_language(bool chinese);
     void notify_full_update();
 
 private:
@@ -56,7 +56,7 @@ private:
     GUID _guid;
     bool _chinese_mode = true;
     bool _caps_lock = false;
-    cxxime::InputMode _input_mode = cxxime::InputMode::PINYIN;
+    cxxime::ImeStatus _status;  // the menu's check marks and the tooltip
     HICON _hIconZh = nullptr;
     HICON _hIconEn = nullptr;
     HICON _hIconCaps = nullptr;
@@ -64,7 +64,7 @@ private:
     bool _visible = true;
     ToggleChineseCallback _toggle_chinese_cb;
     MenuCommandCallback _menu_command_cb;
-    bool _status_visible = true;
+    bool _menu_chinese = true;
 };
 
 #endif // CXXIME_TSF_LANGUAGE_BAR_H_

@@ -17,7 +17,6 @@ constexpr UINT kIpcHeartbeatIntervalMs = 1500;
 constexpr auto kIpcHeartbeatInterval = std::chrono::milliseconds(kIpcHeartbeatIntervalMs);
 constexpr int kTsfIpcTimeoutMs = 800;
 constexpr UINT kStatePollFastIntervalMs = 30;
-constexpr UINT kEditTargetValidationIntervalMs = 250;
 constexpr unsigned int kEditTargetValidationFailureLimit = 2;
 constexpr UINT kInputIndicatorRefreshRetryDelaysMs[] = {100, 500, 2000, 5000};
 
@@ -310,13 +309,7 @@ void TextService::_update_state_poll_timer() {
     const bool track_candidate =
         _inputFocused && _candidatePresentation.external_window_expected() &&
         _candidatePresentation.caret_poll_pending();
-    const bool validate_edit_target =
-        _inputFocused && _effectiveContext && _effectiveEditTarget.valid() &&
-        _config.status_window.enable;
-    const UINT interval = track_candidate
-        ? kStatePollFastIntervalMs
-        : (validate_edit_target ? kEditTargetValidationIntervalMs
-                                : kIpcHeartbeatIntervalMs);
+    const UINT interval = track_candidate ? kStatePollFastIntervalMs : kIpcHeartbeatIntervalMs;
     if (_statePollTimer && _statePollIntervalMs == interval)
         return;
 

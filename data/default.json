@@ -76,12 +76,6 @@
     "ui": {
         "language": "auto"
     },
-    "status_window": {
-        "enable": true,
-        "x": -1,
-        "y": -1,
-        "show_on_startup": true
-    },
     "diagnostics": {
         "trace_mode": "off",
         "log_max_size": 8388608,

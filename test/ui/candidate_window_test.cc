@@ -9,26 +9,9 @@
 
 #include <cxxime/candidate_window.h>
 #include <cxxime/config.h>
-#include <cxxime/status_window.h>
 
 #include "support/dpi_testutil.h"
 #include "support/testutil.h"
-
-namespace {
-
-bool window_is_above(HWND upper, HWND lower) {
-    for (HWND window = GetTopWindow(nullptr); window; window = GetWindow(window, GW_HWNDNEXT)) {
-        if (window == upper) {
-            return true;
-        }
-        if (window == lower) {
-            return false;
-        }
-    }
-    return false;
-}
-
-} // namespace
 
 TEST(CandidateWindow, page_buttons_use_page_callback) {
     cxxime::Config config;
@@ -850,59 +833,6 @@ TEST(CandidateWindow, placement_survives_hide_until_explicit_reset) {
     ASSERT_EQ(reset_rect.top, reset_expected.position.y);
 
     window.destroy();
-}
-
-TEST(CandidateWindow, remains_above_visible_status_window_during_updates) {
-    test::ScopedDpiAwarenessContext dpi_awareness;
-    cxxime::Config config;
-    config.render_backend = "gdi";
-
-    cxxime::CandidatePage page;
-    cxxime::Candidate candidate;
-    candidate.text = "candidate";
-    page.candidates.push_back(candidate);
-
-    cxxime::StatusWindow status_window;
-    ASSERT_TRUE(status_window.create(cxxime::StatusTheme{}));
-    status_window.show();
-    RECT status_rect = {};
-    ASSERT_TRUE(status_window.get_window_rect(&status_rect));
-
-    cxxime::CandidateWindow candidate_window;
-    ASSERT_TRUE(candidate_window.create(nullptr, config));
-    candidate_window.update(page);
-    candidate_window.move_to_screen_position(status_rect.left, status_rect.top);
-    candidate_window.show();
-    RECT candidate_rect = {};
-    ASSERT_TRUE(candidate_window.get_window_rect(&candidate_rect));
-    RECT intersection = {};
-    ASSERT_TRUE(IntersectRect(&intersection, &candidate_rect, &status_rect) != FALSE);
-    ASSERT_TRUE(window_is_above(candidate_window.hwnd_for_test(),
-                                status_window.hwnd_for_test()));
-
-    status_window.show();
-    ASSERT_TRUE(window_is_above(status_window.hwnd_for_test(),
-                                candidate_window.hwnd_for_test()));
-
-    status_window.show_below(candidate_window.native_handle());
-    ASSERT_TRUE(window_is_above(candidate_window.hwnd_for_test(),
-                                status_window.hwnd_for_test()));
-    ASSERT_TRUE((GetWindowLongPtrW(status_window.hwnd_for_test(), GWL_EXSTYLE) &
-                 WS_EX_TOPMOST) != 0);
-
-    status_window.hide();
-    status_window.show_below(candidate_window.native_handle());
-    ASSERT_TRUE(window_is_above(candidate_window.hwnd_for_test(),
-                                status_window.hwnd_for_test()));
-
-    cxxime::ButtonState state;
-    state.full_shape = true;
-    status_window.update_state(state);
-    ASSERT_TRUE(window_is_above(candidate_window.hwnd_for_test(),
-                                status_window.hwnd_for_test()));
-
-    candidate_window.destroy();
-    status_window.destroy();
 }
 
 RUN_ALL_TESTS()

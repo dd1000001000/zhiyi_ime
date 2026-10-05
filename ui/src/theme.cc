@@ -102,23 +102,4 @@ Theme get_theme(const std::string& name) {
 Theme make_light_theme() { return get_theme("aqua"); }
 Theme make_dark_theme()  { return get_theme("dark_temple"); }
 
-StatusTheme build_status_theme_from_config(const Config& cfg) {
-    const Color back = build_theme_from_config(cfg).background;
-    const double luma = 0.2126 * back.r + 0.7152 * back.g + 0.0722 * back.b;
-    if (luma >= 128.0) {
-        return StatusTheme{};
-    }
-    StatusTheme dark;
-    dark.back = {43, 43, 43, 255};
-    dark.border = {72, 72, 72, 255};
-    dark.inactive_back = {60, 60, 60, 220};
-    dark.inactive_text = {228, 228, 228, 255};
-    dark.pinyin_mode_text = {122, 172, 238, 255};
-    dark.wubi_mode_text = {238, 128, 118, 255};
-    dark.mixed_mode_text = {86, 204, 188, 255};
-    dark.separator = {84, 84, 84, 255};
-    dark.hover_tint = {255, 255, 255, 255};
-    return dark;
-}
-
 } // namespace cxxime

@@ -51,6 +51,10 @@ public:
     bool toggle_shape(uint32_t session_id, IPCResponse& response);
     bool toggle_punct(uint32_t session_id, IPCResponse& response);
     bool switch_input_mode(uint32_t session_id, InputMode mode, IPCResponse& response);
+    // The pinyin style (english_style false: initials on/off) or the English style
+    // (english_style true: word completion on/off).
+    bool set_input_style(uint32_t session_id, bool english_style, bool value,
+                         IPCResponse& response);
     bool get_status(uint32_t session_id, IPCResponse& response);
     bool sync_caps_lock(uint32_t session_id, bool caps_lock, IPCResponse& response);
     bool ping(IPCResponse* response = nullptr);

@@ -18,21 +18,6 @@ bool has_flag(const cxxime::UiPresentationSnapshot& snapshot, cxxime::UiSnapshot
     return (snapshot.flags & cxxime::ui_snapshot_flag(flag)) != 0;
 }
 
-bool host_suppresses_status_window(bool ui_element_only,
-                                   bool immersive_mode,
-                                   std::uint64_t target_window,
-                                   cxxime::UiOwnership ownership) {
-    if (ui_element_only || ownership == cxxime::UiOwnership::kHost) {
-        return true;
-    }
-    if (!immersive_mode) {
-        return false;
-    }
-    const HWND window = reinterpret_cast<HWND>(target_window);
-    const HWND root = window ? GetAncestor(window, GA_ROOT) : nullptr;
-    return !root || root == window;
-}
-
 cxxime::UiOwnership ui_ownership(cxxime_tsf::CandidateOwnership ownership) {
     switch (ownership) {
     case cxxime_tsf::CandidateOwnership::kExternal:
@@ -195,18 +180,6 @@ void TextService::_publish_ui_presentation() {
         snapshot.flags |= cxxime::ui_snapshot_flag(cxxime::UiSnapshotFlag::kImmersiveMode);
     }
     snapshot.target_window = _effectiveEditTarget.view_window;
-    // A top-level immersive target includes surfaces such as Start/SearchUI.
-    // Framed immersive applications retain CxxIME's normal status presentation.
-    const bool host_suppresses_status = host_suppresses_status_window(
-        (_activateFlags & TF_TMF_UIELEMENTENABLEDONLY) != 0, is_immersive_mode(),
-        snapshot.target_window, snapshot.ownership);
-    const bool status_visible =
-        _activated && _inputFocused && _effectiveEditTarget.valid() &&
-        _has_synced_ime_status() && _config.status_window.enable &&
-        !host_suppresses_status;
-    if (status_visible) {
-        snapshot.flags |= cxxime::ui_snapshot_flag(cxxime::UiSnapshotFlag::kStatusVisible);
-    }
 
     if (cxxime_tsf::is_valid_caret_rect(_caretRect)) {
         snapshot.caret = _caretRect;
@@ -423,24 +396,6 @@ void TextService::_handle_ui_command(const cxxime::UiCommand& command) {
     case cxxime::UiCommandType::kPageNext:
         navigate_candidate_page_from_ui(false);
         break;
-    case cxxime::UiCommandType::kToggleChinese:
-        if (_ensure_ipc_session() && _client.toggle_chinese(_sessionId, response) &&
-            response.status == cxxime::IPCStatus::OK) {
-            _sync_ime_status(response.ime_status);
-        }
-        break;
-    case cxxime::UiCommandType::kToggleShape:
-        if (_ensure_ipc_session() && _client.toggle_shape(_sessionId, response) &&
-            response.status == cxxime::IPCStatus::OK) {
-            _sync_ime_status(response.ime_status);
-        }
-        break;
-    case cxxime::UiCommandType::kTogglePunct:
-        if (_ensure_ipc_session() && _client.toggle_punct(_sessionId, response) &&
-            response.status == cxxime::IPCStatus::OK) {
-            _sync_ime_status(response.ime_status);
-        }
-        break;
     case cxxime::UiCommandType::kSwitchInputMode:
         if (_ensure_ipc_session() &&
             _client.switch_input_mode(_sessionId, static_cast<cxxime::InputMode>(command.value),
@@ -449,22 +404,11 @@ void TextService::_handle_ui_command(const cxxime::UiCommand& command) {
             _sync_ime_status(response.ime_status);
         }
         break;
-    case cxxime::UiCommandType::kToggleStatusWindow:
-        cxxime_tsf::set_status_window_enabled(!_config.status_window.enable);
-        break;
-    case cxxime::UiCommandType::kOpenSettings:
-        _handle_ime_menu_command(cxxime::ImeMenuCommand::kSettings);
-        break;
     case cxxime::UiCommandType::kOpenDictionary:
         _handle_ime_menu_command(cxxime::ImeMenuCommand::kDictionary);
         break;
     case cxxime::UiCommandType::kOpenAbout:
         _handle_ime_menu_command(cxxime::ImeMenuCommand::kAbout);
-        break;
-    case cxxime::UiCommandType::kMenuCommand:
-        if (cxxime::find_ime_menu_item(command.value)) {
-            _handle_ime_menu_command(static_cast<cxxime::ImeMenuCommand>(command.value));
-        }
         break;
     case cxxime::UiCommandType::kRefreshInputIndicator:
         _inputIndicatorRefreshRetryCount = 0;

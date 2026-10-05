@@ -143,26 +143,6 @@ status=0 rtt=74us ascii=0 composing=1
 
 ---
 
-## status_window_tool — 状态窗口可视化测试
-
-```cmd
-.\build\tools\status_window_tool\Debug\status_window_tool.exe
-```
-
-| 按键 | 说明 |
-|------|------|
-| `1` | 切换 中/英 |
-| `2` | 切换 全/半 角 |
-| `3` | 切换 。/. 标点 |
-| `M` | 循环切换 拼/五/混 模式 |
-| `E` | 模拟 IPC 连接/断开 |
-| 方向键 | 移动状态窗口（每次 10px） |
-| `Esc` | 退出 |
-
-窗口上的按钮可直接点击切换状态。标题栏实时显示当前模式状态。
-
----
-
 ## tsf_position_tool — 候选窗口定位测试
 
 ```cmd

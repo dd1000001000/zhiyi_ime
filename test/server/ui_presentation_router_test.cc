@@ -82,9 +82,8 @@ TEST(UiPresentationRouter, ignores_stale_snapshots_and_routes_bound_commands) {
     UiPresentationRouter router;
     ASSERT_TRUE(router.start(
         [&](cxxime::UiEndpointId endpoint, const cxxime::UiPresentationSnapshot* snapshot,
-            bool preserve_status_during_handoff, std::uint64_t candidate_placement_cycle,
+            std::uint64_t candidate_placement_cycle,
             std::uint64_t router_revision) {
-            UNREFERENCED_PARAMETER(preserve_status_during_handoff);
             UNREFERENCED_PARAMETER(candidate_placement_cycle);
             UNREFERENCED_PARAMETER(router_revision);
             if (snapshot) {
@@ -177,9 +176,8 @@ TEST(UiPresentationRouter, disconnect_clears_only_the_active_endpoint) {
     ASSERT_TRUE(router.start(
         [&](cxxime::UiEndpointId published_endpoint,
             const cxxime::UiPresentationSnapshot* published_snapshot,
-            bool preserve_status_during_handoff, std::uint64_t candidate_placement_cycle,
+            std::uint64_t candidate_placement_cycle,
             std::uint64_t router_revision) {
-            UNREFERENCED_PARAMETER(preserve_status_during_handoff);
             UNREFERENCED_PARAMETER(candidate_placement_cycle);
             UNREFERENCED_PARAMETER(router_revision);
             if (published_snapshot) {
@@ -207,7 +205,7 @@ TEST(UiPresentationRouter, refreshes_only_connected_sessions_and_clears_resume_u
     std::atomic<int> clear_count{0};
     UiPresentationRouter router;
     ASSERT_TRUE(router.start(
-        [&](cxxime::UiEndpointId, const cxxime::UiPresentationSnapshot* snapshot, bool,
+        [&](cxxime::UiEndpointId, const cxxime::UiPresentationSnapshot* snapshot,
             std::uint64_t, std::uint64_t) {
             if (snapshot) {
                 presentation_count.fetch_add(1);
@@ -278,7 +276,7 @@ TEST(UiPresentationRouter, candidate_placement_cycle_tracks_content_lifetime) {
     std::atomic<std::uint64_t> placement_cycle{0};
     UiPresentationRouter router;
     ASSERT_TRUE(router.start(
-        [&](cxxime::UiEndpointId, const cxxime::UiPresentationSnapshot* snapshot, bool,
+        [&](cxxime::UiEndpointId, const cxxime::UiPresentationSnapshot* snapshot,
             std::uint64_t candidate_placement_cycle, std::uint64_t) {
             has_snapshot.store(snapshot != nullptr);
             placement_cycle.store(candidate_placement_cycle);

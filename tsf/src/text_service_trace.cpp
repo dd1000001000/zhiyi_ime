@@ -151,7 +151,7 @@ void TextService::_enqueue_ui_presentation_trace(const cxxime::UiPresentationSna
         "{\"event\":\"ui.presentation_publish\",\"timestamp_100ns\":%llu,\"session\":%llu,"
         "\"session_generation\":%llu,\"target_generation\":%llu,"
         "\"composition_generation\":%llu,\"candidate_visible\":%s,"
-        "\"tsf_local_candidate\":%s,\"status_visible\":%s}",
+        "\"tsf_local_candidate\":%s}",
         static_cast<unsigned long long>(timestamp_100ns),
         static_cast<unsigned long long>(snapshot.session_id),
         static_cast<unsigned long long>(snapshot.session_generation),
@@ -161,9 +161,6 @@ void TextService::_enqueue_ui_presentation_trace(const cxxime::UiPresentationSna
             ? "true"
             : "false",
         (snapshot.flags & cxxime::ui_snapshot_flag(cxxime::UiSnapshotFlag::kTsfLocalCandidate)) != 0
-            ? "true"
-            : "false",
-        (snapshot.flags & cxxime::ui_snapshot_flag(cxxime::UiSnapshotFlag::kStatusVisible)) != 0
             ? "true"
             : "false");
     if (length > 0 && length < static_cast<int>(sizeof(json))) {

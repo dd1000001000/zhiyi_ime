@@ -116,7 +116,6 @@ struct TextServiceTestPeer {
     static UINT poll_without_status(TextService& service) {
         service._activated = true;
         service._inputFocused = true;
-        service._config.status_window.enable = false;
         service._lastIpcHeartbeat = std::chrono::steady_clock::now();
         service._poll_runtime_state();
         const UINT interval = service._statePollIntervalMs;

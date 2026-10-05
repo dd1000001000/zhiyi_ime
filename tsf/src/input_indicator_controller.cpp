@@ -18,7 +18,7 @@ bool InputIndicatorController::initialize(ITfThreadMgr* thread_manager, TfClient
                                           const cxxime::ImeStatus& initial_status,
                                           ToggleChineseCallback toggle_chinese_callback,
                                           MenuCommandCallback menu_command_callback,
-                                          bool status_visible) {
+                                          bool menu_chinese) {
     shutdown();
     if (!thread_manager || client_id == TF_CLIENTID_NULL) {
         return false;
@@ -30,7 +30,7 @@ bool InputIndicatorController::initialize(ITfThreadMgr* thread_manager, TfClient
     button_->update_from_status(initial_status);
     button_->set_toggle_chinese_callback(std::move(toggle_chinese_callback));
     button_->set_menu_command_callback(std::move(menu_command_callback));
-    button_->set_status_visible(status_visible);
+    button_->set_menu_language(menu_chinese);
 
     ITfLangBarItemMgr* manager = nullptr;
     const HRESULT query_hr =
@@ -83,9 +83,9 @@ void InputIndicatorController::update_from_status(const cxxime::ImeStatus& statu
     }
 }
 
-void InputIndicatorController::set_status_visible(bool visible) {
+void InputIndicatorController::set_menu_language(bool chinese) {
     if (button_) {
-        button_->set_status_visible(visible);
+        button_->set_menu_language(chinese);
     }
 }
 

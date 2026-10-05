@@ -334,18 +334,15 @@ TEST(Config, initial_state_round_trip) {
     ASSERT_TRUE(!loaded.initial_chinese_punct);
 }
 
-TEST(Config, obsolete_status_auto_dock_is_ignored) {
+TEST(Config, removed_status_window_settings_are_ignored) {
+    // The floating status window was removed in 0.7.5; old files still load.
     const char* json = R"({"status_window":{
         "auto_dock":true,"enable":false,"x":120,"y":240,"show_on_startup":false
     }})";
     cxxime::Config loaded;
     ASSERT_TRUE(loaded.load_json(json));
-    ASSERT_TRUE(!loaded.status_window.enable);
-    ASSERT_EQ(loaded.status_window.x, 120);
-    ASSERT_EQ(loaded.status_window.y, 240);
-    ASSERT_TRUE(!loaded.status_window.show_on_startup);
     const auto saved = nlohmann::json::parse(loaded.to_user_json());
-    ASSERT_TRUE(!saved["status_window"].contains("auto_dock"));
+    ASSERT_TRUE(!saved.contains("status_window"));
 }
 
 TEST(Config, runtime_snapshot_round_trip) {
@@ -355,7 +352,7 @@ TEST(Config, runtime_snapshot_round_trip) {
     saved.font_size = 18;
     saved.theme = "dark";
     saved.inline_preedit = true;
-    saved.status_window.enable = false;
+    saved.update_notify = false;
     ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Ctrl+Alt+M",
                                                 &saved.english_style_shortcut));
     ASSERT_TRUE(cxxime::parse_keyboard_shortcut("Ctrl+Shift+Space",
@@ -375,7 +372,7 @@ TEST(Config, runtime_snapshot_round_trip) {
     ASSERT_EQ(loaded.font_size, 18);
     ASSERT_TRUE(loaded.theme == "dark");
     ASSERT_TRUE(loaded.inline_preedit);
-    ASSERT_TRUE(!loaded.status_window.enable);
+    ASSERT_TRUE(!loaded.update_notify);
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.english_style_shortcut) ==
                 "Ctrl+Alt+M");
     ASSERT_TRUE(cxxime::keyboard_shortcut_string(loaded.activate_ime_shortcut) ==

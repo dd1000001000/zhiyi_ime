@@ -13,7 +13,6 @@
 class UiPresentationController {
 public:
     using CommandHandler = std::function<void(cxxime::UiEndpointId, const cxxime::UiCommand&)>;
-    using PositionHandler = std::function<void(int, int)>;
 
     UiPresentationController();
     ~UiPresentationController();
@@ -21,12 +20,10 @@ public:
     UiPresentationController(const UiPresentationController&) = delete;
     UiPresentationController& operator=(const UiPresentationController&) = delete;
 
-    bool start(const std::shared_ptr<const cxxime::Config>& config, CommandHandler command_handler,
-               PositionHandler position_handler);
+    bool start(const std::shared_ptr<const cxxime::Config>& config, CommandHandler command_handler);
     void stop();
 
     void present(cxxime::UiEndpointId endpoint, const cxxime::UiPresentationSnapshot* snapshot,
-                 bool preserve_status_during_handoff,
                  std::uint64_t candidate_placement_cycle,
                  std::uint64_t router_revision);
     void update_config(const std::shared_ptr<const cxxime::Config>& config);

@@ -359,7 +359,7 @@ void EditorApp::populate_controls() {
     const bool dark = config_.theme == kDarkTheme;
     set_check(hLight_, !dark);
     set_check(hDark_, dark);
-    apply_ui_theme(dark);  // also after a change from the status bar
+    apply_ui_theme(dark);  // also after a change made elsewhere
     const int font = config_.font_size;
     set_check(hFontSmall_, font <= kFontSmall);
     set_check(hFontMedium_, font > kFontSmall && font < kFontLarge);

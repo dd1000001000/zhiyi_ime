@@ -1410,6 +1410,33 @@ SessionManager::switch_input_mode(uint32_t id, cxxime::InputMode mode) {
     return {cxxime::IPCStatus::OK, entry->ime_status};
 }
 
+std::pair<cxxime::IPCStatus, cxxime::ImeStatus>
+SessionManager::set_input_style(uint32_t id, bool english_style, bool value) {
+    auto entry = lookup_session(id);
+    if (!entry) return {cxxime::IPCStatus::ERR_INVALID_SESSION, {}};
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
+    GlobalVisibleState state = snapshot_global_state();
+    const bool changed = english_style ? state.english_words != value
+                                       : state.pinyin_initials != value;
+    if (english_style) {
+        state.english_words = value;
+    } else {
+        state.pinyin_initials = value;
+    }
+    commit_global_state(state);
+    align_session_to_global(*entry);
+    advance_candidate_revision(*entry, candidate_state_before);
+    if (changed) {
+        if (english_style) {
+            persist_english_word_mode(value);
+        } else {
+            persist_pinyin_initials(value);
+        }
+    }
+    return {cxxime::IPCStatus::OK, entry->ime_status};
+}
+
 cxxime::IPCStatus SessionManager::sync_ascii_mode(uint32_t id, bool ascii_mode) {
     auto entry = lookup_session(id);
     if (!entry) return cxxime::IPCStatus::ERR_INVALID_SESSION;

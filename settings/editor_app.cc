@@ -328,7 +328,7 @@ bool EditorApp::save_config() {
     if (!read_controls()) {
         return false;
     }
-    refresh_config();  // keep what changed elsewhere (e.g. the status bar) since the last load
+    refresh_config();  // keep what changed elsewhere (e.g. the taskbar menu) since the last load
     unsigned long error_code = ERROR_SUCCESS;
     if (!replace_user_config(config_.to_user_json(), nullptr, &error_code)) {
         MessageBoxW(hwnd_,
@@ -396,7 +396,7 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
     case WM_ACTIVATE: {
-        // Back from the status bar or another program: show what changed there. Not when one of
+        // Back from the taskbar menu or another program: show what changed there. Not when one of
         // this window's own message boxes closes (its caller is still updating the page).
         DWORD other_process = 0;
         if (lp) GetWindowThreadProcessId(reinterpret_cast<HWND>(lp), &other_process);

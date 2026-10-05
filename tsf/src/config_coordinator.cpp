@@ -156,13 +156,4 @@ ConfigSnapshot current_config_snapshot() {
     return g_coordinator ? g_coordinator->snapshot() : ConfigSnapshot{};
 }
 
-void set_status_window_enabled(bool enabled) {
-    nlohmann::json patch;
-    patch["status_window"]["enable"] = enabled;
-    std::lock_guard<std::mutex> lock(g_coordinator_mutex);
-    if (g_coordinator) {
-        g_coordinator->patch(patch.dump());
-    }
-}
-
 } // namespace cxxime_tsf

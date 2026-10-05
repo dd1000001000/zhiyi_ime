@@ -82,7 +82,7 @@ void TextService::_apply_config_snapshot() {
         return;
     }
 
-    _inputIndicator.set_status_visible(_config.status_window.enable);
+    _inputIndicator.set_menu_language(cxxime::ime_menu_uses_chinese(_config.ui_language));
     _register_switch_keys();  // the switch keys may have changed
     _reportedInputTarget.clear();  // input collection may have been turned on
     _report_input_target();

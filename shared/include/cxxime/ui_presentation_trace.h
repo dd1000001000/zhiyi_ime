@@ -22,18 +22,12 @@ struct UiPresentationTrace {
     bool candidate_ownerless = false;
     bool candidate_requested = false;
     bool candidate_visible = false;
-    bool status_requested = false;
-    bool status_suppressed_fullscreen = false;
-    bool status_visible = false;
     RECT source_caret = {};
     RECT caret = {};
     bool caret_transformed = false;
     RECT candidate_rect = {};
     bool candidate_rect_valid = false;
     UINT candidate_dpi = 0;
-    RECT status_rect = {};
-    bool status_rect_valid = false;
-    UINT status_dpi = 0;
 };
 
 // Returns the current system time in 100-nanosecond units since the Windows epoch.

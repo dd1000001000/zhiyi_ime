@@ -52,7 +52,7 @@ Windows TSF 输入法：拼音 / 五笔 86 / 混输三种模式，客户端（TS
 
 **输入流程：** 按键 → TSF DLL → IPC → Server（SessionManager → Engine）→ IPC → TSF DLL → 上屏/候选窗口
 
-**状态流程：** 可见状态（中英文/Caps/全半角/标点/模式）为服务端全局状态，经 IPC（GET_STATUS / 心跳）同步给各 TSF 客户端，驱动状态窗口与语言栏。
+**状态流程：** 可见状态（中英文/Caps/全半角/标点/模式）为服务端全局状态，经 IPC（GET_STATUS / 心跳）同步给各 TSF 客户端，驱动任务栏输入指示器（语言栏）。
 
 ---
 
@@ -114,12 +114,12 @@ ITfThreadFocusSink          — 线程焦点通知
 | IPC 服务 | 命名管道监听（IOCP），处理请求/响应 |
 | 热重载 | 控制通道 `ConfigWriteCoordinator`（配置/词库写入）、DictionaryMonitor（manifest 轮询） |
 
-### 3.4 UI（候选窗口 + 状态窗口）
+### 3.4 UI（候选窗口）
 
 - **渲染后端：** Direct2D + DirectWrite（默认），GDI 可选（`render_backend` 配置）
 - **布局：** 横排（默认）/ 竖排，跟随光标定位，屏幕边缘 clamp，DPI 感知，圆角窗口
 - **主题：** 12 套配色预设（`themes.json`，兼容 Weasel 配色格式）
-- **状态窗口：** 中英文/大小写等状态显示，与语言栏图标联动
+- **状态显示：** 没有悬浮状态窗口；任务栏输入指示器显示中/英/大写，右键菜单切换各项状态
 
 ### 3.5 IPC 层
 
@@ -169,7 +169,7 @@ cxx-ime/
 ├── ipc/             命名管道 IPC 客户端/服务端（IOCP）
 ├── server/          后台服务进程（共享资源 + 会话管理 + 配置/词典热重载）
 ├── tsf/             TSF 文本服务 DLL（由 Windows 加载）
-├── ui/              候选窗口 + 状态窗口（D2D / GDI 双后端渲染）
+├── ui/              候选窗口（D2D / GDI 双后端渲染）
 ├── settings/        配置编辑器 GUI（Win32 原生控件）
 ├── docs/            项目文档（设计与实现、安装、配置指南）
 ├── data/            词典文件、Python 工具和默认配置

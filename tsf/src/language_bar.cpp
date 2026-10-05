@@ -3,6 +3,7 @@
 #include "language_bar.h"
 
 #include <cwchar>
+#include <string>
 
 #include <cxxime/logging.h>
 
@@ -133,11 +134,10 @@ STDMETHODIMP CLangBarItemButton::Show(BOOL fShow) {
 STDMETHODIMP CLangBarItemButton::GetTooltipString(BSTR* pbstrToolTip) {
     if (!pbstrToolTip)
         return E_INVALIDARG;
-    const bool chinese = cxxime_tsf::ui_language_is_chinese();
-    const wchar_t* tip = _caps_lock      ? (chinese ? L"知意 - Caps Lock" : L"Zhiyi - Caps Lock")
-                         : _chinese_mode ? (chinese ? L"知意 - 中文" : L"Zhiyi - Chinese")
-                                         : (chinese ? L"知意 - 英文" : L"Zhiyi - English");
-    *pbstrToolTip = SysAllocString(tip);
+    // Every state at a glance, e.g. "知意 - 中文 · 全拼 · 半角 · 中文标点".
+    const std::wstring tip = std::wstring(_menu_chinese ? L"知意 - " : L"Zhiyi - ") +
+                             cxxime::ime_status_summary(_status, _menu_chinese);
+    *pbstrToolTip = SysAllocString(tip.c_str());
     return S_OK;
 }
 
@@ -158,11 +158,11 @@ STDMETHODIMP CLangBarItemButton::OnClick(TfLBIClick click, POINT pt, const RECT*
                 AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
             }
             UINT flags = MF_STRING;
-            if (cxxime::ime_menu_command_checked(item.command, _input_mode)) {
+            if (cxxime::ime_menu_command_checked(item.command, _status)) {
                 flags |= MF_CHECKED;
             }
             AppendMenuW(hMenu, flags, static_cast<UINT>(item.command),
-                        cxxime::ime_menu_item_label(item, _status_visible));
+                        cxxime::ime_menu_item_label(item, _menu_chinese));
         }
 
         // Get foreground window for TrackPopupMenuEx
@@ -187,10 +187,10 @@ STDMETHODIMP CLangBarItemButton::InitMenu(ITfMenu* pMenu) {
             pMenu->AddMenuItem(0, TF_LBMENUF_SEPARATOR, nullptr, nullptr,
                                nullptr, 0, nullptr);
         }
-        DWORD flags = cxxime::ime_menu_command_checked(item.command, _input_mode)
+        DWORD flags = cxxime::ime_menu_command_checked(item.command, _status)
                           ? TF_LBMENUF_CHECKED
                           : 0;
-        const wchar_t* label = cxxime::ime_menu_item_label(item, _status_visible);
+        const wchar_t* label = cxxime::ime_menu_item_label(item, _menu_chinese);
         pMenu->AddMenuItem(static_cast<UINT>(item.command), flags, nullptr, nullptr,
                            label, static_cast<ULONG>(std::wcslen(label)), nullptr);
     }
@@ -256,24 +256,17 @@ STDMETHODIMP CLangBarItemButton::UnadviseSink(DWORD dwCookie) {
     return S_OK;
 }
 
-void CLangBarItemButton::update_icon(bool chinese_mode) {
-    if (_chinese_mode != chinese_mode) {
-        UINT old_icon = mode_icon_id(_chinese_mode, _caps_lock);
-        UINT new_icon = mode_icon_id(chinese_mode, _caps_lock);
-        _chinese_mode = chinese_mode;
-        if (_pSink) {
-            DWORD flags = TF_LBI_STATUS | TF_LBI_TOOLTIP;
-            if (old_icon != new_icon) flags |= TF_LBI_ICON;
-            HRESULT hr = _pSink->OnUpdate(flags);
-            CXXIME_LOG(L"ModeButton OnUpdate: chinese=%d, caps=%d, flags=0x%08x, hr=0x%08x",
-                       _chinese_mode ? 1 : 0, _caps_lock ? 1 : 0, flags, hr);
-        }
-    }
-}
-
 void CLangBarItemButton::update_from_status(const cxxime::ImeStatus& status) {
-    _input_mode = status.input_mode;
-    if (_chinese_mode != status.chinese_mode() || _caps_lock != status.caps_lock()) {
+    const bool tooltip_changed =
+        status.input_mode != _status.input_mode || status.flags != _status.flags;
+    _status = status;
+    if (_chinese_mode == status.chinese_mode() && _caps_lock == status.caps_lock()) {
+        if (tooltip_changed && _pSink) {
+            _pSink->OnUpdate(TF_LBI_TOOLTIP);  // e.g. punctuation or full width
+        }
+        return;
+    }
+    {
         UINT old_icon = mode_icon_id(_chinese_mode, _caps_lock);
         UINT new_icon = mode_icon_id(status.chinese_mode(), status.caps_lock());
         _chinese_mode = status.chinese_mode();
@@ -296,8 +289,10 @@ void CLangBarItemButton::set_menu_command_callback(MenuCommandCallback cb) {
     _menu_command_cb = std::move(cb);
 }
 
-void CLangBarItemButton::set_status_visible(bool visible) {
-    _status_visible = visible;
+void CLangBarItemButton::set_menu_language(bool chinese) {
+    if (_menu_chinese == chinese) return;
+    _menu_chinese = chinese;
+    if (_pSink) _pSink->OnUpdate(TF_LBI_TOOLTIP);
 }
 
 void CLangBarItemButton::notify_full_update() {

@@ -54,7 +54,6 @@ SHA-256 一致才会安装（`update/include/cxxime/update.h`）。
 | `benchmark.bat` | 运行主要性能基准 |
 | `benchmark_topn.ps1` | 运行拼音 Top-N 专项基准 |
 | `check_query_bench.py` | 检查查询基准结果是否满足阈值 |
-| `gen_theme_previews.py` | 按 ui 渲染逻辑生成 README 主题预览图 |
 | `run_sync_regression.bat` | 在 cmd 中运行同步和数据回归检查 |
 | `run_sync_regression.ps1` | 在 PowerShell 中运行同步和数据回归检查 |
 | `collect_diagnostics.ps1` | 收集已安装版本的诊断信息 |

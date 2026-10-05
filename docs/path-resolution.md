@@ -184,7 +184,7 @@ Python 脚本分布在两个目录，职责不同：
 
 | 目录 | 定位 | 脚本 |
 |------|------|------|
-| `scripts/` | **主入口脚本**：打包、词典准备、校验、基准回归、诊断 | `package.py`、`dictionary_bundle_layout.py`、`prepare_dictionary_bundle.py`、`build_pinyin_topn.py`、`verify_dictionary_bundle.py`、`verify_package.py`、`check_query_bench.py`、`collect_diagnostics.ps1`、`benchmark.bat`、`benchmark_topn.ps1`、`run_sync_regression.bat/ps1`、`gen_theme_previews.py` |
+| `scripts/` | **主入口脚本**：打包、词典准备、校验、基准回归、诊断 | `package.py`、`dictionary_bundle_layout.py`、`prepare_dictionary_bundle.py`、`build_pinyin_topn.py`、`verify_dictionary_bundle.py`、`verify_package.py`、`check_query_bench.py`、`collect_diagnostics.ps1`、`benchmark.bat`、`benchmark_topn.ps1`、`run_sync_regression.bat/ps1` |
 | `data/tools/` | **词典数据处理工具**：由 `scripts/` 入口调用，也可独立运行 | `fetch_pinyin_dictionary.py`、`fetch_wubi_dictionary.py`、`convert_rime_dictionary.py`、`build_runtime_dictionary.py`、`generate_pinyin_spellings.py`、`generate_pinyin_syllable_ids.py`、`filter_dictionary_symbols.py`、`generate_symbols.py`、`generate_symbol_ranges.py`、`generate_emoji_classification.py`，以及 `dict_builder/` 实现包 |
 
 脚本通过 `--input`/`--output` 参数接收路径，不依赖环境变量。`scripts/package.py` 经 `scripts/prepare_dictionary_bundle.py` 调用 `data/tools/` 下的词典工具时传入绝对路径：

@@ -12,6 +12,10 @@
 > Lightweight · Open source · Context-aware — a Windows Chinese/English input method that picks
 > candidates from what you have already typed
 
+<a href="docs/media/zhiyi-intro.mp4"><img src="docs/media/zhiyi-intro-preview.webp" alt="Zhiyi IME intro video" width="100%"></a>
+
+<p align="center"><a href="docs/media/zhiyi-intro.mp4">▶ Watch the intro video (1:15 · Chinese narration · Chinese and English subtitles)</a></p>
+
 ## Features
 
 - **Context-aware recommendation**: a small model running on your computer reads what you typed

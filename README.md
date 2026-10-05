@@ -11,6 +11,10 @@
 
 > 轻量 · 开源 · 懂上文 —— 根据你已经打过的字推荐候选的 Windows 中英文输入法
 
+<a href="docs/media/zhiyi-intro.mp4"><img src="docs/media/zhiyi-intro-preview.webp" alt="知意输入法宣传视频" width="100%"></a>
+
+<p align="center"><a href="docs/media/zhiyi-intro.mp4">▶ 观看宣传视频（1 分 15 秒 · 中文配音 · 中英字幕）</a></p>
+
 ## 功能简介
 
 - **懂上文的推荐**：一个在本机运行的小模型读取你前面打过的字，从候选里挑出最可能的那个放在第一位，

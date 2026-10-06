@@ -95,16 +95,21 @@ NSIS 安装到 Program Files  →  优先级 3
 
 ```
 C:\Users\<username>\AppData\Local\zhiyi\laya-cache\
-└── <key>\                    key = 模型文件 + ONNX Runtime 版本 + CPU 型号的哈希
+└── <key>\                    key = 模型文件 + tokenizer.json + ONNX Runtime 版本 + CPU 型号的哈希
     ├── laya.onnx             优化后的图（权重引用 laya.data）
-    └── laya.data             权重，按本机 CPU 预打包（约 340 MB）
+    ├── laya.data             权重，按本机 CPU 预打包（约 340 MB）
+    └── tokenizer.bin         分词器的紧凑镜像（排好序的词表与 merges，约 13 MB）
 ```
 
-Laya 模型的预打包副本（`laya.cache`，见 [设置指南](settings-guide.md)）。ONNX Runtime 建会话时把每个
-int8 矩阵的权重重排成内核要的布局并放在堆上，约 200 MB 私有内存；服务端首次启动时让它把这份结果
-写进 `laya.data`，以后启动直接只读映射该文件，权重成为可丢弃的共享页。布局随 CPU 和 ORT 版本变化，
-所以放在本机目录（不随漫游配置，也不在用户数据目录里），key 不匹配的旧缓存会在下次启动时删除，
-缓存写不进去或 ORT 拒绝加载时退回到内存打包。卸载时删除整个目录。
+Laya 模型的本机缓存（`laya.cache`，见 [设置指南](settings-guide.md)），两部分：
+
+- **预打包权重。** ONNX Runtime 建会话时把每个 int8 矩阵的权重重排成内核要的布局并放在堆上，约 200 MB
+  私有内存；服务端首次启动时让它把这份结果写进 `laya.data`，以后启动直接只读映射该文件，权重成为可丢弃的
+  共享页。布局随 CPU 和 ORT 版本变化，所以放在本机目录（不随漫游配置，也不在用户数据目录里）。
+- **分词器镜像。** 解析 33 MB 的 `tokenizer.json` 要 0.8 s，哈希表约 70 MB；首次启动把词表和 merges 排好序
+  写成 `tokenizer.bin`（`engine/src/laya/tokenizer.h` 描述格式，二分查找），以后直接映射。
+
+key 不匹配的旧缓存会在下次启动时删除；缓存写不进去或损坏时退回到内存打包 / 解析 JSON。卸载时删除整个目录。
 
 ### user_data_dir()
 

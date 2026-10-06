@@ -53,12 +53,15 @@ Ort::SessionOptions session_options(const RerankerOptions& opt) {
   return so;
 }
 
-std::string prepack_cache_key(const std::filesystem::path& model) {
+std::string cache_key(const std::filesystem::path& model, const std::filesystem::path& tokenizer) {
   std::error_code ec;
-  std::string id = wide_to_utf8(model.filename().wstring());
-  id += '|' + std::to_string(std::filesystem::file_size(model, ec));
-  id += '|' + std::to_string(std::filesystem::last_write_time(model, ec).time_since_epoch().count());
-  id += '|' + Ort::GetVersionString();
+  std::string id;
+  for (const auto& file : {model, tokenizer}) {
+    id += wide_to_utf8(file.filename().wstring());
+    id += '|' + std::to_string(std::filesystem::file_size(file, ec));
+    id += '|' + std::to_string(std::filesystem::last_write_time(file, ec).time_since_epoch().count()) + '|';
+  }
+  id += Ort::GetVersionString();
   int r[4];
   for (int leaf : {static_cast<int>(0x80000002), static_cast<int>(0x80000003), static_cast<int>(0x80000004)}) {
     __cpuid(r, leaf);  // brand string
@@ -79,8 +82,9 @@ std::string prepack_cache_key(const std::filesystem::path& model) {
 }
 
 // Writes <dir>/laya.onnx + laya.data (the prepacked weights) by creating a throw-away session
-// that saves its optimized model. Built in a temporary directory and renamed into place, so a
-// crash or a full disk never leaves a half-written cache behind.
+// that saves its optimized model. Built in a temporary directory and moved into place (laya.onnx
+// last: its presence means the cache is complete), so a crash or a full disk never leaves a
+// half-written cache behind.
 void build_prepacked_model(Ort::Env& env, const RerankerOptions& opt, const std::wstring& model_path,
                            const std::filesystem::path& dir) {
   const std::filesystem::path tmp = dir.wstring() + L".tmp";
@@ -95,7 +99,10 @@ void build_prepacked_model(Ort::Env& env, const RerankerOptions& opt, const std:
     so.AddConfigEntry("session.save_external_prepacked_constant_initializers", "1");
     Ort::Session saver(env, model_path.c_str(), so);  // the files are written during construction
   }
-  std::filesystem::rename(tmp, dir);
+  std::filesystem::create_directories(dir);
+  std::filesystem::rename(tmp / L"laya.data", dir / L"laya.data");
+  std::filesystem::rename(tmp / L"laya.onnx", dir / L"laya.onnx");
+  std::filesystem::remove_all(tmp, ec);
 }
 
 // Deletes caches for other keys (an older model, ORT version or CPU) under root.
@@ -111,7 +118,21 @@ void remove_stale_caches(const std::filesystem::path& root, const std::string& k
 }  // namespace
 
 Reranker::Reranker(const RerankerOptions& opt) {
-  tok_ = std::make_unique<BpeTokenizer>(opt.model_dir + "/tokenizer.json");
+  const std::string tokenizer_path = opt.model_dir + "/tokenizer.json";
+  const std::wstring model_path = utf8_to_wide(opt.model_dir + "/" + opt.onnx_file);
+  std::filesystem::path root, dir;  // the cache: <cache_dir>/<key>/
+  std::string key;
+  if (!opt.cache_dir.empty()) {
+    root = utf8_to_wide(opt.cache_dir);
+    key = cache_key(model_path, utf8_to_wide(tokenizer_path));
+    dir = root / utf8_to_wide(key);
+  }
+
+  // The tokenizer's compact image: mapped from the cache when present, else built from the JSON
+  // (and written there for the next start).
+  tok_ = std::make_unique<BpeTokenizer>(tokenizer_path,
+                                        dir.empty() ? std::string() : wide_to_utf8((dir / L"tokenizer.bin").wstring()));
+  load_note_ = tok_->mapped() ? "tokenizer mapped; " : "tokenizer built from json; ";
 
   std::ifstream cf(utf8_to_wide(opt.model_dir + "/rl_agent_config.json"));
   if (cf) {
@@ -123,18 +144,14 @@ Reranker::Reranker(const RerankerOptions& opt) {
   }
 
   env_ = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "laya");
-  const std::wstring model_path = utf8_to_wide(opt.model_dir + "/" + opt.onnx_file);
-  if (!opt.cache_dir.empty()) {
-    const std::filesystem::path root(utf8_to_wide(opt.cache_dir));
-    const std::string key = prepack_cache_key(model_path);
-    const std::filesystem::path dir = root / utf8_to_wide(key);
+  if (!dir.empty()) {
     const std::filesystem::path cached = dir / L"laya.onnx";
     std::error_code ec;
     try {
       if (!std::filesystem::exists(cached, ec)) {
         const auto t0 = std::chrono::steady_clock::now();
         build_prepacked_model(*env_, opt, model_path, dir);
-        load_note_ = "prepacked cache built in " +
+        load_note_ += "prepacked cache built in " +
                      std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
                                         std::chrono::steady_clock::now() - t0).count()) +
                      " ms; ";
@@ -145,8 +162,9 @@ Reranker::Reranker(const RerankerOptions& opt) {
     } catch (const std::exception& e) {
       // Unwritable cache directory, full disk, or a cache ORT rejects: use the model as it is.
       session_.reset();
-      std::filesystem::remove_all(dir, ec);
-      load_note_ = std::string("prepacked cache unusable (") + e.what() + "); ";
+      std::filesystem::remove(cached, ec);
+      std::filesystem::remove(dir / L"laya.data", ec);
+      load_note_ += std::string("prepacked cache unusable (") + e.what() + "); ";
     }
   }
   if (!session_) {

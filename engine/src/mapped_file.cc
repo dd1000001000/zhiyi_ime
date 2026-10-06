@@ -6,11 +6,24 @@
 
 namespace cxxime {
 
+namespace {
+
+// Paths are UTF-8 everywhere in the engine; the install and cache directories can contain a
+// non-ASCII user name, which the ANSI file functions would not resolve.
+std::wstring to_wide(const std::string& utf8) {
+    const int n = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0);
+    std::wstring wide(n > 0 ? n - 1 : 0, L'\0');
+    if (n > 1) MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, wide.data(), n);
+    return wide;
+}
+
+} // namespace
+
 bool MappedFile::open(const std::string& path) {
     close();
     // FILE_SHARE_DELETE: a new dictionary is put in place by renaming the mapped file away and
     // moving the new one in (a mapped file cannot be truncated or deleted, only renamed).
-    HANDLE file = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE,
+    HANDLE file = CreateFileW(to_wide(path).c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE,
                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE) {
         return false;
@@ -44,18 +57,19 @@ bool MappedFile::open(const std::string& path) {
 }
 
 bool MappedFile::rename_away(const std::string& path) {
-    if (GetFileAttributesA(path.c_str()) == INVALID_FILE_ATTRIBUTES) {
+    const std::wstring wide = to_wide(path);
+    if (GetFileAttributesW(wide.c_str()) == INVALID_FILE_ATTRIBUTES) {
         return true;  // nothing there
     }
-    if (DeleteFileA(path.c_str())) {
+    if (DeleteFileW(wide.c_str())) {
         return true;
     }
-    const std::string aside = path + ".old-" + std::to_string(GetCurrentProcessId()) + "-" +
-                              std::to_string(GetTickCount64());
-    if (!MoveFileExA(path.c_str(), aside.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+    const std::wstring aside = wide + L".old-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+                               std::to_wstring(GetTickCount64());
+    if (!MoveFileExW(wide.c_str(), aside.c_str(), MOVEFILE_REPLACE_EXISTING)) {
         return false;
     }
-    DeleteFileA(aside.c_str());  // best effort; fails while the old file is still mapped
+    DeleteFileW(aside.c_str());  // best effort; fails while the old file is still mapped
     return true;
 }
 

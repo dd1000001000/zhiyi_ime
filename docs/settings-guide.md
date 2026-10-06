@@ -114,7 +114,7 @@
 | `laya.enable` / `laya.english` | true / true | 上文推荐（中文 / 英文） |
 | `laya.context_chars` / `laya.english_context_chars` | 128 / 192 | 交给模型的上文长度（光标前的字符数） |
 | `laya.threads` | 4 | 推理线程数 |
-| `laya.cache` | true | 把模型权重按本机 CPU 打包后的副本存在 `%LOCALAPPDATA%\zhiyi\laya-cache`（首次启动生成，约 340 MB），以后启动直接映射，服务端少占约 200 MB 内存；false = 每次启动在内存里打包，不写缓存 |
+| `laya.cache` | true | 把模型权重按本机 CPU 打包后的副本和分词器的紧凑镜像存在 `%LOCALAPPDATA%\zhiyi\laya-cache`（首次启动生成，约 350 MB），以后启动直接映射，服务端少占约 270 MB 内存、少花约 0.8 s；false = 每次启动在内存里打包和解析，不写缓存 |
 | `laya.max_candidates` | 0 | 模型查看的前几个候选（其中覆盖全部输入的参与比较）；0 = 每页候选数的 2 倍 |
 | `laya.rank_prior_weight` / `laya.english_rank_prior_weight` | 0.4 / 0.2 | 引擎排位先验的权重（模型分数加上 权重 × log P(正确词排第 r 位)）；0 = 只看模型 |
 | `privacy.experience_program` / `collect_input` | false / false | 用户体验改进计划两档 |

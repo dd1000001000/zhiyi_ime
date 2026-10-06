@@ -112,17 +112,25 @@ mixed code 码型：声母增强简拼（`shrf`）、首音节展开（`shurf`�
 
 ### 排序规则
 
+与 Rime 给词条排序的方式一致：先按匹配方式分三组，组内按 `ln(词频) + 拼写可信度` 排序
+（`build_pinyin_topn.py` 的 `key_quality` / `key_score`，运行时 `rank_fallback_candidate` 用同一公式）。
+
+| 组 | 基数 | 条件 | 例子 |
+|----|------|------|------|
+| 完整 | 60,000,000 | 词的每个音节都被 key 覆盖，打全或只打声母 | `qianm` → 前面、千米；`jde` → 觉得 |
+| 补全 | 45,000,000 | 最后一个音节没打完（`ni` → 年），或 key 本身能切成完整音节却用了声母（`zhou` → 最后 = z+hou） | Rime 只在输入切不成完整音节时补全，并在有全拼切法时去掉简拼 |
+| 更长的词 | 30,000,000 | 词比 key 长 | `xianzhan` → 先占领 |
+
 ```
-score = frequency  (最大 100,000,000 基数)
-      + exact_complete_bonus   (100,000,000)
-      + exact_prefix_bonus     (80,000,000)
-      + abbr_complete_bonus    (60,000,000)
-      + mixed_complete_bonus   (50,000,000)
-      + abbr_prefix_bonus      (30,000,000)
-      + mixed_prefix_bonus     (20,000,000)
+score = 组基数 + clamp(500000 × (ln(frequency + 1) + credibility + 10), 0, 14,999,999)
+credibility = Σ ln(0.5)  （每个只打声母或没打完的音节，与 spellings 的 abbrev 可信度相同）
 ```
 
-同分时按 `match_type_priority desc → frequency desc → text_length asc → text lexicographic asc` 稳定排序。每个 key 最多保留 64 个候选。
+同一个 key 下按 `score desc → frequency desc → text_length asc → text lexicographic asc` 稳定排序，
+同一词多个读音只保留得分最高的一个。每个 key 最多保留 64 个候选。用户词（120,000,000 起）始终在三组之上。
+
+打包时权重不超过 rime-ice 默认值 100 的多字词不进索引（`--min-word-frequency 100`）：它们对任何短 key
+都排在最后，全拼输入时运行时查询照样能查到；索引从 153 MB 降到 39 MB，引擎测试集准确率不变。
 
 ### 构建流程
 

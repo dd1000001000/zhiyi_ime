@@ -117,6 +117,9 @@ struct Config {
         std::string model_dir = "laya";        // relative to the server executable's directory
         std::string onnx = "laya.int8g.onnx";
         int min_candidates = 2;   // fewer comparable candidates: keep the translator's order
+        // Leading candidates the model looks at (those covering the whole input are compared);
+        // 0 = 2 * page_size. See Config::laya_candidate_count.
+        int max_candidates = 0;
         int context_chars = 128;  // trailing characters before the caret fed to the model
         int threads = 4;          // ONNX Runtime intra-op threads
         // English word mode (see EnglishConfig): completions are reranked too.
@@ -129,6 +132,9 @@ struct Config {
         double english_correction_weight = 1.0;
     };
     LayaConfig laya;
+    int laya_candidate_count() const {
+        return laya.max_candidates > 0 ? laya.max_candidates : 2 * page_size;
+    }
 
     // English words (data/english.words.tsv).
     struct EnglishConfig {

@@ -17,8 +17,9 @@
 | 临时源数据 | `*.dict.db` | 否 | 从压缩源解包或下载得到的 SQLite 文件 |
 | 运行时数据 | `*.dict.bin`、`*.dict.idx`、`*.spellings.bin`、`*.topn.bin`、`*.reverse.idx` | 否 | 打包阶段生成的二进制文件 |
 
-拼音运行时词典是精简版：`scripts/prepare_dictionary_bundle.py` 只保留全部单字和权重高于 rime-ice 默认值的词
-（约 40 万条，源数据约 190 万条），生僻词可以逐字输入并由自学习记住。
+拼音运行时词典由 `scripts/prepare_dictionary_bundle.py` 生成：先用 `tools/repair_pinyin_dictionary.py` 修正
+音节（源数据去空格后被最长匹配切错的约 3.4 万个词；tencent 词表没有注音的词按 Rime 的造词规则注音，只保留 3～4 字），
+再保留全部单字和权重不低于 rime-ice 默认值 100 的词（约 146 万条，源数据约 190 万条）。
 
 `dictionary_manifest.json` 由打包流水线在所有运行时数据生成完毕后写入，记录文件角色、大小和
 SHA-256；它同样不作为源文件维护。
@@ -66,7 +67,8 @@ python data\tools\build_runtime_dictionary.py ^
 | `fetch_wubi_dictionary.py` | 下载并生成五笔 SQLite 源词典 |
 | `convert_rime_dictionary.py` | 将其他 RIME YAML 词典转换为 SQLite 格式 |
 | `generate_pinyin_spellings.py` | 根据拼音 schema 生成 spellings 表 |
-| `generate_pinyin_syllable_ids.py` | 为拼音 SQLite 词典生成音节 ID 分段字段 |
+| `generate_pinyin_syllable_ids.py` | 为拼音 SQLite 词典生成音节 ID 分段字段（最长匹配，会切错 `xi'an` 这类词；打包时由下一项修正） |
+| `repair_pinyin_dictionary.py` | 按每个字的读音修正拼音词的音节，为 tencent 无注音词注音（打包时在临时库上运行） |
 | `split_wubi_symbols.py` | 从五笔源词典生成符号表和过滤后的临时词典 |
 
 `data/tools/dict_builder/` 是构建实现包，不是面向用户的命令集合：
@@ -88,6 +90,7 @@ python data\tools\build_runtime_dictionary.py ^
 ```text
 pinyin.dict.db.zip
   -> 临时 SQLite
+  -> repair_pinyin_dictionary.py 修正音节、为 tencent 词注音，裁剪到权重 ≥100
   -> 拼写规则与四种内置双拼映射分别展开
   -> 共享 dict.bin + 五份 spellings.bin + syllable idx + reverse idx
 ```

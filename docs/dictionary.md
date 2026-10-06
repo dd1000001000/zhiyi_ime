@@ -451,6 +451,9 @@ fetch_pinyin_dictionary.py / fetch_wubi_dictionary.py    从网络获取词典�
    pinyin.dict.db                 SQLite 源文件（git 中以 .zip 存储）
         │
         ▼
+  repair_pinyin_dictionary.py     打包时修正音节（见 5.6），再裁剪到权重 ≥100 的词
+        │
+        ▼
   build_runtime_dictionary.py     Python 转换工具（dict_builder 包）
    ├── pinyin_spellings.py        SQLite → Patricia trie → spellings.bin
    ├── runtime_dictionary.py      SQLite → 排序数组 → dict.bin
@@ -508,6 +511,20 @@ SQLite spellings 表          Patricia Trie              spellings.bin
 │ ...  │    │     │         │  /│\    │               └──────────────┘
 └─────────────────┘         a  e  i
 ```
+
+### 5.6 拼音音节修正（repair_pinyin_dictionary.py）
+
+`pinyin.dict.db` 由 rime-ice 转换而来，转换时去掉了音节间的空格（`xi an` → `xian`）再按"最长匹配"重新切分，
+约 3.4 万个词的音节因此切错（西安 `xian`、办公室 `bang:o:n:g:shi`、单干 `dang:an`），简拼和组句都找不到它们；
+rime-ice 的 tencent 词表没有注音列，约 98 万条的权重被当成了编码（`西安站` 编码 `100`）。
+`prepare_dictionary_bundle.py` 在临时库上运行 `repair_pinyin_dictionary.py`，源文件不改：
+
+- 有编码的词按每个字自己的读音重新切分编码（带 `·` `-` 的译名只算汉字）；单字的编码就是一个音节；
+  切不开且含非音节片段的少数词条删除；
+- 没有注音的 tencent 词只保留 3～4 字的，按 Rime 的造词规则注音：优先用词里已有的词的读音
+  （银行卡 → 银行 yin:hang），其余单字取占该字权重 ≥5% 的读音，至多 4 种组合，权重记 100。
+
+之后裁剪只保留单字和权重 ≥100 的词（约 146 万条）。
 
 ## 6. 用户数据（用户词库与候选偏好）
 

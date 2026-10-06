@@ -33,11 +33,18 @@ struct CompositionLimits {
     uint32_t max_repeated_short_paths = 1;
     uint32_t max_range_queries = 128;
     uint32_t max_entry_scans = 2048;
-    uint32_t max_candidates_per_range = 1;
+    // Homophones per syllable span (Rime's max_homophones): the model picks among the sentences.
+    uint32_t max_candidates_per_range = 3;
     uint32_t max_span_candidates = 256;
     uint32_t max_beam_width = 32;
     uint32_t max_nodes = 1024;
     uint32_t max_final_candidates = 32;
+    // Rime's MakeSentences: at most this many sentences, each within this relative distance of
+    // the previous one's log-probability (the distance tightens as sentences are added).
+    uint32_t max_sentences = 5;
+    double sentence_cutoff = 0.1;
+    // The best sentence of another syllable path (xian'e / xia'ne) within this distance of the best.
+    double path_cutoff = 0.45;
 };
 
 struct CompositionStats {

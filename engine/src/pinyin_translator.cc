@@ -5,7 +5,10 @@
 #include <algorithm>
 #include <chrono>
 #include <climits>
+#include <cmath>
+#include <functional>
 #include <iterator>
+#include <string_view>
 #include <utility>
 
 #include <cxxime/composition_learning.h>
@@ -26,18 +29,23 @@ namespace cxxime {
 namespace {
 
 constexpr int kDisabledTopnOverfetch = 16;
-// Keep fallback tiers aligned with scripts/build_pinyin_topn.py.
-constexpr int kExactCompleteBase = 100000000;
-constexpr int kExactPrefixBase = 80000000;
-constexpr int kAbbreviationCompleteBase = 60000000;
-constexpr int kMixedCompleteBase = 50000000;
-constexpr int kAbbreviationPrefixBase = 30000000;
-constexpr int kMixedPrefixBase = 20000000;
-constexpr int kMaxRankedSourceFrequency = 99999900;
-// Fuzzy pinyin matches (xian -> 想 through an=ang) share the exact tiers but count a tenth of
-// their frequency: the typed sound comes first (先, 现, 线 ...) and a fuzzy word only passes an
-// exact one that is far more common.
-constexpr int kFuzzyFrequencyDivisor = 10;
+// Keep the ranking aligned with scripts/build_pinyin_topn.py (key_score), as Rime ranks phrases:
+//   complete    every syllable matched, in full or by its initial;
+//   completion  the last syllable completed ("ni" -> 年), or initials used although the input reads
+//               as whole syllables ("zhou" -> 最后 as z+hou);
+//   extension   the word is longer than the input (先占领 for "xianzhan").
+// Within a group: ln(frequency) plus the path's spelling credibility (ln 0.5 for each abbreviated
+// or completed syllable). User dictionary matches start at 120,000,000.
+constexpr int kCompleteBase = 60000000;
+constexpr int kCompletionBase = 45000000;
+constexpr int kExtensionBase = 30000000;
+constexpr double kLogScale = 500000.0;
+constexpr double kLogOffset = 10.0;
+constexpr double kMaxLogScore = 14999999.0;
+constexpr float kAbbreviationCredibility = -0.6931472f;  // ln(0.5)
+// Fuzzy pinyin matches (xian -> 想 through an=ang): on top of the fuzzy spelling's ln(0.5), so a
+// fuzzy word counts about a tenth of its frequency and only passes a far less common exact one.
+constexpr float kFuzzyExtraCredibility = -1.6094379f;  // ln(0.2)
 
 enum class PathMatchTier {
     kNormal,
@@ -100,29 +108,69 @@ std::size_t candidate_syllable_count(const Candidate& candidate) {
 }
 
 void rank_fallback_candidate(Candidate& candidate, PathMatchTier tier,
-                             std::size_t query_syllable_count) {
-    const bool complete = candidate_syllable_count(candidate) == query_syllable_count;
-    int base = 0;
-    int divisor = 100;
-    switch (tier) {
-        case PathMatchTier::kNormal:
-        case PathMatchTier::kCompletion:
-            base = complete ? kExactCompleteBase : kExactPrefixBase;
-            break;
-        case PathMatchTier::kFuzzy:
-            base = complete ? kExactCompleteBase : kExactPrefixBase;
-            divisor *= kFuzzyFrequencyDivisor;
-            break;
-        case PathMatchTier::kAbbreviation:
-            base = complete ? kAbbreviationCompleteBase : kAbbreviationPrefixBase;
-            break;
-        case PathMatchTier::kMixed:
-            base = complete ? kMixedCompleteBase : kMixedPrefixBase;
-            break;
+                             std::size_t query_syllable_count, float credibility,
+                             bool input_reads_as_syllables) {
+    int base = kCompleteBase;
+    if (candidate_syllable_count(candidate) != query_syllable_count) {
+        base = kExtensionBase;
+    } else if (tier == PathMatchTier::kCompletion ||
+               (input_reads_as_syllables &&
+                (tier == PathMatchTier::kAbbreviation || tier == PathMatchTier::kMixed))) {
+        base = kCompletionBase;
     }
-    const int source_frequency = (std::max)(0, candidate.source_frequency);
-    candidate.frequency =
-        base + (std::min)(source_frequency, kMaxRankedSourceFrequency) / divisor;
+    if (tier == PathMatchTier::kFuzzy) {
+        credibility += kFuzzyExtraCredibility;
+    }
+    const double frequency = static_cast<double>((std::max)(0, candidate.source_frequency));
+    const double log_score = (std::min)(
+        kMaxLogScore,
+        (std::max)(0.0, std::round(kLogScale * (std::log(frequency + 1.0) + credibility +
+                                                kLogOffset))));
+    candidate.frequency = base + static_cast<int>(log_score);
+}
+
+// Whether the input splits into whole syllables (normal or fuzzy spellings), as Rime's
+// syllabifier decides to drop abbreviations.
+bool reads_as_syllables(const std::string& input, const std::vector<SegmentedPath>& paths) {
+    return std::any_of(paths.begin(), paths.end(), [&](const SegmentedPath& path) {
+        return path_consumes_entire_input(input, path) &&
+               std::all_of(path.spelling_types.begin(), path.spelling_types.end(),
+                           [](uint8_t type) { return type <= kFuzzySpelling; });
+    });
+}
+
+// Spelling credibility of reading `input` as these syllables, each in full or as its initial
+// (z / zh): ln(0.5) per initial, as build_pinyin_topn.py key_quality.
+float typed_credibility(const std::string& input, const std::string& syllables) {
+    std::vector<std::string_view> parts;
+    std::string_view rest(syllables);
+    while (!rest.empty()) {
+        const std::size_t colon = rest.find(':');
+        parts.push_back(rest.substr(0, colon));
+        if (colon == std::string_view::npos) break;
+        rest.remove_prefix(colon + 1);
+    }
+    float best = -1e9f;
+    std::function<void(std::size_t, std::size_t, float)> walk =
+        [&](std::size_t i, std::size_t p, float credibility) {
+            if (p == input.size() || i == parts.size()) {
+                if (p == input.size() && i == parts.size()) best = (std::max)(best, credibility);
+                return;
+            }
+            const std::string_view s = parts[i];
+            const std::string_view typed(input.data() + p, input.size() - p);
+            if (typed.substr(0, s.size()) == s) walk(i + 1, p + s.size(), credibility);
+            // Its initial: the first letter, or zh / ch / sh.
+            const bool retroflex =
+                s.size() > 2 && s[1] == 'h' && (s[0] == 'z' || s[0] == 'c' || s[0] == 's');
+            for (std::size_t length = 1; length <= (retroflex ? 2u : 1u); ++length) {
+                if (length < s.size() && typed.substr(0, length) == s.substr(0, length)) {
+                    walk(i + 1, p + length, credibility + kAbbreviationCredibility);
+                }
+            }
+        };
+    walk(0, 0, 0.0f);
+    return best < -1e8f ? 0.0f : best;
 }
 
 struct CompositionPathSpec {
@@ -136,6 +184,7 @@ struct IndexedShuangpinPath {
     std::string key;
     PathMatchTier tier = PathMatchTier::kNormal;
     std::size_t syllable_count = 0;
+    float credibility = 0.0f;
 };
 
 } // namespace
@@ -549,10 +598,12 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     QueryScratch& scr = scratch ? *scratch : local_scratch;
     auto& id_sequences = scr.id_sequences;
     std::vector<PathMatchTier> path_tiers;
+    std::vector<float> path_credibilities;
     std::vector<std::string> path_query_keys;
 
     auto add_path = [&](const std::vector<std::string>& syllables,
-                        PathMatchTier tier, std::string query_key = {}) -> size_t {
+                        PathMatchTier tier, float credibility,
+                        std::string query_key = {}) -> size_t {
         if (syllables.empty()) return SIZE_MAX;
         std::vector<uint32_t> ids;
         for (auto& s : syllables) {
@@ -562,6 +613,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         }
         id_sequences.push_back(std::move(ids));
         path_tiers.push_back(tier);
+        path_credibilities.push_back(credibility);
         path_query_keys.push_back(std::move(query_key));
         return id_sequences.size() - 1;
     };
@@ -634,6 +686,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
                 }
                 const size_t id_index = add_path(
                     segmented_path.syllables, classify_path(segmented_path),
+                    segmented_path.credibility,
                     pinyin_scheme() == PinyinSchemeKind::kShuangpin
                         ? canonical_pinyin_key(segmented_path.syllables)
                         : std::string{});
@@ -685,6 +738,8 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         id_sequences.reserve(2);
     }
 
+    const bool input_is_syllables = reads_as_syllables(pinyin, segment_result.paths);
+
     if (pinyin_scheme() == PinyinSchemeKind::kShuangpin && !deadline_hit) {
         std::vector<IndexedShuangpinPath> indexed_paths;
         for (std::size_t index = 0;
@@ -705,9 +760,10 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
                 if (static_cast<int>(tier) < static_cast<int>(existing->tier)) {
                     existing->tier = tier;
                 }
+                existing->credibility = (std::max)(existing->credibility, path.credibility);
                 continue;
             }
-            indexed_paths.push_back({key, tier, path.syllables.size()});
+            indexed_paths.push_back({key, tier, path.syllables.size(), path.credibility});
             if (indexed_paths.size() >= kMaxIndexedShuangpinPaths) {
                 break;
             }
@@ -717,7 +773,8 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
             for (auto& candidate : path_fast.candidates) {
                 candidate.input_code = path.key;
                 if (path.tier != PathMatchTier::kNormal) {
-                    rank_fallback_candidate(candidate, path.tier, path.syllable_count);
+                    rank_fallback_candidate(candidate, path.tier, path.syllable_count,
+                                            path.credibility, input_is_syllables);
                 }
             }
             rank_shuangpin_path(path.key, path_fast.candidates);
@@ -748,7 +805,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
 
     // 2. Normal segmentation (skip if deadline already hit)
     if (!deadline_hit && pinyin_scheme() == PinyinSchemeKind::kFullPinyin)
-        add_path(segmentor_.segment_best(pinyin), PathMatchTier::kNormal);
+        add_path(segmentor_.segment_best(pinyin), PathMatchTier::kNormal, 0.0f);
 
     // If deadline hit, return empty page with trace flags
     if (deadline_hit) {
@@ -818,6 +875,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
                     continue;
                 }
                 add_path(completion_path.syllables, classify_path(completion_path),
+                         completion_path.credibility,
                          pinyin_scheme() == PinyinSchemeKind::kShuangpin
                              ? canonical_pinyin_key(completion_path.syllables)
                              : std::string{});
@@ -872,7 +930,8 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         }
         auto candidates = dict_->lookup_by_ids(ids, offset + fetch_limit + 1, trace, budget);
         for (auto& c : candidates) {
-            rank_fallback_candidate(c, path_tiers[live_path_index], ids.size());
+            rank_fallback_candidate(c, path_tiers[live_path_index], ids.size(),
+                                    path_credibilities[live_path_index], input_is_syllables);
         }
         if (pinyin_scheme() == PinyinSchemeKind::kShuangpin) {
             rank_shuangpin_path(path_query_keys[live_path_index], candidates);
@@ -908,7 +967,9 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
                 if (!pinyin_matches_mixed(pinyin, candidate.syllables)) {
                     continue;
                 }
-                rank_fallback_candidate(candidate, PathMatchTier::kMixed, key.size());
+                rank_fallback_candidate(candidate, PathMatchTier::kMixed, key.size(),
+                                        typed_credibility(pinyin, candidate.syllables),
+                                        input_is_syllables);
                 candidate.input_code = pinyin;
                 merged.offer_unique(std::move(candidate));
             }

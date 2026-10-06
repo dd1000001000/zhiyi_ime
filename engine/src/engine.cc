@@ -1052,15 +1052,15 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     request.page_index = page_index;
     request.page_offset = page_offset;
     request.page_size = candidate_limit > 0 ? candidate_limit : runtime_->config().page_size;
-    // Laya compares 2 * page_size candidates: the first pinyin page fetches that many and keeps
-    // page_size after reranking. (Later pages re-query from the start with a longer limit,
+    // Laya looks at laya_candidate_count() candidates (2 * page_size by default): the first
+    // pinyin page fetches that many and keeps page_size after reranking. (Later pages re-query from the start with a longer limit,
     // rerank the same way and skip the candidates already shown.)
     const int page_size = runtime_->config().page_size;
     const bool laya_first_page = request.scheme == CompositionScheme::kPinyin &&
                                  page_index == 0 && page_offset == 0 && candidate_limit <= 0 &&
                                  runtime_->config().laya.enable;
     if (laya_first_page) {
-        request.page_size = 2 * page_size;
+        request.page_size = (std::max)(page_size, runtime_->config().laya_candidate_count());
     }
     request.policy = translation_policy_;
     request.trace = trace_enabled_ ? &trace_ : nullptr;

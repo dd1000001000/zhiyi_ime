@@ -178,10 +178,10 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
 
     // 1. The candidates covering the whole input, any length (显示 / 西安市, 今天 / 今天是).
     //    Candidates for part of the input (飘 for "piaol") keep their places.
-    // The model compares the first 2 * page_size candidates (the engine fetches that many for
-    // the first page and shows page_size of them).
+    // The model compares the first laya_candidate_count() candidates (2 * page_size by default;
+    // the engine fetches that many for the first page and shows page_size of them).
     const size_t limit = (std::min)(result.entries.size(),
-                                    static_cast<size_t>((std::max)(2, 2 * config.page_size)));
+                                    static_cast<size_t>((std::max)(2, config.laya_candidate_count())));
     std::vector<size_t> idx;
     for (size_t i = 0; i < limit; ++i) {
         const TextSelectionAction* a = text_action(result.entries[i]);

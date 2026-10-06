@@ -45,20 +45,25 @@ struct ComposedResult {
     uint32_t sequence = 0;
 };
 
-int64_t frequency_score(int frequency) {
-    const double value = std::log2(static_cast<double>((std::max)(0, frequency)) + 1.0);
-    return static_cast<int64_t>(value * 1024.0 + 0.5);
+// A word's weight in a sentence, as Rime's Poet without a grammar model: ln(frequency / 1e8)
+// plus ln(1e-6) for every word, so fewer and more common words win. In thousandths.
+constexpr double kScoreScale = 1000.0;
+constexpr double kLogTotalWeight = 18.420680743952367;  // ln(1e8)
+constexpr double kWordPenalty = -13.815510557964274;    // ln(1e-6)
+constexpr int64_t kAmbiguousJointPenalty = -2303;       // ln(0.1)
+
+int64_t word_score(int frequency) {
+    const double weight = std::log(static_cast<double>((std::max)(0, frequency)) + 1.0) -
+                          kLogTotalWeight + kWordPenalty;
+    return static_cast<int64_t>(std::llround(weight * kScoreScale));
 }
 
 bool node_better(const CompositionNode& left, const CompositionNode& right) {
-    if (left.segment_count != right.segment_count) {
-        return left.segment_count < right.segment_count;
-    }
-    if (left.weakest_frequency != right.weakest_frequency) {
-        return left.weakest_frequency > right.weakest_frequency;
-    }
     if (left.aggregate_score != right.aggregate_score) {
         return left.aggregate_score > right.aggregate_score;
+    }
+    if (left.segment_count != right.segment_count) {
+        return left.segment_count < right.segment_count;
     }
     return left.sequence < right.sequence;
 }
@@ -93,14 +98,11 @@ bool result_better(const ComposedResult& left, const ComposedResult& right) {
     if (left.kind != right.kind) {
         return left.kind == CompositionPathKind::kNormal;
     }
-    if (left.segment_count != right.segment_count) {
-        return left.segment_count < right.segment_count;
-    }
-    if (left.weakest_frequency != right.weakest_frequency) {
-        return left.weakest_frequency > right.weakest_frequency;
-    }
     if (left.aggregate_score != right.aggregate_score) {
         return left.aggregate_score > right.aggregate_score;
+    }
+    if (left.segment_count != right.segment_count) {
+        return left.segment_count < right.segment_count;
     }
     if (left.path_rank != right.path_rank) {
         return left.path_rank < right.path_rank;
@@ -164,9 +166,11 @@ Candidate rebuild_candidate(const std::string& input, const CompositionPath& pat
     candidate.origin = CandidateOrigin::kComposed;
     candidate.source = CandidateSource::kPinyin;
     candidate.source_frequency = nodes[node_index].weakest_frequency;
-    candidate.frequency =
-        static_cast<int>((std::min)(nodes[node_index].aggregate_score,
-                                    static_cast<int64_t>((std::numeric_limits<int>::max)())));
+    // Below every dictionary word (the sentence scores are negative log weights).
+    constexpr int64_t kComposedScoreBase = 1000000;
+    candidate.frequency = static_cast<int>((std::max)(
+        int64_t{1}, (std::min)(kComposedScoreBase + nodes[node_index].aggregate_score,
+                               kComposedScoreBase)));
     return candidate;
 }
 
@@ -202,9 +206,12 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
                         size_t requested_candidates, const QueryDeadline& deadline,
                         const CompositionLimits& limits, CompositionStats& stats) const {
     stats = CompositionStats{};
-    const size_t result_capacity =
-        (std::min)(requested_candidates, static_cast<size_t>(limits.max_final_candidates));
-    if (result_capacity == 0 || paths.empty()) {
+    // Rank every path's sentences before choosing: the requested few would otherwise all be
+    // homophones of the best path.
+    const size_t result_capacity = static_cast<size_t>(limits.max_final_candidates);
+    const size_t sentence_limit =
+        (std::min)(requested_candidates, static_cast<size_t>(limits.max_sentences));
+    if (sentence_limit == 0 || result_capacity == 0 || paths.empty()) {
         return {};
     }
 
@@ -256,6 +263,18 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
             stats.truncated = true;
             break;
         }
+        // An ambiguous joint splits what also reads as one syllable (xi|a of "xia", xi|an of
+        // "xian"). A word boundary may not fall there ("nikanxia" would also give 你看洗啊); a word
+        // spanning it (西安) costs kAmbiguousJointPenalty, so the plain reading leads.
+        const auto& syllables = *path.syllables;
+        std::vector<uint8_t> ambiguous_joint(ids.size() + 1, 0);
+        if (path.kind == CompositionPathKind::kNormal) {
+            for (size_t joint = 1; joint < ids.size(); ++joint) {
+                ambiguous_joint[joint] =
+                    dict_.syllable_to_id(syllables[joint - 1] + syllables[joint]) != UINT32_MAX;
+            }
+        }
+
         std::vector<SpanEdge> edges;
         edges.reserve(span_capacity);
         std::vector<std::vector<uint32_t>> edges_by_start(ids.size());
@@ -278,7 +297,18 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
                     break;
                 }
 
+                // Homophones within a tenth of the span's most common word (改 / 该, not 瓦 / 哇);
+                // a repeated short code takes its most common word only.
+                const int top_frequency =
+                    memo_entry->candidates.empty() ? 0 : memo_entry->candidates.front().source_frequency;
+                size_t taken = 0;
                 for (const auto& candidate : memo_entry->candidates) {
+                    if (taken > 0 && (path.kind == CompositionPathKind::kRepeatedShortCode ||
+                                      static_cast<int64_t>(candidate.source_frequency) * 10 <
+                                          top_frequency)) {
+                        break;
+                    }
+                    ++taken;
                     if (edges.size() >= span_capacity) {
                         stats.truncated = true;
                         stop_queries = true;
@@ -286,7 +316,12 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
                     }
                     SpanEdge edge;
                     edge.end = static_cast<uint16_t>(end);
-                    edge.score = frequency_score(candidate.source_frequency);
+                    edge.score = word_score(candidate.source_frequency);
+                    for (size_t joint = start + 1; joint < end; ++joint) {
+                        if (ambiguous_joint[joint]) {
+                            edge.score += kAmbiguousJointPenalty;
+                        }
+                    }
                     edge.candidate = candidate;
                     edges_by_start[start].push_back(static_cast<uint32_t>(edges.size()));
                     edges.push_back(std::move(edge));
@@ -316,7 +351,7 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
         bool node_limit_hit = false;
 
         for (size_t start = 0; start < ids.size() && !node_limit_hit; ++start) {
-            if (beams[start].empty()) {
+            if (beams[start].empty() || ambiguous_joint[start]) {
                 continue;
             }
             for (uint32_t parent_index : beams[start]) {
@@ -361,6 +396,9 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
         });
         for (uint32_t node_index : completed) {
             const auto& node = nodes[node_index];
+            if (node.segment_count < 2) {
+                continue;  // a single word is already a dictionary candidate (as Rime's Poet)
+            }
             ComposedResult result;
             result.candidate = rebuild_candidate(input, path, nodes, edges, node_index);
             result.kind = path.kind;
@@ -383,10 +421,48 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
     stats.truncated = stats.truncated || lookup_stats.truncated;
     std::sort(results.begin(), results.end(), result_better);
 
+    // Keep the leading sentences while each stays close to the previous one (Rime's
+    // MakeSentences), plus the best sentence of each other syllable path not far from the best
+    // one ("nikanxiane": 你看限额 and 你看下呢); the model picks among them.
     std::vector<Candidate> candidates;
-    candidates.reserve(results.size());
-    for (auto& result : results) {
-        candidates.push_back(std::move(result.candidate));
+    candidates.reserve((std::min)(results.size(), sentence_limit));
+    std::vector<uint16_t> paths_shown;
+    double cutoff = limits.sentence_cutoff;
+    const double acceleration =
+        limits.max_sentences > 0 ? 1.0 - 1.0 / static_cast<double>(limits.max_sentences) : 1.0;
+    const auto distance = [](const ComposedResult& from, const ComposedResult& to) {
+        const double base = static_cast<double>(from.aggregate_score);
+        return base == 0.0 ? 0.0
+                           : std::fabs(static_cast<double>(to.aggregate_score) - base) /
+                                 std::fabs(base);
+    };
+    bool chain_open = true;
+    size_t last = 0;
+    for (size_t i = 0; i < results.size() && candidates.size() < sentence_limit; ++i) {
+        if (results[i].kind != results[0].kind) {
+            break;
+        }
+        bool take = i == 0;
+        if (!take && chain_open) {
+            take = distance(results[last], results[i]) <= cutoff;
+            if (take) {
+                cutoff *= acceleration;
+            } else {
+                chain_open = false;
+            }
+        }
+        if (!take && std::find(paths_shown.begin(), paths_shown.end(), results[i].path_rank) ==
+                         paths_shown.end()) {
+            take = distance(results[0], results[i]) <= limits.path_cutoff;
+        }
+        if (take) {
+            last = i;
+            if (std::find(paths_shown.begin(), paths_shown.end(), results[i].path_rank) ==
+                paths_shown.end()) {
+                paths_shown.push_back(results[i].path_rank);
+            }
+            candidates.push_back(std::move(results[i].candidate));
+        }
     }
     stats.candidate_count = static_cast<uint32_t>(candidates.size());
     return candidates;

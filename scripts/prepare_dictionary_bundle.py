@@ -43,6 +43,7 @@ from dictionary_bundle_layout import (
 from dict_builder import build_reverse_index
 from filter_dictionary_symbols import prepare_filtered_sources
 from generate_symbols import generate as generate_symbols
+from repair_pinyin_dictionary import repair as repair_pinyin_dictionary
 
 TOPN_RUNTIME_HEADER_FORMAT = "<8s11IQI"
 TOPN_RUNTIME_HEADER_SIZE = struct.calcsize(TOPN_RUNTIME_HEADER_FORMAT)
@@ -123,7 +124,8 @@ def run_build_pinyin_topn(db_path: str, output_path: str) -> None:
     script = os.path.join(SCRIPTS, "build_pinyin_topn.py")
     print("  Building Top-N index intermediate...")
     subprocess.run(
-        [sys.executable, script, "--input", db_path, "--output", output_path],
+        [sys.executable, script, "--input", db_path, "--output", output_path,
+         "--min-word-frequency", str(PINYIN_MIN_INDEXED_WORD_FREQUENCY)],
         check=True,
         capture_output=False,
     )
@@ -276,11 +278,13 @@ def prepare_wubi_dictionary(
     ]
 
 
-# Zhiyi IME ships a compact pinyin dictionary (about 400k entries): every single character
-# plus the words ranked above rime-ice's default weight of 100. The cut words (rare names,
-# places and transliterations) can still be typed character by character and are then
-# remembered by self-learning.
-PINYIN_MIN_WORD_FREQUENCY = 101
+# Zhiyi IME ships every single character plus the words at or above rime-ice's default weight of
+# 100. The tencent words (no pinyin in rime-ice, encoded by repair_pinyin_dictionary) are kept with
+# 3 to 4 characters; longer phrases can still be composed from their words.
+PINYIN_MIN_WORD_FREQUENCY = 100
+# Words at rime-ice's default weight stay out of the Top-N index (153 -> 39 MB, about 115 MB less
+# memory, no accuracy change on the engine test set); full pinyin still finds them at runtime.
+PINYIN_MIN_INDEXED_WORD_FREQUENCY = 100
 
 
 def trim_pinyin_dictionary(db_path: str) -> dict:
@@ -325,6 +329,7 @@ def prepare_dictionary_bundle(
             wubi_source, pinyin_source, wubi_db, pinyin_db,
         )
         print("Dictionary symbol filtering: " + json.dumps(stats))
+        print("Pinyin dictionary repair: " + json.dumps(repair_pinyin_dictionary(pinyin_db)))
         print("Pinyin dictionary trimming: " + json.dumps(trim_pinyin_dictionary(pinyin_db)))
         tasks = [
             (prepare_pinyin_dictionary, (pinyin_db, output_dir)),

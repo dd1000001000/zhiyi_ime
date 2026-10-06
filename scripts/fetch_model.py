@@ -17,13 +17,14 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEST = os.path.join(ROOT, "models", "laya")
 FILES = ["laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json"]
-ASSET = "laya-zhen-engine-r64-int8g.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-engine-r64/{ASSET}"
+ASSET = "laya-zhen-engine2-r64-int8g.zip"
+URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-engine2-r64/{ASSET}"
 # SHA-256 of laya.int8g.onnx: joint Chinese + English LoRA r64 on the guess prompt (context and
 # candidates only; rl_agent_config.json says "zhiyi_prompt": "guess") with long contexts; the Chinese
 # lists are the engine's real candidates (any length; full pinyin, a cut-off last syllable, initials,
-# mixed), int8 with quantized embeddings
-ONNX_SHA256 = "fd0969376674548d60db907360fd8f3190e3b640b7fa2ee0ce596a3d7903720f"
+# mixed) from the repaired ~1.46M-word dictionary with Rime-style ranking, int8 with quantized
+# embeddings
+ONNX_SHA256 = "8fd1592d30211e97dddb9377437bfdc409c7ac08799ec202567e1d02462a8ce0"
 
 
 def sha256(path):

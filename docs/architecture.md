@@ -8,7 +8,7 @@
 | 指标 | 数值 | 说明 |
 |------|------|------|
 | 安装包 | ~280 MB | 单文件安装器，含词典、Laya 模型（int8，约 350 MB 解压后）与 ONNX Runtime |
-| Server 内存 | 工作集 ~260 MB、私有提交 ~600 MB | 词典全量堆载加 Laya 模型；工作集随访问的词典页变化（0.7.6 实测） |
+| Server 内存 | 私有提交 ~700 MB | 词典全量堆载（约 146 万条拼音词，约 160 MB）加 Laya 模型；修正词库后比 1.0.3 多约 90 MB（引擎 + 模型实测 516 → 607 MB） |
 | 上文推荐 | 每次约 30 ms | Laya 模型在 CPU 上推理（4 线程），结果按上文缓存 |
 | IPC 往返延迟 | < 1 ms | 实测 preedit 平均 ~50 µs（见 [IPC 架构设计](ipc-architecture.md)） |
 | 启动 | 词典一次性读入 | 按顺序读盘，运行期不再有 mmap 换页 |
@@ -217,11 +217,11 @@ cxx-ime/
 
 | 文件 | 大小 | 说明 |
 |------|------|------|
-| `pinyin.dict.bin` | ~15 MB | 拼音主词典（按 syllable_ids 排序） |
-| `pinyin.dict.idx` | ~9.2 MB | 拼音整数 ID 索引（音节→词条映射） |
-| `pinyin.topn.bin` | ~42 MB | 拼音 Top-N 候选索引（CXTOPN v4，Darts trie 查找） |
+| `pinyin.dict.bin` | ~61 MB | 拼音主词典（按 syllable_ids 排序） |
+| `pinyin.dict.idx` | ~37 MB | 拼音整数 ID 索引（音节→词条映射） |
+| `pinyin.topn.bin` | ~39 MB | 拼音 Top-N 候选索引（CXTOPN v4，Darts trie 查找） |
 | `pinyin.spellings.bin` | ~36 KB | Patricia trie 拼写索引 |
-| `pinyin.reverse.idx` | ~1.6 MB | 拼音词语反查索引 |
+| `pinyin.reverse.idx` | ~5.6 MB | 拼音词语反查索引 |
 | `wubi86.dict.bin` | ~2.6 MB | 五笔主词典 |
 | `wubi86.dict.idx` | ~2.4 MB | 五笔完整前缀索引 |
 | `wubi86.reverse.idx` | ~0.4 MB | 五笔词语反查索引 |

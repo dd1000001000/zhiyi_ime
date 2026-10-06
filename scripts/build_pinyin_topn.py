@@ -6,6 +6,8 @@
 # output to the shared-candidate runtime format before writing dictionary_manifest.json.
 
 import argparse
+import functools
+import math
 import os
 import sqlite3
 import struct
@@ -28,18 +30,24 @@ MAX_MIXED_KEY_LENGTH = 16
 MAX_MIXED_KEYS_PER_ENTRY = 8
 MAX_CANDIDATES_PER_KEY = 64
 
-# Ranking tiers. User dictionary matches start at 120,000,000, so cache scores
-# stay below that range while preserving match quality ahead of raw frequency.
-EXACT_COMPLETE_BASE = 100_000_000
-EXACT_PREFIX_BASE = 80_000_000
-ABBR_COMPLETE_BASE = 60_000_000
-MIXED_COMPLETE_BASE = 50_000_000
-ABBR_PREFIX_BASE = 30_000_000
-MIXED_PREFIX_BASE = 20_000_000
-MAX_FREQUENCY = 99_999_900
-FREQUENCY_SCALE = 100
-MAX_PREFIX_PROXIMITY = 5
-PREFIX_PROXIMITY_STEP = 1_000_000
+# Ranking, as Rime ranks phrases. Three groups:
+#   COMPLETE    every syllable of the word is matched, each in full or by its initial;
+#   COMPLETION  the last syllable is unfinished ("ni" -> 年), or an initial is used although the
+#               key also reads as whole syllables ("zhou" -> 最后 as z+hou): Rime only completes
+#               input it cannot syllabify and drops abbreviations when whole syllables fit;
+#   EXTENSION   the word is longer than the key (先占领 for "xianzhan").
+# Within a group the score is ln(frequency) plus the spelling credibility, ln(0.5) for each
+# abbreviated or unfinished syllable ("qianm": 前面 before 千米 by frequency).
+# User dictionary matches start at 120,000,000 and stay above every group.
+# Keep in sync with rank_fallback_candidate (engine/src/pinyin_translator.cc).
+COMPLETE_BASE = 60_000_000
+COMPLETION_BASE = 45_000_000
+EXTENSION_BASE = 30_000_000
+LOG_SCALE = 500_000
+LOG_OFFSET = 10.0                # ln-scores from -10 to 19.9 stay inside each group
+MAX_LOG_SCORE = 14_999_999
+ABBREVIATION_CREDIBILITY = -0.6931471805599453  # ln(0.5), as the abbrev spellings
+COMPLETION_CREDIBILITY = -0.6931471805599453
 
 # Key flags
 SHORT_KEY_EXACT = 0x01
@@ -71,85 +79,125 @@ def resolve_input(path):
     return path
 
 
-def generate_keys(syllable_ids, text, frequency):
-    """Generate (key, score, flags) tuples for a single dict entry.
+def key_quality(key, syllables):
+    """(complete, unfinished, credibility) of reading key as the start of these syllables, or None.
+
+    Each syllable is typed in full (credibility 0), as its initial (z / zh, ln 0.5) or, for the
+    last typed one, as an unfinished prefix longer than its initial (ln 0.5). complete: every
+    syllable is touched; unfinished: the last one is cut. Best: complete, finished, credible.
+    """
+    best = None
+    n = len(syllables)
+    frontier = {(0, 0, False): 0.0}  # (syllable index, key position, unfinished) -> credibility
+    while frontier:
+        nxt = {}
+        for (i, p, cut), cred in frontier.items():
+            if p == len(key):
+                if i > 0:
+                    cand = (i == n, not cut, cred)
+                    if best is None or cand > best:
+                        best = cand
+                continue
+            if i == n:
+                continue
+            s = syllables[i]
+            steps = []
+            if key.startswith(s, p):
+                steps.append((p + len(s), 0.0, False))
+            initials = [s[:2]] if s[:2] in ("zh", "ch", "sh") else []
+            initials.append(s[0])
+            for ini in initials:
+                if len(ini) < len(s) and key.startswith(ini, p):
+                    steps.append((p + len(ini), ABBREVIATION_CREDIBILITY, False))
+            rest = len(key) - p
+            if 0 < rest < len(s) and s.startswith(key[p:]) and key[p:] not in initials:
+                steps.append((len(key), COMPLETION_CREDIBILITY, True))
+            for q, c, unfinished in steps:
+                state = (i + 1, q, unfinished)
+                if state not in nxt or nxt[state] < cred + c:
+                    nxt[state] = cred + c
+        frontier = nxt
+    if best is None:
+        return None
+    return best[0], not best[1], best[2]
+
+
+def reads_as_syllables(key, syllabary):
+    """Whether the key splits into whole syllables (zhou, xian), as Rime's normal spelling path."""
+    ok = [False] * (len(key) + 1)
+    ok[0] = True
+    for i in range(len(key)):
+        if ok[i]:
+            for j in range(i + 1, min(len(key), i + 6) + 1):
+                if key[i:j] in syllabary:
+                    ok[j] = True
+    return ok[len(key)]
+
+
+def key_score(key, syllables, frequency, key_is_syllables):
+    quality = key_quality(key, syllables)
+    if quality is None:
+        return None
+    complete, unfinished, credibility = quality
+    abbreviated = credibility < (COMPLETION_CREDIBILITY if unfinished else 0.0) - 1e-9
+    if not complete:
+        base = EXTENSION_BASE
+    elif unfinished or (abbreviated and key_is_syllables):
+        base = COMPLETION_BASE
+    else:
+        base = COMPLETE_BASE
+    log_score = round(LOG_SCALE * (math.log(max(frequency, 0) + 1) + credibility + LOG_OFFSET))
+    return base + min(max(log_score, 0), MAX_LOG_SCORE)
+
+
+def generate_keys(syllable_ids, text, frequency, key_is_syllables=lambda key: False):
+    """Generate (key, score, flags, has_complete_match) tuples for a single dict entry.
 
     syllable_ids: colon-separated syllable string, e.g. "shu:ru:fa"
-    Returns list of (key_string, score, flags, has_complete_match) tuples.
     """
     syllables = syllable_ids.split(":")
-    if not syllables:
+    if not syllables or not all(syllables):
         return []
 
     results = {}
     n = len(syllables)
 
-    frequency_score = min(max(frequency, 0), MAX_FREQUENCY) // FREQUENCY_SCALE
-
-    def offer(key, base, flags, proximity=0, has_complete_match=False):
-        score = base + proximity + frequency_score
+    def offer(key, flags, has_complete_match=False):
         existing = results.get(key)
         if existing is None:
+            score = key_score(key, syllables, frequency, key_is_syllables(key))
+            if score is None:
+                return
             results[key] = (score, flags, has_complete_match)
-        elif score > existing[0]:
-            results[key] = (score, flags | existing[1], has_complete_match or existing[2])
         else:
             results[key] = (existing[0], flags | existing[1], has_complete_match or existing[2])
 
-    def prefix_base(flags):
-        if flags & SHORT_KEY_EXACT:
-            return EXACT_PREFIX_BASE
-        if flags & SHORT_KEY_ABBR:
-            return ABBR_PREFIX_BASE
-        return MIXED_PREFIX_BASE
-
-    def proximity_bonus(key, prefix):
-        remaining = len(key) - len(prefix)
-        closeness = max(0, MAX_PREFIX_PROXIMITY + 1 - remaining)
-        return min(closeness, MAX_PREFIX_PROXIMITY) * PREFIX_PROXIMITY_STEP
-
     # exact_code: full concatenation, e.g. "shurufa"
     exact = "".join(syllables)
-    complete_keys = [(exact, EXACT_COMPLETE_BASE, SHORT_KEY_EXACT)]
+    complete_keys = [(exact, SHORT_KEY_EXACT)]
 
     # abbr_code: first letters, e.g. "srf"
-    abbr = "".join(s[0] for s in syllables if s)
+    abbr = "".join(s[0] for s in syllables)
     if abbr != exact:
-        complete_keys.append((abbr, ABBR_COMPLETE_BASE, SHORT_KEY_ABBR))
+        complete_keys.append((abbr, SHORT_KEY_ABBR))
 
     # mixed_code: combinations of full/abbr per syllable (limit to MAX_MIXED_KEYS_PER_ENTRY)
     if n > 1:
         mixed_list = _generate_mixed(syllables)
         for m in mixed_list[:MAX_MIXED_KEYS_PER_ENTRY]:
             if m != exact and len(m) <= MAX_MIXED_KEY_LENGTH:
-                complete_keys.append((m, MIXED_COMPLETE_BASE, SHORT_KEY_MIXED))
+                complete_keys.append((m, SHORT_KEY_MIXED))
 
-    for key, base, flags in complete_keys:
-        complete_proximity = 0
-        is_two_syllable_initial_full = (
-            n == 2 and
-            flags & SHORT_KEY_MIXED and
-            key == syllables[0][0] + syllables[1]
-        )
-        if is_two_syllable_initial_full:
-            complete_proximity = proximity_bonus(exact, key)
-        offer(
-            key,
-            base,
-            flags,
-            proximity=complete_proximity,
-            has_complete_match=True,
-        )
+    for key, flags in complete_keys:
+        offer(key, flags, has_complete_match=True)
 
-    # Prefixes retain their source match type. The strongest path wins when the
-    # same key can be generated as both an exact prefix and a mixed complete key.
-    for key, _, flags in complete_keys:
+    # Prefixes keep their source match type in the flags; the score comes from the key itself.
+    for key, flags in complete_keys:
         max_prefix_length = min(len(key), MAX_MATERIALIZED_PREFIX_LENGTH)
         for plen in range(1, max_prefix_length + 1):
             prefix = key[:plen]
             if prefix != key:
-                offer(prefix, prefix_base(flags), flags | SHORT_KEY_PREFIX,
-                      proximity_bonus(key, prefix))
+                offer(prefix, flags | SHORT_KEY_PREFIX)
 
     return [
         (key, score, flags, has_complete_match)
@@ -215,31 +263,44 @@ def _generate_mixed(syllables):
     return sorted(results)
 
 
-def build_cache(db_path):
+def build_cache(db_path, min_word_frequency=-1):
     """Read dict entries from SQLite and build the key -> candidates mapping."""
     conn = sqlite3.connect(db_path)
     cursor = conn.execute("SELECT text, code, frequency, syllable_ids FROM dict")
 
     # key -> list of (text, syllables, frequency, score, flags, has_complete_match)
     key_candidates = defaultdict(list)
-    seen_keys_text = defaultdict(set)  # key -> set of text (for dedup)
+    seen_keys_text = defaultdict(dict)  # key -> text -> index (for dedup)
+
+    syllabary = {
+        syllable
+        for (ids,) in conn.execute("SELECT DISTINCT syllable_ids FROM dict WHERE length(text) = 1")
+        for syllable in ids.split(":") if syllable
+    }
+    key_is_syllables = functools.lru_cache(maxsize=None)(
+        lambda key: reads_as_syllables(key, syllabary))
 
     count = 0
     for text, code, frequency, syllable_ids in cursor:
         if not syllable_ids or not text:
             continue
+        # Long-tail words (rime-ice's default weight) stay out of the index: they rank last
+        # for any short key, and the runtime lookup still finds them for full pinyin.
+        if len(text) > 1 and frequency <= min_word_frequency:
+            continue
 
-        keys = generate_keys(syllable_ids, text, frequency)
+        keys = generate_keys(syllable_ids, text, frequency, key_is_syllables)
         for key, score, flags, has_complete_match in keys:
             if len(key) == 0:
                 continue
-            # Dedup by text within each key
-            if text in seen_keys_text[key]:
-                continue
-            seen_keys_text[key].add(text)
-            key_candidates[key].append(
-                (text, syllable_ids, frequency, score, flags, has_complete_match)
-            )
+            # One reading per word and key: the best-scoring one (银行 yin:hang over yin:xing).
+            item = (text, syllable_ids, frequency, score, flags, has_complete_match)
+            index = seen_keys_text[key].get(text)
+            if index is None:
+                seen_keys_text[key][text] = len(key_candidates[key])
+                key_candidates[key].append(item)
+            elif score > key_candidates[key][index][3]:
+                key_candidates[key][index] = item
 
         count += 1
         if count % 100000 == 0:
@@ -361,6 +422,8 @@ def main():
     parser.add_argument("--input", required=True, help="Input .dict.db or .dict.db.zip path")
     parser.add_argument("--output", required=True, help="Output .topn.bin path")
     parser.add_argument("--no-verify", action="store_true", help="Skip required keys verification")
+    parser.add_argument("--min-word-frequency", type=int, default=-1,
+                        help="Leave words (2+ characters) at or below this frequency out of the index")
     args = parser.parse_args()
 
     db_path = resolve_input(args.input)
@@ -369,7 +432,7 @@ def main():
         sys.exit(1)
 
     print(f"Building Top-N index intermediate from {db_path}...", file=sys.stderr)
-    key_candidates = build_cache(db_path)
+    key_candidates = build_cache(db_path, args.min_word_frequency)
 
     if not key_candidates:
         print("WARNING: No keys generated. Check input data.", file=sys.stderr)

@@ -171,6 +171,24 @@ LayaRerankStats LayaRerank::stats() const {
     return s.stats;
 }
 
+namespace {
+
+// ln P(the right word is the r-th candidate the model compares), measured on the training data
+// (bench: eng_train.jsonl for Chinese, en192_train.jsonl for English). The model is trained on
+// shuffled lists and has no position preference of its own; the engine's order (frequency,
+// spelling credibility) comes back through this prior, weighted by laya.rank_prior_weight.
+constexpr double kRankPriorZh[] = {-0.2615, -2.3137, -3.1248, -3.5859, -4.0583, -4.4188, -4.6940,
+                                   -4.9568, -5.0688, -5.2175, -7.1806, -7.2324, -7.7867, -7.7867};
+constexpr double kRankPriorEn[] = {-0.3147, -2.1045, -3.0250, -3.4286, -3.8235, -4.1113, -3.9639,
+                                   -4.6219};
+
+template <size_t N>
+double rank_prior(const double (&table)[N], size_t rank) {
+    return table[(std::min)(rank, N - 1)];
+}
+
+}  // namespace
+
 bool LayaRerank::apply(const Config& config, const std::string& context, const std::string& input,
                        TranslationResult& result) {
     const auto& lc = config.laya;
@@ -194,7 +212,7 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     const std::string pinyin = pinyin_for_model(input);
     const std::string ctx = laya::utf8_tail(context, static_cast<size_t>((std::max)(0, lc.context_chars)));
     std::vector<std::string> texts;
-    std::string key = ctx + '\x1f' + pinyin;
+    std::string key = ctx + '\x1f' + pinyin + '\x1f' + std::to_string(lc.rank_prior_weight);
     for (size_t i : idx) {
         texts.push_back(result.entries[i].candidate.text);
         key += '\x1f' + texts.back();
@@ -223,10 +241,14 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
             auto t0 = std::chrono::steady_clock::now();
             std::vector<float> p = model->score(ctx, pinyin, texts);
             if (p.size() != texts.size()) return false;
+            std::vector<double> mixed(p.size());
+            for (size_t i = 0; i < p.size(); ++i)
+                mixed[i] = std::log((std::max)(p[i], 1e-9f)) +
+                           lc.rank_prior_weight * rank_prior(kRankPriorZh, i);
             order.resize(p.size());
             std::iota(order.begin(), order.end(), size_t{0});
             std::stable_sort(order.begin(), order.end(),
-                             [&](size_t a, size_t b) { return p[a] > p[b]; });
+                             [&](size_t a, size_t b) { return mixed[a] > mixed[b]; });
             double ms = std::chrono::duration<double, std::milli>(
                 std::chrono::steady_clock::now() - t0).count();
             std::lock_guard<std::mutex> lk(s.mu);
@@ -264,7 +286,8 @@ bool LayaRerank::apply_english(const Config& config, const std::string& context,
     const std::string ctx =
         laya::utf8_tail(context, static_cast<size_t>((std::max)(0, lc.english_context_chars)));
     std::vector<std::string> texts;
-    std::string key = std::string("en") + '\x1f' + ctx + '\x1f' + typed;
+    std::string key = std::string("en") + '\x1f' + ctx + '\x1f' + typed + '\x1f' +
+                      std::to_string(lc.english_rank_prior_weight);
     for (const auto& w : words) {
         texts.push_back(w.text);
         key += '\x1f' + w.text;
@@ -292,6 +315,7 @@ bool LayaRerank::apply_english(const Config& config, const std::string& context,
             std::vector<double> mixed(p.size());
             for (size_t i = 0; i < p.size(); ++i)
                 mixed[i] = std::log((std::max)(p[i], 1e-9f)) +
+                           lc.english_rank_prior_weight * rank_prior(kRankPriorEn, i) +
                            lc.english_freq_weight * (words[i].score / 100.0) * std::log(10.0) -
                            lc.english_correction_weight * words[i].cost * std::log(10.0);
             order.resize(p.size());

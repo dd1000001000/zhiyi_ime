@@ -31,6 +31,11 @@ static void load_bool(Json& obj, const char* key, bool& val) {
     if (obj.contains(key) && obj[key].is_boolean()) val = obj[key].get<bool>();
 }
 
+template <typename Json>
+static void load_double(Json& obj, const char* key, double& val) {
+    if (obj.contains(key) && obj[key].is_number()) val = obj[key].template get<double>();
+}
+
 // False when the key is present but not a valid shortcut (the value is then disabled).
 template <typename Json>
 static bool load_keyboard_shortcut(Json& obj, const char* key, KeyboardShortcut& value,
@@ -256,6 +261,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_string(l, "onnx", config.laya.onnx);
         load_int(l, "min_candidates", config.laya.min_candidates);
         load_int(l, "max_candidates", config.laya.max_candidates);
+        load_double(l, "rank_prior_weight", config.laya.rank_prior_weight);
+        load_double(l, "english_rank_prior_weight", config.laya.english_rank_prior_weight);
         load_int(l, "context_chars", config.laya.context_chars);
         load_int(l, "threads", config.laya.threads);
         load_bool(l, "english", config.laya.english);
@@ -567,6 +574,8 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["onnx"] = config.laya.onnx;
     j["laya"]["min_candidates"] = config.laya.min_candidates;
     j["laya"]["max_candidates"] = config.laya.max_candidates;
+    j["laya"]["rank_prior_weight"] = config.laya.rank_prior_weight;
+    j["laya"]["english_rank_prior_weight"] = config.laya.english_rank_prior_weight;
     j["laya"]["context_chars"] = config.laya.context_chars;
     j["laya"]["threads"] = config.laya.threads;
     j["laya"]["english"] = config.laya.english;

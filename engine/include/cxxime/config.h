@@ -120,6 +120,11 @@ struct Config {
         // Leading candidates the model looks at (those covering the whole input are compared);
         // 0 = 2 * page_size. See Config::laya_candidate_count.
         int max_candidates = 0;
+        // The model is trained on shuffled candidates (no position preference); the engine's
+        // order is added back as a prior: score = log P(model) + weight * log P(right word at
+        // this rank), the rank distribution measured on the training data.
+        double rank_prior_weight = 0.4;
+        double english_rank_prior_weight = 0.2;
         int context_chars = 128;  // trailing characters before the caret fed to the model
         int threads = 4;          // ONNX Runtime intra-op threads
         // English word mode (see EnglishConfig): completions are reranked too.

@@ -17,14 +17,16 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEST = os.path.join(ROOT, "models", "laya")
 FILES = ["laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json"]
-ASSET = "laya-zhen-engine2-r64-int8g.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-engine2-r64/{ASSET}"
+ASSET = "laya-zhen-engine3-r64-int8g.zip"
+URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-engine3-r64/{ASSET}"
 # SHA-256 of laya.int8g.onnx: joint Chinese + English LoRA r64 on the guess prompt (context and
 # candidates only; rl_agent_config.json says "zhiyi_prompt": "guess") with long contexts; the Chinese
 # lists are the engine's real candidates (any length; full pinyin, a cut-off last syllable, initials,
-# mixed) from the repaired ~1.46M-word dictionary with Rime-style ranking, int8 with quantized
-# embeddings
-ONNX_SHA256 = "8fd1592d30211e97dddb9377437bfdc409c7ac08799ec202567e1d02462a8ce0"
+# mixed) from the repaired ~1.46M-word dictionary with Rime-style ranking, shuffled during training
+# (no position preference; the engine adds its rank prior back, laya.rank_prior_weight), int8 with
+# quantized embeddings, the embedding table pruned to the 82,006 tokens Chinese and English use
+# (194 MB instead of 320 MB; a remap Gather in the graph keeps the tokenizer unchanged)
+ONNX_SHA256 = "3fac2999e001ec65a4f18f99cb446688a87428a7b44002987ebcb48f5e79592d"
 
 
 def sha256(path):

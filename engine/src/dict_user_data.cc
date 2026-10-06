@@ -162,11 +162,6 @@ bool Dict::revoke_candidate_preference(const CandidatePreferenceReceipt& receipt
     return candidate_preference_->revoke(receipt);
 }
 
-bool Dict::forget_candidate_preference(const std::string& text, const std::string& code,
-                                       const std::string& syllables) {
-    return candidate_preference_->forget(text, code, syllables);
-}
-
 namespace {
 
 // A tentative (picked once) word rises within its ranking group, as x20 frequency.

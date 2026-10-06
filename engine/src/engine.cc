@@ -318,15 +318,6 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
             last_learning_ = {};
         }
     }
-    // Ctrl+Delete or Shift+Delete on a learned candidate forgets it (Rime's delete-candidate
-    // keys); other keys with modifiers stay with the application.
-    if (!event.is_key_up && event.keycode == VK_DELETE && !event.is_alt() &&
-        (event.is_ctrl() || event.is_shift()) && context_.is_composing() &&
-        !english_composing_) {
-        forget_highlighted_candidate(per_query_deadline);
-        record_total_us(trace_, total_start, trace_enabled_);
-        return ProcessResult::ACCEPTED;
-    }
 
     CXXIME_LOG(L"Engine::process_key: after ascii_composer, committed_text='%S'",
                context_.committed_text.c_str());
@@ -1537,45 +1528,6 @@ void Engine::revoke_last_commit_learning() {
     if (session.composition && runtime_ && runtime_->composition_learning()) {
         runtime_->composition_learning()->revoke(*session.composition);
     }
-}
-
-bool Engine::forget_highlighted_candidate(const QueryDeadline& deadline) {
-    const CandidateEntry* entry = context_.candidate_entry(context_.highlighted());
-    if (!entry || !entry->candidate.learned || !runtime_) {
-        return false;
-    }
-    const Candidate& candidate = entry->candidate;
-    Dict* dictionary = candidate.source == CandidateSource::kWubi ? runtime_->wubi_dict()
-                                                                  : &runtime_->pinyin_dict();
-    std::vector<std::string> codes = {context_.active_input()};
-    for (const std::string& code : {candidate.input_code, candidate.code}) {
-        if (!code.empty() && std::find(codes.begin(), codes.end(), code) == codes.end()) {
-            codes.push_back(code);
-        }
-    }
-    // In memory; the server's save worker writes the file (save_candidate_preferences_if_due).
-    bool forgotten = false;
-    for (const std::string& code : codes) {
-        if (dictionary &&
-            dictionary->forget_candidate_preference(candidate.text, code, candidate.syllables)) {
-            forgotten = true;
-            break;
-        }
-    }
-    if (CompositionLearningService* learning = runtime_->composition_learning()) {
-        for (const std::string& code : codes) {
-            if (learning->forget(code, candidate.text, candidate.syllables)) {
-                forgotten = true;
-                break;
-            }
-        }
-    }
-    if (!forgotten) {
-        return false;
-    }
-    last_learning_ = {};
-    context_.update_translation(translate_current_composition(deadline));
-    return true;
 }
 
 bool Engine::replace_active_input(const ReplaceActiveInputAction& action,

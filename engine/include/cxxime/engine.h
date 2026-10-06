@@ -139,8 +139,6 @@ private:
     // Backspace right after a commit takes back what it taught (Rime's "forget about last
     // commit"); any other key keeps it.
     void revoke_last_commit_learning();
-    // Ctrl+Delete / Shift+Delete on a learned candidate: forgets it and refreshes the page.
-    bool forget_highlighted_candidate(const QueryDeadline& deadline);
     struct CommitLearningSession {
         std::vector<std::pair<Dict*, CandidatePreferenceReceipt>> receipts;
         std::optional<CompositionLearningEvent> composition;

@@ -81,9 +81,6 @@ public:
     // dictionary results). Expired words are left out.
     std::vector<Candidate> preferred_candidates(const std::string& code,
                                                 CandidateSource source) const;
-    // Forgets the word recorded under (text, code), or the word (text, syllables) whatever code
-    // it was recorded under. False when there is none.
-    bool forget(const std::string& text, const std::string& code, const std::string& syllables);
     std::vector<UserDictEntryInfo> query(const std::string& query, std::size_t offset,
                                          std::size_t limit,
                                          std::size_t* match_total = nullptr) const;

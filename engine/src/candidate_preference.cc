@@ -527,31 +527,6 @@ CandidatePreference::EntryId CandidatePreference::find_by_syllables_locked(
     return kNoEntry;
 }
 
-bool CandidatePreference::forget(const std::string& text, const std::string& code,
-                                 const std::string& syllables) {
-    std::lock_guard<std::mutex> save_lock(save_mutex_);
-    std::unique_lock<std::shared_mutex> lock(mutex_);
-    if (!accepting_updates_) {
-        return false;
-    }
-    EntryId id = kNoEntry;
-    const auto found = entry_index_.find(entry_key(text, code));
-    if (found != entry_index_.end()) {
-        id = found->second;
-    } else {
-        id = find_by_syllables_locked(text, syllables);
-    }
-    if (id == kNoEntry) {
-        return false;
-    }
-    entries_[id].deleted = true;
-    rebuild_indexes_locked();
-    last_update_ms_.store(GetTickCount64(), std::memory_order_release);
-    dirty_.store(true, std::memory_order_release);
-    version_.fetch_add(1, std::memory_order_acq_rel);
-    return true;
-}
-
 std::vector<UserDictEntryInfo> CandidatePreference::query(const std::string& query,
                                                           std::size_t offset, std::size_t limit,
                                                           std::size_t* match_total) const {

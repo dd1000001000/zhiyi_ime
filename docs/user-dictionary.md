@@ -182,7 +182,7 @@ struct Entry {
   命中的条目有两类：按当前输入精确记录的，以及（拼音）音节能被当前输入拼出来的——每个音节打全或只打声母（z / zh）、
   末尾的 儿 打成 r、最后一个音节可以没打完（`pinyin_spelling_match.h` 的 `match_typed_spelling`，不做更长的词的联想）。
   于是在 `xianzai` 下学过的 现在 对 `xz`、`xianz`、`xianza` 都有效；短输入的 Top-N 快速路径同样适用，因为匹配只扫首字母桶里的几十条，不依赖切分。
-- `delete_candidate_preferences`：候选上按 Ctrl+Delete 或 Shift+Delete 时引擎删除高亮候选的记录并刷新这一页（Rime 的删词键）；`query_candidate_preferences` / `clear_candidate_preferences` 供设置页与 IPC 使用。
+- `query_candidate_preferences` / `delete_candidate_preferences` / `clear_candidate_preferences`：管理接口，供设置页与 IPC 使用。
 
 ### 评分
 
@@ -215,7 +215,7 @@ dee_now = dee × exp((sequence − 当前 tick) / 200)
 也按音节匹配当前输入（同 `match_typed_spelling`：`zhegsh` 命中学过的 这个事，分数减去声母的可信度），
 规则与候选偏好一致：权重同样每 200 个 tick 衰减为 1/e；选过一次只排在组出来的句子之前（`kSentenceBase + kSentenceScoreSpan`，
 仍在打全的整词之下），低于 0.35 遗忘；选过两次以上置顶（`220,000,000 + dee_now × 1000`），低于 0.05 退回句首位置。
-`revoke(event)` 对应上屏后的 Backspace，`forget(code, text)` 对应候选上的 Ctrl+Delete。
+`revoke(event)` 对应上屏后的 Backspace。
 文件 `%USERPROFILE%\zhiyi\learning_composition.tsv`，列为 `text code syllables count sequence dee`，第 6 列不是数字时按旧格式读。
 
 ## 手动候选顺序（固定排序）

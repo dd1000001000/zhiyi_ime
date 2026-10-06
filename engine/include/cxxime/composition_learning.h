@@ -63,10 +63,6 @@ public:
     bool enqueue(const CompositionLearningEvent& event);
     // Takes back the latest enqueue of this sentence (Backspace right after the commit).
     bool revoke(const CompositionLearningEvent& event);
-    // Forgets a learned sentence (Ctrl+Delete on the candidate): the one recorded under
-    // (code, text), else the one with these syllables; false when unknown.
-    bool forget(const std::string& code, const std::string& text,
-                const std::string& syllables = {});
     bool flush();
     bool freeze_and_stop();
     bool merge_contents_and_save(const std::string& imported, UserDataMergeResult* result);

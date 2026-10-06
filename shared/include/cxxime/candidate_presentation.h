@@ -14,7 +14,7 @@ struct CandidatePresentationItem {
     std::string text;
     std::string hint;
     bool recommended = false;  // Laya's pick (sparkle mark)
-    bool learned = false;      // self-learning (dot mark; Ctrl+Delete forgets it)
+    bool learned = false;      // self-learning (dot mark)
 };
 
 struct CandidatePresentationPage {

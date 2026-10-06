@@ -663,39 +663,6 @@ bool CompositionLearningService::revoke(const CompositionLearningEvent& event) {
     return true;
 }
 
-bool CompositionLearningService::forget(const std::string& code, const std::string& text,
-                                        const std::string& syllables) {
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    if (!impl_->accepting || impl_->stopping) {
-        return false;
-    }
-    CompositionLearningEvent event;
-    event.code = code;
-    event.text = text;
-    std::string key = record_key(event);
-    if (!syllables.empty() && impl_->pending.find(key) == impl_->pending.end() &&
-        impl_->persisted.find(key) == impl_->persisted.end()) {
-        // Recorded under other letters: the sentence with these syllables.
-        for (const RecordMap* records : {&impl_->persisted, &impl_->pending}) {
-            for (const auto& item : *records) {
-                if (item.second.event.text == text && item.second.event.syllables == syllables) {
-                    key = item.first;
-                    break;
-                }
-            }
-        }
-    }
-    bool found = impl_->pending.erase(key) != 0;
-    if (impl_->persisted.erase(key) != 0) {
-        found = true;
-        impl_->persisted_dirty = true;
-        impl_->published = make_snapshot(impl_->persisted);
-        impl_->version.fetch_add(1, std::memory_order_acq_rel);
-        impl_->condition.notify_one();
-    }
-    return found;
-}
-
 bool CompositionLearningService::flush() {
     std::unique_lock<std::mutex> lock(impl_->mutex);
     const std::uint64_t target_generation = impl_->enqueued_generation;

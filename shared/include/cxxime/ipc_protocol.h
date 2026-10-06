@@ -294,6 +294,8 @@ struct IPCResponse {
     // match ("zhong guo"). candidate_hints only fits 3 letters; it keeps short hints for older
     // clients.
     char candidate_comments[kCandidateCapacity][kCandidateCommentCapacity] = {};
+    // Bit i: candidates[i] was learned from the user's selections (dot mark).
+    uint32_t candidate_learned_mask = 0;
 };
 
 static_assert(std::is_standard_layout<IPCResponse>::value,

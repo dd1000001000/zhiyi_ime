@@ -160,6 +160,7 @@ void fill_process_response_fields(const ProcessKeyResult& result,
                                 sizeof(response->candidate_hints[index]), item.hint);
         }
         if (item.recommended) response->candidate_recommended_mask |= 1u << index;
+        if (item.learned) response->candidate_learned_mask |= 1u << index;
     }
 }
 }  // namespace

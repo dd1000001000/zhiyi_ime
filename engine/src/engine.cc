@@ -57,6 +57,18 @@ static void add_wubi_code_hints(const std::string& input, TranslationResult& res
     }
 }
 
+static bool is_modifier_key(uint32_t keycode) {
+    switch (keycode) {
+    case VK_SHIFT: case VK_LSHIFT: case VK_RSHIFT:
+    case VK_CONTROL: case VK_LCONTROL: case VK_RCONTROL:
+    case VK_MENU: case VK_LMENU: case VK_RMENU:
+    case VK_LWIN: case VK_RWIN: case VK_CAPITAL:
+        return true;
+    default:
+        return false;
+    }
+}
+
 static bool record_candidate_preference(Dict* dict, const Candidate* candidate,
                                         const std::string& typed_code) {
     return dict && candidate && !typed_code.empty() &&
@@ -295,6 +307,26 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
     const bool modifier_binding_applied =
         ascii_composer_.process_key(event.keycode, event.is_key_up, context_,
                                     event.is_caps_lock());
+
+    // The key after a commit decides what the commit taught: Backspace takes it back (the
+    // text was wrong), any other key keeps it; modifiers alone decide nothing.
+    if (!event.is_key_up && last_learning_.armed && !is_modifier_key(event.keycode)) {
+        if (event.keycode == VK_BACK && !context_.is_composing() && !event.is_ctrl() &&
+            !event.is_alt()) {
+            revoke_last_commit_learning();
+        } else {
+            last_learning_ = {};
+        }
+    }
+    // Ctrl+Delete or Shift+Delete on a learned candidate forgets it (Rime's delete-candidate
+    // keys); other keys with modifiers stay with the application.
+    if (!event.is_key_up && event.keycode == VK_DELETE && !event.is_alt() &&
+        (event.is_ctrl() || event.is_shift()) && context_.is_composing() &&
+        !english_composing_) {
+        forget_highlighted_candidate(per_query_deadline);
+        record_total_us(trace_, total_start, trace_enabled_);
+        return ProcessResult::ACCEPTED;
+    }
 
     CXXIME_LOG(L"Engine::process_key: after ascii_composer, committed_text='%S'",
                context_.committed_text.c_str());
@@ -1473,6 +1505,7 @@ void Engine::apply_commit_learning_plan() {
     if (!runtime_ || !runtime_->config().candidate_learning || plan.empty()) {
         return;
     }
+    last_learning_ = {};
     for (const CandidatePreferenceLearningEvent& event : plan.candidate_preferences) {
         Dict* dictionary = nullptr;
         if (event.target == LearningTarget::kPinyin) {
@@ -1480,11 +1513,69 @@ void Engine::apply_commit_learning_plan() {
         } else if (event.target == LearningTarget::kWubi) {
             dictionary = runtime_->wubi_dict();
         }
-        record_candidate_preference(dictionary, &event.candidate, event.typed_code);
+        CandidatePreferenceReceipt receipt;
+        if (dictionary && event.candidate.source != CandidateSource::kSymbol &&
+            dictionary->record_candidate_preference(event.candidate, event.typed_code,
+                                                    &receipt)) {
+            last_learning_.receipts.emplace_back(dictionary, std::move(receipt));
+        }
     }
-    if (plan.composition && runtime_->composition_learning()) {
-        runtime_->composition_learning()->enqueue(*plan.composition);
+    if (plan.composition && runtime_->composition_learning() &&
+        runtime_->composition_learning()->enqueue(*plan.composition)) {
+        last_learning_.composition = plan.composition;
     }
+    last_learning_.armed =
+        !last_learning_.receipts.empty() || last_learning_.composition.has_value();
+}
+
+void Engine::revoke_last_commit_learning() {
+    CommitLearningSession session = std::move(last_learning_);
+    last_learning_ = {};
+    for (const auto& [dictionary, receipt] : session.receipts) {
+        dictionary->revoke_candidate_preference(receipt);
+    }
+    if (session.composition && runtime_ && runtime_->composition_learning()) {
+        runtime_->composition_learning()->revoke(*session.composition);
+    }
+}
+
+bool Engine::forget_highlighted_candidate(const QueryDeadline& deadline) {
+    const CandidateEntry* entry = context_.candidate_entry(context_.highlighted());
+    if (!entry || !entry->candidate.learned || !runtime_) {
+        return false;
+    }
+    const Candidate& candidate = entry->candidate;
+    Dict* dictionary = candidate.source == CandidateSource::kWubi ? runtime_->wubi_dict()
+                                                                  : &runtime_->pinyin_dict();
+    std::vector<std::string> codes = {context_.active_input()};
+    for (const std::string& code : {candidate.input_code, candidate.code}) {
+        if (!code.empty() && std::find(codes.begin(), codes.end(), code) == codes.end()) {
+            codes.push_back(code);
+        }
+    }
+    // In memory; the server's save worker writes the file (save_candidate_preferences_if_due).
+    bool forgotten = false;
+    for (const std::string& code : codes) {
+        if (dictionary &&
+            dictionary->delete_candidate_preferences({LexiconEntryKey{candidate.text, code}})) {
+            forgotten = true;
+            break;
+        }
+    }
+    if (CompositionLearningService* learning = runtime_->composition_learning()) {
+        for (const std::string& code : codes) {
+            if (learning->forget(code, candidate.text)) {
+                forgotten = true;
+                break;
+            }
+        }
+    }
+    if (!forgotten) {
+        return false;
+    }
+    last_learning_ = {};
+    context_.update_translation(translate_current_composition(deadline));
+    return true;
 }
 
 bool Engine::replace_active_input(const ReplaceActiveInputAction& action,

@@ -307,6 +307,13 @@ void D2DRenderer::render(const RenderContext& ctx) {
         if (recommended) {
             draw_sparkle(cr.mark_rect, ctx.sparkle_t, hl);
         }
+        if (cr.learned) {
+            const RECT dot = learned_mark_rect(cr.text_rect);
+            const D2D1_ELLIPSE e = {
+                {(dot.left + dot.right) / 2.0f, (dot.top + dot.bottom) / 2.0f},
+                (dot.right - dot.left) / 2.0f, (dot.bottom - dot.top) / 2.0f};
+            render_target_->FillEllipse(e, hl ? highlight_text_brush_ : comment_brush_);
+        }
     }
 
     // Page nav (always visible, grayed when disabled)

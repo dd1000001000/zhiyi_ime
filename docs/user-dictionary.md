@@ -162,8 +162,10 @@ struct Entry {
     std::string code;           // 输入码（记录时的参数）
     std::string candidate_code; // 候选自身的编码
     std::string syllables;      // 冒号分隔音节
-    int frequency = 1;
-    uint64_t sequence = 0;
+    int frequency = 1;          // 选中次数（commits）
+    uint64_t sequence = 0;      // 最后一次选中时的全局计数（tick）
+    double dee = 1.0;           // 衰减权重，截至 sequence 那一刻
+    int score = 0;              // 最后一次选中时该词的排序分（0 = 未知）
     bool deleted = false;       // 软删除标记
 };
 ```
@@ -172,25 +174,41 @@ struct Entry {
 
 ### 记录与查询
 
-- `record_candidate_preference(candidate, code)`：记录选中的候选。符号（`kSymbol`）与组合（`kComposed`）候选不记录；相同 text+code 递增频率。冻结后拒绝记录。
-- `apply_candidate_preferences(code, source, candidates, limit)`：翻译结果排序前应用偏好，命中项按偏好得分提升并标记 `origin = kLearned`，不产生重复项。
-- `query_candidate_preferences` / `delete_candidate_preference` / `clear_candidate_preferences`：管理接口，供设置页与 IPC 使用。
+- `record_candidate_preference(candidate, code, receipt)`：记录选中的候选。符号（`kSymbol`）与组合（`kComposed`）候选不记录；相同 text+code 次数加一、权重加一。冻结后拒绝记录。`receipt` 记下这次改动前的状态。
+- `revoke_candidate_preference(receipt)`：撤回上一次记录（条目没被再次改动时）。上屏后紧接着按 Backspace 时引擎调用它：刚上屏就删，说明选错了，这次学习作废（Rime 的 `DiscardSession`）。
+- `apply_candidate_preferences(code, source, candidates, limit)`：翻译结果排序前应用偏好，命中项标记 `learned = true`（候选窗口在词的右下角画一个小点），不在结果里的条目补进来并标记 `origin = kLearned`，不产生重复项。
+- `delete_candidate_preferences`：候选上按 Ctrl+Delete 或 Shift+Delete 时引擎删除高亮候选的记录并刷新这一页（Rime 的删词键）；`query_candidate_preferences` / `clear_candidate_preferences` 供设置页与 IPC 使用。
 
 ### 评分
 
-偏好得分远高于普通用户词，用于把“学过的候选”稳定排在系统词之前：
+参照 Rime 用户词典的做法：每次选中加一次，权重随后衰减，任何词每上屏一次是一个 tick，权重每 200 个 tick 衰减为 1/e（`algo::formula_d`）：
 
 ```
-score = kPreferenceBaseScore(210000000) + min(frequency, 50000) + recency
-recency = (当前序号 - 条目序号 <= 1000) ? 1000 - 差值 : 0
+dee_now = dee × exp((sequence − 当前 tick) / 200)
 ```
+
+- **选过一次（tentative）**：不置顶，只在它所在的排序组内加分，`kLearnedBoost = 1,500,000`，相当于词频 ×20，不越过组的上限；
+  不在本次查询结果里的词按它上次的排序分 `score` 加分后补进来。`dee_now` 低于 0.35（约 210 个 tick 没再选）就遗忘，
+  再选到时从头算一次。
+- **选过两次以上（confirmed）**：置顶，`score = 210,000,000 + dee_now × 1000`，最近常选的在前；`dee_now` 低于 0.05
+  （两次选中后约 740 个 tick 没再用）时退回加分，不删除，再选一次又置顶。
+- 五笔没有可加分的词频尺度，选一次就置顶，其余规则相同。
 
 ### 持久化
 
-- TSV 6 列：`text<TAB>code<TAB>candidate_code<TAB>frequency<TAB>sequence<TAB>syllables`
+- TSV 8 列：`text<TAB>code<TAB>candidate_code<TAB>frequency<TAB>sequence<TAB>syllables<TAB>dee<TAB>score`；
+  读取时兼容 6 列（1.0.8 以前，权重按次数折算）和 7 列；保存时已遗忘的条目不再写出
 - `save_if_due(delay)` 按最近更新时间合并落盘（服务端默认 1500ms）；`save()` 立即写盘
 - `freeze()` 后拒绝记录/删除/清空，但允许保存既有数据
 - 文件：`%USERPROFILE%\zhiyi\learning_pinyin.tsv`、`%USERPROFILE%\zhiyi\learning_wubi.tsv`
+
+### 整句学习
+
+`CompositionLearningService`（`engine/src/composition_learning.cc`）记录逐段选出来或由组句上屏的整句，按完整编码查询，
+规则与候选偏好一致：权重同样每 200 个 tick 衰减为 1/e；选过一次只排在组出来的句子之前（`kSentenceBase + kSentenceScoreSpan`，
+仍在打全的整词之下），低于 0.35 遗忘；选过两次以上置顶（`220,000,000 + dee_now × 1000`），低于 0.05 退回句首位置。
+`revoke(event)` 对应上屏后的 Backspace，`forget(code, text)` 对应候选上的 Ctrl+Delete。
+文件 `%USERPROFILE%\zhiyi\learning_composition.tsv`，列为 `text code syllables count sequence dee`，第 6 列不是数字时按旧格式读。
 
 ## 手动候选顺序（固定排序）
 

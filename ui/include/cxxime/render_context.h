@@ -3,6 +3,7 @@
 #ifndef CXXIME_RENDER_CONTEXT_H_
 #define CXXIME_RENDER_CONTEXT_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -51,7 +52,17 @@ struct CandidateRect {
     RECT highlight_rect{};
     bool recommended = false;  // Laya's pick: sparkle at the top-right corner
     RECT mark_rect{};          // space reserved after the text for the sparkle
+    bool learned = false;      // self-learned: a small dot at the bottom-right of the text
 };
+
+// The dot marking a learned candidate, inside the text's render slack.
+inline RECT learned_mark_rect(const RECT& text_rect) {
+    const int row = text_rect.bottom - text_rect.top;
+    const int d = (std::max)(2, row / 10);
+    const int right = text_rect.right - (std::max)(1, row / 20);
+    const int bottom = text_rect.bottom - (std::max)(1, row / 5);
+    return {right - d, bottom - d, right, bottom};
+}
 
 // Width reserved after a recommended candidate for its sparkle mark.
 inline int recommendation_mark_width(int row_height) { return row_height * 9 / 20; }

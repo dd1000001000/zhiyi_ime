@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <cxxime/ascii_composer.h>
+#include <cxxime/candidate_preference.h>
 #include <cxxime/composition_learning.h>
 #include <cxxime/composition_presentation.h>
 #include <cxxime/config.h>
@@ -135,6 +136,17 @@ private:
     bool replace_active_input(const ReplaceActiveInputAction& action,
                               const QueryDeadline& deadline);
     void apply_commit_learning_plan();
+    // Backspace right after a commit takes back what it taught (Rime's "forget about last
+    // commit"); any other key keeps it.
+    void revoke_last_commit_learning();
+    // Ctrl+Delete / Shift+Delete on a learned candidate: forgets it and refreshes the page.
+    bool forget_highlighted_candidate(const QueryDeadline& deadline);
+    struct CommitLearningSession {
+        std::vector<std::pair<Dict*, CandidatePreferenceReceipt>> receipts;
+        std::optional<CompositionLearningEvent> composition;
+        bool armed = false;  // the next key decides: Backspace undoes, anything else keeps
+    };
+    CommitLearningSession last_learning_;
     static CompositionScheme scheme_for_mode(InputMode mode);
 
     // Laya reranking: committed text of this session (context for the model) and the text

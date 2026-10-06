@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cerrno>
 #include <climits>
+#include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <sstream>
 #include <utility>
@@ -22,6 +24,13 @@ namespace cxxime {
 namespace {
 
 constexpr int kPreferenceBaseScore = 210000000;
+// The weight loses a factor e every kDecayTicks selections (librime algo::formula_d).
+constexpr double kDecayTicks = 200.0;
+// A word picked once is forgotten when its weight decays below this (about 210 ticks).
+constexpr double kTentativeExpiry = 0.35;
+// A confirmed word is pinned while its weight is above this; below, it is only boosted.
+constexpr double kPinFloor = 0.05;
+constexpr double kMaxDee = 20000.0;
 
 std::vector<std::string> split_tsv_line(const std::string& line) {
     std::vector<std::string> fields;
@@ -51,6 +60,26 @@ std::uint64_t parse_sequence(const std::string& value) {
     return end && *end == '\0' ? static_cast<std::uint64_t>(parsed) : 0;
 }
 
+bool parse_dee(const std::string& value, double* dee) {
+    if (value.empty() || value.front() == '-') {
+        return false;
+    }
+    char* end = nullptr;
+    errno = 0;
+    const double parsed = std::strtod(value.c_str(), &end);
+    if (errno != 0 || !end || *end != '\0' || !(parsed >= 0.0) || parsed > kMaxDee) {
+        return false;
+    }
+    *dee = parsed;
+    return true;
+}
+
+std::string format_dee(double dee) {
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%.4f", dee);
+    return buffer;
+}
+
 void trim_trailing_space(std::string& value) {
     while (!value.empty() &&
            (value.back() == ' ' || value.back() == '\r' || value.back() == '\n')) {
@@ -58,11 +87,20 @@ void trim_trailing_space(std::string& value) {
     }
 }
 
-int preference_score(int frequency, std::uint64_t current_sequence, std::uint64_t entry_sequence) {
-    const std::uint64_t delta =
-        current_sequence >= entry_sequence ? current_sequence - entry_sequence : 0;
-    const int recency = delta <= 1000 ? static_cast<int>(1000 - delta) : 0;
-    return kPreferenceBaseScore + (std::min)(frequency, 50000) + recency;
+// The weight as of `now`: `dee` was recorded at `then` and decays since.
+double decayed(double dee, std::uint64_t then, std::uint64_t now) {
+    if (now <= then) {
+        return dee;
+    }
+    return dee * std::exp(-static_cast<double>(now - then) / kDecayTicks);
+}
+
+bool expired(int frequency, double dee_now) {
+    return frequency <= 1 && dee_now < kTentativeExpiry;
+}
+
+int pinned_score(double dee_now) {
+    return kPreferenceBaseScore + static_cast<int>((std::min)(dee_now, kMaxDee) * 1000.0);
 }
 
 } // namespace
@@ -76,16 +114,49 @@ std::string CandidatePreference::entry_key(const std::string& text, const std::s
     return key;
 }
 
-std::string CandidatePreference::serialize_entries(const std::vector<Entry>& entries) {
+std::string CandidatePreference::serialize_entries(const std::vector<Entry>& entries,
+                                                   std::uint64_t current_sequence) {
     std::ostringstream output;
     for (const auto& entry : entries) {
-        if (entry.deleted) {
+        if (entry.deleted ||
+            expired(entry.frequency, decayed(entry.dee, entry.sequence, current_sequence))) {
             continue;
         }
         output << entry.text << '\t' << entry.code << '\t' << entry.candidate_code << '\t'
-               << entry.frequency << '\t' << entry.sequence << '\t' << entry.syllables << '\n';
+               << entry.frequency << '\t' << entry.sequence << '\t' << entry.syllables << '\t'
+               << format_dee(entry.dee) << '\t' << entry.score << '\n';
     }
     return output.str();
+}
+
+// Six columns (text, code, candidate code, commits, sequence, syllables), seven with the
+// weight, or eight with the ranking score; a record without a weight is read as `commits`
+// selections at its sequence.
+bool CandidatePreference::parse_entry(const std::vector<std::string>& fields, Entry* entry) {
+    if (fields.size() < 6 || fields.size() > 8 || !is_ordinary_candidate_text(fields[0]) ||
+        fields[1].empty() || fields[2].empty()) {
+        return false;
+    }
+    entry->text = fields[0];
+    entry->code = fields[1];
+    entry->candidate_code = fields[2];
+    entry->frequency = parse_frequency(fields[3]);
+    entry->sequence = parse_sequence(fields[4]);
+    entry->syllables = fields[5];
+    trim_trailing_space(entry->syllables);
+    entry->dee = (std::min)(static_cast<double>(entry->frequency), kMaxDee);
+    if (fields.size() >= 7 && !parse_dee(fields[6], &entry->dee)) {
+        return false;  // a seventh column that is not a weight: an unknown format
+    }
+    if (fields.size() == 8) {
+        char* end = nullptr;
+        const long score = std::strtol(fields[7].c_str(), &end, 10);
+        if (fields[7].empty() || !end || *end != '\0' || score < 0 || score > INT_MAX) {
+            return false;
+        }
+        entry->score = static_cast<int>(score);
+    }
+    return true;
 }
 
 bool CandidatePreference::validate_contents(const std::string& contents) {
@@ -99,22 +170,32 @@ bool CandidatePreference::validate_contents(const std::string& contents) {
             continue;
         }
         const std::vector<std::string> fields = split_tsv_line(line);
+        const bool column_count_ok = fields.size() >= 6 && fields.size() <= 8;
         char* frequency_end = nullptr;
         char* sequence_end = nullptr;
         errno = 0;
         const long frequency =
-            fields.size() == 6 ? std::strtol(fields[3].c_str(), &frequency_end, 10) : 0;
+            column_count_ok ? std::strtol(fields[3].c_str(), &frequency_end, 10) : 0;
         const int frequency_error = errno;
         errno = 0;
         const unsigned long long sequence =
-            fields.size() == 6 ? std::strtoull(fields[4].c_str(), &sequence_end, 10) : 0;
-        if (fields.size() != 6 || !is_valid_user_dict_text(fields[0]) ||
+            column_count_ok ? std::strtoull(fields[4].c_str(), &sequence_end, 10) : 0;
+        double dee = 0.0;
+        if (!column_count_ok || !is_valid_user_dict_text(fields[0]) ||
             !is_valid_user_dict_code(fields[1]) || !is_valid_user_dict_code(fields[2]) ||
             !is_valid_user_dict_syllables(fields[5]) || frequency_error != 0 || !frequency_end ||
             *frequency_end != '\0' || frequency < 1 || frequency > INT_MAX || errno != 0 ||
             !sequence_end || *sequence_end != '\0' || fields[4].empty() ||
-            fields[4].front() == '-' || sequence == 0) {
+            fields[4].front() == '-' || sequence == 0 ||
+            (fields.size() >= 7 && !parse_dee(fields[6], &dee))) {
             return false;
+        }
+        if (fields.size() == 8) {
+            char* score_end = nullptr;
+            const long score = std::strtol(fields[7].c_str(), &score_end, 10);
+            if (fields[7].empty() || !score_end || *score_end != '\0' || score < 0) {
+                return false;
+            }
         }
     }
     return true;
@@ -135,19 +216,10 @@ bool CandidatePreference::load(const std::string& path) {
         if (!line.empty() && line.back() == '\r') {
             line.pop_back();
         }
-        const std::vector<std::string> fields = split_tsv_line(line);
-        if (fields.size() != 6 || !is_ordinary_candidate_text(fields[0]) || fields[1].empty() ||
-            fields[2].empty()) {
+        Entry entry;
+        if (!parse_entry(split_tsv_line(line), &entry)) {
             continue;
         }
-        Entry entry;
-        entry.text = fields[0];
-        entry.code = fields[1];
-        entry.candidate_code = fields[2];
-        entry.frequency = parse_frequency(fields[3]);
-        entry.sequence = parse_sequence(fields[4]);
-        entry.syllables = fields[5];
-        trim_trailing_space(entry.syllables);
         sequence = (std::max)(sequence, entry.sequence);
         entries.push_back(std::move(entry));
     }
@@ -171,7 +243,7 @@ bool CandidatePreference::merge_contents_and_save(const std::string& imported,
     }
     std::lock_guard<std::mutex> save_lock(save_mutex_);
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    const std::string current = serialize_entries(entries_);
+    const std::string current = serialize_entries(entries_, sequence_);
     const std::string path = path_;
     UserDataMergeResult merged;
     if (path.empty() ||
@@ -188,18 +260,10 @@ bool CandidatePreference::merge_contents_and_save(const std::string& imported,
         if (!line.empty() && line.back() == '\r') {
             line.pop_back();
         }
-        const std::vector<std::string> values = split_tsv_line(line);
-        if (values.size() != 6) {
+        Entry entry;
+        if (!parse_entry(split_tsv_line(line), &entry)) {
             return false;
         }
-        Entry entry;
-        entry.text = values[0];
-        entry.code = values[1];
-        entry.candidate_code = values[2];
-        entry.frequency = parse_frequency(values[3]);
-        entry.sequence = parse_sequence(values[4]);
-        entry.syllables = values[5];
-        trim_trailing_space(entry.syllables);
         sequence = (std::max)(sequence, entry.sequence);
         entries.push_back(std::move(entry));
     }
@@ -227,7 +291,7 @@ bool CandidatePreference::save() {
             return true;
         }
         path = path_;
-        contents = serialize_entries(entries_);
+        contents = serialize_entries(entries_, sequence_);
         saved_version = version_.load(std::memory_order_acquire);
     }
     if (!write_user_data_file_atomically(path, contents)) {
@@ -258,7 +322,8 @@ void CandidatePreference::freeze() {
     accepting_updates_ = false;
 }
 
-bool CandidatePreference::record(const Candidate& candidate, const std::string& code) {
+bool CandidatePreference::record(const Candidate& candidate, const std::string& code,
+                                 CandidatePreferenceReceipt* receipt) {
     if (candidate.text.empty() || code.empty() || candidate.source == CandidateSource::kSymbol ||
         candidate.source == CandidateSource::kEnglish ||
         candidate.origin == CandidateOrigin::kComposed || code.size() > kMaxInputCodeLength ||
@@ -271,17 +336,35 @@ bool CandidatePreference::record(const Candidate& candidate, const std::string& 
     }
     const std::string key = entry_key(candidate.text, code);
     const auto found = entry_index_.find(key);
+    CandidatePreferenceReceipt change;
+    change.text = candidate.text;
+    change.code = code;
+    ++sequence_;
     if (found != entry_index_.end()) {
         Entry& entry = entries_[found->second];
-        if (entry.frequency < INT_MAX) {
-            ++entry.frequency;
+        change.previous_frequency = entry.frequency;
+        change.previous_dee = entry.dee;
+        change.previous_sequence = entry.sequence;
+        // An expired tentative word starts over as a new one.
+        const double dee_now = decayed(entry.dee, entry.sequence, sequence_);
+        if (expired(entry.frequency, dee_now)) {
+            entry.frequency = 1;
+            entry.dee = 1.0;
+        } else {
+            if (entry.frequency < INT_MAX) {
+                ++entry.frequency;
+            }
+            entry.dee = (std::min)(dee_now + 1.0, kMaxDee);
         }
-        entry.sequence = ++sequence_;
+        entry.sequence = sequence_;
         if (entry.syllables.empty()) {
             entry.syllables = candidate.syllables;
         }
         if (entry.candidate_code.empty()) {
             entry.candidate_code = candidate.code.empty() ? code : candidate.code;
+        }
+        if (candidate.frequency >= kRankingGroupsBegin && candidate.frequency < kRankingGroupsEnd) {
+            entry.score = candidate.frequency;
         }
     } else {
         Entry entry;
@@ -289,11 +372,47 @@ bool CandidatePreference::record(const Candidate& candidate, const std::string& 
         entry.code = code;
         entry.candidate_code = candidate.code.empty() ? code : candidate.code;
         entry.syllables = candidate.syllables;
-        entry.sequence = ++sequence_;
+        entry.sequence = sequence_;
+        entry.dee = 1.0;
+        if (candidate.frequency >= kRankingGroupsBegin && candidate.frequency < kRankingGroupsEnd) {
+            entry.score = candidate.frequency;
+        }
         const EntryId id = static_cast<EntryId>(entries_.size());
         entries_.push_back(std::move(entry));
         entry_index_[key] = id;
         code_index_[code].push_back(id);
+        change.created = true;
+    }
+    change.sequence = sequence_;
+    if (receipt) {
+        *receipt = std::move(change);
+    }
+    last_update_ms_.store(GetTickCount64(), std::memory_order_release);
+    dirty_.store(true, std::memory_order_release);
+    version_.fetch_add(1, std::memory_order_acq_rel);
+    return true;
+}
+
+bool CandidatePreference::revoke(const CandidatePreferenceReceipt& receipt) {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    if (!accepting_updates_) {
+        return false;
+    }
+    const auto found = entry_index_.find(entry_key(receipt.text, receipt.code));
+    if (found == entry_index_.end()) {
+        return false;
+    }
+    Entry& entry = entries_[found->second];
+    if (entry.sequence != receipt.sequence) {
+        return false;  // touched again since
+    }
+    if (receipt.created) {
+        entry.deleted = true;
+        rebuild_indexes_locked();
+    } else {
+        entry.frequency = receipt.previous_frequency;
+        entry.dee = receipt.previous_dee;
+        entry.sequence = receipt.previous_sequence;
     }
     last_update_ms_.store(GetTickCount64(), std::memory_order_release);
     dirty_.store(true, std::memory_order_release);
@@ -319,13 +438,23 @@ std::vector<Candidate> CandidatePreference::preferred_candidates(const std::stri
         if (entry.deleted) {
             continue;
         }
+        const double dee_now = decayed(entry.dee, entry.sequence, sequence_);
+        if (expired(entry.frequency, dee_now)) {
+            continue;
+        }
+        // Wubi has no frequency scale to boost within: a single commit pins.
+        const bool pinned = source == CandidateSource::kWubi
+                                ? true
+                                : entry.frequency >= 2 && dee_now >= kPinFloor;
         Candidate learned;
         learned.text = entry.text;
         learned.code = entry.candidate_code;
         learned.syllables = entry.syllables;
-        learned.frequency = preference_score(entry.frequency, sequence_, entry.sequence);
+        learned.frequency = pinned ? pinned_score(dee_now) : kLearnedBoostRequest;
+        learned.source_frequency = pinned ? 0 : entry.score;
         learned.source = source;
         learned.origin = CandidateOrigin::kLearned;
+        learned.learned = true;
         candidates.push_back(std::move(learned));
     }
     return candidates;
@@ -339,6 +468,9 @@ std::vector<UserDictEntryInfo> CandidatePreference::query(const std::string& que
     for (const auto& entry : entries_) {
         if (entry.deleted || (!query.empty() && entry.text.find(query) == std::string::npos &&
                               entry.code.find(query) == std::string::npos)) {
+            continue;
+        }
+        if (expired(entry.frequency, decayed(entry.dee, entry.sequence, sequence_))) {
             continue;
         }
         results.push_back(
@@ -416,6 +548,7 @@ bool CandidatePreference::erase_and_save(const std::vector<LexiconEntryKey>& req
     std::vector<Entry> entries;
     std::string path;
     std::uint64_t captured_version = 0;
+    std::uint64_t captured_sequence = 0;
     std::unordered_map<std::string, std::uint64_t> target_sequences;
     {
         std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -439,8 +572,10 @@ bool CandidatePreference::erase_and_save(const std::vector<LexiconEntryKey>& req
         }
         path = path_;
         captured_version = version_.load(std::memory_order_acquire);
+        captured_sequence = sequence_;
     }
-    if (path.empty() || !write_user_data_file_atomically(path, serialize_entries(entries))) {
+    if (path.empty() ||
+        !write_user_data_file_atomically(path, serialize_entries(entries, captured_sequence))) {
         return false;
     }
 
@@ -553,6 +688,8 @@ void CandidatePreference::rebuild_indexes_locked() {
             Entry& existing = entries_[duplicate->second];
             existing.frequency = (std::max)(existing.frequency, entry.frequency);
             existing.sequence = (std::max)(existing.sequence, entry.sequence);
+            existing.dee = (std::max)(existing.dee, entry.dee);
+            existing.score = (std::max)(existing.score, entry.score);
             if (existing.syllables.empty()) {
                 existing.syllables = entry.syllables;
             }

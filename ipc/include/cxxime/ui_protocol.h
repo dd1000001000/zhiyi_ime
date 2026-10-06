@@ -119,6 +119,8 @@ struct UiPresentationSnapshot {
     // Full candidate hints; candidate_page.candidates[i].hint keeps the first 4 bytes for older
     // receivers.
     UiCandidateComment candidate_comments[kCandidateCapacity] = {};
+    // Bit i: candidate_page.candidates[i] was learned from the user's selections (dot mark).
+    std::uint32_t candidate_learned_mask = 0;
 };
 
 enum class UiCommandType : std::uint32_t {

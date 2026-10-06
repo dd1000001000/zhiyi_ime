@@ -153,9 +153,28 @@ bool Dict::save_candidate_preferences_if_due(std::chrono::milliseconds delay) {
 
 void Dict::freeze_candidate_preferences() { candidate_preference_->freeze(); }
 
-bool Dict::record_candidate_preference(const Candidate& candidate, const std::string& code) {
-    return candidate_preference_->record(candidate, code);
+bool Dict::record_candidate_preference(const Candidate& candidate, const std::string& code,
+                                       CandidatePreferenceReceipt* receipt) {
+    return candidate_preference_->record(candidate, code, receipt);
 }
+
+bool Dict::revoke_candidate_preference(const CandidatePreferenceReceipt& receipt) {
+    return candidate_preference_->revoke(receipt);
+}
+
+namespace {
+
+// A tentative (picked once) word rises within its ranking group, as x20 frequency.
+int boosted_score(int frequency) {
+    if (frequency >= kRankingGroupsBegin && frequency < kRankingGroupsEnd) {
+        const int group_top =
+            (frequency / kRankingGroupSpan) * kRankingGroupSpan + kRankingGroupSpan - 1;
+        return (std::min)(frequency + kLearnedBoost, group_top);
+    }
+    return frequency + kLearnedBoost;
+}
+
+}  // namespace
 
 void Dict::apply_candidate_preferences(const std::string& code, CandidateSource source,
                                        std::vector<Candidate>& candidates, int limit) const {
@@ -173,15 +192,26 @@ void Dict::apply_candidate_preferences(const std::string& code, CandidateSource 
             std::find_if(candidates.begin(), candidates.end(), [&](const Candidate& candidate) {
                 return candidate.text == preference.text;
             });
+        const bool boost_only = preference.frequency == kLearnedBoostRequest;
         if (existing != candidates.end()) {
-            if (existing->origin != CandidateOrigin::kLearned) {
-                existing->frequency = (std::max)(existing->frequency, preference.frequency);
+            existing->learned = true;
+            if (existing->origin == CandidateOrigin::kLearned) {
+                continue;
             }
+            existing->frequency = boost_only
+                                      ? boosted_score(existing->frequency)
+                                      : (std::max)(existing->frequency, preference.frequency);
             continue;
         }
         if (!preference_candidate_available(preference, source)) {
             preference.frequency = kFallbackCandidateScore;
+        } else if (boost_only) {
+            // Outside the fetched window: boosted from the score it had when picked.
+            preference.frequency = preference.source_frequency > 0
+                                       ? boosted_score(preference.source_frequency)
+                                       : kLearnedAbsentScore;
         }
+        preference.source_frequency = 0;
         candidates.push_back(std::move(preference));
     }
     std::stable_sort(candidates.begin(), candidates.end(),

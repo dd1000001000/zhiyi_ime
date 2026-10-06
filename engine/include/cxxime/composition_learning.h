@@ -61,6 +61,10 @@ public:
     bool start();
     static bool validate_contents(const std::string& contents);
     bool enqueue(const CompositionLearningEvent& event);
+    // Takes back the latest enqueue of this sentence (Backspace right after the commit).
+    bool revoke(const CompositionLearningEvent& event);
+    // Forgets a learned sentence (Ctrl+Delete on the candidate); false when unknown.
+    bool forget(const std::string& code, const std::string& text);
     bool flush();
     bool freeze_and_stop();
     bool merge_contents_and_save(const std::string& imported, UserDataMergeResult* result);
@@ -74,6 +78,13 @@ public:
     std::size_t pending_count() const;
 
     static constexpr std::size_t kMaxRecordCount = 1024;
+    // Selections of any word before a sentence's weight loses a factor e (Rime's user
+    // dictionary decay); a sentence picked once is forgotten below kTentativeExpiry, one
+    // picked twice or more is pinned ahead of the dictionary words while above kPinFloor and
+    // only leads the composed sentences after that.
+    static constexpr double kDecayTicks = 200.0;
+    static constexpr double kTentativeExpiry = 0.35;
+    static constexpr double kPinFloor = 0.05;
     static constexpr std::uint64_t kMaxFileSize = 4ULL * 1024ULL * 1024ULL;
 
 private:

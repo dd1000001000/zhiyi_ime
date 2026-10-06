@@ -26,6 +26,7 @@ struct QueryBudget;
 struct QueryDeadline;
 struct UserLookupStats;
 class CandidatePreference;
+struct CandidatePreferenceReceipt;
 class DisabledSystemLexicon;
 class ManualCandidateOrder;
 class UserLexicon;
@@ -137,7 +138,10 @@ public:
                                              UserDataMergeResult* result);
     bool save_candidate_preferences_if_due(std::chrono::milliseconds delay);
     void freeze_candidate_preferences();
-    bool record_candidate_preference(const Candidate& candidate, const std::string& code);
+    bool record_candidate_preference(const Candidate& candidate, const std::string& code,
+                                     CandidatePreferenceReceipt* receipt = nullptr);
+    // Takes back a record (Backspace right after the commit).
+    bool revoke_candidate_preference(const CandidatePreferenceReceipt& receipt);
     void apply_candidate_preferences(const std::string& code, CandidateSource source,
                                      std::vector<Candidate>& candidates, int limit) const;
     std::vector<UserDictEntryInfo> query_candidate_preferences(

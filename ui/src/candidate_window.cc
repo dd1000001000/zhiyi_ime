@@ -755,6 +755,7 @@ void CandidateWindow::update(const CandidatePresentationPage& presentation) {
         candidate.text = item.text;
         candidate.comment = item.hint;
         candidate.recommended = item.recommended;
+        candidate.learned = item.learned;
         page.candidates.push_back(std::move(candidate));
     }
     update(page);

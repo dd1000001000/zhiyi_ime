@@ -35,10 +35,14 @@
 
 ### 1.2 自动选词偏好（第 2 层）
 
-启用候选学习（`engine.candidate_learning`）后，用户选中的候选会记录为偏好。翻译时命中项获得 `kPreferenceBaseScore = 210000000` 级别的加分（`+ min(frequency, 50000) + recency`），稳定排在普通系统词与用户词之前。
+启用候选学习（`engine.candidate_learning`）后，用户选中的候选会记录为偏好，做法参照 Rime 的用户词典：
+选过一次只在本组内加分（词频 ×20），选过两次以上才置顶（`kPreferenceBaseScore = 210000000 + 衰减权重 × 1000`）；
+权重每 200 次上屏衰减为 1/e，只选过一次的词约 210 次上屏后遗忘，置顶的词长期不用会退回加分。
+上屏后紧接着按 Backspace 撤销这次学习；候选上按 Ctrl+Delete 或 Shift+Delete 删除它的学习记录。
+学过的候选在候选窗口右下角有一个小点。详见 [用户词库与候选偏好](user-dictionary.md#候选偏好)。
 
 - 只影响排序，不进入查询索引，不写入用户词库。
-- 符号（`kSymbol`）与组合（`kComposed`）候选不记录。
+- 符号（`kSymbol`）与组合（`kComposed`）候选不记录；整句另由整句学习按同样规则记录。
 - 学习偏好由服务端统一保存，`CandidatePreference::version()` 用于设置页与查询缓存的新鲜度判断。
 
 ### 1.3 随包默认排序（第 3 层）

@@ -7,7 +7,9 @@
 #include <cerrno>
 #include <chrono>
 #include <climits>
+#include <cmath>
 #include <condition_variable>
+#include <cstdio>
 #include <cstdlib>
 #include <iterator>
 #include <limits>
@@ -20,6 +22,7 @@
 #include <cxxime/composition_state.h>
 #include <cxxime/logging.h>
 #include <cxxime/ordinary_candidate.h>
+#include <cxxime/pinyin_composer.h>
 #include <cxxime/user_dict_validation.h>
 #include <cxxime/user_data_merge.h>
 
@@ -29,13 +32,49 @@ namespace cxxime {
 namespace {
 
 constexpr int kCompositionLearningBaseScore = 220000000;
+constexpr double kMaxDee = 20000.0;
 
 struct LearningRecord {
     CompositionLearningEvent event;
     std::uint32_t selection_count = 0;
     std::uint64_t sequence = 0;
+    double dee = 0.0;  // decaying weight as of `sequence` (pending: the batch's contribution)
     std::vector<std::string> extension_fields;
 };
+
+double decayed(double dee, std::uint64_t then, std::uint64_t now) {
+    if (now <= then) {
+        return dee;
+    }
+    return dee * std::exp(-static_cast<double>(now - then) /
+                          CompositionLearningService::kDecayTicks);
+}
+
+bool expired_record(const LearningRecord& record, std::uint64_t now) {
+    return record.selection_count <= 1 &&
+           decayed(record.dee, record.sequence, now) <
+               CompositionLearningService::kTentativeExpiry;
+}
+
+bool parse_dee(const std::string& value, double* dee) {
+    if (value.empty() || value.front() == '-') {
+        return false;
+    }
+    char* end = nullptr;
+    errno = 0;
+    const double parsed = std::strtod(value.c_str(), &end);
+    if (errno != 0 || !end || *end != '\0' || !(parsed >= 0.0) || parsed > kMaxDee) {
+        return false;
+    }
+    *dee = parsed;
+    return true;
+}
+
+std::string format_dee(double dee) {
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%.4f", dee);
+    return buffer;
+}
 
 using RecordMap = std::unordered_map<std::string, LearningRecord>;
 
@@ -149,7 +188,7 @@ std::string serialize_records(const RecordMap& records) {
     for (const LearningRecord* record : sorted) {
         output << record->event.text << '\t' << record->event.code << '\t'
                << record->event.syllables << '\t' << record->selection_count << '\t'
-               << record->sequence;
+               << record->sequence << '\t' << format_dee(record->dee);
         for (const auto& field : record->extension_fields) {
             output << '\t' << field;
         }
@@ -172,7 +211,11 @@ RecordMap merge_records(const RecordMap& persisted, const RecordMap& pending) {
             static_cast<std::uint64_t>(record.selection_count) + update.selection_count;
         record.selection_count =
             static_cast<std::uint32_t>((std::min)(count, static_cast<std::uint64_t>(UINT_MAX)));
-        record.sequence = (std::max)(record.sequence, update.sequence);
+        const std::uint64_t latest = (std::max)(record.sequence, update.sequence);
+        record.dee = (std::min)(decayed(record.dee, record.sequence, latest) +
+                                    decayed(update.dee, update.sequence, latest),
+                                kMaxDee);
+        record.sequence = latest;
         record.event = update.event;
     }
     enforce_record_limit(merged);
@@ -194,19 +237,25 @@ std::shared_ptr<const PublishedSnapshot> make_snapshot(const RecordMap& records)
     return snapshot;
 }
 
+// Pinned (picked twice or more, weight above the floor) ahead of the dictionary words, by the
+// decayed weight; otherwise the sentence only leads the composed sentences (the top of their
+// score band, under the words typed in full).
 Candidate candidate_from_record(const LearningRecord& record, std::uint64_t current_sequence) {
-    const std::uint64_t delta =
-        current_sequence >= record.sequence ? current_sequence - record.sequence : 0;
-    const int recency = delta <= 1000 ? static_cast<int>(1000 - delta) : 0;
+    const double dee_now = decayed(record.dee, record.sequence, current_sequence);
+    const bool pinned = record.selection_count >= 2 &&
+                        dee_now >= CompositionLearningService::kPinFloor;
     Candidate candidate;
     candidate.text = record.event.text;
     candidate.code = record.event.code;
     candidate.syllables = record.event.syllables;
-    candidate.frequency = kCompositionLearningBaseScore +
-                          (std::min)(static_cast<int>(record.selection_count), 50000) + recency;
+    candidate.frequency =
+        pinned ? kCompositionLearningBaseScore +
+                     static_cast<int>((std::min)(dee_now, kMaxDee) * 1000.0)
+               : kSentenceBase + static_cast<int>(kSentenceScoreSpan);
     candidate.source_frequency = candidate.frequency;
     candidate.source = CandidateSource::kPinyin;
     candidate.origin = CandidateOrigin::kComposed;
+    candidate.learned = true;
     return candidate;
 }
 
@@ -298,8 +347,9 @@ struct CompositionLearningService::Impl {
     void run() {
         std::unique_lock<std::mutex> lock(mutex);
         for (;;) {
-            condition.wait(lock, [this]() { return stopping || !pending.empty(); });
-            if (pending.empty()) {
+            condition.wait(lock,
+                           [this]() { return stopping || !pending.empty() || persisted_dirty; });
+            if (pending.empty() && !persisted_dirty) {
                 break;
             }
             if (!stopping) {
@@ -310,6 +360,10 @@ struct CompositionLearningService::Impl {
             const RecordMap batch = pending;
             const std::uint64_t batch_generation = enqueued_generation;
             RecordMap merged = merge_records(persisted, batch);
+            for (auto it = merged.begin(); it != merged.end();) {
+                it = expired_record(it->second, sequence) ? merged.erase(it) : std::next(it);
+            }
+            persisted_dirty = false;
             const std::string contents = serialize_records(merged);
             const std::string output_path = path;
             lock.unlock();
@@ -374,6 +428,7 @@ struct CompositionLearningService::Impl {
     bool accepting = false;
     bool stopping = false;
     bool last_save_succeeded = true;
+    bool persisted_dirty = false;  // a revoke / forget changed `persisted` without a batch
 };
 
 CommitLearningPlan make_candidate_learning_plan(const CompositionState& state,
@@ -434,7 +489,12 @@ bool CompositionLearningService::load(const std::string& path) {
         record.event = std::move(event);
         record.selection_count = static_cast<std::uint32_t>(selection_count);
         record.sequence = entry_sequence;
-        record.extension_fields.assign(fields.begin() + 5, fields.end());
+        record.dee = (std::min)(static_cast<double>(selection_count), kMaxDee);
+        std::size_t extension_begin = 5;
+        if (fields.size() > 5 && parse_dee(fields[5], &record.dee)) {
+            extension_begin = 6;
+        }
+        record.extension_fields.assign(fields.begin() + extension_begin, fields.end());
         sequence = (std::max)(sequence, entry_sequence);
         records[record_key(record.event)] = std::move(record);
     }
@@ -525,6 +585,7 @@ bool CompositionLearningService::enqueue(const CompositionLearningEvent& event) 
             ++impl_->sequence;
         }
         record.sequence = impl_->sequence;
+        record.dee = 1.0;
         impl_->pending.emplace(key, std::move(record));
         if (impl_->pending.size() > kMaxRecordCount) {
             auto victim = impl_->pending.begin();
@@ -544,11 +605,69 @@ bool CompositionLearningService::enqueue(const CompositionLearningEvent& event) 
         if (impl_->sequence != (std::numeric_limits<std::uint64_t>::max)()) {
             ++impl_->sequence;
         }
+        found->second.dee =
+            decayed(found->second.dee, found->second.sequence, impl_->sequence) + 1.0;
         found->second.sequence = impl_->sequence;
         found->second.event = event;
     }
     impl_->condition.notify_one();
     return true;
+}
+
+bool CompositionLearningService::revoke(const CompositionLearningEvent& event) {
+    if (!valid_event(event)) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->accepting || impl_->stopping) {
+        return false;
+    }
+    const std::string key = record_key(event);
+    auto pending = impl_->pending.find(key);
+    if (pending != impl_->pending.end()) {
+        if (pending->second.selection_count <= 1) {
+            impl_->pending.erase(pending);
+        } else {
+            --pending->second.selection_count;
+            pending->second.dee = (std::max)(0.0, pending->second.dee - 1.0);
+        }
+        return true;
+    }
+    auto persisted = impl_->persisted.find(key);
+    if (persisted == impl_->persisted.end()) {
+        return false;
+    }
+    if (persisted->second.selection_count <= 1) {
+        impl_->persisted.erase(persisted);
+    } else {
+        --persisted->second.selection_count;
+        persisted->second.dee = (std::max)(0.0, persisted->second.dee - 1.0);
+    }
+    impl_->persisted_dirty = true;
+    impl_->published = make_snapshot(impl_->persisted);
+    impl_->version.fetch_add(1, std::memory_order_acq_rel);
+    impl_->condition.notify_one();
+    return true;
+}
+
+bool CompositionLearningService::forget(const std::string& code, const std::string& text) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (!impl_->accepting || impl_->stopping) {
+        return false;
+    }
+    CompositionLearningEvent event;
+    event.code = code;
+    event.text = text;
+    const std::string key = record_key(event);
+    bool found = impl_->pending.erase(key) != 0;
+    if (impl_->persisted.erase(key) != 0) {
+        found = true;
+        impl_->persisted_dirty = true;
+        impl_->published = make_snapshot(impl_->persisted);
+        impl_->version.fetch_add(1, std::memory_order_acq_rel);
+        impl_->condition.notify_one();
+    }
+    return found;
 }
 
 bool CompositionLearningService::flush() {
@@ -644,9 +763,11 @@ bool CompositionLearningService::clear_and_save() {
 std::vector<Candidate> CompositionLearningService::lookup_candidates(const std::string& code,
                                                                      std::size_t limit) const {
     std::shared_ptr<const PublishedSnapshot> snapshot;
+    std::uint64_t now = 0;
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);
         snapshot = impl_->published;
+        now = impl_->sequence;
     }
     std::vector<Candidate> candidates;
     if (!snapshot || code.empty() || limit == 0) {
@@ -656,10 +777,15 @@ std::vector<Candidate> CompositionLearningService::lookup_candidates(const std::
     if (found == snapshot->by_code.end()) {
         return candidates;
     }
-    const std::size_t count = (std::min)(limit, found->second.size());
-    candidates.reserve(count);
-    for (std::size_t index = 0; index < count; ++index) {
-        candidates.push_back(candidate_from_record(found->second[index], snapshot->sequence));
+    candidates.reserve((std::min)(limit, found->second.size()));
+    for (const LearningRecord& record : found->second) {
+        if (candidates.size() >= limit) {
+            break;
+        }
+        if (expired_record(record, now)) {
+            continue;
+        }
+        candidates.push_back(candidate_from_record(record, now));
     }
     return candidates;
 }

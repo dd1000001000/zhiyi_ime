@@ -291,6 +291,16 @@ void GdiRenderer::render(HDC hdc, const RECT& clip, const RenderContext& ctx) {
                     const_cast<RECT*>(&cr.comment_rect),
                     DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
         }
+        if (cr.learned) {
+            const RECT dot = learned_mark_rect(cr.text_rect);
+            HBRUSH brush = CreateSolidBrush(hl ? hl_text_color_ : comment_color_);
+            HBRUSH ob = (HBRUSH)SelectObject(target_dc, brush);
+            HPEN op = (HPEN)SelectObject(target_dc, GetStockObject(NULL_PEN));
+            Ellipse(target_dc, dot.left, dot.top, dot.right + 1, dot.bottom + 1);
+            SelectObject(target_dc, op);
+            SelectObject(target_dc, ob);
+            DeleteObject(brush);
+        }
     }
 
     // Page nav (always visible, dimmed when disabled)

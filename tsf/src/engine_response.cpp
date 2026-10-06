@@ -158,6 +158,7 @@ bool decode_engine_presentation(const cxxime::IPCResponse& response,
             return false;
         }
         item.recommended = (response.candidate_recommended_mask >> index & 1u) != 0;
+        item.learned = (response.candidate_learned_mask >> index & 1u) != 0;
         page.items.push_back(std::move(item));
     }
     if (page.highlighted >= static_cast<int>(page.items.size())) {

@@ -42,6 +42,7 @@ CandidatePage candidate_page_from_snapshot(const UiPresentationSnapshot& snapsho
             : packet_text(source_candidate.hint, source_candidate.hint_length,
                           sizeof(source_candidate.hint));
         candidate.recommended = (snapshot.candidate_recommended_mask >> index & 1u) != 0;
+        candidate.learned = (snapshot.candidate_learned_mask >> index & 1u) != 0;
         page.candidates.push_back(std::move(candidate));
     }
     return page;

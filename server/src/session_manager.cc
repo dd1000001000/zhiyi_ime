@@ -225,7 +225,7 @@ CandidateStateToken candidate_state_token(const cxxime::Engine& engine) {
 bool same_candidate_item(const cxxime::CandidatePresentationItem& left,
                          const cxxime::CandidatePresentationItem& right) {
     return left.text == right.text && left.hint == right.hint &&
-           left.recommended == right.recommended;
+           left.recommended == right.recommended && left.learned == right.learned;
 }
 
 bool same_candidate_page(const cxxime::CandidatePresentationPage& left,

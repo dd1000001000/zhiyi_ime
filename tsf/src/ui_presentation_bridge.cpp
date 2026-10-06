@@ -221,6 +221,7 @@ void TextService::_publish_ui_presentation() {
         const cxxime::CandidatePresentationItem& candidate = page.items[index];
         cxxime::UiCandidate& target = snapshot.candidate_page.candidates[index];
         if (candidate.recommended) snapshot.candidate_recommended_mask |= 1u << index;
+        if (candidate.learned) snapshot.candidate_learned_mask |= 1u << index;
         copy_packet_text(target.text, sizeof(target.text), &target.text_length, candidate.text);
         // Short hints (Wubi codes) fit the hint field; the full text goes to the comments.
         if (candidate.hint.size() <= sizeof(target.hint)) {

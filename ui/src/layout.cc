@@ -222,6 +222,7 @@ LayoutResult calculate_horizontal_layout(HDC hdc,
         cr.text = candidates[i].text;
         cr.comment = std::move(comment);
         cr.recommended = candidates[i].recommended;
+        cr.learned = candidates[i].learned;
         cr.label_rect = {x, y, x + label_w, y + rh};
         int text_left = x + label_w + cfg.hilite_spacing;
         cr.text_rect = {text_left, y, text_left + text_size.cx + text_slack, y + rh};

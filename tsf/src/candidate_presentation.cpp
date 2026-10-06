@@ -39,6 +39,7 @@ cxxime::CandidatePresentationPage project_candidate_page(const cxxime::Candidate
         item.text = candidate.text;
         item.hint = candidate.comment;
         item.recommended = candidate.recommended;
+        item.learned = candidate.learned;
         presentation.items.push_back(std::move(item));
     }
     return presentation;

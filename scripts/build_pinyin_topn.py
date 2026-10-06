@@ -47,7 +47,7 @@ LOG_SCALE = 500_000
 LOG_OFFSET = 10.0                # ln-scores from -10 to 19.9 stay inside each group
 MAX_LOG_SCORE = 14_999_999
 ABBREVIATION_CREDIBILITY = -0.6931471805599453  # ln(0.5), as the abbrev spellings
-COMPLETION_CREDIBILITY = -0.6931471805599453
+COMPLETION_CREDIBILITY = -2.995732273553991    # ln(0.05), as Rime reads a completed syllable
 
 # Key flags
 SHORT_KEY_EXACT = 0x01

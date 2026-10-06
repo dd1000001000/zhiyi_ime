@@ -3,6 +3,8 @@
 #ifndef CXXIME_PINYIN_COMPOSER_H_
 #define CXXIME_PINYIN_COMPOSER_H_
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -58,6 +60,45 @@ struct CompositionStats {
     bool truncated = false;
     bool deadline_exceeded = false;
 };
+
+// A word's weight in a sentence, as Rime's Poet without a grammar model: ln(frequency / 1e8)
+// plus ln(1e-6) for every word, so fewer and more common words win. In thousandths.
+constexpr double kComposedScoreScale = 1000.0;
+constexpr double kComposedLogTotalWeight = 18.420680743952367;  // ln(1e8)
+constexpr double kComposedWordPenalty = -13.815510557964274;    // ln(1e-6)
+
+inline int64_t composed_word_score(int frequency) {
+    const double weight = std::log(static_cast<double>((std::max)(0, frequency)) + 1.0) -
+                          kComposedLogTotalWeight + kComposedWordPenalty;
+    return static_cast<int64_t>(std::llround(weight * kComposedScoreScale));
+}
+
+// Where a sentence ranks among the dictionary words. It covers the whole input, so it comes
+// before the words that only extend it (kExtensionBase, 30,000,000). Against a completion
+// (45,000,000: a word whose unfinished last syllable the typist is still on, 晚上 for "wansha")
+// Rime compares weights, and a common word's ln(frequency) + ln(0.05) is far above any sentence
+// of two or more words with their ln(1e-6) each: sentences take the bottom of the completion
+// group, below every completion (whose scores start around 5,000,000 above the base) and above
+// every extension. Within that band the aggregate score (a sum of composed_word_score) decides.
+constexpr int kSentenceBase = 45000000;
+constexpr int64_t kSentenceScoreSpan = 4999999;
+
+// When a dictionary word already covers the whole input (complete or by completion), the
+// sentences are alternatives of last resort and go below every word, as Rime drops its sentence
+// when a phrase spans the input: the extensions (抹黑中国 for "mohei") keep their places.
+constexpr int kCoveredSentenceBase = 1;
+
+inline int covered_sentence_frequency(int frequency) {
+    return kCoveredSentenceBase + (std::max)(0, frequency - kSentenceBase) / 5;
+}
+
+inline int sentence_frequency(int64_t aggregate_score) {
+    // Aggregates run from about -30,000 (two common words) to below -200,000: 20 per unit
+    // keeps that range inside the band above kSentenceBase.
+    const int64_t scaled = (std::max)(int64_t{0}, (std::min)(kSentenceScoreSpan,
+                                                            kSentenceScoreSpan + aggregate_score * 20));
+    return kSentenceBase + static_cast<int>(scaled);
+}
 
 class PinyinComposer {
 public:

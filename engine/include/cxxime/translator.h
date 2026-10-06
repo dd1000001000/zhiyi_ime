@@ -82,6 +82,10 @@ private:
     };
     IndexedFastResult lookup_indexed_fast(const std::string& key, int limit,
                                           QueryTrace* trace) const;
+    // Sentences for an input typed partly by initials ("rangwolaibsmoxing"): the Top-N index
+    // looked up span by span over the typed letters. See compose_typed_spans in the source.
+    std::vector<Candidate> compose_typed_spans(const std::string& input, size_t max_results,
+                                               const QueryBudget* budget) const;
     QueryCacheVersions query_cache_versions() const;
     bool lookup_query_cache(const std::string& input, int page_index, int candidate_offset,
                             int page_size, const QueryCacheVersions& versions,

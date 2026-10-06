@@ -45,18 +45,9 @@ struct ComposedResult {
     uint32_t sequence = 0;
 };
 
-// A word's weight in a sentence, as Rime's Poet without a grammar model: ln(frequency / 1e8)
-// plus ln(1e-6) for every word, so fewer and more common words win. In thousandths.
-constexpr double kScoreScale = 1000.0;
-constexpr double kLogTotalWeight = 18.420680743952367;  // ln(1e8)
-constexpr double kWordPenalty = -13.815510557964274;    // ln(1e-6)
 constexpr int64_t kAmbiguousJointPenalty = -2303;       // ln(0.1)
 
-int64_t word_score(int frequency) {
-    const double weight = std::log(static_cast<double>((std::max)(0, frequency)) + 1.0) -
-                          kLogTotalWeight + kWordPenalty;
-    return static_cast<int64_t>(std::llround(weight * kScoreScale));
-}
+int64_t word_score(int frequency) { return composed_word_score(frequency); }
 
 bool node_better(const CompositionNode& left, const CompositionNode& right) {
     if (left.aggregate_score != right.aggregate_score) {
@@ -166,11 +157,7 @@ Candidate rebuild_candidate(const std::string& input, const CompositionPath& pat
     candidate.origin = CandidateOrigin::kComposed;
     candidate.source = CandidateSource::kPinyin;
     candidate.source_frequency = nodes[node_index].weakest_frequency;
-    // Below every dictionary word (the sentence scores are negative log weights).
-    constexpr int64_t kComposedScoreBase = 1000000;
-    candidate.frequency = static_cast<int>((std::max)(
-        int64_t{1}, (std::min)(kComposedScoreBase + nodes[node_index].aggregate_score,
-                               kComposedScoreBase)));
+    candidate.frequency = sentence_frequency(nodes[node_index].aggregate_score);
     return candidate;
 }
 

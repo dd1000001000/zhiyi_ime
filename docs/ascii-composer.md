@@ -96,14 +96,14 @@ preedit 为空时视为空闲状态，并将默认状态恢复为 `kIme`。`Cont
 
 ## 5. `/` 与 `\`
 
-`/` 和 `\` 同时承担中文顿号、字面字符和符号入口职责，必须根据状态确定行为。
+`\` 同时承担中文顿号、字面字符和符号入口职责，必须根据状态确定行为；`/` 在中文标点下仍是字面 `/`（标点表不映射它）。
 
 ### 5.1 半角中文标点
 
 | 当前状态 | `/` | `\` |
 |----------|-----|-----|
-| 空闲 | 提交 `、` | 进入 `kSymbol` |
-| `kIme` 有候选 | 提交高亮候选并追加 `、` | 提交高亮候选并追加 `、` |
+| 空闲 | 交给宿主应用（`/`） | 进入 `kSymbol`；紧接着再按一次 `\` 提交 `、` |
+| `kIme` 有候选 | 提交高亮候选并追加 `/` | 提交高亮候选并追加 `、` |
 | `kIme` 无候选 | 作为 `/` 进入内联 ASCII | 作为 `\` 进入内联 ASCII |
 | `kInlineAscii` | 插入字面 `/` | 插入字面 `\` |
 | `kSymbol` 无法继续查询且无候选 | 进入内联 ASCII | 进入内联 ASCII |
@@ -198,7 +198,7 @@ CapsLock 支持 `code`、`candidate`、`clear`、`append`、`noop`。`append` �
 | `engine/src/engine.cc` | IME、内联 ASCII、标点、全角和五笔规则的路由 |
 | `engine/src/symbol_processor.cc` | `\` 入口、符号查询与导航和提交 |
 | `engine/src/symbol_table.cc` | 符号分类和助记码 |
-| `data/punctuation.json` | `/`、`\` 等中文标点映射 |
+| `data/punctuation.json` | `\`（顿号）等中文标点映射 |
 | `data/symbol_catalog.json` | 符号收录与分类的唯一来源，构建期生成 `data/symbols.json` |
 | `settings/editor_shortcuts_panel.cc` | 修饰键动作配置界面 |
 

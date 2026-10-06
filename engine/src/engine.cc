@@ -620,6 +620,15 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
     bool candidate_action_applied = false;
     if (routed_result) {
         result = *routed_result;
+    } else if (SymbolProcessor::is_active(context_) &&
+               context_.active_input() == std::string(1, kSymbolPrefix) &&
+               SymbolProcessor::is_trigger(event)) {
+        // A second \ right after the one that opened symbol input: the \ punctuation (、).
+        context_.reset();
+        if (!handle_punctuation(event, context_, opts)) {
+            commit_with_punctuation(context_, std::string(1, kSymbolPrefix));
+        }
+        result = ProcessResult::COMMITTED;
     } else if (SymbolProcessor::is_active(context_) || symbol_trigger) {
         result = symbol_processor_.process_key(event, context_, symbol_trigger_enabled);
     } else {

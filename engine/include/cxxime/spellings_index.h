@@ -6,6 +6,7 @@
 #define CXXIME_SPELLINGS_INDEX_H_
 
 #include <cstdint>
+#include <cxxime/mapped_file.h>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -104,7 +105,8 @@ public:
                                  const std::vector<std::tuple<std::string, std::string, int, float>>& entries);
 
 private:
-    char* data_ = nullptr;             // heap-allocated buffer
+    MappedFile file_;                  // the whole .spellings.bin, mapped read-only
+    const char* data_ = nullptr;
     size_t data_size_ = 0;
     const char* nodes_ = nullptr;      // raw node data
     const char* strings_ = nullptr;

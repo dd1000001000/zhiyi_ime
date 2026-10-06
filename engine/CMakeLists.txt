@@ -13,6 +13,7 @@ add_library(cxxime-engine STATIC
     src/dict.cc
     src/dict_user_data.cc
     src/dict_span_query.cc
+    src/mapped_file.cc
     src/dict_wubi_query.cc
     src/user_data_file.cc
     src/disabled_system_lexicon.cc

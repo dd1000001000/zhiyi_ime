@@ -40,6 +40,10 @@ constexpr int kDisabledTopnOverfetch = 16;
 constexpr int kCompleteBase = 60000000;
 constexpr int kCompletionBase = 45000000;
 constexpr int kExtensionBase = 30000000;
+// A character the dictionary has hardly seen used (frequency up to 100: 㝵, 給, 瘧, 祋) goes below
+// every word and sentence, at a hundredth of its log score (under 150,000).
+constexpr int kRareCharacterFrequency = 100;
+constexpr int kRareCharacterScale = 100;
 constexpr double kLogScale = 500000.0;
 constexpr double kLogOffset = 10.0;
 constexpr double kMaxLogScore = 14999999.0;
@@ -84,8 +88,8 @@ PathMatchTier classify_path(const SegmentedPath& path) {
 }
 
 // An initial typed before a full syllable ("wsyige": w, s, then yi, ge). Each initial expands
-// to all its syllables, so the enumerated paths (kMaxPaths) rarely reach the intended one;
-// such inputs are also looked up by their initials (lookup_mixed_by_initials).
+// to all its syllables, and the enumerated paths (kMaxPaths) hold only the most plausible
+// combinations; such inputs are also looked up by their initials (lookup_mixed_by_initials).
 bool has_initial_before_full_syllable(const SegmentedPath& path) {
     bool seen_abbreviation = false;
     for (uint8_t type : path.spelling_types) {
@@ -103,6 +107,46 @@ bool path_uses_initial(const SegmentedPath& path) {
                        [](uint8_t type) { return type == kAbbreviation; });
 }
 
+bool path_uses_fuzzy(const SegmentedPath& path) {
+    return std::any_of(path.spelling_types.begin(), path.spelling_types.end(),
+                       [](uint8_t type) { return type == kFuzzySpelling; });
+}
+
+// Bit i set when syllable i is a 儿 typed as r (the erhua edge: "er" from one letter).
+uint32_t erhua_mask(const SegmentedPath& path) {
+    uint32_t mask = 0;
+    for (size_t i = 0; i < path.syllables.size() && i < 32 && i < path.input_lengths.size(); ++i) {
+        if (path.syllables[i] == "er" && path.input_lengths[i] == 1) {
+            mask |= 1u << i;
+        }
+    }
+    return mask;
+}
+
+// The syllable "er" typed as r is 儿 only (花儿, not 华尔 or 十二): drops the candidates whose
+// character at an erhua position is another one.
+void keep_erhua_characters(std::vector<Candidate>& candidates, uint32_t mask) {
+    candidates.erase(
+        std::remove_if(candidates.begin(), candidates.end(),
+                       [&](const Candidate& candidate) {
+                           const std::string& text = candidate.text;
+                           size_t index = 0;
+                           for (size_t pos = 0; pos < text.size() && index < 32;) {
+                               const unsigned char lead = static_cast<unsigned char>(text[pos]);
+                               const size_t length = lead < 0x80 ? 1 : lead < 0xE0 ? 2
+                                                     : lead < 0xF0 ? 3 : 4;
+                               if ((mask & (1u << index)) &&
+                                   text.compare(pos, length, "儿") != 0) {
+                                   return true;
+                               }
+                               pos += length;
+                               ++index;
+                           }
+                           return false;
+                       }),
+        candidates.end());
+}
+
 std::string initials_key(const SegmentedPath& path) {
     std::string key;
     for (const std::string& syllable : path.syllables) {
@@ -110,6 +154,15 @@ std::string initials_key(const SegmentedPath& path) {
         key.push_back(syllable[0]);
     }
     return key;
+}
+
+// One UTF-8 encoded character (up to four bytes).
+bool is_single_character(const std::string& text) {
+    if (text.empty() || text.size() > 4) return false;
+    for (std::size_t i = 1; i < text.size(); ++i) {
+        if ((static_cast<unsigned char>(text[i]) & 0xC0) != 0x80) return false;
+    }
+    return true;
 }
 
 std::size_t candidate_syllable_count(const Candidate& candidate) {
@@ -123,7 +176,8 @@ std::size_t candidate_syllable_count(const Candidate& candidate) {
 // False when the candidate is dropped (a floor-weight word reached through an initial).
 bool rank_fallback_candidate(Candidate& candidate, PathMatchTier tier,
                              std::size_t query_syllable_count, float credibility,
-                             bool input_reads_as_syllables, bool path_abbreviated) {
+                             bool input_reads_as_syllables, bool path_abbreviated,
+                             bool path_fuzzy) {
     int base = kCompleteBase;
     if (candidate_syllable_count(candidate) != query_syllable_count) {
         base = kExtensionBase;
@@ -131,6 +185,11 @@ bool rank_fallback_candidate(Candidate& candidate, PathMatchTier tier,
                (input_reads_as_syllables &&
                 (tier == PathMatchTier::kAbbreviation || tier == PathMatchTier::kMixed))) {
         base = kCompletionBase;
+    } else if (path_fuzzy && path_abbreviated) {
+        // A word that needs both a fuzzy spelling and an initial to cover the input (李康勋 for
+        // "nikanx" with n/l fuzzy) ranks with the longer words, after the sentences read as
+        // typed (你看+下).
+        base = kExtensionBase;
     }
     if (tier == PathMatchTier::kFuzzy) {
         credibility += kFuzzyExtraCredibility;
@@ -147,6 +206,11 @@ bool rank_fallback_candidate(Candidate& candidate, PathMatchTier tier,
         kMaxLogScore,
         (std::max)(0.0, std::round(kLogScale * (std::log(frequency + 1.0) + credibility +
                                                 kLogOffset))));
+    if (candidate.source_frequency <= kRareCharacterFrequency &&
+        is_single_character(candidate.text)) {
+        candidate.frequency = static_cast<int>(log_score) / kRareCharacterScale;
+        return true;
+    }
     candidate.frequency = base + static_cast<int>(log_score);
     return true;
 }
@@ -159,7 +223,8 @@ bool rank_fallback_candidate(Candidate& candidate, PathMatchTier tier,
 //            (看 read as "k" in "nikanx" although "kan" is typed): Rime's syllabifier drops such
 //            abbreviation edges, as the typist meant the whole syllable;
 //   ln 0.1   more for a single character read by its initial alone, the weakest reading
-//            (维生素 + 把 for "wssb" must not outrank 晚上 + 上班).
+//            (维生素 + 把 for "wssb" must not outrank 晚上 + 上班);
+//   0        for a final 儿 typed as r (花儿 "huar"), the erhua spelling.
 int64_t typed_span_credibility(std::string_view typed, std::string_view syllables) {
     constexpr int64_t kInitial = -693;         // ln(0.5)
     constexpr int64_t kShadowedInitial = -2996;  // ln(0.05)
@@ -182,6 +247,9 @@ int64_t typed_span_credibility(std::string_view typed, std::string_view syllable
             const std::string_view rest = typed.substr(p);
             const bool typed_in_full = rest.substr(0, s.size()) == s;
             if (typed_in_full) walk(i + 1, p + s.size(), credibility);
+            if (i > 0 && i + 1 == parts.size() && s == "er" && !rest.empty() && rest[0] == 'r') {
+                walk(i + 1, p + 1, credibility);
+            }
             const bool retroflex =
                 s.size() > 2 && s[1] == 'h' && (s[0] == 'z' || s[0] == 'c' || s[0] == 's');
             for (std::size_t length = 1; length <= (retroflex ? 2u : 1u); ++length) {
@@ -315,6 +383,24 @@ static void sort_candidates_by_score(std::vector<Candidate>& items) {
             if (a.text.size() != b.text.size()) return a.text.size() < b.text.size();
             return a.text < b.text;
         });
+}
+
+// Words longer than the input (半导体产业, 半导体激光器... for "bandaoti") are predictions: a page
+// of them hides the shorter readings the typist may want (半岛, 半), so only the best few stay.
+// Rime has no such cap, but its dictionary holds few long phrases; ours imports the long tail.
+constexpr int kMaxExtensionCandidates = 3;
+
+static void limit_extension_candidates(std::vector<Candidate>& candidates) {
+    int extensions = 0;
+    candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
+                                    [&](const Candidate& candidate) {
+                                        if (candidate.frequency < kExtensionBase ||
+                                            candidate.frequency >= kCompletionBase) {
+                                            return false;
+                                        }
+                                        return ++extensions > kMaxExtensionCandidates;
+                                    }),
+                     candidates.end());
 }
 
 static void remove_oversized_candidates(std::vector<Candidate>& candidates) {
@@ -655,6 +741,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
             return false;
         }
         auto& sorted = fast.candidates;
+        limit_extension_candidates(sorted);
         const int known_count = static_cast<int>(sorted.size());
         const int returned_end = (std::min)(offset + fetch_limit, known_count);
         page.extent = make_candidate_extent(known_count, returned_end, false);
@@ -702,10 +789,35 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     std::vector<float> path_credibilities;
     std::vector<std::string> path_query_keys;
     std::vector<uint8_t> path_abbreviated;  // the path reads some syllable by its initial
+    std::vector<uint8_t> path_fuzzy;        // the path reads some syllable by a fuzzy spelling
+    std::vector<uint32_t> path_erhua;       // bit i: syllable i is a 儿 typed as r
+
+    // The syllable starting with `letter` whose tripled word, then doubled word, is the most
+    // common in the dictionary ("h": 哈哈哈 90k beats 呵呵呵 100): the reading of a repeated
+    // short code.
+    auto best_repeated_reading = [&](char letter) -> std::string {
+        std::string best;
+        std::pair<int, int> best_score{-1, -1};
+        const SegmentResult readings = pinyin_resources_->segment(std::string(1, letter));
+        for (const SegmentedPath& path : readings.paths) {
+            if (path.syllables.size() != 1) continue;
+            const std::string& syllable = path.syllables.front();
+            const auto tripled = dict_->lookup_by_syllables({syllable, syllable, syllable}, 1);
+            const auto doubled = dict_->lookup_by_syllables({syllable, syllable}, 1);
+            const std::pair<int, int> score{tripled.empty() ? 0 : tripled.front().frequency,
+                                            doubled.empty() ? 0 : doubled.front().frequency};
+            if (score > best_score) {
+                best_score = score;
+                best = syllable;
+            }
+        }
+        return best;
+    };
 
     auto add_path = [&](const std::vector<std::string>& syllables,
                         PathMatchTier tier, float credibility,
-                        std::string query_key = {}, bool abbreviated = false) -> size_t {
+                        std::string query_key = {}, bool abbreviated = false,
+                        bool fuzzy = false, uint32_t erhua = 0) -> size_t {
         if (syllables.empty()) return SIZE_MAX;
         std::vector<uint32_t> ids;
         for (auto& s : syllables) {
@@ -718,15 +830,18 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         path_credibilities.push_back(credibility);
         path_query_keys.push_back(std::move(query_key));
         path_abbreviated.push_back(abbreviated ? 1 : 0);
+        path_fuzzy.push_back(fuzzy ? 1 : 0);
+        path_erhua.push_back(erhua);
         return id_sequences.size() - 1;
     };
 
     // 1. Syllabifier for abbreviation expansion (reserve first)
     // Limit paths to avoid CPU cache thrashing on short inputs (e.g. single letter 's')
     // The syllabifier checks the deadline internally, so it does not need to be skipped.
-    // Need enough paths for fuzzy spellings — abbreviation-heavy graphs can
-    // produce hundreds of paths before non-abbreviation paths appear.
-    static constexpr size_t kMaxPaths = 64;
+    // The syllabifier reports the most plausible paths first; two initials after full pinyin
+    // ("womenjd": j, d) have a few hundred readings, and the wanted one (jue:de) is not
+    // always among the first 64.
+    static constexpr size_t kMaxPaths = 128;
     static constexpr size_t kMaxCompositionPaths = 8;
     static constexpr size_t kMaxIndexedShuangpinPaths = 8;
     auto rank_shuangpin_path = [&](const std::string& query_key,
@@ -793,7 +908,8 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
                     pinyin_scheme() == PinyinSchemeKind::kShuangpin
                         ? canonical_pinyin_key(segmented_path.syllables)
                         : std::string{},
-                    path_uses_initial(segmented_path));
+                    path_uses_initial(segmented_path), path_uses_fuzzy(segmented_path),
+                    erhua_mask(segmented_path));
                 if (id_index == SIZE_MAX) {
                     continue;
                 }
@@ -828,6 +944,34 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
                 }
             }
             if (!has_normal_composition_path && has_repeated_short_path) {
+                // The repeated letters read as the syllable whose reduplicated word is the most
+                // common (哈哈哈, 哈哈 for h): "hhhh" is 哈哈哈哈, not 会会会会 although 会 is the
+                // more common character and its path the first enumerated.
+                const SegmentedPath& typed_path =
+                    segment_result.paths[repeated_short_spec.segmented_path_index];
+                size_t suffix_begin = typed_path.syllables.size();
+                while (suffix_begin > 0 &&
+                       typed_path.spelling_types[suffix_begin - 1] == kAbbreviation) {
+                    --suffix_begin;
+                }
+                const std::string reading = best_repeated_reading(pinyin.back());
+                if (!reading.empty() && suffix_begin < typed_path.syllables.size() &&
+                    reading != typed_path.syllables[suffix_begin]) {
+                    SegmentedPath path = typed_path;
+                    for (size_t s = suffix_begin; s < path.syllables.size(); ++s) {
+                        path.syllables[s] = reading;
+                    }
+                    const size_t id_index = add_path(path.syllables, classify_path(path),
+                                                     path.credibility, {}, true,
+                                                     path_uses_fuzzy(path));
+                    if (id_index != SIZE_MAX) {
+                        segment_result.paths.push_back(std::move(path));
+                        const size_t path_index = segment_result.paths.size() - 1;
+                        repeated_short_spec = {id_index, path_index,
+                                               CompositionPathKind::kRepeatedShortCode,
+                                               static_cast<uint16_t>(path_index)};
+                    }
+                }
                 composition_specs.push_back(repeated_short_spec);
             }
             if (segment_result.deadline_exceeded) {
@@ -885,7 +1029,8 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
                                            candidate, path.tier, path.syllable_count,
                                            path.credibility, input_is_syllables,
                                            path.tier == PathMatchTier::kAbbreviation ||
-                                               path.tier == PathMatchTier::kMixed);
+                                               path.tier == PathMatchTier::kMixed,
+                                           false);
                                    }),
                     path_fast.candidates.end());
             }
@@ -950,18 +1095,11 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     };
     collect_live_paths(0);
 
-    // If valid full-syllable paths have no dictionary continuation, retry with
-    // terminal syllable completion (for example, "ji" -> "jie"). Also when only
-    // abbreviation or mixed paths matched: "zhongwe" splits as zhong+w+e and finds a long
-    // phrase (中文歌曲), while the intended 中文 / 中卫 need "we" completed to wen / wei.
-    const bool only_partial_paths =
-        !live_path_indices.empty() &&
-        std::none_of(live_path_indices.begin(), live_path_indices.end(), [&](size_t index) {
-            return path_tiers[index] == PathMatchTier::kNormal ||
-                   path_tiers[index] == PathMatchTier::kFuzzy;
-        });
-    if ((live_path_indices.empty() || only_partial_paths) && pinyin_resources_ &&
-        !deadline_hit && !pinyin_query_policy_.initials_only) {
+    // Terminal syllable completion ("ji" -> "jie", "buzhida" -> bu:zhi:dao) is always tried,
+    // as the Top-N index completes every key it holds: the completed words rank in the
+    // completion group, under the words the typed syllables spell in full (不知大) and above the
+    // longer words (不知大体). The syllabifier only adds the paths that end in a completion.
+    if (pinyin_resources_ && !deadline_hit && !pinyin_query_policy_.initials_only) {
         SyllabifierOptions completion_options;
         completion_options.enable_fuzzy = pinyin_query_policy_.enable_fuzzy;
         completion_options.fuzzy_groups = pinyin_query_policy_.fuzzy_groups;
@@ -986,12 +1124,17 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
                     !path_consumes_entire_input(pinyin, completion_path)) {
                     continue;
                 }
+                if (completion_path.spelling_types.empty() ||
+                    completion_path.spelling_types.back() != kCompletionSpelling) {
+                    continue;  // already enumerated without completion
+                }
                 add_path(completion_path.syllables, classify_path(completion_path),
                          completion_path.credibility,
                          pinyin_scheme() == PinyinSchemeKind::kShuangpin
                              ? canonical_pinyin_key(completion_path.syllables)
                              : std::string{},
-                         path_uses_initial(completion_path));
+                         path_uses_initial(completion_path), path_uses_fuzzy(completion_path),
+                         erhua_mask(completion_path));
             }
             collect_live_paths(first_completion);
         }
@@ -1042,13 +1185,17 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
             break;
         }
         auto candidates = dict_->lookup_by_ids(ids, offset + fetch_limit + 1, trace, budget);
+        if (path_erhua[live_path_index] != 0) {
+            keep_erhua_characters(candidates, path_erhua[live_path_index]);
+        }
         candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
                                         [&](Candidate& c) {
                                             return !rank_fallback_candidate(
                                                 c, path_tiers[live_path_index], ids.size(),
                                                 path_credibilities[live_path_index],
                                                 input_is_syllables,
-                                                path_abbreviated[live_path_index] != 0);
+                                                path_abbreviated[live_path_index] != 0,
+                                                path_fuzzy[live_path_index] != 0);
                                         }),
                          candidates.end());
         if (pinyin_scheme() == PinyinSchemeKind::kShuangpin) {
@@ -1087,7 +1234,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
                 }
                 if (!rank_fallback_candidate(candidate, PathMatchTier::kMixed, key.size(),
                                              typed_credibility(pinyin, candidate.syllables),
-                                             input_is_syllables, true)) {
+                                             input_is_syllables, true, false)) {
                     continue;
                 }
                 candidate.input_code = pinyin;
@@ -1111,10 +1258,23 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
             std::chrono::steady_clock::now() - t_merge_start).count();
     }
     // A dictionary word covers the whole input (complete or by completion): sentences then go
-    // below every word (covered_sentence_frequency), and no typed-span sentences are built.
+    // below every word (covered_sentence_frequency). When the word is typed in full ("nihao")
+    // no typed-span sentences are built either; a word reached through an initial ("womenjd" ->
+    // 我们决定) still gets the typed-span sentences (我们觉得) after the words.
     const bool input_covered = std::any_of(sorted.begin(), sorted.end(), [](const Candidate& c) {
         return c.frequency >= kCompletionBase;
     });
+    const bool input_covered_in_full =
+        std::any_of(sorted.begin(), sorted.end(), [&](const Candidate& c) {
+            if (c.frequency < kCompletionBase) {
+                return false;
+            }
+            std::string spelled;
+            for (const char ch : c.syllables) {
+                if (ch != ':') spelled.push_back(ch);
+            }
+            return spelled == pinyin;
+        });
 
     if (sentence_composition_enabled_ && !composition_specs.empty() &&
         sorted.size() < static_cast<size_t>(need) &&
@@ -1189,8 +1349,9 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
 
     // Initials mixed into the input ("rangwolaibsmoxing", "zhegemx", "nikanx"): no syllable
     // path is typed in full, so the composer above has nothing to do. Build the sentences over
-    // the typed letters instead, when no dictionary word covers the input (complete or by
-    // completion), as Rime drops its sentence when a phrase spans the whole input.
+    // the typed letters instead, unless a dictionary word typed in full covers the input, as
+    // Rime drops its sentence when a phrase spans the whole input; a word reached through an
+    // initial (我们决定 for "womenjd") keeps them after every word.
     // A repeated letter at the end ("hhhh", "nihh") is the repeated short code the composer
     // above handles, one character per letter; spans would pair the letters into words
     // (呵呵 + 哈哈哈哈哈哈哈) instead.
@@ -1199,13 +1360,16 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     bool typed_span_composed = false;
     if (sentence_composition_enabled_ && pinyin_scheme() == PinyinSchemeKind::kFullPinyin &&
         !pinyin_query_policy_.initials_only && !has_normal_composition_path && !deadline_hit &&
-        !repeated_trailing_letter && !input_covered && pinyin.size() >= 2 &&
+        !repeated_trailing_letter && !input_covered_in_full && pinyin.size() >= 2 &&
         is_indexable_key(pinyin)) {
         const auto span_start = std::chrono::steady_clock::now();
         auto sentences = compose_typed_spans(pinyin, kMaxTypedSpanSentences, budget);
         dict_->filter_disabled_system_candidates(sentences);
         for (auto& candidate : sentences) {
             if (!contains_text(sorted, candidate.text)) {
+                if (input_covered) {
+                    candidate.frequency = covered_sentence_frequency(candidate.frequency);
+                }
                 insert_by_score(sorted, std::move(candidate));
                 typed_span_composed = true;
             }
@@ -1255,6 +1419,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         }
     }
 
+    limit_extension_candidates(sorted);
     const int known_count = static_cast<int>(sorted.size());
     const int returned_end = (std::min)(offset + fetch_limit, known_count);
     const bool collector_capacity_incomplete = budget &&
@@ -1315,6 +1480,7 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
     // Words kept per span: the initials of a span ("bs") fit many words, and the context model
     // chooses among the sentences, so it sees more than the Poet's few homophones.
     static constexpr size_t kMaxWordsPerSpan = 12;
+    static constexpr int kMaxSingleCharacterTails = 2;
     static constexpr size_t kBeamWidth = 16;
     static constexpr size_t kMaxWords = 6;
     static constexpr int64_t kSentenceWindow = 4605;  // ln(100): sentences this far behind the best
@@ -1387,7 +1553,10 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
                 beam[edge.end].push_back(static_cast<uint32_t>(states.size() - 1));
             }
         }
-        // The next positions keep only their best states (fewer words first on a tie).
+        // The next positions keep only their best states (fewer words first on a tie). States
+        // that differ only in a final single character are the homophones of a lone initial
+        // (我们将+的, 我们将+到, 我们将+大...): two per parent, so the other readings of the
+        // input (我们+觉得) stay within the beam.
         for (size_t later = pos + 1; later <= n; ++later) {
             auto& bucket = beam[later];
             if (bucket.size() <= kBeamWidth) continue;
@@ -1395,7 +1564,28 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
                 if (states[a].score != states[b].score) return states[a].score > states[b].score;
                 return states[a].words < states[b].words;
             });
-            bucket.resize(kBeamWidth);
+            std::vector<uint32_t> kept;
+            struct Tails {
+                uint32_t parent;
+                int single_characters = 0;
+            };
+            std::vector<Tails> tails_by_parent;
+            for (uint32_t state_index : bucket) {
+                if (kept.size() >= kBeamWidth) break;
+                const State& state = states[state_index];
+                auto tails = std::find_if(tails_by_parent.begin(), tails_by_parent.end(),
+                                          [&](const Tails& t) { return t.parent == state.parent; });
+                if (tails == tails_by_parent.end()) {
+                    tails_by_parent.push_back({state.parent});
+                    tails = tails_by_parent.end() - 1;
+                }
+                if (all_edges[state.edge].word->text.size() <= 4) {  // one UTF-8 character
+                    if (tails->single_characters >= kMaxSingleCharacterTails) continue;
+                    ++tails->single_characters;
+                }
+                kept.push_back(state_index);
+            }
+            bucket = std::move(kept);
         }
     }
 

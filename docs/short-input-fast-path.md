@@ -118,14 +118,16 @@ mixed code 码型：声母增强简拼（`shrf`）、首音节展开（`shurf`�
 | 组 | 基数 | 条件 | 例子 |
 |----|------|------|------|
 | 完整 | 60,000,000 | 词的每个音节都被 key 覆盖，打全或只打声母 | `qianm` → 前面、千米；`jde` → 觉得 |
-| 补全 | 45,000,000 | 最后一个音节没打完（`ni` → 年），或 key 本身能切成完整音节却用了声母（`zhou` → 最后 = z+hou） | Rime 只在输入切不成完整音节时补全，并在有全拼切法时去掉简拼 |
+| 补全 | 45,000,000 | 最后一个音节没打完（`ni` → 年、`buzhida` → 不知道），或 key 本身能切成完整音节却用了声母（`zhou` → 最后 = z+hou） | 运行时对每个输入同样做末音节补全；Rime 在有全拼切法时去掉简拼 |
 | （组句） | 45,000,000 起，补全之下 | 运行时组出的、覆盖全部输入的句子（不在索引里，见 [候选词选词算法](candidate-selection.md#组句)） | `nikanx` → 你看下 |
-| 更长的词 | 30,000,000 | 词比 key 长 | `xianzhan` → 先占领 |
+| 更长的词 | 30,000,000 | 词比 key 长；运行时每次查询只保留分数最高的 3 个（`kMaxExtensionCandidates`） | `xianzhan` → 先占领 |
+| 生僻单字 | 0 | 词频不超过 100 的单字，只取对数分的百分之一，排在所有词之后 | `de` → …锝、等、定额，然后才是 㝵 |
 
 ```
 score = 组基数 + clamp(500000 × (ln(frequency + 1) + credibility + 10), 0, 14,999,999)
 credibility = Σ ln(0.5)（每个只打声母的音节，与 spellings 的 abbrev 可信度相同）
             + Σ ln(0.05)（每个没打完的音节，Rime 的 completion 可信度）
+            + 0（结尾的 儿 打成 r：`huar` 花儿、`nar` 哪儿，索引为以 儿 结尾的词另生成 r 结尾的 key）
 ```
 
 同一个 key 下按 `score desc → frequency desc → text_length asc → text lexicographic asc` 稳定排序，

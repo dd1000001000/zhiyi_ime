@@ -25,6 +25,9 @@ struct SyllableEdge {
     std::string syllable;
     int type = kNormalSpelling;
     float credibility = 0.0f;
+    // ln of the syllable's share of the dictionary (syllable_frequency.h): orders the
+    // enumeration of paths only, it is not part of a path's credibility.
+    float weight = 0.0f;
 };
 
 // SyllableGraph: edges[start_pos] = map<end_pos, list<SyllableEdge>>
@@ -96,17 +99,11 @@ private:
 
     const SpellingsIndex& spellings_;
 
-    // DFS enumeration of all paths through the graph
+    // Best-first enumeration of the paths from 0 to end_pos, most plausible first.
     // Returns true if the deadline expired during enumeration.
-    bool enumerate_paths(const SyllableGraph& graph,
-                         size_t pos, size_t end_pos,
-                         SegmentedPath& current,
-                         std::vector<SegmentedPath>& results,
-                         const QueryDeadline* deadline,
-                         bool collect_path_metadata,
-                         uint32_t& path_count,
-                         std::vector<std::pair<size_t, std::vector<SyllableEdge>>>& sorted_scratch,
-                         uint32_t& call_count) const;
+    bool enumerate_paths(const SyllableGraph& graph, size_t end_pos,
+                         std::vector<SegmentedPath>& results, const QueryDeadline* deadline,
+                         bool collect_path_metadata, uint32_t& call_count) const;
 };
 
 } // namespace cxxime

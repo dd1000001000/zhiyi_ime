@@ -47,7 +47,14 @@ LOG_SCALE = 500_000
 LOG_OFFSET = 10.0                # ln-scores from -10 to 19.9 stay inside each group
 MAX_LOG_SCORE = 14_999_999
 ABBREVIATION_CREDIBILITY = -0.6931471805599453  # ln(0.5), as the abbrev spellings
+# A character the dictionary has hardly seen used (frequency up to 100) goes below every word,
+# at a hundredth of its log score (under 150,000).
+RARE_CHARACTER_FREQUENCY = 100
+RARE_CHARACTER_SCALE = 100
 COMPLETION_CREDIBILITY = -2.995732273553991    # ln(0.05), as Rime reads a completed syllable
+# Erhua: a trailing r after a syllable spells 儿 in full (花儿 "huar", 哪儿 "nar"); the r-initial
+# words (华人, 纳入) then read the key as whole syllables with an initial and rank as completions.
+ERHUA_CREDIBILITY = 0.0
 
 # Key flags
 SHORT_KEY_EXACT = 0x01
@@ -79,12 +86,13 @@ def resolve_input(path):
     return path
 
 
-def key_quality(key, syllables):
+def key_quality(key, syllables, erhua=False):
     """(complete, unfinished, credibility) of reading key as the start of these syllables, or None.
 
     Each syllable is typed in full (credibility 0), as its initial (z / zh, ln 0.5) or, for the
     last typed one, as an unfinished prefix longer than its initial (ln 0.5). complete: every
     syllable is touched; unfinished: the last one is cut. Best: complete, finished, credible.
+    erhua: the word ends in 儿, whose syllable "er" is also typed as "r".
     """
     best = None
     n = len(syllables)
@@ -112,6 +120,8 @@ def key_quality(key, syllables):
             rest = len(key) - p
             if 0 < rest < len(s) and s.startswith(key[p:]) and key[p:] not in initials:
                 steps.append((len(key), COMPLETION_CREDIBILITY, True))
+            if erhua and i == n - 1 and i > 0 and s == "er" and key[p] == "r":
+                steps.append((p + 1, ERHUA_CREDIBILITY, False))
             for q, c, unfinished in steps:
                 state = (i + 1, q, unfinished)
                 if state not in nxt or nxt[state] < cred + c:
@@ -131,14 +141,18 @@ def reads_as_syllables(key, syllabary):
             for j in range(i + 1, min(len(key), i + 6) + 1):
                 if key[i:j] in syllabary:
                     ok[j] = True
+            if i > 0 and key[i] == "r":  # erhua: r after a syllable spells 儿
+                ok[i + 1] = True
     return ok[len(key)]
 
 
-def key_score(key, syllables, frequency, key_is_syllables):
-    quality = key_quality(key, syllables)
+def key_score(key, syllables, frequency, key_is_syllables, rare_character=False, erhua=False):
+    quality = key_quality(key, syllables, erhua)
     if quality is None:
         return None
     complete, unfinished, credibility = quality
+    if rare_character:
+        return round(LOG_SCALE * (credibility + LOG_OFFSET)) // RARE_CHARACTER_SCALE
     abbreviated = credibility < (COMPLETION_CREDIBILITY if unfinished else 0.0) - 1e-9
     if not complete:
         base = EXTENSION_BASE
@@ -161,11 +175,14 @@ def generate_keys(syllable_ids, text, frequency, key_is_syllables=lambda key: Fa
 
     results = {}
     n = len(syllables)
+    rare_character = len(text) == 1 and frequency <= RARE_CHARACTER_FREQUENCY
+    erhua = n >= 2 and syllables[-1] == "er" and text.endswith("儿")
 
     def offer(key, flags, has_complete_match=False):
         existing = results.get(key)
         if existing is None:
-            score = key_score(key, syllables, frequency, key_is_syllables(key))
+            score = key_score(key, syllables, frequency, key_is_syllables(key), rare_character,
+                              erhua)
             if score is None:
                 return
             results[key] = (score, flags, has_complete_match)
@@ -187,6 +204,12 @@ def generate_keys(syllable_ids, text, frequency, key_is_syllables=lambda key: Fa
         for m in mixed_list[:MAX_MIXED_KEYS_PER_ENTRY]:
             if m != exact and len(m) <= MAX_MIXED_KEY_LENGTH:
                 complete_keys.append((m, SHORT_KEY_MIXED))
+
+    # erhua_code: the final 儿 typed as r, e.g. "huar", "nar" (and "nr" from the mixed key "ner")
+    if erhua:
+        complete_keys += [(key[:-2] + "r", flags | SHORT_KEY_MIXED)
+                          for key, flags in list(complete_keys)
+                          if key.endswith("er") and len(key) > 2]
 
     for key, flags in complete_keys:
         offer(key, flags, has_complete_match=True)

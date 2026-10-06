@@ -5,7 +5,6 @@
 #define CXXIME_SHORT_CODE_CACHE_H_
 
 #include <cstddef>
-#include <cxxime/mapped_file.h>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -37,8 +36,7 @@ public:
                                    bool* prefix_complete = nullptr) const;
 
 private:
-    MappedFile file_;
-    const char* data_ = nullptr;
+    char* data_ = nullptr;
     size_t data_size_ = 0;
     const uint32_t* code_index_ = nullptr;
     const ShortPostingList* posting_lists_ = nullptr;

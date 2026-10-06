@@ -24,7 +24,7 @@
 
 | 字段 | 类型 | 用途 |
 |------|------|------|
-| `dict` | `shared_ptr<Dict>` | 拼音主字典（只读映射，见 [词典系统设计](dictionary.md) 第 7 节） |
+| `dict` | `shared_ptr<Dict>` | 拼音主字典（二进制堆加载，无 mmap） |
 | `wubi_dict` | `shared_ptr<Dict>` | 五笔字典（必需：manifest 缺失或加载失败时服务启动失败） |
 | `spellings` | `shared_ptr<SpellingsIndex>` | Patricia trie 拼音索引 |
 | `syllabifier` | `shared_ptr<Syllabifier>` | 拼音切分器（依赖 spellings） |

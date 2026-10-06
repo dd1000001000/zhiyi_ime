@@ -124,18 +124,38 @@ bool ShortCodeCache::load(const std::string& path, CandidateStoreView candidate_
     unload();
     CXXIME_LOG(L"ShortCodeCache::load path=%S", path.c_str());
 
-    if (!file_.open(path)) {
-        CXXIME_LOG(L"ShortCodeCache::load mapping FAILED");
+    HANDLE hFile = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ,
+                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        CXXIME_LOG(L"ShortCodeCache::load CreateFileA FAILED");
         return false;
     }
-    if (file_.size() < sizeof(ShortCacheHeader) ||
-        static_cast<uint64_t>(file_.size()) > std::numeric_limits<uint32_t>::max()) {
-        file_.close();
+
+    LARGE_INTEGER li;
+    if (!GetFileSizeEx(hFile, &li) ||
+        li.QuadPart < static_cast<LONGLONG>(sizeof(ShortCacheHeader)) ||
+        static_cast<uint64_t>(li.QuadPart) > std::numeric_limits<uint32_t>::max()) {
+        CloseHandle(hFile);
         CXXIME_LOG(L"ShortCodeCache::load invalid file size");
         return false;
     }
-    data_size_ = file_.size();
-    data_ = file_.data();
+    data_size_ = static_cast<size_t>(li.QuadPart);
+    data_ = new (std::nothrow) char[data_size_];
+    if (!data_) {
+        CloseHandle(hFile);
+        CXXIME_LOG(L"ShortCodeCache::load allocation failed (%zu bytes)", data_size_);
+        return false;
+    }
+
+    DWORD bytes_read = 0;
+    const BOOL ok = ReadFile(hFile, data_, static_cast<DWORD>(data_size_),
+                             &bytes_read, nullptr);
+    CloseHandle(hFile);
+    if (!ok || bytes_read != data_size_) {
+        CXXIME_LOG(L"ShortCodeCache::load ReadFile FAILED");
+        unload();
+        return false;
+    }
 
     ShortCacheView view;
     std::string error;
@@ -159,7 +179,7 @@ bool ShortCodeCache::load(const std::string& path, CandidateStoreView candidate_
 }
 
 void ShortCodeCache::unload() {
-    file_.close();
+    delete[] data_;
     data_ = nullptr;
     data_size_ = 0;
     code_index_ = nullptr;

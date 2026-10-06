@@ -144,18 +144,37 @@ bool Dict::open_dict_with_aux(const std::string& bin_path,
     unload_dict();
     CXXIME_LOG(L"Dict::open_dict path=%S", bin_path.c_str());
 
-    // The file stays mapped (file-backed, prefetched) instead of being copied onto the heap.
-    if (!dict_file_.open(bin_path)) {
-        CXXIME_LOG(L"Dict::open_dict mapping FAILED");
+    HANDLE hFile = CreateFileA(bin_path.c_str(), GENERIC_READ, FILE_SHARE_READ,
+                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        CXXIME_LOG(L"Dict::open_dict CreateFileA FAILED");
         return false;
     }
-    if (dict_file_.size() < sizeof(DictHeader)) {
-        dict_file_.close();
+
+    LARGE_INTEGER li;
+    if (!GetFileSizeEx(hFile, &li) || li.QuadPart < (LONGLONG)sizeof(DictHeader)) {
+        CloseHandle(hFile);
         CXXIME_LOG(L"Dict::open_dict file too small");
         return false;
     }
-    dict_data_ = dict_file_.data();
-    dict_data_size_ = dict_file_.size();
+    dict_data_size_ = (size_t)li.QuadPart;
+
+    // Load entire file into heap memory (no mmap — avoids page-out latency)
+    dict_data_ = new (std::nothrow) char[dict_data_size_];
+    if (!dict_data_) {
+        CloseHandle(hFile);
+        CXXIME_LOG(L"Dict::open_dict allocation failed (%zu bytes)", dict_data_size_);
+        return false;
+    }
+
+    DWORD bytes_read = 0;
+    BOOL ok = ReadFile(hFile, dict_data_, (DWORD)dict_data_size_, &bytes_read, nullptr);
+    CloseHandle(hFile);
+    if (!ok || bytes_read != dict_data_size_) {
+        CXXIME_LOG(L"Dict::open_dict ReadFile FAILED");
+        unload_dict();
+        return false;
+    }
 
     auto* hdr = (const DictHeader*)dict_data_;
     if (std::memcmp(hdr->magic, DICT_MAGIC_V2, 8) != 0) {
@@ -253,7 +272,7 @@ void Dict::unload_dict() {
     unload_id_index();
     short_cache_.unload();
     wubi_prefix_index_.reset();
-    dict_file_.close();
+    delete[] dict_data_;
     dict_data_ = nullptr;
     dict_entries_ = nullptr;
     dict_strings_ = nullptr;
@@ -432,8 +451,7 @@ bool Dict::create_test_dict(const std::string& path,
     uint32_t entries_offset = sizeof(DictHeader);
     uint32_t strings_offset = entries_offset + count * sizeof(DictEntry);
 
-    // Write file (a loaded dictionary is mapped: move it aside rather than truncate it)
-    MappedFile::rename_away(path);
+    // Write file
     HANDLE hFile = CreateFileA(path.c_str(), GENERIC_WRITE, 0, nullptr,
                                CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (hFile == INVALID_HANDLE_VALUE)
@@ -467,7 +485,7 @@ bool Dict::create_test_dict(const std::string& path,
 // ─── Syllable ID index (zero-copy mmap, v3 format) ────────────────────
 
 void Dict::unload_id_index() {
-    idx_file_.close();
+    delete[] idx_data_;
     idx_data_ = nullptr;
     idx_data_size_ = 0;
     syllabary_.clear();
@@ -488,14 +506,33 @@ bool Dict::load_id_index(const std::string& dict_bin_path) {
 }
 
 bool Dict::load_id_index_file(const std::string& idx_path) {
-    if (!idx_file_.open(idx_path))
+    HANDLE hFile = CreateFileA(idx_path.c_str(), GENERIC_READ, FILE_SHARE_READ,
+                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile == INVALID_HANDLE_VALUE)
         return false;
-    if (idx_file_.size() < 28) {
-        idx_file_.close();
+
+    LARGE_INTEGER li;
+    if (!GetFileSizeEx(hFile, &li) || li.QuadPart < 28) {
+        CloseHandle(hFile);
         return false;
     }
-    const size_t file_size = idx_file_.size();
-    idx_data_ = idx_file_.data();
+    size_t file_size = (size_t)li.QuadPart;
+
+    // Load entire file into heap memory
+    idx_data_ = new (std::nothrow) char[file_size];
+    if (!idx_data_) {
+        CloseHandle(hFile);
+        return false;
+    }
+
+    DWORD bytes_read = 0;
+    BOOL ok = ReadFile(hFile, idx_data_, (DWORD)file_size, &bytes_read, nullptr);
+    CloseHandle(hFile);
+    if (!ok || bytes_read != file_size) {
+        delete[] idx_data_;
+        idx_data_ = nullptr;
+        return false;
+    }
     idx_data_size_ = file_size;
 
     const char* base = idx_data_;

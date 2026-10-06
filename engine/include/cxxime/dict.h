@@ -4,7 +4,6 @@
 #define CXXIME_DICT_H_
 
 #include <chrono>
-#include <cxxime/mapped_file.h>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -233,8 +232,7 @@ private:
                                   CandidateSource source, Candidate* candidate) const;
 
     const UserDictKind kind_;
-    MappedFile dict_file_;              // the whole .dict.bin, mapped read-only
-    const char* dict_data_ = nullptr;
+    char* dict_data_ = nullptr;         // heap-allocated buffer
     size_t dict_data_size_ = 0;
     const CandidateStoreEntry* dict_entries_ = nullptr;
     const char* dict_strings_ = nullptr;
@@ -247,8 +245,7 @@ private:
     std::unique_ptr<WubiPrefixIndex> wubi_prefix_index_;
 
     // Integer ID index (.dict.idx, heap-allocated)
-    MappedFile idx_file_;
-    const char* idx_data_ = nullptr;
+    char* idx_data_ = nullptr;
     size_t idx_data_size_ = 0;
 
     // Integer ID index (librime-style syllable ID lookup)

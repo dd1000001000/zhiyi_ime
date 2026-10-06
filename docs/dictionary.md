@@ -542,27 +542,28 @@ rime-ice 的 tencent 词表没有注音列，约 98 万条的权重被当成了�
 
 ### 7.1 加载流程
 
-四个运行时文件（`dict.bin`、`dict.idx`、`topn.bin`、`spellings.bin`）都通过 `MappedFile`
-（`engine/include/cxxime/mapped_file.h`）只读映射到内存，不再复制到堆上：
-
 ```cpp
-MappedFile file;
-file.open(path);          // CreateFileMapping + MapViewOfFile，随后 PrefetchVirtualMemory 整个文件
-data_ = file.data();      // 验证 magic → 设置指针 → 构建索引（布局与文件一致，指针直接偏移）
+HANDLE hFile = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, ...);
+GetFileSizeEx(hFile, &li);
+data_ = new (std::nothrow) char[file_size];
+ReadFile(hFile, data_, file_size, &bytes_read, nullptr);
+CloseHandle(hFile);
+// 验证 magic → 设置指针 → 构建索引
 ```
-
-- 页面是文件支持的共享页：不计入进程的私有提交，内存紧张时系统可以直接丢弃再从文件读回；
-  任务管理器里服务端的"内存"少了约 140 MB（146 万条词库：堆加载 160 MB → 映射后约 24 MB 私有内存）。
-- 启动时一次 `PrefetchVirtualMemory` 把整个文件读入，正常使用中不会因首次访问缺页；
-  CxxIME 原本改用堆加载是为了避开 mmap 换页（防病毒软件 / 过滤驱动介入时的延迟），知意用预取换取内存。
-- 文件在映射期间不能被截断或删除，只能重命名（打开时带 `FILE_SHARE_DELETE`）。替换词典必须"写新文件、
-  把旧文件改名挪开、把新文件移到原名"，不能原地覆盖；写测试词典的 `Dict::create_test_dict`、
-  `SpellingsIndex::create_test_trie` 和测试工具先调用 `MappedFile::rename_away(path)`。
-  安装程序写入新的版本目录，热重载（`DictionaryMonitor`）重新映射新文件后旧映射才释放。
 
 ### 7.2 资源管理
 
-`unload()` 关闭映射（`MappedFile::close()`：UnmapViewOfFile + CloseHandle）。
+```cpp
+~SpellingsIndex() {
+    delete[] data_;   // 释放堆内存
+}
+```
+
+### 7.3 优势
+
+- 一次性读入：避免 mmap 的 page-out 延迟（防病毒软件/文件系统过滤驱动干扰）
+- 无解析开销：二进制布局与内存布局一致，指针直接偏移
+- 确定性：内存占用等于文件大小，无按需加载的不确定性
 
 ## 8. 测试
 

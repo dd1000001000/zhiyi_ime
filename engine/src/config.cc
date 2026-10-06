@@ -265,6 +265,7 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_double(l, "english_rank_prior_weight", config.laya.english_rank_prior_weight);
         load_int(l, "context_chars", config.laya.context_chars);
         load_int(l, "threads", config.laya.threads);
+        load_bool(l, "cache", config.laya.cache);
         load_bool(l, "english", config.laya.english);
         load_int(l, "english_context_chars", config.laya.english_context_chars);
         // Settings saves every key, so 48 / 96 in a user file are the defaults before 1.0
@@ -578,6 +579,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["english_rank_prior_weight"] = config.laya.english_rank_prior_weight;
     j["laya"]["context_chars"] = config.laya.context_chars;
     j["laya"]["threads"] = config.laya.threads;
+    j["laya"]["cache"] = config.laya.cache;
     j["laya"]["english"] = config.laya.english;
     j["laya"]["english_context_chars"] = config.laya.english_context_chars;
     j["laya"]["english_freq_weight"] = config.laya.english_freq_weight;

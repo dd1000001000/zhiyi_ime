@@ -127,6 +127,10 @@ struct Config {
         double english_rank_prior_weight = 0.2;
         int context_chars = 128;  // trailing characters before the caret fed to the model
         int threads = 4;          // ONNX Runtime intra-op threads
+        // Keep a copy of the model with its weights packed for this CPU in the local app data
+        // cache (built on first start, ~340 MB on disk). ONNX Runtime maps that file instead of
+        // packing the weights onto the heap at every start: ~200 MB less private memory.
+        bool cache = true;
         // English word mode (see EnglishConfig): completions are reranked too.
         bool english = true;
         int english_context_chars = 192;   // English needs more characters for the same context

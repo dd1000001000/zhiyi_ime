@@ -91,6 +91,21 @@ cmake -DCXXIME_PRODUCTION_BUILD=OFF  →  优先级 2
 NSIS 安装到 Program Files  →  优先级 3
 ```
 
+### 本机缓存 `%LOCALAPPDATA%\zhiyi\laya-cache\`
+
+```
+C:\Users\<username>\AppData\Local\zhiyi\laya-cache\
+└── <key>\                    key = 模型文件 + ONNX Runtime 版本 + CPU 型号的哈希
+    ├── laya.onnx             优化后的图（权重引用 laya.data）
+    └── laya.data             权重，按本机 CPU 预打包（约 340 MB）
+```
+
+Laya 模型的预打包副本（`laya.cache`，见 [设置指南](settings-guide.md)）。ONNX Runtime 建会话时把每个
+int8 矩阵的权重重排成内核要的布局并放在堆上，约 200 MB 私有内存；服务端首次启动时让它把这份结果
+写进 `laya.data`，以后启动直接只读映射该文件，权重成为可丢弃的共享页。布局随 CPU 和 ORT 版本变化，
+所以放在本机目录（不随漫游配置，也不在用户数据目录里），key 不匹配的旧缓存会在下次启动时删除，
+缓存写不进去或 ORT 拒绝加载时退回到内存打包。卸载时删除整个目录。
+
 ### user_data_dir()
 
 用户可写目录。固定解析为 `%USERPROFILE%\zhiyi\`（CSIDL_PROFILE + `\zhiyi\`）。

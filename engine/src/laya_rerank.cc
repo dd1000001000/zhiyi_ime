@@ -3,6 +3,7 @@
 #include <cxxime/laya_rerank.h>
 
 #include <windows.h>
+#include <shlobj.h>
 
 #include <algorithm>
 #include <chrono>
@@ -62,11 +63,20 @@ std::string resolve_model_dir(const std::string& dir) {
     return laya::wide_to_utf8(p.lexically_normal().wstring());
 }
 
+// %LOCALAPPDATA%\zhiyi\laya-cache: machine-specific (the packed layout depends on the CPU), so
+// neither the roaming profile nor the user data directory that users back up.
+std::string laya_cache_dir() {
+    wchar_t buf[MAX_PATH] = {};
+    if (SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, buf) != S_OK) return {};
+    return laya::wide_to_utf8(std::wstring(buf) + L"\\zhiyi\\laya-cache");
+}
+
 laya::RerankerOptions model_options(const Config& config) {
     laya::RerankerOptions opt;
     opt.model_dir = resolve_model_dir(config.laya.model_dir);
     opt.onnx_file = config.laya.onnx;
     opt.intra_threads = (std::max)(1, config.laya.threads);
+    if (config.laya.cache) opt.cache_dir = laya_cache_dir();
     return opt;
 }
 
@@ -111,7 +121,7 @@ std::shared_ptr<laya::Reranker> get_model(const Config& config) {
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - t0).count();
             laya_log(L"model loaded from " + laya::utf8_to_wide(opt.model_dir) + L" in " +
-                     std::to_wstring(ms) + L" ms");
+                     std::to_wstring(ms) + L" ms (" + laya::utf8_to_wide(model->load_note()) + L")");
         } catch (const std::exception& e) {
             laya_log(L"failed to load model from " + laya::utf8_to_wide(opt.model_dir) + L": " +
                      laya::utf8_to_wide(e.what()));

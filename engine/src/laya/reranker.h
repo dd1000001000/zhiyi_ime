@@ -36,6 +36,8 @@ struct RerankerOptions {
   std::string model_dir;                  // 含 tokenizer.json, rl_agent_config.json
   std::string onnx_file = "laya.int8g.onnx";
   int intra_threads = 4;
+  // Directory for the prepacked copy of the model (see Reranker); empty = load the model as is.
+  std::string cache_dir;
 };
 
 class Reranker {
@@ -54,11 +56,13 @@ class Reranker {
 
   const BpeTokenizer& tokenizer() const { return *tok_; }
   bool guess_prompt() const { return guess_prompt_; }
+  const std::string& load_note() const { return load_note_; }  // how the model was loaded (log)
 
  private:
   std::unique_ptr<BpeTokenizer> tok_;
   std::unique_ptr<Ort::Env> env_;
   std::unique_ptr<Ort::Session> session_;
+  std::string load_note_;
   std::unique_ptr<Ort::MemoryInfo> mem_;
   std::vector<int64_t> head_ids_;     // "choice question: <instructions>" 只编码一次
   std::vector<int64_t> head_ids_en_;  // 英文任务的 instructions

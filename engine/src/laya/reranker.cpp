@@ -1,8 +1,13 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 #include "reranker.h"
 
+#include <intrin.h>
+
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <stdexcept>
 
@@ -31,6 +36,78 @@ namespace {
 
 std::string guess_state(const std::string& context) { return "已输入的上文: " + context; }
 
+// ---- Prepacked model cache ----
+//
+// ONNX Runtime packs every MatMulInteger weight into the layout its kernels want (MLAS, per
+// instruction set) when a session is created, and keeps the packed copies on the heap: about
+// 200 MB of private memory for this model. With session.save_external_prepacked_constant_initializers
+// it can instead write the optimized model with the packed weights into an external data file,
+// which later sessions map read-only. The layout depends on the CPU and the ORT version, so the
+// copy is built on the user's machine on first start and keyed by model file, ORT version and CPU.
+
+Ort::SessionOptions session_options(const RerankerOptions& opt) {
+  Ort::SessionOptions so;
+  so.SetIntraOpNumThreads(opt.intra_threads);
+  so.SetInterOpNumThreads(1);
+  so.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+  return so;
+}
+
+std::string prepack_cache_key(const std::filesystem::path& model) {
+  std::error_code ec;
+  std::string id = wide_to_utf8(model.filename().wstring());
+  id += '|' + std::to_string(std::filesystem::file_size(model, ec));
+  id += '|' + std::to_string(std::filesystem::last_write_time(model, ec).time_since_epoch().count());
+  id += '|' + Ort::GetVersionString();
+  int r[4];
+  for (int leaf : {static_cast<int>(0x80000002), static_cast<int>(0x80000003), static_cast<int>(0x80000004)}) {
+    __cpuid(r, leaf);  // brand string
+    id.append(reinterpret_cast<const char*>(r), sizeof(r));
+  }
+  __cpuidex(r, 7, 0);  // AVX2 / AVX-512 / VNNI / AMX feature bits
+  id.append(reinterpret_cast<const char*>(r), sizeof(r));
+  __cpuid(r, 1);  // ecx, edx feature bits (ebx holds the APIC id, which differs per core)
+  id.append(reinterpret_cast<const char*>(r + 2), 2 * sizeof(int));
+  uint64_t h = 1469598103934665603ull;  // FNV-1a
+  for (unsigned char c : id) {
+    h ^= c;
+    h *= 1099511628211ull;
+  }
+  char buf[17];
+  std::snprintf(buf, sizeof(buf), "%016llx", static_cast<unsigned long long>(h));
+  return buf;
+}
+
+// Writes <dir>/laya.onnx + laya.data (the prepacked weights) by creating a throw-away session
+// that saves its optimized model. Built in a temporary directory and renamed into place, so a
+// crash or a full disk never leaves a half-written cache behind.
+void build_prepacked_model(Ort::Env& env, const RerankerOptions& opt, const std::wstring& model_path,
+                           const std::filesystem::path& dir) {
+  const std::filesystem::path tmp = dir.wstring() + L".tmp";
+  std::error_code ec;
+  std::filesystem::remove_all(tmp, ec);
+  std::filesystem::create_directories(tmp);
+  {
+    Ort::SessionOptions so = session_options(opt);
+    so.SetOptimizedModelFilePath((tmp / L"laya.onnx").c_str());
+    so.AddConfigEntry("session.optimized_model_external_initializers_file_name", "laya.data");
+    so.AddConfigEntry("session.optimized_model_external_initializers_min_size_in_bytes", "4096");
+    so.AddConfigEntry("session.save_external_prepacked_constant_initializers", "1");
+    Ort::Session saver(env, model_path.c_str(), so);  // the files are written during construction
+  }
+  std::filesystem::rename(tmp, dir);
+}
+
+// Deletes caches for other keys (an older model, ORT version or CPU) under root.
+void remove_stale_caches(const std::filesystem::path& root, const std::string& keep) {
+  std::error_code ec;
+  for (const auto& entry : std::filesystem::directory_iterator(root, ec)) {
+    if (!entry.is_directory(ec)) continue;
+    if (entry.path().filename().wstring() == utf8_to_wide(keep)) continue;
+    std::filesystem::remove_all(entry.path(), ec);
+  }
+}
+
 }  // namespace
 
 Reranker::Reranker(const RerankerOptions& opt) {
@@ -46,12 +123,36 @@ Reranker::Reranker(const RerankerOptions& opt) {
   }
 
   env_ = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "laya");
-  Ort::SessionOptions so;
-  so.SetIntraOpNumThreads(opt.intra_threads);
-  so.SetInterOpNumThreads(1);
-  so.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-  std::wstring path = utf8_to_wide(opt.model_dir + "/" + opt.onnx_file);
-  session_ = std::make_unique<Ort::Session>(*env_, path.c_str(), so);
+  const std::wstring model_path = utf8_to_wide(opt.model_dir + "/" + opt.onnx_file);
+  if (!opt.cache_dir.empty()) {
+    const std::filesystem::path root(utf8_to_wide(opt.cache_dir));
+    const std::string key = prepack_cache_key(model_path);
+    const std::filesystem::path dir = root / utf8_to_wide(key);
+    const std::filesystem::path cached = dir / L"laya.onnx";
+    std::error_code ec;
+    try {
+      if (!std::filesystem::exists(cached, ec)) {
+        const auto t0 = std::chrono::steady_clock::now();
+        build_prepacked_model(*env_, opt, model_path, dir);
+        load_note_ = "prepacked cache built in " +
+                     std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        std::chrono::steady_clock::now() - t0).count()) +
+                     " ms; ";
+      }
+      remove_stale_caches(root, key);
+      session_ = std::make_unique<Ort::Session>(*env_, cached.c_str(), session_options(opt));
+      load_note_ += "prepacked weights mapped from " + wide_to_utf8(cached.wstring());
+    } catch (const std::exception& e) {
+      // Unwritable cache directory, full disk, or a cache ORT rejects: use the model as it is.
+      session_.reset();
+      std::filesystem::remove_all(dir, ec);
+      load_note_ = std::string("prepacked cache unusable (") + e.what() + "); ";
+    }
+  }
+  if (!session_) {
+    session_ = std::make_unique<Ort::Session>(*env_, model_path.c_str(), session_options(opt));
+    load_note_ += "weights packed on the heap";
+  }
   mem_ = std::make_unique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault));
 
   if (guess_prompt_) {

@@ -63,14 +63,18 @@ public:
     bool enqueue(const CompositionLearningEvent& event);
     // Takes back the latest enqueue of this sentence (Backspace right after the commit).
     bool revoke(const CompositionLearningEvent& event);
-    // Forgets a learned sentence (Ctrl+Delete on the candidate); false when unknown.
-    bool forget(const std::string& code, const std::string& text);
+    // Forgets a learned sentence (Ctrl+Delete on the candidate): the one recorded under
+    // (code, text), else the one with these syllables; false when unknown.
+    bool forget(const std::string& code, const std::string& text,
+                const std::string& syllables = {});
     bool flush();
     bool freeze_and_stop();
     bool merge_contents_and_save(const std::string& imported, UserDataMergeResult* result);
     // Forgets every learned word and saves the empty file (settings: clear learning data).
     bool clear_and_save();
 
+    // The learned sentences for the typed `code`: recorded under it, or spelled by it
+    // (initials, unfinished last syllable; pinyin_spelling_match.h).
     std::vector<Candidate> lookup_candidates(const std::string& code,
                                              std::size_t limit) const;
     std::uint64_t version() const;

@@ -142,6 +142,9 @@ public:
                                      CandidatePreferenceReceipt* receipt = nullptr);
     // Takes back a record (Backspace right after the commit).
     bool revoke_candidate_preference(const CandidatePreferenceReceipt& receipt);
+    // Forgets a learned word (Ctrl+Delete on the candidate), by its typed code or syllables.
+    bool forget_candidate_preference(const std::string& text, const std::string& code,
+                                     const std::string& syllables);
     void apply_candidate_preferences(const std::string& code, CandidateSource source,
                                      std::vector<Candidate>& candidates, int limit) const;
     std::vector<UserDictEntryInfo> query_candidate_preferences(

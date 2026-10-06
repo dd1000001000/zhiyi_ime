@@ -1557,14 +1557,14 @@ bool Engine::forget_highlighted_candidate(const QueryDeadline& deadline) {
     bool forgotten = false;
     for (const std::string& code : codes) {
         if (dictionary &&
-            dictionary->delete_candidate_preferences({LexiconEntryKey{candidate.text, code}})) {
+            dictionary->forget_candidate_preference(candidate.text, code, candidate.syllables)) {
             forgotten = true;
             break;
         }
     }
     if (CompositionLearningService* learning = runtime_->composition_learning()) {
         for (const std::string& code : codes) {
-            if (learning->forget(code, candidate.text)) {
+            if (learning->forget(code, candidate.text, candidate.syllables)) {
                 forgotten = true;
                 break;
             }

@@ -15,6 +15,7 @@
 
 #include <cxxime/input_limits.h>
 #include <cxxime/ordinary_candidate.h>
+#include <cxxime/pinyin_spelling_match.h>
 #include <cxxime/user_dict_validation.h>
 #include <cxxime/user_data_merge.h>
 
@@ -99,9 +100,15 @@ bool expired(int frequency, double dee_now) {
     return frequency <= 1 && dee_now < kTentativeExpiry;
 }
 
+// Headroom under the weight for a spelling credibility (at most a few thousandths of ln), so
+// a pinned word stays above the base however it was typed.
+constexpr int kSpellingHeadroom = 10000;
+
 int pinned_score(double dee_now) {
-    return kPreferenceBaseScore + static_cast<int>((std::min)(dee_now, kMaxDee) * 1000.0);
+    return kPreferenceBaseScore + kSpellingHeadroom +
+           static_cast<int>((std::min)(dee_now, kMaxDee) * 1000.0);
 }
+
 
 } // namespace
 
@@ -335,13 +342,21 @@ bool CandidatePreference::record(const Candidate& candidate, const std::string& 
         return false;
     }
     const std::string key = entry_key(candidate.text, code);
-    const auto found = entry_index_.find(key);
+    auto found = entry_index_.find(key);
+    // The same word picked for other letters (现在 for "xz" after "xianzai"): one habit.
+    if (found == entry_index_.end() && !candidate.syllables.empty()) {
+        const EntryId merged = find_by_syllables_locked(candidate.text, candidate.syllables);
+        if (merged != kNoEntry) {
+            found = entry_index_.find(entry_key(entries_[merged].text, entries_[merged].code));
+        }
+    }
     CandidatePreferenceReceipt change;
     change.text = candidate.text;
     change.code = code;
     ++sequence_;
     if (found != entry_index_.end()) {
         Entry& entry = entries_[found->second];
+        change.code = entry.code;  // the receipt names the entry as stored
         change.previous_frequency = entry.frequency;
         change.previous_dee = entry.dee;
         change.previous_sequence = entry.sequence;
@@ -378,6 +393,9 @@ bool CandidatePreference::record(const Candidate& candidate, const std::string& 
             entry.score = candidate.frequency;
         }
         const EntryId id = static_cast<EntryId>(entries_.size());
+        if (!entry.syllables.empty()) {
+            initial_index_[entry.syllables.front()].push_back(id);
+        }
         entries_.push_back(std::move(entry));
         entry_index_[key] = id;
         code_index_[code].push_back(id);
@@ -427,13 +445,38 @@ std::vector<Candidate> CandidatePreference::preferred_candidates(const std::stri
         return candidates;
     }
     std::shared_lock<std::shared_mutex> lock(mutex_);
+    std::vector<std::pair<EntryId, float>> matches;  // entry, spelling credibility
     const auto found = code_index_.find(code);
-    if (found == code_index_.end()) {
-        return candidates;
+    if (found != code_index_.end()) {
+        for (EntryId id : found->second) {
+            matches.emplace_back(id, 0.0f);
+        }
+    }
+    // Pinyin: the words whose syllables these letters spell, whatever letters were typed
+    // when they were picked.
+    const auto bucket = source == CandidateSource::kPinyin ? initial_index_.find(code.front())
+                                                           : initial_index_.end();
+    if (bucket != initial_index_.end()) {
+        for (EntryId id : bucket->second) {
+            const Entry& entry = entries_[id];
+            if (entry.deleted || entry.code == code) {
+                continue;
+            }
+            const auto match = match_typed_spelling(code, entry.syllables);
+            if (!match) {
+                continue;
+            }
+            const bool seen = std::any_of(matches.begin(), matches.end(), [&](const auto& m) {
+                return entries_[m.first].text == entry.text;
+            });
+            if (!seen) {
+                matches.emplace_back(id, match->credibility);
+            }
+        }
     }
 
-    candidates.reserve(found->second.size());
-    for (EntryId id : found->second) {
+    candidates.reserve(matches.size());
+    for (const auto& [id, credibility] : matches) {
         const Entry& entry = entries_[id];
         if (entry.deleted) {
             continue;
@@ -446,18 +489,67 @@ std::vector<Candidate> CandidatePreference::preferred_candidates(const std::stri
         const bool pinned = source == CandidateSource::kWubi
                                 ? true
                                 : entry.frequency >= 2 && dee_now >= kPinFloor;
+        const int spelling = static_cast<int>(credibility * 1000.0f);  // thousandths of ln
         Candidate learned;
         learned.text = entry.text;
         learned.code = entry.candidate_code;
         learned.syllables = entry.syllables;
-        learned.frequency = pinned ? pinned_score(dee_now) : kLearnedBoostRequest;
-        learned.source_frequency = pinned ? 0 : entry.score;
+        learned.frequency = pinned ? pinned_score(dee_now) + spelling : kLearnedBoostRequest;
+        // A tentative word's remembered ranking score, read with this spelling's credibility.
+        learned.source_frequency =
+            pinned || entry.score <= 0
+                ? 0
+                : (std::max)(kRankingGroupsBegin,
+                             entry.score + static_cast<int>(credibility * kRankingLogScale));
         learned.source = source;
         learned.origin = CandidateOrigin::kLearned;
         learned.learned = true;
         candidates.push_back(std::move(learned));
     }
     return candidates;
+}
+
+CandidatePreference::EntryId CandidatePreference::find_by_syllables_locked(
+    const std::string& text, const std::string& syllables) const {
+    if (syllables.empty()) {
+        return kNoEntry;
+    }
+    const auto bucket = initial_index_.find(syllables.front());
+    if (bucket == initial_index_.end()) {
+        return kNoEntry;
+    }
+    for (EntryId id : bucket->second) {
+        const Entry& entry = entries_[id];
+        if (!entry.deleted && entry.text == text && entry.syllables == syllables) {
+            return id;
+        }
+    }
+    return kNoEntry;
+}
+
+bool CandidatePreference::forget(const std::string& text, const std::string& code,
+                                 const std::string& syllables) {
+    std::lock_guard<std::mutex> save_lock(save_mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    if (!accepting_updates_) {
+        return false;
+    }
+    EntryId id = kNoEntry;
+    const auto found = entry_index_.find(entry_key(text, code));
+    if (found != entry_index_.end()) {
+        id = found->second;
+    } else {
+        id = find_by_syllables_locked(text, syllables);
+    }
+    if (id == kNoEntry) {
+        return false;
+    }
+    entries_[id].deleted = true;
+    rebuild_indexes_locked();
+    last_update_ms_.store(GetTickCount64(), std::memory_order_release);
+    dirty_.store(true, std::memory_order_release);
+    version_.fetch_add(1, std::memory_order_acq_rel);
+    return true;
 }
 
 std::vector<UserDictEntryInfo> CandidatePreference::query(const std::string& query,
@@ -676,6 +768,7 @@ bool CandidatePreference::dirty() const { return dirty_.load(std::memory_order_a
 void CandidatePreference::rebuild_indexes_locked() {
     entry_index_.clear();
     code_index_.clear();
+    initial_index_.clear();
     for (std::size_t i = 0; i < entries_.size(); ++i) {
         Entry& entry = entries_[i];
         if (entry.deleted) {
@@ -683,12 +776,25 @@ void CandidatePreference::rebuild_indexes_locked() {
         }
         const EntryId id = static_cast<EntryId>(i);
         const std::string key = entry_key(entry.text, entry.code);
-        const auto duplicate = entry_index_.find(key);
+        auto duplicate = entry_index_.find(key);
+        if (duplicate == entry_index_.end() && !entry.syllables.empty()) {
+            // The same word under other letters (an older file): one habit.
+            const EntryId same_word = find_by_syllables_locked(entry.text, entry.syllables);
+            if (same_word != kNoEntry) {
+                duplicate = entry_index_.find(
+                    entry_key(entries_[same_word].text, entries_[same_word].code));
+            }
+        }
         if (duplicate != entry_index_.end()) {
             Entry& existing = entries_[duplicate->second];
-            existing.frequency = (std::max)(existing.frequency, entry.frequency);
-            existing.sequence = (std::max)(existing.sequence, entry.sequence);
-            existing.dee = (std::max)(existing.dee, entry.dee);
+            const std::uint64_t latest = (std::max)(existing.sequence, entry.sequence);
+            existing.dee = (std::min)(decayed(existing.dee, existing.sequence, latest) +
+                                          decayed(entry.dee, entry.sequence, latest),
+                                      kMaxDee);
+            existing.frequency = existing.frequency > INT_MAX - entry.frequency
+                                     ? INT_MAX
+                                     : existing.frequency + entry.frequency;
+            existing.sequence = latest;
             existing.score = (std::max)(existing.score, entry.score);
             if (existing.syllables.empty()) {
                 existing.syllables = entry.syllables;
@@ -698,6 +804,9 @@ void CandidatePreference::rebuild_indexes_locked() {
         }
         entry_index_[key] = id;
         code_index_[entry.code].push_back(id);
+        if (!entry.syllables.empty()) {
+            initial_index_[entry.syllables.front()].push_back(id);
+        }
     }
     for (auto& item : code_index_) {
         std::sort(item.second.begin(), item.second.end(), [this](EntryId left, EntryId right) {

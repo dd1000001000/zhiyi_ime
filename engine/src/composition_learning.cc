@@ -23,6 +23,7 @@
 #include <cxxime/logging.h>
 #include <cxxime/ordinary_candidate.h>
 #include <cxxime/pinyin_composer.h>
+#include <cxxime/pinyin_spelling_match.h>
 #include <cxxime/user_dict_validation.h>
 #include <cxxime/user_data_merge.h>
 
@@ -32,6 +33,7 @@ namespace cxxime {
 namespace {
 
 constexpr int kCompositionLearningBaseScore = 220000000;
+constexpr int kSpellingHeadroom = 10000;  // room for a spelling credibility under the weight
 constexpr double kMaxDee = 20000.0;
 
 struct LearningRecord {
@@ -80,6 +82,8 @@ using RecordMap = std::unordered_map<std::string, LearningRecord>;
 
 struct PublishedSnapshot {
     std::unordered_map<std::string, std::vector<LearningRecord>> by_code;
+    // Records by the first letter of their syllables: matched against other spellings.
+    std::unordered_map<char, std::vector<const LearningRecord*>> by_initial;
     std::uint64_t sequence = 0;
 };
 
@@ -234,13 +238,21 @@ std::shared_ptr<const PublishedSnapshot> make_snapshot(const RecordMap& records)
             return record_less_valuable(right, left);
         });
     }
+    for (const auto& item : snapshot->by_code) {
+        for (const LearningRecord& record : item.second) {
+            if (!record.event.syllables.empty()) {
+                snapshot->by_initial[record.event.syllables.front()].push_back(&record);
+            }
+        }
+    }
     return snapshot;
 }
 
 // Pinned (picked twice or more, weight above the floor) ahead of the dictionary words, by the
 // decayed weight; otherwise the sentence only leads the composed sentences (the top of their
 // score band, under the words typed in full).
-Candidate candidate_from_record(const LearningRecord& record, std::uint64_t current_sequence) {
+Candidate candidate_from_record(const LearningRecord& record, std::uint64_t current_sequence,
+                                float spelling_credibility = 0.0f) {
     const double dee_now = decayed(record.dee, record.sequence, current_sequence);
     const bool pinned = record.selection_count >= 2 &&
                         dee_now >= CompositionLearningService::kPinFloor;
@@ -249,9 +261,10 @@ Candidate candidate_from_record(const LearningRecord& record, std::uint64_t curr
     candidate.code = record.event.code;
     candidate.syllables = record.event.syllables;
     candidate.frequency =
-        pinned ? kCompositionLearningBaseScore +
-                     static_cast<int>((std::min)(dee_now, kMaxDee) * 1000.0)
-               : kSentenceBase + static_cast<int>(kSentenceScoreSpan);
+        (pinned ? kCompositionLearningBaseScore + kSpellingHeadroom +
+                      static_cast<int>((std::min)(dee_now, kMaxDee) * 1000.0)
+                : kSentenceBase + static_cast<int>(kSentenceScoreSpan)) +
+        static_cast<int>(spelling_credibility * 1000.0f);
     candidate.source_frequency = candidate.frequency;
     candidate.source = CandidateSource::kPinyin;
     candidate.origin = CandidateOrigin::kComposed;
@@ -650,7 +663,8 @@ bool CompositionLearningService::revoke(const CompositionLearningEvent& event) {
     return true;
 }
 
-bool CompositionLearningService::forget(const std::string& code, const std::string& text) {
+bool CompositionLearningService::forget(const std::string& code, const std::string& text,
+                                        const std::string& syllables) {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     if (!impl_->accepting || impl_->stopping) {
         return false;
@@ -658,7 +672,19 @@ bool CompositionLearningService::forget(const std::string& code, const std::stri
     CompositionLearningEvent event;
     event.code = code;
     event.text = text;
-    const std::string key = record_key(event);
+    std::string key = record_key(event);
+    if (!syllables.empty() && impl_->pending.find(key) == impl_->pending.end() &&
+        impl_->persisted.find(key) == impl_->persisted.end()) {
+        // Recorded under other letters: the sentence with these syllables.
+        for (const RecordMap* records : {&impl_->persisted, &impl_->pending}) {
+            for (const auto& item : *records) {
+                if (item.second.event.text == text && item.second.event.syllables == syllables) {
+                    key = item.first;
+                    break;
+                }
+            }
+        }
+    }
     bool found = impl_->pending.erase(key) != 0;
     if (impl_->persisted.erase(key) != 0) {
         found = true;
@@ -774,18 +800,39 @@ std::vector<Candidate> CompositionLearningService::lookup_candidates(const std::
         return candidates;
     }
     const auto found = snapshot->by_code.find(code);
-    if (found == snapshot->by_code.end()) {
-        return candidates;
+    if (found != snapshot->by_code.end()) {
+        for (const LearningRecord& record : found->second) {
+            if (candidates.size() >= limit) {
+                break;
+            }
+            if (expired_record(record, now)) {
+                continue;
+            }
+            candidates.push_back(candidate_from_record(record, now));
+        }
     }
-    candidates.reserve((std::min)(limit, found->second.size()));
-    for (const LearningRecord& record : found->second) {
-        if (candidates.size() >= limit) {
-            break;
+    // Sentences recorded under other letters that these letters spell (这个事 for "zhegsh").
+    const auto bucket = snapshot->by_initial.find(code.front());
+    if (bucket != snapshot->by_initial.end()) {
+        for (const LearningRecord* record : bucket->second) {
+            if (candidates.size() >= limit) {
+                break;
+            }
+            if (record->event.code == code || expired_record(*record, now)) {
+                continue;
+            }
+            const auto match = match_typed_spelling(code, record->event.syllables);
+            if (!match) {
+                continue;
+            }
+            const bool seen = std::any_of(candidates.begin(), candidates.end(),
+                                          [&](const Candidate& c) {
+                                              return c.text == record->event.text;
+                                          });
+            if (!seen) {
+                candidates.push_back(candidate_from_record(*record, now, match->credibility));
+            }
         }
-        if (expired_record(record, now)) {
-            continue;
-        }
-        candidates.push_back(candidate_from_record(record, now));
     }
     return candidates;
 }

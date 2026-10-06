@@ -9,6 +9,10 @@
 //   - two commits or more ("confirmed"): the word is pinned ahead of the dictionary words
 //     while its weight stays above kPinFloor, and boosted only after a long time unused.
 // Wubi has no frequency scale to boost within, so a single commit already pins there.
+// Pinyin words are found for any way of typing them (pinyin_spelling_match.h): one entry per
+// word and syllables, whatever letters were typed when it was picked, as Rime's user
+// dictionary keys by syllables. A word matched through initials or an unfinished syllable
+// carries that spelling's credibility into its score.
 #ifndef CXXIME_CANDIDATE_PREFERENCE_H_
 #define CXXIME_CANDIDATE_PREFERENCE_H_
 
@@ -41,6 +45,8 @@ constexpr int kRankingGroupsEnd = 75000000;
 // source_frequency then carries the ranking score the word had when it was picked (0 when
 // unknown), so a word outside the fetched window can still be boosted into view.
 constexpr int kLearnedBoostRequest = -1;
+// The ranking's log scale (500000 x ln): a spelling credibility in that scale.
+constexpr int kRankingLogScale = 500000;
 
 // What one record() changed, so the commit it belongs to can be taken back (Backspace right
 // after the commit: Rime's "forget about last commit").
@@ -69,11 +75,15 @@ public:
                 CandidatePreferenceReceipt* receipt = nullptr);
     // Takes back a record() when nothing else touched the entry since.
     bool revoke(const CandidatePreferenceReceipt& receipt);
-    // The learned words for `code`: frequency = pinned score, or kLearnedBoostRequest for a
-    // tentative word (the caller boosts it within the dictionary results). Expired words are
-    // left out.
+    // The learned words for `code`: those recorded under exactly this code, and (pinyin) those
+    // whose syllables the code spells (initials, unfinished last syllable). frequency = pinned
+    // score, or kLearnedBoostRequest for a tentative word (the caller boosts it within the
+    // dictionary results). Expired words are left out.
     std::vector<Candidate> preferred_candidates(const std::string& code,
                                                 CandidateSource source) const;
+    // Forgets the word recorded under (text, code), or the word (text, syllables) whatever code
+    // it was recorded under. False when there is none.
+    bool forget(const std::string& text, const std::string& code, const std::string& syllables);
     std::vector<UserDictEntryInfo> query(const std::string& query, std::size_t offset,
                                          std::size_t limit,
                                          std::size_t* match_total = nullptr) const;
@@ -89,6 +99,7 @@ public:
 
 private:
     using EntryId = std::uint32_t;
+    static constexpr EntryId kNoEntry = static_cast<EntryId>(-1);
 
     struct Entry {
         std::string text;
@@ -112,6 +123,10 @@ private:
     std::vector<Entry> entries_;
     std::unordered_map<std::string, EntryId> entry_index_;
     std::unordered_map<std::string, std::vector<EntryId>> code_index_;
+    // Entries with syllables, by the first letter of the syllables: the bucket a typed input
+    // is matched against.
+    std::unordered_map<char, std::vector<EntryId>> initial_index_;
+    EntryId find_by_syllables_locked(const std::string& text, const std::string& syllables) const;
     std::atomic<std::uint64_t> version_{0};
     std::uint64_t sequence_ = 0;
     std::atomic<std::uint64_t> last_update_ms_{0};

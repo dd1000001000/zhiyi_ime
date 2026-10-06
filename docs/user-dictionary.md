@@ -170,13 +170,18 @@ struct Entry {
 };
 ```
 
-按 `code + text` 作为条目键（`entry_index_`），另按 code 建立 `code_index_` 便于查询与清理。
+按 `code + text` 作为条目键（`entry_index_`），另按 code 建立 `code_index_` 便于查询与清理；有音节的条目再按音节首字母
+分桶（`initial_index_`）。同一个词、同一组音节只有一条记录：在 `xianzai` 下选过 现在 之后又在 `xz` 下选它，记到同一条上
+（次数、权重合并；旧文件里按不同编码记的同一个词在加载时合并），和 Rime 用户词典按音节存一样。
 
 ### 记录与查询
 
 - `record_candidate_preference(candidate, code, receipt)`：记录选中的候选。符号（`kSymbol`）与组合（`kComposed`）候选不记录；相同 text+code 次数加一、权重加一。冻结后拒绝记录。`receipt` 记下这次改动前的状态。
 - `revoke_candidate_preference(receipt)`：撤回上一次记录（条目没被再次改动时）。上屏后紧接着按 Backspace 时引擎调用它：刚上屏就删，说明选错了，这次学习作废（Rime 的 `DiscardSession`）。
 - `apply_candidate_preferences(code, source, candidates, limit)`：翻译结果排序前应用偏好，命中项标记 `learned = true`（候选窗口在词的右下角画一个小点），不在结果里的条目补进来并标记 `origin = kLearned`，不产生重复项。
+  命中的条目有两类：按当前输入精确记录的，以及（拼音）音节能被当前输入拼出来的——每个音节打全或只打声母（z / zh）、
+  末尾的 儿 打成 r、最后一个音节可以没打完（`pinyin_spelling_match.h` 的 `match_typed_spelling`，不做更长的词的联想）。
+  于是在 `xianzai` 下学过的 现在 对 `xz`、`xianz`、`xianza` 都有效；短输入的 Top-N 快速路径同样适用，因为匹配只扫首字母桶里的几十条，不依赖切分。
 - `delete_candidate_preferences`：候选上按 Ctrl+Delete 或 Shift+Delete 时引擎删除高亮候选的记录并刷新这一页（Rime 的删词键）；`query_candidate_preferences` / `clear_candidate_preferences` 供设置页与 IPC 使用。
 
 ### 评分
@@ -190,8 +195,10 @@ dee_now = dee × exp((sequence − 当前 tick) / 200)
 - **选过一次（tentative）**：不置顶，只在它所在的排序组内加分，`kLearnedBoost = 1,500,000`，相当于词频 ×20，不越过组的上限；
   不在本次查询结果里的词按它上次的排序分 `score` 加分后补进来。`dee_now` 低于 0.35（约 210 个 tick 没再选）就遗忘，
   再选到时从头算一次。
-- **选过两次以上（confirmed）**：置顶，`score = 210,000,000 + dee_now × 1000`，最近常选的在前；`dee_now` 低于 0.05
+- **选过两次以上（confirmed）**：置顶，`score = 210,000,000 + 10,000 + dee_now × 1000 + 拼写可信度 × 1000`，最近常选的在前，
+  打全的排在只打声母的前面（每个声母 ln 0.5，没打完的音节 ln 0.05，与词典排序同一尺度）；`dee_now` 低于 0.05
   （两次选中后约 740 个 tick 没再用）时退回加分，不删除，再选一次又置顶。
+- 通过声母或没打完的音节命中的加分词，加分基准是记住的排序分加上拼写可信度 × 500,000（词典排序的对数尺度）。
 - 五笔没有可加分的词频尺度，选一次就置顶，其余规则相同。
 
 ### 持久化
@@ -205,6 +212,7 @@ dee_now = dee × exp((sequence − 当前 tick) / 200)
 ### 整句学习
 
 `CompositionLearningService`（`engine/src/composition_learning.cc`）记录逐段选出来或由组句上屏的整句，按完整编码查询，
+也按音节匹配当前输入（同 `match_typed_spelling`：`zhegsh` 命中学过的 这个事，分数减去声母的可信度），
 规则与候选偏好一致：权重同样每 200 个 tick 衰减为 1/e；选过一次只排在组出来的句子之前（`kSentenceBase + kSentenceScoreSpan`，
 仍在打全的整词之下），低于 0.35 遗忘；选过两次以上置顶（`220,000,000 + dee_now × 1000`），低于 0.05 退回句首位置。
 `revoke(event)` 对应上屏后的 Backspace，`forget(code, text)` 对应候选上的 Ctrl+Delete。

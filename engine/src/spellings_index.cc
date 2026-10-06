@@ -25,35 +25,16 @@ bool SpellingsIndex::load(const std::string& bin_path) {
     unload();
     CXXIME_LOG(L"SpellingsIndex::load path=%S", bin_path.c_str());
 
-    HANDLE hFile = CreateFileA(bin_path.c_str(), GENERIC_READ, FILE_SHARE_READ,
-                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (hFile == INVALID_HANDLE_VALUE) {
-        CXXIME_LOG(L"SpellingsIndex::load CreateFileA FAILED");
+    if (!file_.open(bin_path)) {
+        CXXIME_LOG(L"SpellingsIndex::load mapping FAILED");
         return false;
     }
-
-    LARGE_INTEGER li;
-    if (!GetFileSizeEx(hFile, &li) || li.QuadPart < 28) {
-        CloseHandle(hFile);
+    if (file_.size() < 28) {
+        file_.close();
         return false;
     }
-    data_size_ = (size_t)li.QuadPart;
-
-    // Load entire file into heap memory (no mmap — consistent with Dict)
-    data_ = new (std::nothrow) char[data_size_];
-    if (!data_) {
-        CloseHandle(hFile);
-        return false;
-    }
-
-    DWORD bytes_read = 0;
-    BOOL ok = ReadFile(hFile, data_, (DWORD)data_size_, &bytes_read, nullptr);
-    CloseHandle(hFile);
-    if (!ok || bytes_read != data_size_) {
-        CXXIME_LOG(L"SpellingsIndex::load ReadFile FAILED");
-        unload();
-        return false;
-    }
+    data_size_ = file_.size();
+    data_ = file_.data();
 
     auto* hdr = (const SpellingsHeader*)data_;
     if (std::memcmp(hdr->magic, SPELLINGS_MAGIC_V2, 8) != 0 || hdr->version != 2) {
@@ -93,7 +74,7 @@ bool SpellingsIndex::load(const std::string& bin_path) {
 }
 
 void SpellingsIndex::unload() {
-    delete[] data_;
+    file_.close();
     data_ = nullptr;
     nodes_ = nullptr;
     strings_ = nullptr;
@@ -437,6 +418,7 @@ bool SpellingsIndex::create_test_trie(const std::string& path,
     uint32_t entries_offset = 28;  // header size
     uint32_t strings_offset = entries_offset + (uint32_t)node_data.size();
 
+    MappedFile::rename_away(path);  // a loaded trie is mapped: move it aside, do not truncate
     HANDLE hFile = CreateFileA(path.c_str(), GENERIC_WRITE, 0, nullptr,
                                CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (hFile == INVALID_HANDLE_VALUE)

@@ -71,7 +71,7 @@ Engine
   │     ├── Dict*            词典指针
   │     ├── Syllabifier*     主分词路径（BFS+DFS 音节图）
   │     └── PinyinSegmentor  简版分词器（Syllabifier 不可用时回退）
-  ├── Dict                   主词典（二进制加载）+ 用户词库/候选偏好（内存+TSV）
+  ├── Dict                   主词典（二进制只读映射）+ 用户词库/候选偏好（内存+TSV）
   ├── SpellingsIndex         拼写索引（二进制加载），供 Syllabifier 使用；按拼音方案载入全拼或对应双拼表
   ├── Context                输入状态（拼音缓冲、候选列表、已提交文本）
   └── Config                 配置（字体、布局、主题）
@@ -355,8 +355,8 @@ Python 格式: `"<IIIIi"`
 
 | 数据 | 格式 | 原因 |
 |------|------|------|
-| 主词典 (dict.bin) | 堆内存二进制加载 | 只读，一次性读入，O(log n) 二分查找 |
-| 拼写索引 (spellings.bin) | 堆内存二进制加载 | 只读，一次性读入，O(k) trie 遍历 |
+| 主词典 (dict.bin) | 只读映射 + 整体预取 | 只读，O(log n) 二分查找 |
+| 拼写索引 (spellings.bin) | 只读映射 + 整体预取 | 只读，O(k) trie 遍历 |
 | 用户数据 (user_/learning_*.tsv) | 内存多路索引 | 手工词库 + 候选偏好，TSV 持久化 |
 
 ### 4.2 文件大小对比
@@ -460,9 +460,9 @@ fetch_pinyin_dictionary.py / fetch_wubi_dictionary.py    从网络获取词典�
    └── pinyin_syllable_index.py   SQLite → 整数 ID 索引 → dict.idx
         │
         ▼
-   pinyin.spellings.bin           运行时内存加载
+   pinyin.spellings.bin           运行时只读映射
    pinyin.*-shuangpin.spellings.bin  四种双拼拼写表（prepare_dictionary_bundle.py 生成）
-   pinyin.dict.bin                 运行时内存加载
+   pinyin.dict.bin                 运行时只读映射
    pinyin.dict.idx                 整数 ID 索引
 
   build_pinyin_topn.py            SQLite → Top-N 候选键、规范音节与评分（CXTOPN v2 中间文件）
@@ -471,7 +471,7 @@ fetch_pinyin_dictionary.py / fetch_wubi_dictionary.py    从网络获取词典�
   topn_builder --dictionary       中间文件 + pinyin.dict.bin → 运行时 CXTOPN v4 共享候选索引
         │
         ▼
-   pinyin.topn.bin                运行时内存加载（Darts trie + 8 字节 posting：词典词条索引 + score）
+   pinyin.topn.bin                运行时只读映射（Darts trie + 8 字节 posting：词典词条索引 + score）
 
   fetch_wubi_dictionary.py / filter_dictionary_symbols.py   五笔与拼音源数据 → 剥离系统符号的词典
         │
@@ -542,28 +542,29 @@ rime-ice 的 tencent 词表没有注音列，约 98 万条的权重被当成了�
 
 ### 7.1 加载流程
 
+四个运行时文件（`dict.bin`、`dict.idx`、`topn.bin`、`spellings.bin`）都通过 `MappedFile`
+（`engine/include/cxxime/mapped_file.h`）只读映射到内存，不再复制到堆上：
+
 ```cpp
-HANDLE hFile = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, ...);
-GetFileSizeEx(hFile, &li);
-data_ = new (std::nothrow) char[file_size];
-ReadFile(hFile, data_, file_size, &bytes_read, nullptr);
-CloseHandle(hFile);
-// 验证 magic → 设置指针 → 构建索引
+MappedFile file;
+file.open(path);          // CreateFileMapping + MapViewOfFile，随后 PrefetchVirtualMemory 整个文件
+data_ = file.data();      // 验证 magic → 设置指针 → 构建索引（布局与文件一致，指针直接偏移）
 ```
+
+- 页面是文件支持的共享页：不计入进程的私有提交，内存紧张时系统可以直接丢弃再从文件读回；
+  任务管理器里服务端的"内存"少了约 140 MB（146 万条词库：堆加载 160 MB → 映射后约 24 MB 私有内存）。
+- 启动时一次 `PrefetchVirtualMemory` 把整个文件读入，正常使用中不会因首次访问缺页；
+  CxxIME 原本改用堆加载是为了避开 mmap 换页（防病毒软件 / 过滤驱动介入时的延迟），知意用预取换取内存。
+  实测把进程工作集整个清空（`EmptyWorkingSet`，模拟闲置后系统回收内存）再输入，首键延迟仍是 0.1–0.2 ms：
+  页面从备用列表软缺页回来几乎没有开销。只有备用列表也被挤掉时才会读盘，而堆加载的页此时同样要从页面文件读回。
+- 文件在映射期间不能被截断或删除，只能重命名（打开时带 `FILE_SHARE_DELETE`）。替换词典必须"写新文件、
+  把旧文件改名挪开、把新文件移到原名"，不能原地覆盖；写测试词典的 `Dict::create_test_dict`、
+  `SpellingsIndex::create_test_trie` 和测试工具先调用 `MappedFile::rename_away(path)`。
+  安装程序写入新的版本目录，热重载（`DictionaryMonitor`）重新映射新文件后旧映射才释放。
 
 ### 7.2 资源管理
 
-```cpp
-~SpellingsIndex() {
-    delete[] data_;   // 释放堆内存
-}
-```
-
-### 7.3 优势
-
-- 一次性读入：避免 mmap 的 page-out 延迟（防病毒软件/文件系统过滤驱动干扰）
-- 无解析开销：二进制布局与内存布局一致，指针直接偏移
-- 确定性：内存占用等于文件大小，无按需加载的不确定性
+`unload()` 关闭映射（`MappedFile::close()`：UnmapViewOfFile + CloseHandle）。
 
 ## 8. 测试
 

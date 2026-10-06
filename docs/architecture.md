@@ -7,11 +7,11 @@
 
 | 指标 | 数值 | 说明 |
 |------|------|------|
-| 安装包 | ~280 MB | 单文件安装器，含词典、Laya 模型（int8，约 350 MB 解压后）与 ONNX Runtime |
-| Server 内存 | 私有提交 ~700 MB | 词典全量堆载（约 146 万条拼音词，约 160 MB）加 Laya 模型；修正词库后比 1.0.3 多约 90 MB（引擎 + 模型实测 516 → 607 MB） |
+| 安装包 | ~190 MB | 单文件安装器，含词典、Laya 模型（int8，词表裁剪后约 195 MB 解压后）与 ONNX Runtime |
+| Server 内存 | 私有提交 ~340 MB | 词典只读映射（约 146 万条拼音词，私有内存约 24 MB）加 Laya 模型（约 320 MB，含 ONNX Runtime 与分词器）；引擎 + 模型实测私有 341 MB，1.0.5 堆加载时为 477 MB |
 | 上文推荐 | 每次约 30 ms | Laya 模型在 CPU 上推理（4 线程），结果按上文缓存 |
 | IPC 往返延迟 | < 1 ms | 实测 preedit 平均 ~50 µs（见 [IPC 架构设计](ipc-architecture.md)） |
-| 启动 | 词典一次性读入 | 按顺序读盘，运行期不再有 mmap 换页 |
+| 启动 | 词典只读映射 + 整体预取 | 文件支持的共享页，不计入私有内存；启动时 `PrefetchVirtualMemory` 一次读入 |
 
 ---
 
@@ -84,7 +84,7 @@ Windows TSF 中英文输入法：中文拼音或五笔 86，英文单词联想 /
 | **ExperienceLog** | 用户体验改进计划的本地记录（两档，默认关闭） | `ExperienceLog`（见 [隐私说明](privacy.md)） |
 
 **数据存储：**
-- **主词典：** 二进制堆加载词典 + Patricia trie 拼写索引（一次性读入），详见 [词典系统设计](dictionary.md)
+- **主词典：** 二进制词典 + Patricia trie 拼写索引（只读映射、整体预取），详见 [词典系统设计](dictionary.md)
 - **用户数据：** 用户词库（手工词条，多路索引）、候选偏好（学习记录）与手动候选顺序，TSV 文件持久化，详见 [用户词库与候选偏好](user-dictionary.md)
 
 ### 3.2 TSF DLL（输入法前端）
@@ -150,7 +150,7 @@ JSON 配置（`default.json` + `themes.json`），设置编辑器（Win32 原生
 | 输入处理器 | TSF + IMM 兼容模块 | TSF 为主；`zhiyi_ime_<arch>.ime` 覆盖传统 IMM 应用 |
 | 序列化 | 固定结构体 + memcpy | 简单高效 |
 | IPC | Named Pipe + IOCP | 零外部依赖，< 1ms 往返 |
-| 词典 | 二进制堆加载 + DAT-16 Top-N 索引 | 一次性读入，Darts trie O(k) 查找，运行时无 SQLite |
+| 词典 | 只读映射的二进制词典 + DAT-16 Top-N 索引 | 启动时整体预取，Darts trie O(k) 查找，运行时无 SQLite |
 | 配置 | nlohmann/json | header-only，轻量 |
 | UI 渲染 | Direct2D/DirectWrite（默认）+ GDI（可选） | 高质量渲染，双后端可配置 |
 | 日志 | CXXIME_LOG（自研 OutputDebugString 宏） | 零依赖 |

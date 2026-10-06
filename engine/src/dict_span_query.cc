@@ -3,6 +3,7 @@
 #include <cxxime/dict.h>
 
 #include <algorithm>
+#include <climits>
 
 #include <cxxime/query_budget.h>
 
@@ -113,6 +114,12 @@ bool Dict::lookup_exact_span(const std::vector<uint32_t>& ids, size_t start, siz
 
     std::vector<Candidate> candidates;
     candidates.reserve(limits.max_candidates_per_range);
+    // Entries with the same syllables are stored by frequency, highest first (dict.bin is built
+    // ORDER BY syllable_ids, frequency DESC and the index keeps that order). Once the bounded list
+    // is full, the rest cannot enter it: stop instead of scanning every homophone (several hundred
+    // for "yi" or "shi"), which spent the scan budget of a long sentence before its last syllable.
+    bool descending = true;
+    int previous_frequency = INT_MAX;
     for (size_t position = low; position < id_index_.size() && exact_matches(id_index_[position]);
          ++position) {
         if (stats.entry_scans >= limits.max_entry_scans) {
@@ -130,7 +137,13 @@ bool Dict::lookup_exact_span(const std::vector<uint32_t>& ids, size_t start, siz
         Candidate candidate;
         fill_system_candidate(id_index_[position].index, candidate, 0);
         candidate.source_frequency = candidate.frequency;
+        const int frequency = candidate.frequency;
+        descending = descending && frequency <= previous_frequency;
+        previous_frequency = frequency;
         offer_bounded(candidates, std::move(candidate), limits.max_candidates_per_range);
+        if (descending && candidates.size() >= limits.max_candidates_per_range) {
+            break;
+        }
     }
 
     std::sort(candidates.begin(), candidates.end(), candidate_better);

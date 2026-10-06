@@ -29,6 +29,22 @@ bool path_consumes_entire_input(const std::string& input, const SegmentedPath& p
     return consumed == input.size();
 }
 
+// The typed span is the syllable itself, or its ü written as v (jv / qv / xv / yv for ju / qu /
+// xu / yu, lve / nve for lue / nue).
+static bool typed_as_syllable(const std::string& input, size_t position, size_t length,
+                              const std::string& syllable) {
+    if (length != syllable.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < length; ++i) {
+        const char typed = input[position + i];
+        if (typed != syllable[i] && !(typed == 'v' && syllable[i] == 'u')) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool is_normal_composition_path(const std::string& input, const SegmentedPath& path) {
     if (!path_consumes_entire_input(input, path) || path.syllables.size() < 2) {
         return false;
@@ -37,8 +53,7 @@ bool is_normal_composition_path(const std::string& input, const SegmentedPath& p
     size_t input_position = 0;
     for (size_t i = 0; i < path.syllables.size(); ++i) {
         if (path.spelling_types[i] != kNormalSpelling ||
-            path.input_lengths[i] != path.syllables[i].size() ||
-            input.compare(input_position, path.input_lengths[i], path.syllables[i]) != 0) {
+            !typed_as_syllable(input, input_position, path.input_lengths[i], path.syllables[i])) {
             return false;
         }
         input_position += path.input_lengths[i];

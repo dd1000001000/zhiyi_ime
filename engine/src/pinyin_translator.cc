@@ -173,6 +173,28 @@ float typed_credibility(const std::string& input, const std::string& syllables) 
     return best < -1e8f ? 0.0f : best;
 }
 
+// Leading sentence for an input whose last syllable is unfinished (see translate()).
+constexpr std::size_t kMinLeadingSentenceInput = 6;
+constexpr std::size_t kMaxUnfinishedLetters = 4;
+constexpr int kLeadingSentenceFetch = 4;
+
+// Whether the syllables spell the input in full (ü typed as v allowed): the candidate covers
+// exactly these letters, not a longer word they only start.
+bool spells_input(const std::string& input, const std::string& syllables) {
+    std::size_t position = 0;
+    for (const char c : syllables) {
+        if (c == ':') {
+            continue;
+        }
+        if (position >= input.size() ||
+            (input[position] != c && !(input[position] == 'v' && c == 'u'))) {
+            return false;
+        }
+        ++position;
+    }
+    return position == input.size();
+}
+
 struct CompositionPathSpec {
     size_t id_sequence_index = 0;
     size_t segmented_path_index = 0;
@@ -1198,6 +1220,35 @@ TranslationResult PinyinTranslator::translate(const TranslationRequest& request)
                                          effective_request,
                                          pinyin_scheme() == PinyinSchemeKind::kShuangpin,
                                          candidate_learning_enabled_, merged, result.status);
+    }
+    // A long input whose last syllable is still being typed ("...yizhengj") has no whole-input
+    // candidate. Offer the sentence for the syllables typed so far first, as Microsoft Pinyin
+    // does: taking it leaves the last letters to go on with.
+    if (full_count == 0 && sentence_composition_enabled_ &&
+        pinyin_scheme() == PinyinSchemeKind::kFullPinyin && !pinyin_query_policy_.initials_only &&
+        request.input.size() >= kMinLeadingSentenceInput) {
+        for (std::size_t cut = 1; cut <= kMaxUnfinishedLetters &&
+                                  cut + kMinLeadingSentenceInput <= request.input.size() + 1;
+             ++cut) {
+            if (request.budget && request.budget->deadline.expired()) {
+                break;
+            }
+            const std::string prefix = request.input.substr(0, request.input.size() - cut);
+            CandidatePage page = translate_page(prefix, 0, kLeadingSentenceFetch, nullptr,
+                                                request.budget, nullptr, 0, false);
+            const auto sentence = std::find_if(
+                page.candidates.begin(), page.candidates.end(), [&](const Candidate& candidate) {
+                    return candidate_syllable_count(candidate) >= 2 &&
+                           spells_input(prefix, candidate.syllables);
+                });
+            if (sentence != page.candidates.end()) {
+                Candidate candidate = *sentence;
+                candidate.source = CandidateSource::kPinyin;
+                merged.insert(merged.begin(),
+                              make_text_candidate_entry(std::move(candidate), prefix.size()));
+                break;
+            }
+        }
     }
     const std::size_t added_partial_count = merged.size() - full_count;
     const auto is_partial_entry = [&](const CandidateEntry& entry) {

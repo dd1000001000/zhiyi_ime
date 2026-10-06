@@ -210,7 +210,7 @@ cxx-ime/
 
 **SQLite 的角色：** 仅用于构建时源数据，运行时无 SQLite 依赖。
 
-**词典来源：** rime-ice（雾凇拼音）精简为约 40 万词条（全部单字 + 常用词）+ rime-wubi86-jidian（五笔 86）；
+**词典来源：** rime-ice（雾凇拼音）修正音节后约 146 万词条（全部单字 + 权重不低于默认值 100 的词，含 3～4 字的 tencent 词）+ rime-wubi86-jidian（五笔 86）；
 英文词表 `english.words.tsv` 来自 rime-ice，词频来自 wordfreq。
 
 **主要二进制文件：**

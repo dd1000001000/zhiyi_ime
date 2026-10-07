@@ -99,6 +99,13 @@ downloaded when Settings opens (with the reminder above on) and on "Check" or "C
 file on "Download" or "Update to vN", and both are used only after their signature and SHA-256
 are verified. Translations are looked up on this computer; nothing you type is sent.
 
+## Backups (not part of this program)
+
+A backup made with "Export…" in Settings > Dictionary holds the settings, the lexicon and the
+learning records, so it holds words you typed; it is written only to the folder you choose and is
+never uploaded. The two privacy choices are not in it: importing a backup from another computer
+does not change this computer's choices.
+
 ## Developer diagnostics (not part of this program)
 
 `diagnostics.trace_mode` (default `off`) is a detailed developer trace that records typed codes,

@@ -74,6 +74,11 @@ public:
     std::string serialize() const;
     bool parse(const std::string& contents);
 
+    // Backup import (server/src/user_backup_service.cc): whether `contents` is a learning file
+    // (empty is), and adding its habits to these, the higher count winning; then saved.
+    static bool validate_contents(const std::string& contents);
+    bool merge_contents_and_save(const std::string& contents, std::size_t* imported_count);
+
 private:
     struct CorrectionEntry {
         std::string word;

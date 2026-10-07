@@ -8,6 +8,7 @@
 #include <new>
 
 #include <cxxime/logging.h>
+#include <cxxime/settings_launcher.h>
 #include <cxxime/tsf_factory.h>
 
 #include "about_dialog.h"
@@ -83,17 +84,18 @@ void TextService::_handle_ime_menu_command(cxxime::ImeMenuCommand command) {
         apply_status(_ensure_ipc_session() && _client.toggle_shape(_sessionId, response));
         break;
     case cxxime::ImeMenuCommand::kDictionary:
-        if (!_ensure_ipc_session() ||
-            !_client.open_settings(_sessionId, cxxime::SettingsPanel::kDictionary)) {
-            CXXIME_LOG(L"%s", L"settings_request source=tsf panel=dictionary result=0");
+    case cxxime::ImeMenuCommand::kSettings: {
+        const cxxime::SettingsPanel panel = command == cxxime::ImeMenuCommand::kDictionary
+                                                ? cxxime::SettingsPanel::kDictionary
+                                                : cxxime::SettingsPanel::kInput;
+        // The server opens settings (outside this program's sandbox); without a server (after
+        // Exit, or startup.autostart off) this program does, and settings starts the server.
+        if ((!_ensure_ipc_session() || !_client.open_settings(_sessionId, panel)) &&
+            !cxxime::open_settings(panel)) {
+            CXXIME_LOG(L"%s", L"settings_request source=tsf result=0");
         }
         break;
-    case cxxime::ImeMenuCommand::kSettings:
-        if (!_ensure_ipc_session() ||
-            !_client.open_settings(_sessionId, cxxime::SettingsPanel::kInput)) {
-            CXXIME_LOG(L"%s", L"settings_request source=tsf panel=input result=0");
-        }
-        break;
+    }
     case cxxime::ImeMenuCommand::kAbout:
         show_about_dialog();
         break;

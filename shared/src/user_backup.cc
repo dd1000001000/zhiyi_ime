@@ -53,6 +53,7 @@ constexpr KnownBackupPath kKnownPaths[] = {
     {"learning/learning_pinyin.tsv", UserBackupComponent::kLearning},
     {"learning/learning_wubi.tsv", UserBackupComponent::kLearning},
     {"learning/learning_composition.tsv", UserBackupComponent::kLearning},
+    {"learning/learning_english.json", UserBackupComponent::kLearning},
     {"disabled/disabled_pinyin.tsv", UserBackupComponent::kDisabledSystemLexicon},
     {"disabled/disabled_wubi.tsv", UserBackupComponent::kDisabledSystemLexicon},
 };

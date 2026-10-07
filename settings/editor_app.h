@@ -81,6 +81,11 @@ private:
     bool handle_update_message(UINT message, WPARAM wparam, LPARAM lparam);
     void update_enabled_controls();
     void clear_learning_data();
+    // Backup and restore (editor_backup.cc).
+    bool ensure_server_running();  // starts zhiyi-server when needed; false: reported
+    void export_user_backup();
+    void import_user_backup();
+    void open_backup_folder();
     // Learning (editor_learning_panel.cc)
     struct PackState;
     void init_learning();

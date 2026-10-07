@@ -97,8 +97,11 @@ const LexiconDataFile* find_lexicon_data_file(const std::string& name) {
     return found == kLexiconDataFiles.end() ? nullptr : &*found;
 }
 
+constexpr char kEnglishLearningFile[] = "learning_english.json";
+
 bool known_user_data_file(const std::string& name) {
-    return name == "learning_composition.tsv" || find_lexicon_data_file(name) != nullptr;
+    return name == "learning_composition.tsv" || name == kEnglishLearningFile ||
+           find_lexicon_data_file(name) != nullptr;
 }
 
 bool valid_lexicon_data_file_contents(const LexiconDataFile& file,
@@ -119,6 +122,9 @@ bool valid_lexicon_data_file_contents(const LexiconDataFile& file,
 bool valid_user_data_file_contents(const std::string& name, const std::string& contents) {
     if (name == "learning_composition.tsv") {
         return cxxime::CompositionLearningService::validate_contents(contents);
+    }
+    if (name == kEnglishLearningFile) {
+        return cxxime::EnglishLearning::validate_contents(contents);
     }
     const LexiconDataFile* file = find_lexicon_data_file(name);
     return file && valid_lexicon_data_file_contents(*file, contents);
@@ -2109,13 +2115,17 @@ bool SessionManager::snapshot_user_data(const std::vector<std::string>& file_nam
     for (const std::string& name : file_names) {
         const LexiconDataFile* file = find_lexicon_data_file(name);
         const bool composition = name == "learning_composition.tsv";
+        const bool english = name == kEnglishLearningFile;
         const auto dict = !resources.runtime
                               ? nullptr
                               : file && file->kind == cxxime::UserDictKind::WUBI
                                     ? resources.runtime->wubi_dict_ptr()
                                     : resources.runtime->pinyin_dict_ptr();
-        bool ready = composition || file;
-        if (ready && composition) {
+        bool ready = composition || english || file;
+        if (ready && english) {
+            const auto learning = cxxime::EnglishLearning::shared();
+            ready = !learning || learning->flush();
+        } else if (ready && composition) {
             ready = resources.runtime && resources.runtime->composition_learning() &&
                     resources.runtime->composition_learning()->flush();
         } else if (ready && (!file || !dict)) {
@@ -2144,6 +2154,12 @@ bool SessionManager::snapshot_user_data(const std::vector<std::string>& file_nam
     return true;
 }
 
+bool SessionManager::validate_user_data(const std::map<std::string, std::string>& files) const {
+    return std::all_of(files.begin(), files.end(), [](const auto& item) {
+        return valid_user_data_file_contents(item.first, item.second);
+    });
+}
+
 void SessionManager::merge_user_data(const std::map<std::string, std::string>& files,
                                      std::size_t* imported_count, std::size_t* skipped_count) {
     std::size_t imported = 0;
@@ -2160,6 +2176,17 @@ void SessionManager::merge_user_data(const std::map<std::string, std::string>& f
                                     ? resources.runtime->wubi_dict_ptr()
                                     : resources.runtime->pinyin_dict_ptr();
         cxxime::UserDataMergeResult merged;
+        if (item.first == kEnglishLearningFile) {
+            // Not a dictionary resource: engines read the shared store, nothing to refresh.
+            const auto learning = cxxime::EnglishLearning::shared();
+            std::size_t count = 0;
+            if (learning && learning->merge_contents_and_save(item.second, &count)) {
+                imported += count;
+            } else {
+                ++skipped;
+            }
+            continue;
+        }
         bool ready = composition || (file && dict);
         if (ready && composition) {
             ready = resources.runtime && resources.runtime->composition_learning() &&

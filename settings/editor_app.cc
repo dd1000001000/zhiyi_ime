@@ -8,6 +8,7 @@
 #include <algorithm>
 
 #include <cxxime/control_client.h>
+#include <cxxime/server_launcher.h>
 #include <cxxime/data_path.h>
 
 #include "cxxime_resource_ids.h"
@@ -275,6 +276,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(experience_program);
     KEEP_PAGE_EDIT(collect_input);
     KEEP_PAGE_EDIT(update_notify);
+    KEEP_PAGE_EDIT(autostart);
     KEEP_PAGE_EDIT(fuzzy_pinyin);
     KEEP_PAGE_EDIT(fuzzy_groups);
 #undef KEEP_PAGE_EDIT
@@ -339,6 +341,9 @@ bool EditorApp::save_config() {
         return false;
     }
     refresh_config();  // keep what changed elsewhere (e.g. the taskbar menu) since the last load
+    if (!ensure_server_running()) {  // it saves the settings
+        return false;
+    }
     unsigned long error_code = ERROR_SUCCESS;
     if (!replace_user_config(config_.to_user_json(), nullptr, &error_code)) {
         MessageBoxW(hwnd_,
@@ -375,6 +380,9 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         a->ui_language_ = resolve_ui_language(a->config_.ui_language);
         load_ui_strings(a->ui_language_);
+        // Saving goes through zhiyi-server; it is not running when startup.autostart is off or
+        // after Exit in the taskbar menu, so start it while the page is read.
+        start_server_on_demand();
         a->init_update();  // may open the Updates page
         a->init_learning();
         a->create_controls(hwnd);

@@ -3,7 +3,10 @@
 #ifndef CXXIME_SERVER_USER_BACKUP_SERVICE_H_
 #define CXXIME_SERVER_USER_BACKUP_SERVICE_H_
 
+#include <cstdint>
 #include <string>
+
+#include <cxxime/user_backup.h>
 
 class ConfigWriteCoordinator;
 class SessionManager;
@@ -15,6 +18,9 @@ public:
     bool handle_request(const std::string& payload, std::string* response_payload);
 
 private:
+    bool export_backup(const std::wstring& path, std::uint32_t components,
+                       cxxime::UserBackupSummary* summary, unsigned long* error);
+
     SessionManager* session_manager_;
     ConfigWriteCoordinator* config_writer_;
 };

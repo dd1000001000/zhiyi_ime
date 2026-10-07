@@ -122,6 +122,51 @@ bool EnglishLearning::parse(const std::string& contents) {
     return true;
 }
 
+bool EnglishLearning::validate_contents(const std::string& contents) {
+    EnglishLearning parsed;
+    return contents.empty() || parsed.parse(contents);
+}
+
+bool EnglishLearning::merge_contents_and_save(const std::string& contents,
+                                              std::size_t* imported_count) {
+    EnglishLearning other;
+    if (!contents.empty() && !other.parse(contents)) return false;
+    std::size_t imported = 0;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (const auto& [typed, entries] : other.corrections_) {
+            auto& mine = corrections_[typed];
+            for (const auto& e : entries) {
+                auto it = std::find_if(mine.begin(), mine.end(),
+                                       [&](const CorrectionEntry& m) { return m.word == e.word; });
+                if (it == mine.end()) {
+                    mine.push_back({e.word, e.count, ++clock_});
+                    ++imported;
+                } else if (e.count > it->count) {
+                    it->count = e.count;
+                    ++imported;
+                }
+            }
+        }
+        for (const auto& [key, e] : other.user_words_) {
+            auto found = user_words_.find(key);
+            if (found == user_words_.end()) {
+                user_words_[key] = {e.text, e.count, ++clock_};
+                ++imported;
+            } else if (e.count > found->second.count) {
+                found->second.count = e.count;
+                ++imported;
+            }
+        }
+        if (imported != 0) {
+            evict_locked();
+            dirty_ = true;
+        }
+    }
+    if (imported_count) *imported_count = imported;
+    return flush();
+}
+
 std::string EnglishLearning::serialize() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return serialize_locked();

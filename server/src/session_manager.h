@@ -239,6 +239,8 @@ public:
     bool save_candidate_preferences(bool force);
     bool snapshot_user_data(const std::vector<std::string>& file_names,
                             std::map<std::string, std::string>* files);
+    // Whether every file holds valid contents for its name (nothing is changed).
+    bool validate_user_data(const std::map<std::string, std::string>& files) const;
     void merge_user_data(const std::map<std::string, std::string>& files,
                          std::size_t* imported_count, std::size_t* skipped_count);
     bool freeze_and_save_candidate_preferences();

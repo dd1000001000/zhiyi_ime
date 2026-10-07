@@ -50,6 +50,9 @@ enum ControlId {
     kRestoreKeysId,
     kLearningId = 1201,
     kClearLearningId,
+    kExportBackupId,
+    kImportBackupId,
+    kBackupFolderId,
     kExperienceId = 1251,
     kCollectInputId,
     kOpenLogsId,
@@ -297,6 +300,15 @@ void EditorApp::create_dictionary_panel(HWND panel) {
     make_hint(tr("dictionary.learning_hint"), x0 + S(20), y - S(6), S(440), panel);
     y += S(40);
     make_button(kClearLearningId, tr("dictionary.clear"), x0, y, S(160), panel);
+    y = card_end(panel, y + S(30));
+
+    // editor_backup.cc
+    y = card_begin(panel, y, tr("backup.card"));
+    make_hint(tr("backup.hint"), x0, y, S(560), panel, 4);
+    y += S(4 * (kFontPt + 6) + 8);
+    make_button(kExportBackupId, tr("backup.export"), x0, y, S(120), panel);
+    make_button(kImportBackupId, tr("backup.import"), x0 + S(130), y, S(120), panel);
+    make_button(kBackupFolderId, tr("backup.open_folder"), x0 + S(260), y, S(180), panel);
     card_end(panel, y + S(30));
 }
 
@@ -547,6 +559,15 @@ bool EditorApp::handle_command(int control_id, int notification) {
             }
         }
         return true;
+    case kExportBackupId:
+        export_user_backup();
+        return true;
+    case kImportBackupId:
+        import_user_backup();
+        return true;
+    case kBackupFolderId:
+        open_backup_folder();
+        return true;
     case kClearLearningId:
         if (notification == BN_CLICKED) {
             clear_learning_data();
@@ -590,6 +611,9 @@ bool EditorApp::handle_command(int control_id, int notification) {
 void EditorApp::clear_learning_data() {
     if (MessageBoxW(hwnd_, tr("dictionary.clear_confirm"), tr("window.title"),
                     MB_YESNO | MB_ICONWARNING) != IDYES) {
+        return;
+    }
+    if (!ensure_server_running()) {
         return;
     }
     LexiconControlClient client;

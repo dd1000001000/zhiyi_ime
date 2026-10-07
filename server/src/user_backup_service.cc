@@ -1,8 +1,12 @@
 // Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
+//
+// Modified by Zhiyi IME Contributors: English learning data, privacy choices kept per
+// computer, all-or-nothing import with a backup of the current data first.
 
 #include "user_backup_service.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <iterator>
 #include <map>
 #include <string>
@@ -13,6 +17,7 @@
 
 #include <json.hpp>
 
+#include <cxxime/config.h>
 #include <cxxime/data_path.h>
 #include <cxxime/ipc_protocol.h>
 #include <cxxime/user_backup.h>
@@ -39,6 +44,8 @@ constexpr UserDataMapping kUserDataMappings[] = {
     {"learning/learning_pinyin.tsv", "learning_pinyin.tsv", cxxime::UserBackupComponent::kLearning},
     {"learning/learning_wubi.tsv", "learning_wubi.tsv", cxxime::UserBackupComponent::kLearning},
     {"learning/learning_composition.tsv", "learning_composition.tsv",
+     cxxime::UserBackupComponent::kLearning},
+    {"learning/learning_english.json", "learning_english.json",
      cxxime::UserBackupComponent::kLearning},
     {"disabled/disabled_pinyin.tsv", "disabled_pinyin.tsv",
      cxxime::UserBackupComponent::kDisabledSystemLexicon},
@@ -98,9 +105,13 @@ bool export_path_overwrites_user_data(const std::wstring& path) {
 
 nlohmann::json take_device_settings(nlohmann::json* config) {
     nlohmann::json device = nlohmann::json::object();
-    if (config->contains("diagnostics")) {
-        device["diagnostics"] = (*config)["diagnostics"];
-        config->erase("diagnostics");
+    // The privacy choices are consent given on this computer (docs/privacy.md); they do not
+    // move to another one with the portable settings.
+    for (const char* section : {"diagnostics", "privacy"}) {
+        if (config->contains(section)) {
+            device[section] = (*config)[section];
+            config->erase(section);
+        }
     }
     // Backups before 0.7.5 also kept the floating status window position here; ignored.
     config->erase("status_window");
@@ -238,6 +249,51 @@ std::vector<std::string> selected_user_data_names(std::uint32_t components) {
     return names;
 }
 
+// Settings a user config may hold: they load on top of the package defaults.
+bool valid_config_patch(const std::string& patch) {
+    cxxime::Config config;
+    return config.load(cxxime::data_path("default.json")) && config.load_user_json(patch);
+}
+
+constexpr std::size_t kKeptImportBackups = 5;
+constexpr wchar_t kImportBackupPattern[] = L"before-import-*.zhiyi-backup";
+
+// %USERPROFILE%\zhiyi\backups\before-import-<local time>.zhiyi-backup; the oldest beyond
+// kKeptImportBackups are removed.
+std::wstring next_import_backup_path() {
+    const std::wstring directory = utf8_to_wide(cxxime::user_data_path("backups"));
+    if (directory.empty() ||
+        (!CreateDirectoryW(directory.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)) {
+        return {};
+    }
+    SYSTEMTIME now = {};
+    GetLocalTime(&now);
+    wchar_t name[64] = {};
+    swprintf_s(name, L"before-import-%04u%02u%02u-%02u%02u%02u.zhiyi-backup", now.wYear,
+               now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond);
+    return directory + L"\\" + name;
+}
+
+void prune_import_backups() {
+    const std::wstring directory = utf8_to_wide(cxxime::user_data_path("backups"));
+    std::vector<std::wstring> names;
+    WIN32_FIND_DATAW found = {};
+    HANDLE search = FindFirstFileW((directory + L"\\" + kImportBackupPattern).c_str(), &found);
+    if (search == INVALID_HANDLE_VALUE) {
+        return;
+    }
+    do {
+        if ((found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+            names.push_back(found.cFileName);
+        }
+    } while (FindNextFileW(search, &found));
+    FindClose(search);
+    std::sort(names.begin(), names.end());  // the names sort by time
+    for (std::size_t i = 0; i + kKeptImportBackups < names.size(); ++i) {
+        DeleteFileW((directory + L"\\" + names[i]).c_str());
+    }
+}
+
 } // namespace
 
 UserBackupService::UserBackupService(SessionManager* session_manager,
@@ -276,67 +332,65 @@ bool UserBackupService::handle_request(const std::string& payload, std::string* 
             result.error_code = ERROR_ACCESS_DENIED;
             return cxxime::encode_user_backup_result(result, response_payload);
         }
-        std::string snapshot_config;
-        std::map<std::string, std::string> current_user_data;
-        const auto user_data_names = selected_user_data_names(request.components);
-        const bool needs_config =
-            includes(request.components, cxxime::UserBackupComponent::kSettings) ||
-            includes(request.components, cxxime::UserBackupComponent::kDeviceSettings);
-        result.succeeded =
-            (!needs_config || config_writer_->snapshot_user_config(&snapshot_config, &error)) &&
-            (user_data_names.empty() ||
-             session_manager_->snapshot_user_data(user_data_names, &current_user_data));
-        const auto entries = make_entries(snapshot_config, current_user_data, request.components);
-        if (result.succeeded) {
-            result.succeeded = !entries.empty() && cxxime::write_user_backup_archive(
-                                                       path, entries, &result.summary, &error);
-        }
+        result.succeeded = export_backup(path, request.components, &result.summary, &error);
         result.error_code = result.succeeded
                                 ? ERROR_SUCCESS
                                 : (error == ERROR_SUCCESS ? ERROR_INVALID_DATA : error);
         return cxxime::encode_user_backup_result(result, response_payload);
     }
-
-    cxxime::UserBackupArchive archive;
-    const bool archive_read = cxxime::read_user_backup_archive(path, &archive, &error);
-    if (request.operation != cxxime::UserBackupOperation::kImport || !archive_read ||
-        (request.components & ~archive.summary.components) != 0 ||
-        !required_entries_present(archive, request.components)) {
-        if (archive_read) {
-            error = ERROR_INVALID_DATA;
-        }
-        result.error_code = error;
+    if (request.operation != cxxime::UserBackupOperation::kImport) {
+        result.error_code = ERROR_INVALID_DATA;
         return cxxime::encode_user_backup_result(result, response_payload);
     }
 
+    // Import: everything requested must be in the backup and valid, or nothing is applied.
+    cxxime::UserBackupArchive archive;
+    if (!cxxime::read_user_backup_archive(path, &archive, &error)) {
+        result.error_code = error == ERROR_SUCCESS ? ERROR_INVALID_DATA : error;
+        return cxxime::encode_user_backup_result(result, response_payload);
+    }
+    result.summary = archive.summary;
+    if ((request.components & ~archive.summary.components) != 0 ||
+        !required_entries_present(archive, request.components)) {
+        result.error_code = ERROR_FILE_NOT_FOUND;
+        return cxxime::encode_user_backup_result(result, response_payload);
+    }
     const bool import_config =
         includes(request.components, cxxime::UserBackupComponent::kSettings) ||
         includes(request.components, cxxime::UserBackupComponent::kDeviceSettings);
+    std::string config_patch;
+    const auto imported_data = selected_user_data(archive, request.components);
+    if ((import_config &&
+         (!make_config_patch(archive, request.components, &config_patch) ||
+          !valid_config_patch(config_patch))) ||
+        !session_manager_->validate_user_data(imported_data)) {
+        result.error_code = ERROR_INVALID_DATA;
+        return cxxime::encode_user_backup_result(result, response_payload);
+    }
+
+    // The current data first, so an import can be undone by importing it.
+    const std::wstring before = next_import_backup_path();
+    cxxime::UserBackupSummary before_summary;
+    if (before.empty() ||
+        !export_backup(before, cxxime::kPortableUserBackupComponents, &before_summary, &error)) {
+        result.error_code = error == ERROR_SUCCESS ? ERROR_CANNOT_MAKE : error;
+        return cxxime::encode_user_backup_result(result, response_payload);
+    }
+    prune_import_backups();
+
+    // The settings in one change (all taken or none), then the user data, which was checked.
     if (import_config) {
-        std::string config_patch;
+        const nlohmann::json patch = nlohmann::json::parse(config_patch);
         std::string applied_config;
-        if (!make_config_patch(archive, request.components, &config_patch)) {
-            ++result.skipped_count;
-        } else {
-            const nlohmann::json patch = nlohmann::json::parse(config_patch);
-            if (!patch.empty() &&
-                config_writer_->submit(cxxime::UserConfigMutationKind::kMergePatch, config_patch,
-                                       &applied_config, &error)) {
-                result.imported_count += patch.size();
-            } else if (!patch.empty()) {
-                for (const auto& item : patch.items()) {
-                    const std::string section = nlohmann::json({{item.key(), item.value()}}).dump();
-                    if (config_writer_->submit(cxxime::UserConfigMutationKind::kMergePatch, section,
-                                               &applied_config, &error)) {
-                        ++result.imported_count;
-                    } else {
-                        ++result.skipped_count;
-                    }
-                }
+        if (!patch.empty()) {
+            if (!config_writer_->submit(cxxime::UserConfigMutationKind::kMergePatch, config_patch,
+                                        &applied_config, &error)) {
+                result.error_code = error == ERROR_SUCCESS ? ERROR_INVALID_DATA : error;
+                return cxxime::encode_user_backup_result(result, response_payload);
             }
+            result.imported_count += patch.size();
         }
     }
-    const auto imported_data = selected_user_data(archive, request.components);
     std::size_t imported_data_count = 0;
     std::size_t skipped_data_count = 0;
     if (!imported_data.empty()) {
@@ -346,6 +400,21 @@ bool UserBackupService::handle_request(const std::string& payload, std::string* 
     result.skipped_count += skipped_data_count;
     result.succeeded = true;
     result.error_code = ERROR_SUCCESS;
-    result.summary = archive.summary;
     return cxxime::encode_user_backup_result(result, response_payload);
+}
+
+bool UserBackupService::export_backup(const std::wstring& path, std::uint32_t components,
+                                      cxxime::UserBackupSummary* summary, unsigned long* error) {
+    std::string snapshot_config;
+    std::map<std::string, std::string> current_user_data;
+    const auto user_data_names = selected_user_data_names(components);
+    const bool needs_config = includes(components, cxxime::UserBackupComponent::kSettings) ||
+                              includes(components, cxxime::UserBackupComponent::kDeviceSettings);
+    if ((needs_config && !config_writer_->snapshot_user_config(&snapshot_config, error)) ||
+        (!user_data_names.empty() &&
+         !session_manager_->snapshot_user_data(user_data_names, &current_user_data))) {
+        return false;
+    }
+    const auto entries = make_entries(snapshot_config, current_user_data, components);
+    return !entries.empty() && cxxime::write_user_backup_archive(path, entries, summary, error);
 }

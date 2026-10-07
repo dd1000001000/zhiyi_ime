@@ -3,6 +3,7 @@
 #include "editor_app.h"
 #include <shellscalingapi.h>
 #include <shellapi.h>
+#include <objbase.h>
 #include <cxxime/data_path.h>
 #include <cxxime/settings_route.h>
 
@@ -65,7 +66,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int) {
         CloseHandle(instance);
         return 0;
     }
+    // The file dialogs of the backup (editor_backup.cc) are COM objects.
+    const HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     const int result = cxxime::settings::EditorApp::run(hInst, dpiScale, initialPanel);
+    if (SUCCEEDED(com)) CoUninitialize();
     if (instance) CloseHandle(instance);
     return result;
 }

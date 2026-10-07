@@ -193,9 +193,12 @@ void rank_partial_candidates(Dict& dict,
         }
 
         dict.filter_disabled_system_candidates(candidates);
+        // Only words the dictionary reads this way join a partial group: a learned entry with
+        // a reading the dictionary lacks (可能 recorded as ken:eng, spelled by "ke" and "ken")
+        // would otherwise replace the whole-input 可能 with a partial one.
         if (candidate_learning_enabled) {
             dict.apply_candidate_preferences(lookup_key, CandidateSource::kPinyin,
-                                             candidates, limit);
+                                             candidates, limit, false);
         }
         dict.apply_manual_candidate_order(lookup_key, CandidateSource::kPinyin,
                                           candidates, limit);

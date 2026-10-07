@@ -177,7 +177,8 @@ int boosted_score(int frequency) {
 }  // namespace
 
 void Dict::apply_candidate_preferences(const std::string& code, CandidateSource source,
-                                       std::vector<Candidate>& candidates, int limit) const {
+                                       std::vector<Candidate>& candidates, int limit,
+                                       bool add_unlisted) const {
     if (limit <= 0) {
         return;
     }
@@ -204,6 +205,9 @@ void Dict::apply_candidate_preferences(const std::string& code, CandidateSource 
             continue;
         }
         if (!preference_candidate_available(preference, source)) {
+            if (!add_unlisted) {
+                continue;
+            }
             preference.frequency = kFallbackCandidateScore;
         } else if (boost_only) {
             // Outside the fetched window: boosted from the score it had when picked.

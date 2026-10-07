@@ -142,8 +142,11 @@ public:
                                      CandidatePreferenceReceipt* receipt = nullptr);
     // Takes back a record (Backspace right after the commit).
     bool revoke_candidate_preference(const CandidatePreferenceReceipt& receipt);
+    // add_unlisted = false: a learned word whose recorded reading neither the dictionary nor
+    // the user lexicon has is left out instead of shown as a weak candidate.
     void apply_candidate_preferences(const std::string& code, CandidateSource source,
-                                     std::vector<Candidate>& candidates, int limit) const;
+                                     std::vector<Candidate>& candidates, int limit,
+                                     bool add_unlisted = true) const;
     std::vector<UserDictEntryInfo> query_candidate_preferences(
         const std::string& query, size_t offset, size_t limit,
         size_t* match_total = nullptr) const;

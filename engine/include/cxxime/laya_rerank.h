@@ -27,12 +27,8 @@ struct LayaRerankStats {
     bool on_gpu = false;  // the model runs on the graphics card named by laya.device
 };
 
-// A graphics card is offered when the model runs on it at least this much faster than on the
-// CPU (gpu_ms < cpu_ms * kGpuSpeedup).
-constexpr double kGpuSpeedup = 0.8;
-
 struct LayaGpuTest {
-    bool faster = false;  // runs on the card and is faster than the CPU
+    bool faster = false;  // runs on the card and is faster than the CPU (Settings warns otherwise)
     double gpu_ms = -1.0;
     double cpu_ms = -1.0;
     std::string error;  // why the card cannot be used (log text), empty when it ran

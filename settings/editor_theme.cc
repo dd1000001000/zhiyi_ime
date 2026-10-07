@@ -291,7 +291,10 @@ LRESULT EditorApp::control_colors(UINT message, HDC dc, HWND control) {
         SetBkColor(dc, colors.control);
         return reinterpret_cast<LRESULT>(control_brush());
     }
-    if (std::find(hints_.begin(), hints_.end(), control) != hints_.end()) {
+    if (control == hDeviceHint_ && device_warning_) {
+        // The warning color of the key boxes (key_capture.cc).
+        SetTextColor(dc, colors.dark ? RGB(240, 190, 90) : RGB(150, 98, 0));
+    } else if (std::find(hints_.begin(), hints_.end(), control) != hints_.end()) {
         SetTextColor(dc, colors.hint);
     } else if (has_class(control, WC_LINK)) {
         SetTextColor(dc, colors.link);

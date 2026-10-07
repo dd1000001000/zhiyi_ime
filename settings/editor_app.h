@@ -112,6 +112,8 @@ private:
     void load_gpu_choices();
     void populate_device();
     void fill_device_combo();
+    void show_device_result(double gpu_ms, double cpu_ms);
+    void show_device_hint(const wchar_t* text);
     std::string selected_device() const;
     void on_device_selected();
     bool handle_gpu_message(UINT message, WPARAM wparam, LPARAM lparam);
@@ -152,6 +154,7 @@ private:
     HWND hDeviceHint_ = nullptr;
     std::vector<GpuAdapter> gpu_choices_;  // the combo's items after "CPU"
     bool gpu_testing_ = false;
+    bool device_warning_ = false;  // the hint says the card is slower than the CPU
     std::vector<UiLanguage> languages_;
 
     // Fuzzy pinyin: master switch and one check box per pair (FuzzyGroup bit order)

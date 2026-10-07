@@ -256,7 +256,7 @@ LayaGpuTest LayaRerank::test_gpu(const Config& config, const std::string& adapte
         result.error = e.what();
         return result;
     }
-    result.faster = result.cpu_ms > 0 && result.gpu_ms < result.cpu_ms * kGpuSpeedup;
+    result.faster = result.cpu_ms > 0 && result.gpu_ms < result.cpu_ms;
     laya_log(L"speed test on " + laya::utf8_to_wide(adapter) + L": " + std::to_wstring(result.gpu_ms) +
              L" ms, CPU " + std::to_wstring(result.cpu_ms) + L" ms");
     return result;

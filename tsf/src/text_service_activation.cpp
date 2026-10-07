@@ -97,6 +97,14 @@ void TextService::_handle_ime_menu_command(cxxime::ImeMenuCommand command) {
     case cxxime::ImeMenuCommand::kAbout:
         show_about_dialog();
         break;
+    case cxxime::ImeMenuCommand::kExit:
+        if (_ensure_ipc_session() && _client.exit_server(_sessionId)) {
+            _client.disconnect();
+            _sessionId = 0;
+        } else {
+            CXXIME_LOG(L"%s", L"exit_request source=tsf result=0");
+        }
+        break;
     }
 }
 

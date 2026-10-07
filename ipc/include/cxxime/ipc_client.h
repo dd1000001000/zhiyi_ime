@@ -63,6 +63,7 @@ public:
     bool search_candidates(const std::string& query, IPCResponse& response);
     bool set_search_result(const std::string& query, const std::string& result);
     bool open_settings(uint32_t session_id, SettingsPanel panel);
+    bool exit_server(uint32_t session_id);
 
     int64_t last_ipc_us() const { return last_ipc_us_; }
 

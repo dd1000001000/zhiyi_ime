@@ -10,6 +10,7 @@
 
 #include <cxxime/candidate_window.h>
 #include <cxxime/logging.h>
+#include <cxxime/server_launcher.h>
 
 #include "candidate_ui_element.h"
 #include "config_coordinator.h"
@@ -246,6 +247,9 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* ptim, TfClientId tid, DWORD d
     bool initial_status_available = has_last_status;
     bool initial_caps_lock = initial_input_allows_input && _is_caps_lock_on();
     _sessionId = 0;
+    // Not running when startup.autostart is off or after Exit in the taskbar menu: start it
+    // now. It needs a moment to load; keys reconnect once it is up.
+    cxxime::start_server_on_demand();
     if (_ensure_ipc_session()) {
         if (initial_input_allows_input) {
             if (_sync_caps_lock_state(initial_caps_lock, "activate_focused", &initial_status)) {

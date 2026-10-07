@@ -596,6 +596,14 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
         break;
     }
 
+    case cxxime::IPCCommand::EXIT_SERVER:
+        // Closed by the window thread after this answer, saving user data as at sign-out.
+        CXXIME_LOG(L"%s", L"ServerApp: exit requested from the taskbar menu");
+        response.status = hwnd_ && PostMessageW(hwnd_, WM_CLOSE, 0, 0)
+                              ? cxxime::IPCStatus::OK
+                              : cxxime::IPCStatus::ERR_ENGINE_PROCESS_FAILED;
+        break;
+
     default:
         response.status = cxxime::IPCStatus::ERR_UNKNOWN_COMMAND;
         break;

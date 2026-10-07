@@ -12,7 +12,8 @@ ONNX Runtime、VC++ 运行时与运行时词典。
 1. 检查占用旧版本文件的应用（Restart Manager + 安装锁报告），停止后台服务
 2. 将程序和出厂数据解压到同卷暂存目录（`<基目录>\update\`），再用 `Rename` 原子切换为新的版本目录
    `<基目录>\<版本号>.<8位十六进制>\`（默认基目录 `C:\Program Files\ZhiyiIME`）
-3. 注册 TSF、写入安装信息与自启动项 `ZhiyiIMEServer`，写入所选界面语言与隐私选项，启动后台服务
+3. 注册 TSF、写入安装信息与自启动项 `ZhiyiIMEServer`（`zhiyi-server.exe --autostart`：设置里关闭了“开机时自动启动”时
+   立即退出，由输入法在切换到它时启动），写入所选界面语言与隐私选项，启动后台服务
 4. 把 `zhiyi_ime_x64.ime` / `zhiyi_ime_x86.ime` 复制为系统模块 `%WINDIR%\Sysnative\zhiyi.ime` 与
    `%WINDIR%\SysWOW64\zhiyi.ime`（被占用时改为重启后替换）
 5. 提交生命周期状态（`InstallLocation` 指向新版本，旧版本进入待清理列表），创建开始菜单快捷方式

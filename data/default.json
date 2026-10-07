@@ -73,6 +73,9 @@
     "update": {
         "notify": true
     },
+    "startup": {
+        "autostart": true
+    },
     "learning": {
         "chinese_target": "",
         "english_target": ""

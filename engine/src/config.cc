@@ -358,6 +358,9 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
     if (j.contains("update") && j["update"].is_object()) {
         load_bool(j["update"], "notify", config.update_notify);
     }
+    if (j.contains("startup") && j["startup"].is_object()) {
+        load_bool(j["startup"], "autostart", config.autostart);
+    }
     config.learning_section_loaded = j.contains("learning") && j["learning"].is_object();
     if (config.learning_section_loaded) {
         load_string(j["learning"], "chinese_target", config.chinese_gloss_target);
@@ -670,6 +673,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["privacy"]["experience_program"] = config.experience_program;
     j["privacy"]["collect_input"] = config.collect_input && config.experience_program;
     j["update"]["notify"] = config.update_notify;
+    j["startup"]["autostart"] = config.autostart;
     j["learning"]["chinese_target"] = config.chinese_gloss_target;
     j["learning"]["english_target"] = config.english_gloss_target;
 

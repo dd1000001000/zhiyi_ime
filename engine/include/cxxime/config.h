@@ -64,6 +64,10 @@ struct Config {
     // update.notify: the settings program checks GitHub for a new version when it opens and
     // offers to install it (settings/update_page; the Update page can always check by hand).
     bool update_notify = true;
+    // startup.autostart: zhiyi-server starts when the user signs in (the installer's Run entry
+    // passes --autostart and the server exits at once when this is off); otherwise the input
+    // method starts it the first time it is switched to.
+    bool autostart = true;
     // Learning mode (docs/learning-mode.md): the language of the translations shown after
     // Chinese and English candidates; empty: none. A language pack must be installed.
     std::string chinese_gloss_target;  // en ja ko fr de es ru

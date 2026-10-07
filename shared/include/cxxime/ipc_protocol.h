@@ -162,6 +162,8 @@ enum class IPCCommand : uint32_t {
     // replaces the context; kContextNewInputBox = another input box (an unreadable one clears
     // the context remembered from the previous box).
     SET_CONTEXT = 30,
+    // Exit from the taskbar menu: the server closes (like at sign-out) after answering.
+    EXIT_SERVER = 31,
 };
 
 constexpr uint32_t kContextTextRead = 1u << 0;

@@ -132,6 +132,7 @@ private:
     HWND hPageSize_ = nullptr;
     HWND hLanguage_ = nullptr;
     HWND hEnglishCorrection_ = nullptr;
+    HWND hAutostart_ = nullptr;  // startup.autostart
     std::vector<UiLanguage> languages_;
 
     // Fuzzy pinyin: master switch and one check box per pair (FuzzyGroup bit order)

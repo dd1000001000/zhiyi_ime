@@ -42,6 +42,7 @@ enum ControlId {
     kEnglishCorrectionId,
     kVerticalId,
     kHorizontalId,
+    kAutostartId,
     kSwitchKeyId = 1101,
     kStyleKeyId,
     kPunctKeyId,
@@ -145,7 +146,8 @@ void EditorApp::create_general_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     const int labels = label_width({"general.chinese_input", "general.pinyin_style",
                                     "general.theme", "general.font_size", "general.layout",
-                                    "general.page_size", "general.language", "general.english"});
+                                    "general.page_size", "general.language", "general.english",
+                                    "general.startup"});
     int y = card_begin(panel, kPanelPadTop, tr("general.card_input"));
     const int option_width = S(110);
     auto radios = [&](const char* label, std::initializer_list<std::pair<int, const char*>> items,
@@ -174,7 +176,12 @@ void EditorApp::create_general_panel(HWND panel) {
     hEnglishCorrection_ = make_check(kEnglishCorrectionId, tr("general.english_correction"),
                                      english_x, y, S(300), panel);
     y += kRowH;
-    make_hint(tr("general.english_correction_hint"), english_x, y - S(6), S(400), panel, 1);
+    make_hint(tr("general.english_correction_hint"), english_x, y - S(6), S(480), panel, 1);
+    y += S(20);
+    const int startup_x = make_aligned_label(tr("general.startup"), x0, labels, y, panel);
+    hAutostart_ = make_check(kAutostartId, tr("general.autostart"), startup_x, y, S(300), panel);
+    y += kRowH;
+    make_hint(tr("general.autostart_hint"), startup_x, y - S(6), S(480), panel, 1);
     y = card_end(panel, y + S(14));
 
     y = card_begin(panel, y, tr("general.card_appearance"));
@@ -377,6 +384,7 @@ void EditorApp::populate_controls() {
     }
     combo_set_index(hLanguage_, language_index);
     set_check(hEnglishCorrection_, config_.english.correction);
+    set_check(hAutostart_, config_.autostart);
 
     set_switch_key_boxes(config_);
 
@@ -407,6 +415,7 @@ bool EditorApp::read_controls(bool report_errors) {
                         ? languages_[language_index - 1].code
                         : kAutoUiLanguage;
     c.english.correction = get_check(hEnglishCorrection_);
+    c.autostart = get_check(hAutostart_);
     apply_switch_key_choice(c, key_capture_get(hSwitchKey_));
     c.candidate_learning = get_check(hLearning_);
     c.experience_program = get_check(hExperience_);

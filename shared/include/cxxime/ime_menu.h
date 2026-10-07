@@ -2,7 +2,8 @@
 //
 // Modified by Zhiyi IME Contributors: the right-click menu of the taskbar 中/英 indicator
 // switches the input states (Chinese/English, input method, English style, punctuation,
-// full/half width); the floating status window was removed.
+// full/half width) and can exit the background service; the floating status window was
+// removed.
 
 #ifndef CXXIME_IME_MENU_H_
 #define CXXIME_IME_MENU_H_
@@ -30,6 +31,7 @@ enum class ImeMenuCommand : uint32_t {
     kEnglishWords = 11,  // English mode: word completion (else letter by letter)
     kChinesePunct = 12,
     kFullShape = 13,
+    kExit = 14,  // closes zhiyi-server; switching to the input method again starts it
 };
 
 struct ImeMenuItem {
@@ -50,6 +52,7 @@ inline constexpr ImeMenuItem kImeMenuItems[] = {
     {ImeMenuCommand::kFullShape, L"全角", L"Full width", false},
     {ImeMenuCommand::kSettings, L"设置…", L"Settings…", true},
     {ImeMenuCommand::kAbout, L"关于", L"About", false},
+    {ImeMenuCommand::kExit, L"退出", L"Exit", true},
 };
 
 // The IME interface language (Config::ui_language: zh-CN, en-US, or auto = the Windows

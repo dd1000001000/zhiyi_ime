@@ -459,4 +459,13 @@ bool IpcClient::open_settings(uint32_t session_id, SettingsPanel panel) {
     return send_request(request, response) && response.status == IPCStatus::OK;
 }
 
+bool IpcClient::exit_server(uint32_t session_id) {
+    IPCRequest request = {};
+    request.command = IPCCommand::EXIT_SERVER;
+    request.session_id = session_id;
+
+    IPCResponse response = {};
+    return send_request(request, response) && response.status == IPCStatus::OK;
+}
+
 } // namespace cxxime

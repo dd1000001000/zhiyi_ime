@@ -22,6 +22,7 @@ add_library(cxxime-shared STATIC
     src/mpscq.cc
     src/ordinary_candidate.cc
     src/query_trace_log.cc
+    src/server_launcher.cc
     src/settings_launcher.cc
     src/settings_launcher_util.cc
     src/tsf_factory.cc

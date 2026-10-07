@@ -43,6 +43,7 @@ enum ControlId {
     kVerticalId,
     kHorizontalId,
     kAutostartId,
+    kLayaId,
     kSwitchKeyId = 1101,
     kStyleKeyId,
     kPunctKeyId,
@@ -149,7 +150,7 @@ void EditorApp::create_general_panel(HWND panel) {
     const int labels = label_width({"general.chinese_input", "general.pinyin_style",
                                     "general.theme", "general.font_size", "general.layout",
                                     "general.page_size", "general.language", "general.english",
-                                    "general.startup"});
+                                    "general.laya", "general.startup"});
     int y = card_begin(panel, kPanelPadTop, tr("general.card_input"));
     const int option_width = S(110);
     auto radios = [&](const char* label, std::initializer_list<std::pair<int, const char*>> items,
@@ -180,6 +181,11 @@ void EditorApp::create_general_panel(HWND panel) {
     y += kRowH;
     make_hint(tr("general.english_correction_hint"), english_x, y - S(6), S(480), panel, 1);
     y += S(20);
+    const int laya_x = make_aligned_label(tr("general.laya"), x0, labels, y, panel);
+    hLaya_ = make_check(kLayaId, tr("general.laya_enable"), laya_x, y, S(440), panel);
+    y += kRowH;
+    make_hint(tr("general.laya_hint"), laya_x, y - S(6), S(480), panel);
+    y += S(40);
     const int startup_x = make_aligned_label(tr("general.startup"), x0, labels, y, panel);
     hAutostart_ = make_check(kAutostartId, tr("general.autostart"), startup_x, y, S(300), panel);
     y += kRowH;
@@ -395,6 +401,7 @@ void EditorApp::populate_controls() {
     combo_set_index(hLanguage_, language_index);
     set_check(hEnglishCorrection_, config_.english.correction);
     set_check(hAutostart_, config_.autostart);
+    set_check(hLaya_, config_.laya.enable);
 
     set_switch_key_boxes(config_);
 
@@ -426,6 +433,7 @@ bool EditorApp::read_controls(bool report_errors) {
                         : kAutoUiLanguage;
     c.english.correction = get_check(hEnglishCorrection_);
     c.autostart = get_check(hAutostart_);
+    c.laya.enable = get_check(hLaya_);
     apply_switch_key_choice(c, key_capture_get(hSwitchKey_));
     c.candidate_learning = get_check(hLearning_);
     c.experience_program = get_check(hExperience_);

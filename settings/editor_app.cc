@@ -277,6 +277,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(collect_input);
     KEEP_PAGE_EDIT(update_notify);
     KEEP_PAGE_EDIT(autostart);
+    KEEP_PAGE_EDIT(laya.enable);
     KEEP_PAGE_EDIT(fuzzy_pinyin);
     KEEP_PAGE_EDIT(fuzzy_groups);
 #undef KEEP_PAGE_EDIT

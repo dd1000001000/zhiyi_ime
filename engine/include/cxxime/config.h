@@ -140,6 +140,9 @@ struct Config {
         double english_rank_prior_weight = 0.2;
         int context_chars = 128;  // trailing characters before the caret fed to the model
         int threads = 4;          // ONNX Runtime intra-op threads
+        // "" = the CPU; otherwise the name of the graphics card that runs the model (DirectML,
+        // gpu_adapters.h). When that card is missing or fails, the CPU is used.
+        std::string device;
         // Keep a copy of the model with its weights packed for this CPU in the local app data
         // cache (built on first start, ~340 MB on disk). ONNX Runtime maps that file instead of
         // packing the weights onto the heap at every start: ~200 MB less private memory.

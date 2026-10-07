@@ -44,6 +44,7 @@ enum ControlId {
     kHorizontalId,
     kAutostartId,
     kLayaId,
+    kDeviceId,
     kSwitchKeyId = 1101,
     kStyleKeyId,
     kPunctKeyId,
@@ -150,7 +151,7 @@ void EditorApp::create_general_panel(HWND panel) {
     const int labels = label_width({"general.chinese_input", "general.pinyin_style",
                                     "general.theme", "general.font_size", "general.layout",
                                     "general.page_size", "general.language", "general.english",
-                                    "general.laya", "general.startup"});
+                                    "general.laya", "general.device", "general.startup"});
     int y = card_begin(panel, kPanelPadTop, tr("general.card_input"));
     const int option_width = S(110);
     auto radios = [&](const char* label, std::initializer_list<std::pair<int, const char*>> items,
@@ -186,6 +187,18 @@ void EditorApp::create_general_panel(HWND panel) {
     y += kRowH;
     make_hint(tr("general.laya_hint"), laya_x, y - S(6), S(480), panel);
     y += S(40);
+    // Graphics card (editor_gpu.cc): no row when this computer has none to offer.
+    load_gpu_choices();
+    hDevice_ = nullptr;
+    hDeviceHint_ = nullptr;
+    if (!gpu_choices_.empty()) {
+        const int device_x = make_aligned_label(tr("general.device"), x0, labels, y, panel);
+        hDevice_ = make_combo(kDeviceId, device_x, y, S(440), panel);
+        fill_device_combo();
+        y += kRowH;
+        hDeviceHint_ = make_hint(tr("general.device_hint"), device_x, y - S(6), S(480), panel, 1);
+        y += S(20);
+    }
     const int startup_x = make_aligned_label(tr("general.startup"), x0, labels, y, panel);
     hAutostart_ = make_check(kAutostartId, tr("general.autostart"), startup_x, y, S(300), panel);
     y += kRowH;
@@ -402,6 +415,7 @@ void EditorApp::populate_controls() {
     set_check(hEnglishCorrection_, config_.english.correction);
     set_check(hAutostart_, config_.autostart);
     set_check(hLaya_, config_.laya.enable);
+    populate_device();
 
     set_switch_key_boxes(config_);
 
@@ -434,6 +448,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.english.correction = get_check(hEnglishCorrection_);
     c.autostart = get_check(hAutostart_);
     c.laya.enable = get_check(hLaya_);
+    c.laya.device = selected_device();
     apply_switch_key_choice(c, key_capture_get(hSwitchKey_));
     c.candidate_learning = get_check(hLearning_);
     c.experience_program = get_check(hExperience_);
@@ -537,6 +552,9 @@ void EditorApp::update_enabled_controls() {
     for (HWND group : hFuzzyGroups_) {
         EnableWindow(group, fuzzy);
     }
+    if (hDevice_) {
+        EnableWindow(hDevice_, get_check(hLaya_) && !gpu_testing_ && !gpu_choices_.empty());
+    }
 }
 
 bool EditorApp::handle_command(int control_id, int notification) {
@@ -550,6 +568,7 @@ bool EditorApp::handle_command(int control_id, int notification) {
     case kPinyinId:
     case kWubiId:
     case kFuzzyEnabledId:
+    case kLayaId:
         if (notification == BN_CLICKED) {
             update_enabled_controls();
         }
@@ -563,6 +582,11 @@ bool EditorApp::handle_command(int control_id, int notification) {
                 load_ui_strings(ui_language_);
                 rebuild_ui();
             }
+        }
+        return true;
+    case kDeviceId:
+        if (notification == CBN_SELCHANGE) {
+            on_device_selected();
         }
         return true;
     case kExportBackupId:

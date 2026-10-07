@@ -18,7 +18,8 @@
 ## 功能简介
 
 - **懂上文的推荐**：一个在本机运行的小模型读取输入框里光标前的文字，从候选里挑出最可能的那个放在第一位，
-  并用蓝紫色星标标出（如“权利 / 权力 / 全力”）。模型不联网，输入内容不会离开你的电脑
+  并用蓝紫色星标标出（如“权利 / 权力 / 全力”）。模型不联网，输入内容不会离开你的电脑；有独立显卡时可以
+  在设置里改用显卡推理（DirectML，N 卡、A 卡、Intel 显卡都可以，先测速、比 CPU 快才使用）
 - **学习模式（候选翻译）**：每个候选后面显示它的外语意思，前面标英文词性（n. v. adj. …），最多三个常用义项，
   打字时顺便学外语。中文候选可以翻成英、日、韩、法、德、西、俄语，英文候选可以翻成中、日、韩、法、德、西、俄语；
   多音字按读音分别翻译。翻译来自离线语言包（中文约 4 万词、英文约 2 万词），只在本机查表。安装包自带中 → 英、
@@ -75,6 +76,7 @@
 - [Laya](https://huggingface.co/convaiinnovations/laya)：上文推荐所用的模型（Apache-2.0）
 - [wordfreq](https://github.com/rspeer/wordfreq)：英文词频（CC BY-SA 4.0）
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime)：模型推理（MIT）
+- [DirectML](https://github.com/microsoft/DirectML)：显卡推理（微软 DirectML 许可，可再分发）
 
 学习模式的语言包由大语言模型（GLM、Gemma）离线生成后经自动检查和人工修订，词表按 GPL-3.0 公开在
 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary)。

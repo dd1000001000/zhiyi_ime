@@ -23,6 +23,12 @@ bool LayaRerank::apply_english(const Config&, const std::string&, const std::str
 
 void LayaRerank::preload(const Config&) {}
 
+LayaGpuTest LayaRerank::test_gpu(const Config&, const std::string&) {
+    LayaGpuTest result;
+    result.error = "no model in this build";
+    return result;
+}
+
 LayaRerankStats LayaRerank::stats() const {
     return {};
 }

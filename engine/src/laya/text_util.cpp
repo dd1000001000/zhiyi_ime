@@ -28,6 +28,8 @@ std::vector<std::string> utf8_chars(const std::string& s) {
   return out;
 }
 
+size_t utf8_length(const std::string& s) { return utf8_chars(s).size(); }
+
 std::string utf8_tail(const std::string& s, size_t n) {
   auto chars = utf8_chars(s);
   if (chars.size() <= n) return s;

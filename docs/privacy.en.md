@@ -84,6 +84,11 @@ start typing and gives them to the recommendation model running on your computer
 used in memory: **nothing is sent over the network or written to a file**; only tier 2 writes it to
 `laya_context` as listed above. Password fields and fields marked private are never read. Turning
 the recommendation model off (`laya.enable`) stops the reading too.
+When a graphics card is chosen as the device on the General page, the model runs on it through
+Microsoft's DirectML component; the text is still only processed in this computer's memory and
+video memory. The IME turns off ONNX Runtime's own usage events; under its license terms DirectML
+may collect usage information through Windows diagnostic data, which the Windows "Diagnostics &
+feedback" settings control. It does not go through the IME and does not contain what you type.
 
 ## Update check (not part of this program)
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
-// Laya 候选重排: 构造与训练时完全一致的输入序列, 用 ONNX Runtime (CPU) 推理。
+// Laya 候选重排: 构造与训练时完全一致的输入序列, 用 ONNX Runtime 推理 (CPU, 或 DirectML 显卡)。
 #pragma once
 
 #include <cstdint>
@@ -38,7 +38,20 @@ struct RerankerOptions {
   int intra_threads = 4;
   // Directory for the prepacked copy of the model (see Reranker); empty = load the model as is.
   std::string cache_dir;
+  // >= 0: run on this graphics card (DirectML device_id, the DXGI adapter index) instead of the
+  // CPU. The card gets one fixed input shape (kGpuSequenceLength tokens, kGpuMarkers
+  // candidates): DirectML compiles the whole graph for a fixed shape, and runs it about ten
+  // times slower when shapes vary.
+  int gpu_device = -1;
 };
+
+constexpr int kGpuSequenceLength = 256;
+constexpr int kGpuMarkers = 32;
+
+// The model with every Reshape's allowzero cleared (DirectML fails on allowzero = 1; no shape in
+// this model has a zero, so the result is the same). Patched in the serialized model: the
+// attribute's int field is one byte either way. Returns how many were cleared.
+size_t clear_reshape_allowzero(std::vector<char>& model);
 
 class Reranker {
  public:
@@ -57,6 +70,7 @@ class Reranker {
   const BpeTokenizer& tokenizer() const { return *tok_; }
   bool guess_prompt() const { return guess_prompt_; }
   const std::string& load_note() const { return load_note_; }  // how the model was loaded (log)
+  bool on_gpu() const { return gpu_; }
 
  private:
   std::unique_ptr<BpeTokenizer> tok_;
@@ -69,6 +83,7 @@ class Reranker {
   int max_len_ = 1024;
   int head_max_len_ = 256;
   bool guess_prompt_ = false;
+  bool gpu_ = false;
 };
 
 }  // namespace laya

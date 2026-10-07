@@ -233,6 +233,9 @@ ONNX Runtime
 Upstream: https://github.com/microsoft/onnxruntime
 License: MIT
 
+onnxruntime.dll and onnxruntime_providers_shared.dll are the DirectML build (NuGet package
+Microsoft.ML.OnnxRuntime.DirectML 1.24.4), redistributed unmodified.
+
 Copyright (c) Microsoft Corporation
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -252,3 +255,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+DirectML
+--------
+
+Upstream: https://github.com/microsoft/DirectML
+License: Microsoft Software License Terms for Microsoft DirectX Machine Learning
+(DirectML), included as licenses/DirectML.txt
+
+DirectML.dll 1.15.4 (from the NuGet package Microsoft.AI.DirectML, as shipped in the
+onnxruntime-directml package) is redistributed unmodified. ONNX Runtime uses it to run the
+Laya model on a graphics card when one is chosen in Settings.
+Copyright (c) Microsoft Corporation. All rights reserved.

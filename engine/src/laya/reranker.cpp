@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 #include "reranker.h"
 
+#include <windows.h>
 #include <intrin.h>
 
 #include <algorithm>
@@ -9,10 +10,12 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <stdexcept>
 
 #include <json.hpp>  // cxx-ime vendors nlohmann/json as third_party/nlohmann/json.hpp
 #include <onnxruntime_cxx_api.h>
+#include <dml_provider_factory.h>
 
 #include "text_util.h"
 
@@ -105,6 +108,30 @@ void build_prepacked_model(Ort::Env& env, const RerankerOptions& opt, const std:
   std::filesystem::remove_all(tmp, ec);
 }
 
+// DirectML (laya.device): one fixed shape (see RerankerOptions::gpu_device). The DirectML
+// provider wants no memory pattern and sequential execution.
+Ort::SessionOptions gpu_session_options(int device) {
+  Ort::SessionOptions so;
+  so.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+  so.DisableMemPattern();
+  so.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+  so.AddFreeDimensionOverrideByName("batch_size", 1);
+  so.AddFreeDimensionOverrideByName("seq_len", kGpuSequenceLength);
+  so.AddFreeDimensionOverrideByName("num_markers", kGpuMarkers);
+  const OrtDmlApi* dml = nullptr;
+  Ort::ThrowOnError(Ort::GetApi().GetExecutionProviderApi("DML", ORT_API_VERSION,
+                                                          reinterpret_cast<const void**>(&dml)));
+  if (!dml) throw std::runtime_error("ONNX Runtime has no DirectML provider");
+  Ort::ThrowOnError(dml->SessionOptionsAppendExecutionProvider_DML(so, device));
+  return so;
+}
+
+std::vector<char> read_file(const std::wstring& path) {
+  std::ifstream in(std::filesystem::path(path), std::ios::binary);
+  if (!in) throw std::runtime_error("cannot read the model file");
+  return std::vector<char>(std::istreambuf_iterator<char>(in), {});
+}
+
 // Deletes caches for other keys (an older model, ORT version or CPU) under root.
 void remove_stale_caches(const std::filesystem::path& root, const std::string& keep) {
   std::error_code ec;
@@ -116,6 +143,19 @@ void remove_stale_caches(const std::filesystem::path& root, const std::string& k
 }
 
 }  // namespace
+
+size_t clear_reshape_allowzero(std::vector<char>& model) {
+  // AttributeProto: name (field 1) = "allowzero", then i (field 3, varint) = 1.
+  static const char kPattern[] = {0x0a, 0x09, 'a', 'l', 'l', 'o', 'w', 'z', 'e', 'r', 'o', 0x18, 0x01};
+  const size_t n = sizeof(kPattern);
+  size_t cleared = 0;
+  for (auto it = model.begin();
+       (it = std::search(it, model.end(), kPattern, kPattern + n)) != model.end(); it += n) {
+    *(it + n - 1) = 0;
+    ++cleared;
+  }
+  return cleared;
+}
 
 Reranker::Reranker(const RerankerOptions& opt) {
   const std::string tokenizer_path = opt.model_dir + "/tokenizer.json";
@@ -144,7 +184,17 @@ Reranker::Reranker(const RerankerOptions& opt) {
   }
 
   env_ = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "laya");
-  if (!dir.empty()) {
+  env_->DisableTelemetryEvents();
+  if (opt.gpu_device >= 0) {
+    // The prepacked cache is a CPU layout; the card gets the model as it is, patched in memory.
+    std::vector<char> model = read_file(model_path);
+    clear_reshape_allowzero(model);
+    session_ = std::make_unique<Ort::Session>(*env_, model.data(), model.size(),
+                                              gpu_session_options(opt.gpu_device));
+    gpu_ = true;
+    max_len_ = (std::min)(max_len_, kGpuSequenceLength);
+    load_note_ += "DirectML device " + std::to_string(opt.gpu_device);
+  } else if (!dir.empty()) {
     const std::filesystem::path cached = dir / L"laya.onnx";
     std::error_code ec;
     try {
@@ -183,6 +233,9 @@ Reranker::Reranker(const RerankerOptions& opt) {
     head_ids_en_ = tok_->encode(std::string("choice question: ") +
                                 replace_all(kInstructionsEnglish, tok_->mask_token(), " "));
   }
+  // A card that loads the model can still fail to run it (driver, unsupported operator): find
+  // out now, while the caller can still fall back to the CPU. Also compiles the graph.
+  if (gpu_ && score("", "", {"a", "b"}).size() != 2) throw std::runtime_error("DirectML run failed");
 }
 
 Reranker::~Reranker() = default;
@@ -244,23 +297,39 @@ Sequence Reranker::build(const std::string& context, const std::string& pinyin,
 std::vector<float> Reranker::score(const std::string& context, const std::string& pinyin,
                                    const std::vector<std::string>& candidates, Task task) const {
   if (candidates.empty()) return {};
-  return score(build(context, pinyin, candidates, task));
+  Sequence seq = build(context, pinyin, candidates, task);
+  // The card's fixed length: drop the oldest context until the sequence fits (build() would cut
+  // the newest text, right before the caret, instead).
+  for (size_t chars = utf8_length(context); gpu_ && seq.ids.size() >= static_cast<size_t>(max_len_) && chars > 0;) {
+    chars -= (std::min)(chars, (std::max)(size_t{8}, chars / 4));
+    seq = build(utf8_tail(context, chars), pinyin, candidates, task);
+  }
+  return score(seq);
 }
 
 std::vector<float> Reranker::score(const Sequence& seq) const {
-  const int64_t L = static_cast<int64_t>(seq.ids.size());
+  const int64_t used = static_cast<int64_t>(seq.ids.size());
   const int64_t K = static_cast<int64_t>(seq.markers.size());
   if (K == 0) return {};
-  std::vector<int64_t> ids = seq.ids, att(L, 1), pos = seq.markers, qtype{0};  // 0 = choice
-  std::unique_ptr<bool[]> mmask(new bool[K]);
+  if (gpu_ && (used > kGpuSequenceLength || K > kGpuMarkers)) return {};
+  // The card's fixed shape: tokens padded with id 0 and attention 0, extra candidates masked
+  // (their logits are not read).
+  const int64_t L = gpu_ ? kGpuSequenceLength : used;
+  const int64_t slots = gpu_ ? kGpuMarkers : K;
+  std::vector<int64_t> ids = seq.ids, att(used, 1), pos = seq.markers, qtype{0};  // 0 = choice
+  ids.resize(L, 0);
+  att.resize(L, 0);
+  pos.resize(slots, 0);
+  std::unique_ptr<bool[]> mmask(new bool[slots]);
+  std::fill(mmask.get(), mmask.get() + slots, false);
   std::fill(mmask.get(), mmask.get() + K, true);
 
-  const int64_t s_ids[2] = {1, L}, s_mark[2] = {1, K}, s_q[1] = {1};
+  const int64_t s_ids[2] = {1, L}, s_mark[2] = {1, slots}, s_q[1] = {1};
   std::vector<Ort::Value> in;
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, ids.data(), ids.size(), s_ids, 2));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, att.data(), att.size(), s_ids, 2));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, pos.data(), pos.size(), s_mark, 2));
-  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, mmask.get(), K, s_mark, 2));
+  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, mmask.get(), slots, s_mark, 2));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, qtype.data(), 1, s_q, 1));
   const char* in_names[] = {"input_ids", "attention_mask", "marker_pos", "marker_mask", "qtype"};
   const char* out_names[] = {"logits"};

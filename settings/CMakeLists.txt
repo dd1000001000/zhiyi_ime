@@ -9,6 +9,7 @@ add_executable(cxxime-settings WIN32
     editor_controls.cc
     editor_general_panel.cc
     editor_backup.cc
+    editor_gpu.cc
     editor_learning_panel.cc
     editor_theme.cc
     editor_update_panel.cc
@@ -51,6 +52,13 @@ target_link_libraries(cxxime-settings PRIVATE
 )
 
 set_target_properties(cxxime-settings PROPERTIES OUTPUT_NAME "zhiyi-settings")
+# The graphics card speed test (editor_gpu.cc) loads the model: ONNX Runtime next to the
+# executable, as in the installed folder.
+if(LAYA_ORT_RUNTIME_FILES)
+    add_custom_command(TARGET cxxime-settings POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LAYA_ORT_RUNTIME_FILES} $<TARGET_FILE_DIR:cxxime-settings>
+    )
+endif()
 cxxime_add_version_resource(
     cxxime-settings
     "知意输入法 设置"

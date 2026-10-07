@@ -278,6 +278,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(update_notify);
     KEEP_PAGE_EDIT(autostart);
     KEEP_PAGE_EDIT(laya.enable);
+    KEEP_PAGE_EDIT(laya.device);
     KEEP_PAGE_EDIT(fuzzy_pinyin);
     KEEP_PAGE_EDIT(fuzzy_groups);
 #undef KEEP_PAGE_EDIT
@@ -362,7 +363,8 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (!a) return DefWindowProcW(hwnd, msg, wp, lp);
 
     const UINT navigate_message = settings_navigate_message();
-    if (a->handle_update_message(msg, wp, lp) || a->handle_learning_message(msg, wp, lp)) {
+    if (a->handle_update_message(msg, wp, lp) || a->handle_learning_message(msg, wp, lp) ||
+        a->handle_gpu_message(msg, wp, lp)) {
         return 0;
     }
     if (navigate_message != 0 && msg == navigate_message) {

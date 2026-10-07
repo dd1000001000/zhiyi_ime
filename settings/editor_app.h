@@ -18,6 +18,7 @@
 
 #include <cxxime/config.h>
 #include <cxxime/glossary.h>
+#include <cxxime/gpu_adapters.h>
 #include <cxxime/settings_route.h>
 #include <cxxime/update.h>
 
@@ -108,6 +109,12 @@ private:
     void on_pack_action(int pack_index);
     bool handle_learning_command(int control_id, int notification);
     bool handle_learning_message(UINT message, WPARAM wparam, LPARAM lparam);
+    void load_gpu_choices();
+    void populate_device();
+    void fill_device_combo();
+    std::string selected_device() const;
+    void on_device_selected();
+    bool handle_gpu_message(UINT message, WPARAM wparam, LPARAM lparam);
     bool handle_learning_item(UINT message, LPARAM lparam);  // WM_MEASUREITEM / WM_DRAWITEM
     static LRESULT CALLBACK pack_list_proc(HWND, UINT, WPARAM, LPARAM);
     void set_switch_key_boxes(const cxxime::Config& config);
@@ -140,6 +147,11 @@ private:
     HWND hEnglishCorrection_ = nullptr;
     HWND hAutostart_ = nullptr;  // startup.autostart
     HWND hLaya_ = nullptr;  // laya.enable (Chinese and English)
+    // laya.device (editor_gpu.cc): only created when this computer has a card to offer
+    HWND hDevice_ = nullptr;
+    HWND hDeviceHint_ = nullptr;
+    std::vector<GpuAdapter> gpu_choices_;  // the combo's items after "CPU"
+    bool gpu_testing_ = false;
     std::vector<UiLanguage> languages_;
 
     // Fuzzy pinyin: master switch and one check box per pair (FuzzyGroup bit order)

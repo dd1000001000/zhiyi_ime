@@ -16,6 +16,7 @@ C:\Program Files\ZhiyiIME\             安装基目录（首次安装时选择�
 │   ├── zhiyi-server.exe / zhiyi-settings.exe
 │   ├── zhiyi-resources.dll
 │   ├── onnxruntime.dll / onnxruntime_providers_shared.dll   Laya 推理
+│   ├── DirectML.dll                                         显卡推理（只在设置里选了显卡时加载）
 │   ├── vcruntime140*.dll / msvcp140*.dll                    VC++ 运行时（随程序放置）
 │   ├── collect_diagnostics.ps1
 │   ├── uninstall.exe
@@ -99,6 +100,7 @@ C:\Users\<username>\AppData\Local\zhiyi\laya-cache\
     ├── laya.onnx             优化后的图（权重引用 laya.data）
     ├── laya.data             权重，按本机 CPU 预打包（约 340 MB）
     └── tokenizer.bin         分词器的紧凑镜像（排好序的词表与 merges，约 13 MB）
+C:\Users\<username>\AppData\Local\zhiyi\laya-gpu.json   显卡测速结果（按显卡和驱动版本），设置程序写入
 ```
 
 Laya 模型的本机缓存（`laya.cache`，见 [设置指南](settings-guide.md)），两部分：

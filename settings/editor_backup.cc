@@ -2,8 +2,9 @@
 //
 // Backup and restore on the Dictionary page (docs/settings-guide.md): the export holds all
 // settings that move between computers and all user data (server/src/user_backup_service.cc);
-// an import applies all of it or, when a file is missing or damaged, nothing. The server does
-// the work over the control pipe, so it is started first when it is not running.
+// an import applies all of it or, when a file is missing or damaged, nothing, after offering to
+// back up the current data the same way. The server does the work over the control pipe, so it
+// is started first when it is not running.
 
 #include "editor_app.h"
 
@@ -198,23 +199,23 @@ bool EditorApp::ensure_server_running() {
     return false;
 }
 
-void EditorApp::export_user_backup() {
+bool EditorApp::export_user_backup(bool before_import) {
     // What the backup holds is what is saved: offer to save the page edits first.
     read_controls(false);
-    if (config_.to_user_json() != loaded_config_.to_user_json()) {
+    if (!before_import && config_.to_user_json() != loaded_config_.to_user_json()) {
         const int answer = MessageBoxW(hwnd_, tr("backup.apply_first"), tr("window.title"),
                                        MB_YESNOCANCEL | MB_ICONQUESTION);
         if (answer == IDCANCEL || (answer == IDYES && !save_config())) {
-            return;
+            return false;
         }
     }
     const std::wstring folder = pick_path(hwnd_, true, last_backup_folder());
     if (folder.empty()) {
-        return;
+        return false;
     }
     remember_backup_folder(folder);
     if (!ensure_server_running()) {
-        return;
+        return false;
     }
     const std::wstring path = new_backup_path(folder);
     UserBackupControlResult result;
@@ -228,7 +229,10 @@ void EditorApp::export_user_backup() {
     }
     if (!exported) {
         MessageBoxW(hwnd_, tr("backup.export_failed"), tr("window.title"), MB_OK | MB_ICONERROR);
-        return;
+        return false;
+    }
+    if (before_import) {
+        return true;
     }
     const std::wstring message = replace_all(tr("backup.exported"), L"{path}", path);
     if (MessageBoxW(hwnd_, message.c_str(), tr("window.title"), MB_YESNO | MB_ICONINFORMATION) ==
@@ -236,6 +240,7 @@ void EditorApp::export_user_backup() {
         const std::wstring arguments = L"/select,\"" + path + L"\"";
         ShellExecuteW(hwnd_, L"open", L"explorer.exe", arguments.c_str(), nullptr, SW_SHOWNORMAL);
     }
+    return true;
 }
 
 void EditorApp::import_user_backup() {
@@ -257,6 +262,12 @@ void EditorApp::import_user_backup() {
     confirm = replace_all(confirm, L"{size}", size_text(summary.summary.total_size));
     if (MessageBoxW(hwnd_, confirm.c_str(), tr("window.title"), MB_OKCANCEL | MB_ICONQUESTION) !=
         IDOK) {
+        return;
+    }
+    // The import cannot be taken apart afterwards: offer a backup of what it changes.
+    const int backup = MessageBoxW(hwnd_, tr("backup.backup_first"), tr("window.title"),
+                                   MB_YESNOCANCEL | MB_ICONQUESTION);
+    if (backup == IDCANCEL || (backup == IDYES && !export_user_backup(true))) {
         return;
     }
 
@@ -303,12 +314,6 @@ void EditorApp::import_user_backup() {
             show_panel(kLearningPanel);
         }
     }
-}
-
-void EditorApp::open_backup_folder() {
-    const std::wstring folder = utf8_to_wstr(user_data_path("backups"));
-    CreateDirectoryW(folder.c_str(), nullptr);
-    ShellExecuteW(hwnd_, L"open", folder.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
 } // namespace settings

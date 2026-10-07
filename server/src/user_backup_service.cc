@@ -1,12 +1,11 @@
 // Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 //
 // Modified by Zhiyi IME Contributors: English learning data, privacy choices kept per
-// computer, all-or-nothing import with a backup of the current data first.
+// computer, all-or-nothing import.
 
 #include "user_backup_service.h"
 
 #include <algorithm>
-#include <cstdio>
 #include <iterator>
 #include <map>
 #include <string>
@@ -255,45 +254,6 @@ bool valid_config_patch(const std::string& patch) {
     return config.load(cxxime::data_path("default.json")) && config.load_user_json(patch);
 }
 
-constexpr std::size_t kKeptImportBackups = 5;
-constexpr wchar_t kImportBackupPattern[] = L"before-import-*.zhiyi-backup";
-
-// %USERPROFILE%\zhiyi\backups\before-import-<local time>.zhiyi-backup; the oldest beyond
-// kKeptImportBackups are removed.
-std::wstring next_import_backup_path() {
-    const std::wstring directory = utf8_to_wide(cxxime::user_data_path("backups"));
-    if (directory.empty() ||
-        (!CreateDirectoryW(directory.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)) {
-        return {};
-    }
-    SYSTEMTIME now = {};
-    GetLocalTime(&now);
-    wchar_t name[64] = {};
-    swprintf_s(name, L"before-import-%04u%02u%02u-%02u%02u%02u.zhiyi-backup", now.wYear,
-               now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond);
-    return directory + L"\\" + name;
-}
-
-void prune_import_backups() {
-    const std::wstring directory = utf8_to_wide(cxxime::user_data_path("backups"));
-    std::vector<std::wstring> names;
-    WIN32_FIND_DATAW found = {};
-    HANDLE search = FindFirstFileW((directory + L"\\" + kImportBackupPattern).c_str(), &found);
-    if (search == INVALID_HANDLE_VALUE) {
-        return;
-    }
-    do {
-        if ((found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
-            names.push_back(found.cFileName);
-        }
-    } while (FindNextFileW(search, &found));
-    FindClose(search);
-    std::sort(names.begin(), names.end());  // the names sort by time
-    for (std::size_t i = 0; i + kKeptImportBackups < names.size(); ++i) {
-        DeleteFileW((directory + L"\\" + names[i]).c_str());
-    }
-}
-
 } // namespace
 
 UserBackupService::UserBackupService(SessionManager* session_manager,
@@ -367,16 +327,6 @@ bool UserBackupService::handle_request(const std::string& payload, std::string* 
         result.error_code = ERROR_INVALID_DATA;
         return cxxime::encode_user_backup_result(result, response_payload);
     }
-
-    // The current data first, so an import can be undone by importing it.
-    const std::wstring before = next_import_backup_path();
-    cxxime::UserBackupSummary before_summary;
-    if (before.empty() ||
-        !export_backup(before, cxxime::kPortableUserBackupComponents, &before_summary, &error)) {
-        result.error_code = error == ERROR_SUCCESS ? ERROR_CANNOT_MAKE : error;
-        return cxxime::encode_user_backup_result(result, response_payload);
-    }
-    prune_import_backups();
 
     // The settings in one change (all taken or none), then the user data, which was checked.
     if (import_config) {

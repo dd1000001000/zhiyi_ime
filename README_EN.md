@@ -21,6 +21,15 @@
 - **Context-aware recommendation**: a small model running on your computer reads the text before
   the caret, puts the most likely candidate first and marks it with a blue-purple star (权利 / 权力 /
   全力). The model works offline; nothing you type leaves your computer.
+- **Learning mode (candidate translations)**: each candidate shows what it means in another language,
+  with English part-of-speech labels (n. v. adj. …) and up to three common senses, so you pick up a
+  language while typing. Chinese candidates can be shown in English, Japanese, Korean, French,
+  German, Spanish or Russian, English candidates in Chinese, Japanese, Korean, French, German, Spanish
+  or Russian; words with several readings are translated by reading. Translations come from offline
+  language packs (about 40,000 Chinese and 20,000 English words) looked up on your computer. The
+  installer includes Chinese → English and English → Chinese; the others are downloaded on the
+  Learning page in Settings. The word lists are open at
+  [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary): corrections welcome.
 - **Pinyin or Wubi**: pinyin accepts full pinyin, initials and a mix of both (`wsyige` → 我是一个),
   plus an initials mode where each letter is one character (`zgr` → 中国人).
 - **Fuzzy pinyin**: z=zh, c=ch, s=sh, n=l, an=ang, en=eng, in=ing, each pair on or off; words found
@@ -31,11 +40,22 @@
 - **Your own switch keys** for Chinese/English, input style, punctuation and full/half width, with
   warnings about conflicts with Windows or other programs.
 - **Taskbar menu**: right-click the 中/英 indicator to switch Chinese/English, full pinyin / initials /
-  Wubi, punctuation, full width and more.
-- **Light and dark themes**, Chinese and English interface, self-learning (words you use move up).
-- **Automatic updates**: Settings checks for a new version when it opens and installs it in one click.
+  Wubi, punctuation, full width and more, or to exit the background service (it starts again when you
+  switch to Zhiyi IME).
+- **Candidate window**: vertical (default) or horizontal, light and dark themes, three font sizes;
+  Chinese and English interface.
+- **Self-learning**: words you use move up; Backspace right after a commit undoes what it learned.
+- **Backup and transfer**: export all settings, the lexicon and the learning records to one file and
+  import it on another computer or after reinstalling; nothing is imported from an incomplete or
+  damaged backup.
+- **Optional start at sign-in**: the background service can start the first time you switch to
+  Zhiyi IME instead.
+- **Automatic updates**: Settings checks for a new version when it opens and installs it in one click;
+  language packs have their own update check.
 - **Privacy**: an optional user experience program, off by default, with records kept on your computer
   only; see the [privacy notes](docs/privacy.en.md).
+
+<img src="docs/media/learning-mode.png" alt="Learning mode: Chinese candidates in English and Japanese, English candidates in Chinese" width="100%">
 
 ## Recommendation accuracy
 
@@ -59,8 +79,10 @@ in the [development notes](docs/development.md#上文推荐模型laya) (Chinese)
 
 - **Updates**: when a new version is out, Settings tells you; click Update now on its Updates page.
   Programs already open use the new version after they are reopened.
+- **Moving to another computer or reinstalling**: Export… on the Dictionary page of Settings, then
+  Import… on the new computer.
 - **Uninstalling**: uninstall Zhiyi IME in Windows Settings > Apps > Installed apps; you can keep your
-  personal data (settings and learned words in `%USERPROFILE%\zhiyi\`).
+  personal data (settings, learned words and downloaded language packs in `%USERPROFILE%\zhiyi\`).
 
 ## Credits
 
@@ -72,6 +94,10 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [Laya](https://huggingface.co/convaiinnovations/laya): the model behind the recommendations (Apache-2.0)
 - [wordfreq](https://github.com/rspeer/wordfreq): English word frequencies (CC BY-SA 4.0)
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime): model inference (MIT)
+
+The learning-mode language packs were generated offline by large language models (GLM, Gemma), then
+checked automatically and corrected by hand; the word lists are open under GPL-3.0 at
+[zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary).
 
 Zhiyi IME is licensed under [GPL-3.0-only](LICENSE); full notices are in [NOTICE](NOTICE) and
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt). Development and build notes:

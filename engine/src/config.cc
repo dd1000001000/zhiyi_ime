@@ -274,6 +274,12 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         if (config.laya.context_chars == 48) config.laya.context_chars = Config::LayaConfig{}.context_chars;
         if (config.laya.english_context_chars == 96)
             config.laya.english_context_chars = Config::LayaConfig{}.english_context_chars;
+        // The same for the rank prior: 0.4 was the default until schema 1.1, which turned it off.
+        // Applied once: a file saved since then (schema 1.1) keeps what it says.
+        const bool before_rank_prior_off =
+            !(j.contains("schema") && j["schema"].is_object() && j["schema"].value("version", "") == "1.1");
+        if (before_rank_prior_off && config.laya.rank_prior_weight == 0.4)
+            config.laya.rank_prior_weight = Config::LayaConfig{}.rank_prior_weight;
         if (l.contains("english_freq_weight") && l["english_freq_weight"].is_number())
             config.laya.english_freq_weight = l["english_freq_weight"].template get<double>();
         if (l.contains("english_correction_weight") && l["english_correction_weight"].is_number())
@@ -557,7 +563,7 @@ bool Config::load_themes(const std::string& path) {
 static nlohmann::json build_config_json(const Config& config, bool include_diagnostics) {
     nlohmann::json j;
     j["schema"]["name"] = "知意输入法";
-    j["schema"]["version"] = "1.0";
+    j["schema"]["version"] = "1.1";  // 1.1: laya.rank_prior_weight no longer 0.4 by default
     j["schema"]["description"] = "Zhiyi IME default configuration";
 
     j["engine"]["page_size"] = config.page_size;

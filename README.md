@@ -51,6 +51,12 @@
 
 <img src="docs/media/accuracy.zh-CN.svg" alt="首选准确率：知意输入法 vs 只按词频排序" width="100%">
 
+### 与其他开源模型对比
+
+[metasequoiaime/pinyin-ime-reranker](https://huggingface.co/metasequoiaime/pinyin-ime-reranker-25M)（4M / 25M，Apache-2.0）是另一个给拼音候选按上文重新排序的开源模型。用同样的测试集、同样的候选比较：它体积小得多，但只支持中文，准确率低于知意的模型；英文补全只有知意支持。
+
+<img src="docs/media/compare.zh-CN.svg" alt="知意输入法与 metasequoiaime 重排模型对比：(a) 中文实际候选 (b) 中文同音词 (c) 英文补全 (d) 模型大小" width="100%">
+
 ## 安装说明
 
 **系统要求**：Windows 10 / 11（64 位）。

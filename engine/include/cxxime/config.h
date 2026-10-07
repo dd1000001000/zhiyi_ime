@@ -136,7 +136,7 @@ struct Config {
         // The model is trained on shuffled candidates (no position preference); the engine's
         // order is added back as a prior: score = log P(model) + weight * log P(right word at
         // this rank), the rank distribution measured on the training data.
-        double rank_prior_weight = 0.4;
+        double rank_prior_weight = 0.0;
         double english_rank_prior_weight = 0.2;
         int context_chars = 128;  // trailing characters before the caret fed to the model
         int threads = 4;          // ONNX Runtime intra-op threads

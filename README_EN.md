@@ -68,6 +68,12 @@ in the [development notes](docs/development.md#上文推荐模型laya) (Chinese)
 
 <img src="docs/media/accuracy.en-US.svg" alt="First-candidate accuracy: Zhiyi IME vs word frequency only" width="100%">
 
+### Compared with another open model
+
+[metasequoiaime/pinyin-ime-reranker](https://huggingface.co/metasequoiaime/pinyin-ime-reranker-25M) (4M / 25M, Apache-2.0) is another open model that reranks pinyin candidates by the preceding text. On the same test sets and the same candidates it is much smaller, but Chinese only and less accurate than Zhiyi's model; only Zhiyi handles English completion.
+
+<img src="docs/media/compare.en-US.svg" alt="Zhiyi IME vs the metasequoiaime rerankers: (a) real Chinese candidates (b) Chinese homophones (c) English completion (d) model size" width="100%">
+
 ## Installation
 
 **Requirements**: Windows 10 / 11 (64-bit).

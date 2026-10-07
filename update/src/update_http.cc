@@ -196,25 +196,15 @@ CheckResult check_latest(const std::string& current_version) {
     return result;
 }
 
-Status download_installer(const Manifest& manifest, const std::wstring& directory,
-                          const Progress& progress, const std::atomic<bool>* cancel,
-                          std::wstring* path) {
-    const std::wstring name = to_wide(manifest.file);
-    const std::wstring final_path = directory + L"\\" + name;
-    const std::wstring part_path = final_path + L".part";
-    clean_downloads(directory, name);
+namespace {
 
-    // Downloaded before (e.g. the installation was cancelled at the UAC prompt).
+// Downloads `url` into `part_path` (resuming what is there), checks size and SHA-256 and
+// renames it to `final_path`.
+Status download_checked(const std::string& url, std::uint64_t size, const std::string& sha256,
+                        const std::wstring& part_path, const std::wstring& final_path,
+                        const Progress& progress, const std::atomic<bool>* cancel) {
+    const std::wstring directory = part_path.substr(0, part_path.find_last_of(L'\\'));
     std::string hash;
-    if (sha256_file(final_path, &hash)) {
-        if (hash == manifest.sha256) {
-            if (progress) progress(manifest.size, manifest.size);
-            *path = final_path;
-            return Status::kOk;
-        }
-        DeleteFileW(final_path.c_str());
-    }
-
     HANDLE file = CreateFileW(part_path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
                               OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE) return Status::kDisk;
@@ -228,19 +218,19 @@ Status download_installer(const Manifest& manifest, const std::wstring& director
     LARGE_INTEGER existing = {};
     GetFileSizeEx(file, &existing);
     std::uint64_t done = static_cast<std::uint64_t>(existing.QuadPart);
-    if (done > manifest.size) {
+    if (done > size) {
         if (!truncate_file(file)) return Status::kDisk;
         done = 0;
     }
     ULARGE_INTEGER free_bytes = {};
     if (GetDiskFreeSpaceExW(directory.c_str(), &free_bytes, nullptr, nullptr) &&
-        free_bytes.QuadPart < manifest.size - done) {
+        free_bytes.QuadPart < size - done) {
         return Status::kDisk;
     }
 
-    if (done < manifest.size) {
+    if (done < size) {
         Get get;
-        Status status = get.open(manifest.url, done);
+        Status status = get.open(url, done);
         if (status != Status::kOk) return status;
         if (get.status_code() == 200 && done > 0) {  // no range support: from the start
             if (!truncate_file(file)) return Status::kDisk;
@@ -248,7 +238,7 @@ Status download_installer(const Manifest& manifest, const std::wstring& director
         } else if (get.status_code() == 416) {  // the .part does not match: from the start
             if (!truncate_file(file)) return Status::kDisk;
             done = 0;
-            status = get.open(manifest.url);
+            status = get.open(url);
             if (status != Status::kOk) return status;
         }
         if (get.status_code() != 200 && get.status_code() != 206) return Status::kNetwork;
@@ -258,7 +248,7 @@ Status download_installer(const Manifest& manifest, const std::wstring& director
 
         std::vector<char> buffer(256 * 1024);
         auto last_report = std::chrono::steady_clock::now();
-        if (progress) progress(done, manifest.size);
+        if (progress) progress(done, size);
         for (;;) {
             if (cancel && cancel->load()) return Status::kCancelled;
             DWORD read = 0;
@@ -266,7 +256,7 @@ Status download_installer(const Manifest& manifest, const std::wstring& director
                 return Status::kNetwork;  // the .part stays: the next try resumes
             }
             if (read == 0) break;
-            if (done + read > manifest.size) {
+            if (done + read > size) {
                 truncate_file(file);
                 return Status::kInvalid;
             }
@@ -277,15 +267,15 @@ Status download_installer(const Manifest& manifest, const std::wstring& director
             done += read;
             const auto now = std::chrono::steady_clock::now();
             if (progress && now - last_report >= std::chrono::milliseconds(100)) {
-                progress(done, manifest.size);
+                progress(done, size);
                 last_report = now;
             }
         }
-        if (progress) progress(done, manifest.size);
-        if (done != manifest.size) return Status::kNetwork;
+        if (progress) progress(done, size);
+        if (done != size) return Status::kNetwork;
     }
 
-    if (!sha256_file(file, &hash) || hash != manifest.sha256) {
+    if (!sha256_file(file, &hash) || hash != sha256) {
         CloseHandle(file);
         closer.file = INVALID_HANDLE_VALUE;
         DeleteFileW(part_path.c_str());
@@ -296,8 +286,61 @@ Status download_installer(const Manifest& manifest, const std::wstring& director
     if (!MoveFileExW(part_path.c_str(), final_path.c_str(), MOVEFILE_REPLACE_EXISTING)) {
         return Status::kDisk;
     }
-    *path = final_path;
     return Status::kOk;
+}
+
+}  // namespace
+
+Status download_installer(const Manifest& manifest, const std::wstring& directory,
+                          const Progress& progress, const std::atomic<bool>* cancel,
+                          std::wstring* path) {
+    const std::wstring name = to_wide(manifest.file);
+    const std::wstring final_path = directory + L"\\" + name;
+    clean_downloads(directory, name);
+
+    // Downloaded before (e.g. the installation was cancelled at the UAC prompt).
+    std::string hash;
+    if (sha256_file(final_path, &hash)) {
+        if (hash == manifest.sha256) {
+            if (progress) progress(manifest.size, manifest.size);
+            *path = final_path;
+            return Status::kOk;
+        }
+        DeleteFileW(final_path.c_str());
+    }
+    const Status status = download_checked(manifest.url, manifest.size, manifest.sha256,
+                                           final_path + L".part", final_path, progress, cancel);
+    if (status == Status::kOk) *path = final_path;
+    return status;
+}
+
+GlossaryCheckResult check_glossaries() {
+    GlossaryCheckResult result;
+    bool test = false;
+    const std::string base = release_base(&test);
+    const std::string prefix = test ? base : std::string(kDownloadPrefix);
+    std::string manifest_text;
+    std::string signature;
+    result.status = fetch(prefix + kGlossaryReleasePath + "glossary.json", kManifestLimit,
+                          &manifest_text);
+    if (result.status == Status::kOk) {
+        result.status = fetch(prefix + kGlossaryReleasePath + "glossary.json.sig",
+                              kSignatureLimit, &signature);
+    }
+    if (result.status != Status::kOk) return result;
+    if (!verify_signature(manifest_text, trim(signature), builtin_public_key()) ||
+        !parse_glossary_manifest(manifest_text, prefix, &result.packs)) {
+        result.status = Status::kInvalid;
+    }
+    return result;
+}
+
+Status download_glossary(const GlossaryPack& pack, const std::wstring& path,
+                         const Progress& progress, const std::atomic<bool>* cancel) {
+    const std::wstring directory = path.substr(0, path.find_last_of(L'\\'));
+    CreateDirectoryW(directory.c_str(), nullptr);
+    return download_checked(pack.url, pack.size, pack.sha256, path + L".part", path, progress,
+                            cancel);
 }
 
 bool launch_installer(const std::wstring& path, const std::string& sha256, HWND owner,

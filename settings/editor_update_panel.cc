@@ -78,33 +78,37 @@ HWND make_text(const wchar_t* text, int x, int y, int width, int height, HWND pa
 
 void EditorApp::create_update_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
-    int y = kPanelPadTop;
-    hUpdateNotify_ = make_check(kUpdateNotifyId, tr("update.notify"), x0, y, S(460), panel);
+    int y = card_begin(panel, kPanelPadTop, tr("update.card"));
+    hUpdateNotify_ = make_check(kUpdateNotifyId, tr("update.notify"), x0, y, S(480), panel);
     y += kRowH;
-    make_hint(tr("update.notify_hint"), x0 + S(20), y - S(6), S(440), panel);
-    y += kRowH + S(8);
-    make_text(format(tr("update.current"), {CXXIME_VERSION_WSTRING}).c_str(), x0, y, S(460),
+    make_hint(tr("update.notify_hint"), x0 + S(20), y - S(6), S(460), panel);
+    y += S(40);
+    make_text(format(tr("update.current"), {CXXIME_VERSION_WSTRING}).c_str(), x0, y, S(480),
               kCtrlH, panel);
     y += kRowH;
     hCheckUpdate_ = make_button(kCheckUpdateId, tr("update.check"), x0, y, S(120), panel);
-    hUpdateStatus_ = make_text(L"", x0 + S(132), y + S(4), S(330), S(40), panel);
-    y += S(42);
-    hNewVersion_ = make_text(L"", x0, y, S(300), kCtrlH, panel);
-    hReleaseLink_ = make_web_link(kReleaseLinkId, tr("update.view_release"), x0 + S(300), y,
+    hUpdateStatus_ = make_text(L"", x0 + S(132), y + S(5), S(360), S(40), panel);
+    y = card_end(panel, y + S(46));  // the status may take two lines
+
+    y = card_begin(panel, y, nullptr);
+    hNewVersion_ = make_text(L"", x0, y, S(320), kCtrlH, panel);
+    hReleaseLink_ = make_web_link(kReleaseLinkId, tr("update.view_release"), x0 + S(320), y,
                                   S(160), panel);
-    y += S(28);
+    y += S(30);
     hReleaseNotes_ = CreateWindowExW(
         WS_EX_CLIENTEDGE, L"EDIT", L"",
         WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL, x0, y,
-        S(456), S(76), panel, nullptr, GetModuleHandle(nullptr), nullptr);
+        S(480), S(84), panel, nullptr, GetModuleHandle(nullptr), nullptr);
     SendMessageW(hReleaseNotes_, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
-    y += S(84);
+    y += S(94);
     hInstallUpdate_ = make_button(kInstallUpdateId, tr("update.install"), x0, y, S(120), panel);
+    set_button_primary(hInstallUpdate_, true);
     hUpdateProgress_ = CreateWindowExW(0, PROGRESS_CLASSW, nullptr, WS_CHILD, x0 + S(132),
-                                       y + S(6), S(324), S(16), panel, nullptr,
+                                       y + S(7), S(348), S(16), panel, nullptr,
                                        GetModuleHandle(nullptr), nullptr);
     SendMessageW(hUpdateProgress_, PBM_SETRANGE32, 0, 1000);
-    hInstallHint_ = make_hint(tr("update.install_hint"), x0 + S(132), y + S(5), S(324), panel, 1);
+    hInstallHint_ = make_hint(tr("update.install_hint"), x0 + S(132), y + S(6), S(348), panel, 1);
+    card_end(panel, y + S(30));
     show_update_state();
 }
 
@@ -116,6 +120,7 @@ void EditorApp::show_update_state() {
     for (HWND control : {hNewVersion_, hReleaseLink_, hReleaseNotes_, hInstallUpdate_}) {
         ShowWindow(control, have_update_ ? SW_SHOW : SW_HIDE);
     }
+    set_card_visible(hPanels_[kUpdatePanel], 1, have_update_);  // the new version
     ShowWindow(hInstallHint_, have_update_ && !downloading ? SW_SHOW : SW_HIDE);
     ShowWindow(hUpdateProgress_, have_update_ && downloading ? SW_SHOW : SW_HIDE);
     SetWindowTextW(hInstallUpdate_, downloading ? tr("update.cancel") : tr("update.install"));

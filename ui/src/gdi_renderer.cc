@@ -152,6 +152,10 @@ void GdiRenderer::initialize(HWND hwnd, const Theme& theme, UINT dpi) {
                             0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
                             OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                             DEFAULT_PITCH | FF_DONTCARE, theme.font_name.c_str());
+    gloss_font_ = CreateFontW(-MulDiv(gloss_font_point(theme.font_size), dpi, 72),
+                              0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                              OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                              DEFAULT_PITCH | FF_DONTCARE, theme.font_name.c_str());
 }
 
 void GdiRenderer::render(HDC hdc, const RECT& clip, const RenderContext& ctx) {
@@ -291,15 +295,13 @@ void GdiRenderer::render(HDC hdc, const RECT& clip, const RenderContext& ctx) {
                     const_cast<RECT*>(&cr.comment_rect),
                     DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
         }
-        if (cr.learned) {
-            const RECT dot = learned_mark_rect(cr.text_rect);
-            HBRUSH brush = CreateSolidBrush(hl ? hl_text_color_ : comment_color_);
-            HBRUSH ob = (HBRUSH)SelectObject(target_dc, brush);
-            HPEN op = (HPEN)SelectObject(target_dc, GetStockObject(NULL_PEN));
-            Ellipse(target_dc, dot.left, dot.top, dot.right + 1, dot.bottom + 1);
-            SelectObject(target_dc, op);
-            SelectObject(target_dc, ob);
-            DeleteObject(brush);
+        if (!cr.gloss.empty() && gloss_font_) {
+            HFONT row_font = (HFONT)SelectObject(target_dc, gloss_font_);
+            SetTextColor(target_dc, hl ? hl_text_color_ : comment_color_);
+            DrawTextW(target_dc, to_wstr(cr.gloss).c_str(), -1,
+                      const_cast<RECT*>(&cr.gloss_rect),
+                      DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+            SelectObject(target_dc, row_font);
         }
     }
 
@@ -359,6 +361,7 @@ void GdiRenderer::finalize() {
     if (hfont_)        { DeleteObject(hfont_); hfont_ = nullptr; }
     if (preedit_font_) { DeleteObject(preedit_font_); preedit_font_ = nullptr; }
     if (nav_font_)     { DeleteObject(nav_font_); nav_font_ = nullptr; }
+    if (gloss_font_)   { DeleteObject(gloss_font_); gloss_font_ = nullptr; }
     if (bg_brush_)     { DeleteObject(bg_brush_); bg_brush_ = nullptr; }
     if (hl_brush_)     { DeleteObject(hl_brush_); hl_brush_ = nullptr; }
     if (hover_brush_)  { DeleteObject(hover_brush_); hover_brush_ = nullptr; }

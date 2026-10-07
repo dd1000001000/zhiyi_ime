@@ -17,9 +17,12 @@ namespace {
 
 constexpr int kProjectLinkId = 5002;
 constexpr int kUpstreamLinkId = 5003;
+constexpr int kGlossaryLinkId = 5006;
 constexpr UINT kCopyLinkCommand = 1;
 constexpr wchar_t kProjectUrl[] = L"https://github.com/dd1000001000/zhiyi_ime";
 constexpr wchar_t kUpstreamUrl[] = L"https://github.com/deanxyuan/cxx-ime";
+// The learning-mode word lists, open to corrections.
+constexpr wchar_t kGlossaryUrl[] = L"https://github.com/dd1000001000/zhiyi-glossary";
 
 const wchar_t* about_link_url(UINT_PTR control_id) {
     switch (control_id) {
@@ -27,6 +30,8 @@ const wchar_t* about_link_url(UINT_PTR control_id) {
         return kProjectUrl;
     case kUpstreamLinkId:
         return kUpstreamUrl;
+    case kGlossaryLinkId:
+        return kGlossaryUrl;
     case kPrivacyDocLinkId:
         return tr("privacy.doc_url");  // the document in the UI language
     case kReleaseLinkId:
@@ -73,8 +78,7 @@ LRESULT CALLBACK AboutLinkProc(HWND window, UINT message, WPARAM wparam, LPARAM 
 } // namespace
 
 void EditorApp::create_about_panel(HWND panel, int panel_width) {
-    const int top = kPanelPadTop;
-    const int width = panel_width - kPanelPadLeft - S(8);
+    const int width = panel_width - kPanelPadLeft * 2;
     hAboutTitleFont_ = CreateFontW(-S(kFontPt + 2), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                    DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                    CLEARTYPE_QUALITY, 0, L"Microsoft YaHei UI");
@@ -95,15 +99,22 @@ void EditorApp::create_about_panel(HWND panel, int panel_width) {
         SetWindowSubclass(link, AboutLinkProc, id, 0);
     };
 
-    hAboutTitle_ = make_text(tr("app.name"), top, S(28), hAboutTitleFont_);
+    int top = card_begin(panel, kPanelPadTop, nullptr);
+    hAboutTitle_ = make_text(tr("app.name"), top, S(30), hAboutTitleFont_);
     make_text(std::wstring(tr("about.version")) + L" " CXXIME_VERSION_WSTRING L" · GPL-3.0",
               top + kRowH, kCtrlH, get_font());
     make_text(tr("about.tagline"), top + kRowH * 2, kCtrlH, get_font());
+    top = card_end(panel, top + kRowH * 3 - S(6));
+
     // Label and link on separate lines, so long labels in any language fit.
-    make_text(tr("about.project"), top + kRowH * 3, kCtrlH, get_font());
-    make_link(kProjectLinkId, kProjectUrl, top + kRowH * 4 - S(6));
-    make_text(tr("about.based_on"), top + kRowH * 5, kCtrlH, get_font());
-    make_link(kUpstreamLinkId, kUpstreamUrl, top + kRowH * 6 - S(6));
+    top = card_begin(panel, top, tr("about.card_links"));
+    make_text(tr("about.project"), top, kCtrlH, get_font());
+    make_link(kProjectLinkId, kProjectUrl, top + kRowH - S(6));
+    make_text(tr("about.based_on"), top + kRowH * 2, kCtrlH, get_font());
+    make_link(kUpstreamLinkId, kUpstreamUrl, top + kRowH * 3 - S(6));
+    make_text(tr("about.glossary"), top + kRowH * 4, kCtrlH, get_font());
+    make_link(kGlossaryLinkId, kGlossaryUrl, top + kRowH * 5 - S(6));
+    card_end(panel, top + kRowH * 6 - S(10));
 }
 
 HWND make_web_link(int id, const wchar_t* text, int x, int y, int width, HWND parent) {

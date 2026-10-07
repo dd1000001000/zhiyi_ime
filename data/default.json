@@ -24,7 +24,7 @@
     "style": {
         "font_face": "Microsoft YaHei UI",
         "font_point": 14,
-        "layout": "horizontal",
+        "layout": "vertical",
         "render_backend": "d2d",
         "candidate_count": 7,
         "inline_preedit": true,
@@ -39,6 +39,7 @@
         "margin_y": 12,
         "spacing": 10,
         "candidate_spacing": 11,
+        "row_spacing": 4,
         "hilite_spacing": 4,
         "hilite_padding_x": 5,
         "hilite_padding_y": 2,
@@ -71,6 +72,10 @@
     },
     "update": {
         "notify": true
+    },
+    "learning": {
+        "chinese_target": "",
+        "english_target": ""
     },
     "theme": "moon_light",
     "ui": {

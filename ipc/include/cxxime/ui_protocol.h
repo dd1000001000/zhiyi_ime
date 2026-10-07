@@ -76,6 +76,12 @@ struct UiCandidateComment {
     char text[kCandidateCommentCapacity] = {};
 };
 
+// The learning mode translation of a candidate (encoded senses, candidate_presentation.h).
+struct UiCandidateGloss {
+    std::uint32_t length = 0;
+    char text[kCandidateGlossCapacity] = {};
+};
+
 struct UiCandidatePage {
     std::uint32_t count = 0;
     std::uint32_t offset = 0;
@@ -119,8 +125,9 @@ struct UiPresentationSnapshot {
     // Full candidate hints; candidate_page.candidates[i].hint keeps the first 4 bytes for older
     // receivers.
     UiCandidateComment candidate_comments[kCandidateCapacity] = {};
-    // Bit i: candidate_page.candidates[i] was learned from the user's selections (dot mark).
+    // Bit i: candidate_page.candidates[i] was learned from the user's selections.
     std::uint32_t candidate_learned_mask = 0;
+    UiCandidateGloss candidate_glosses[kCandidateCapacity] = {};
 };
 
 enum class UiCommandType : std::uint32_t {

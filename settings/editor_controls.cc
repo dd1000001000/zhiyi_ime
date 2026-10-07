@@ -2,11 +2,58 @@
 
 #include "editor_app_internal.h"
 
+#include "i18n.h"
+
 #include <algorithm>
 #include <cwchar>
+#include <map>
+#include <string>
+#include <vector>
 
 namespace cxxime {
 namespace settings {
+namespace {
+
+struct Card {
+    RECT rect;
+    std::wstring title;
+    bool visible = true;
+};
+struct OpenCard {
+    int top = 0;
+    std::wstring title;
+};
+std::map<HWND, std::vector<Card>> g_cards;
+std::map<HWND, OpenCard> g_open_cards;
+
+HFONT g_title_font = nullptr;
+HFONT g_small_font = nullptr;
+std::map<int, HFONT> g_icon_fonts;
+
+int card_radius() { return S(8); }
+int card_pad_top() { return S(12); }
+int card_title_height() { return S(30); }
+int card_pad_bottom() { return S(10); }
+int card_gap() { return S(12); }
+
+bool font_installed(const wchar_t* face) {
+    LOGFONTW query = {};
+    query.lfCharSet = DEFAULT_CHARSET;
+    wcscpy_s(query.lfFaceName, face);
+    bool found = false;
+    HDC dc = GetDC(nullptr);
+    EnumFontFamiliesExW(
+        dc, &query,
+        [](const LOGFONTW*, const TEXTMETRICW*, DWORD, LPARAM found_flag) -> int {
+            *reinterpret_cast<bool*>(found_flag) = true;
+            return 0;
+        },
+        reinterpret_cast<LPARAM>(&found), 0);
+    ReleaseDC(nullptr, dc);
+    return found;
+}
+
+}  // namespace
 
 float g_dpi = 1.0f;
 HFONT g_hFont = nullptr;
@@ -23,13 +70,13 @@ int kCtlX = 0;
 int S(int value) { return static_cast<int>(value * g_dpi + 0.5f); }
 
 void init_layout() {
-    kListW = S(150);
-    kPadX = S(162);
+    kListW = S(176);
+    kPadX = S(192);
     kPadY = S(16);
     kCtrlH = S(kFontPt + 14);
     kRowH = S(kFontPt + 20);
-    kPanelPadTop = S(8);
-    kPanelPadLeft = S(8);
+    kPanelPadTop = 0;
+    kPanelPadLeft = S(20);  // inside a card
     kLblW = S(110);
     kCtlX = kPanelPadLeft + kLblW + S(8);
 }
@@ -41,6 +88,103 @@ HFONT get_font() {
                               L"Microsoft YaHei UI");
     }
     return g_hFont;
+}
+
+HFONT get_title_font() {
+    if (!g_title_font) {
+        g_title_font = CreateFontW(-S(kFontPt + 1), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                   CLEARTYPE_QUALITY, 0, L"Microsoft YaHei UI");
+    }
+    return g_title_font;
+}
+
+HFONT get_small_font() {
+    if (!g_small_font) {
+        g_small_font = CreateFontW(-S(kFontPt - 2), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                   CLEARTYPE_QUALITY, 0, L"Microsoft YaHei UI");
+    }
+    return g_small_font;
+}
+
+HFONT get_icon_font(int point) {
+    HFONT& font = g_icon_fonts[point];
+    if (!font) {
+        static const wchar_t* const face =
+            font_installed(L"Segoe Fluent Icons") ? L"Segoe Fluent Icons" : L"Segoe MDL2 Assets";
+        font = CreateFontW(-S(point), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                           OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, 0, face);
+    }
+    return font;
+}
+
+void release_shared_fonts() {
+    for (HFONT* font : {&g_hFont, &g_title_font, &g_small_font}) {
+        if (*font) {
+            DeleteObject(*font);
+            *font = nullptr;
+        }
+    }
+    for (auto& [point, font] : g_icon_fonts) {
+        if (font) DeleteObject(font);
+    }
+    g_icon_fonts.clear();
+}
+
+int card_begin(HWND panel, int top, const wchar_t* title) {
+    g_open_cards[panel] = {top, title ? title : L""};
+    return top + card_pad_top() + (title && *title ? card_title_height() : S(4));
+}
+
+int card_end(HWND panel, int content_bottom) {
+    const OpenCard open = g_open_cards[panel];
+    g_open_cards.erase(panel);
+    RECT client = {};
+    GetClientRect(panel, &client);
+    const int bottom = content_bottom + card_pad_bottom();
+    g_cards[panel].push_back({{0, open.top, client.right, bottom}, open.title});
+    return bottom + card_gap();
+}
+
+void clear_cards() {
+    g_cards.clear();
+    g_open_cards.clear();
+}
+
+void set_card_visible(HWND panel, int index, bool visible) {
+    auto found = g_cards.find(panel);
+    if (found == g_cards.end() || index < 0 || index >= static_cast<int>(found->second.size()) ||
+        found->second[index].visible == visible) {
+        return;
+    }
+    found->second[index].visible = visible;
+    InvalidateRect(panel, &found->second[index].rect, TRUE);
+}
+
+void paint_panel(HWND panel, HDC dc) {
+    RECT client = {};
+    GetClientRect(panel, &client);
+    FillRect(dc, &client, window_brush());
+    const UiColors& colors = ui_colors();
+    const auto found = g_cards.find(panel);
+    if (found == g_cards.end()) return;
+    HGDIOBJ old_font = SelectObject(dc, get_title_font());
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, colors.text);
+    for (const Card& card : found->second) {
+        if (!card.visible) continue;
+        RECT rect = card.rect;
+        rect.right -= 1;  // the outline inside the page
+        fill_round_rect(dc, rect, card_radius(), colors.card, colors.border);
+        if (!card.title.empty()) {
+            RECT title = {rect.left + kPanelPadLeft, rect.top + card_pad_top(),
+                          rect.right - kPanelPadLeft, rect.top + card_pad_top() + card_title_height()};
+            DrawTextW(dc, card.title.c_str(), -1, &title,
+                      DT_SINGLELINE | DT_TOP | DT_LEFT | DT_NOPREFIX | DT_END_ELLIPSIS);
+        }
+    }
+    SelectObject(dc, old_font);
 }
 
 int make_label(const wchar_t* text, int x, int y, HWND parent) {
@@ -58,28 +202,51 @@ int make_label(const wchar_t* text, int x, int y, HWND parent) {
     return x + width + S(8);
 }
 
+int label_width(std::initializer_list<const char*> keys) {
+    HDC dc = GetDC(nullptr);
+    HGDIOBJ old_font = SelectObject(dc, get_font());
+    int width = 0;
+    for (const char* key : keys) {
+        const wchar_t* text = tr(key);
+        SIZE size = {};
+        GetTextExtentPoint32W(dc, text, static_cast<int>(wcslen(text)), &size);
+        width = (std::max)(width, static_cast<int>(size.cx));
+    }
+    SelectObject(dc, old_font);
+    ReleaseDC(nullptr, dc);
+    return width + S(8);
+}
+
+// Labels are centered on the row, like the text of the control next to them.
 void make_aligned_label(const wchar_t* text, int y, HWND parent) {
-    HWND control =
-        CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_RIGHT, kPanelPadLeft, y,
-                        kLblW, kCtrlH, parent, nullptr, GetModuleHandle(nullptr), nullptr);
+    HWND control = CreateWindowExW(0, L"STATIC", text,
+                                   WS_CHILD | WS_VISIBLE | SS_RIGHT | SS_CENTERIMAGE,
+                                   kPanelPadLeft, y, kLblW, kCtrlH, parent, nullptr,
+                                   GetModuleHandle(nullptr), nullptr);
     SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
 }
 
 int make_aligned_label(const wchar_t* text, int x, int width, int y, HWND parent) {
-    HWND control =
-        CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_RIGHT, x, y, width, kCtrlH,
-                        parent, nullptr, GetModuleHandle(nullptr), nullptr);
+    HWND control = CreateWindowExW(0, L"STATIC", text,
+                                   WS_CHILD | WS_VISIBLE | SS_RIGHT | SS_CENTERIMAGE, x, y, width,
+                                   kCtrlH, parent, nullptr, GetModuleHandle(nullptr), nullptr);
     SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
     return x + width + S(8);
 }
 
-HWND make_button(int id, const wchar_t* text, int x, int y, int width, HWND parent) {
-    HWND control = CreateWindowExW(0, L"BUTTON", text, WS_CHILD | WS_VISIBLE | WS_TABSTOP, x, y,
-                                   width, S(28), parent,
-                                   reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
+HWND make_page_button(int id, const wchar_t* text, int x, int y, int width, int height,
+                      HWND parent) {
+    HWND control = CreateWindowExW(0, L"BUTTON", text,
+                                   WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, x, y, width,
+                                   height, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
                                    GetModuleHandle(nullptr), nullptr);
     SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
+    enable_button_hover(control);
     return control;
+}
+
+HWND make_button(int id, const wchar_t* text, int x, int y, int width, HWND parent) {
+    return make_page_button(id, text, x, y, width, S(30), parent);
 }
 
 HWND make_edit(int id, int x, int y, int width, HWND parent) {
@@ -226,9 +393,21 @@ LRESULT CALLBACK PanelForwardProc(HWND window, UINT message, WPARAM wparam, LPAR
     if (message == WM_NOTIFY) {  // the result matters for custom drawing
         return SendMessageW(reinterpret_cast<HWND>(reference_data), WM_NOTIFY, wparam, lparam);
     }
-    if (message == WM_DRAWITEM || message == WM_CTLCOLORSTATIC || message == WM_CTLCOLORBTN ||
-        message == WM_CTLCOLOREDIT || message == WM_CTLCOLORLISTBOX) {
+    if (message == WM_DRAWITEM || message == WM_MEASUREITEM || message == WM_CTLCOLORSTATIC ||
+        message == WM_CTLCOLORBTN || message == WM_CTLCOLOREDIT || message == WM_CTLCOLORLISTBOX) {
         return SendMessageW(reinterpret_cast<HWND>(reference_data), message, wparam, lparam);
+    }
+    // The page draws its cards; themed check boxes ask for this background too.
+    if (message == WM_ERASEBKGND || message == WM_PRINTCLIENT) {
+        paint_panel(window, reinterpret_cast<HDC>(wparam));
+        return 1;
+    }
+    if (message == WM_PAINT) {
+        PAINTSTRUCT paint;
+        HDC dc = BeginPaint(window, &paint);
+        paint_panel(window, dc);
+        EndPaint(window, &paint);
+        return 0;
     }
     if (message == WM_NCDESTROY) {
         RemoveWindowSubclass(window, PanelForwardProc, subclass_id);

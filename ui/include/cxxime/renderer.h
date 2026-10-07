@@ -49,6 +49,8 @@ private:
     IDWriteTextFormat* fmt_right_ = nullptr;
     IDWriteTextFormat* fmt_preedit_ = nullptr;
     IDWriteTextFormat* fmt_small_ = nullptr;
+    IDWriteTextFormat* fmt_gloss_ = nullptr;      // learning mode translations, cut with "…"
+    IDWriteInlineObject* gloss_ellipsis_ = nullptr;
 };
 
 } // namespace cxxime

@@ -40,6 +40,8 @@ enum ControlId {
     kLanguageId,
     kPageSizeId,
     kEnglishCorrectionId,
+    kVerticalId,
+    kHorizontalId,
     kSwitchKeyId = 1101,
     kStyleKeyId,
     kPunctKeyId,
@@ -71,23 +73,6 @@ constexpr int kFontLarge = 17;
 constexpr int kMinPageSize = 3;
 constexpr int kMaxPageSize = 10;
 
-
-// Width of the right-aligned label column: the widest label of the page (labels differ in
-// length between languages).
-int label_width(std::initializer_list<const char*> keys) {
-    HDC dc = GetDC(nullptr);
-    HGDIOBJ old_font = SelectObject(dc, get_font());
-    int width = 0;
-    for (const char* key : keys) {
-        const wchar_t* text = tr(key);
-        SIZE size = {};
-        GetTextExtentPoint32W(dc, text, static_cast<int>(wcslen(text)), &size);
-        width = (std::max)(width, static_cast<int>(size.cx));
-    }
-    SelectObject(dc, old_font);
-    ReleaseDC(nullptr, dc);
-    return width + S(8);
-}
 
 bool switch_action_enabled(const Config& config, const char* key) {
     const auto found = config.ascii_switch_key.find(key);
@@ -159,9 +144,9 @@ HWND EditorApp::make_hint(const wchar_t* text, int x, int y, int width, HWND par
 void EditorApp::create_general_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     const int labels = label_width({"general.chinese_input", "general.pinyin_style",
-                                    "general.theme", "general.font_size", "general.page_size",
-                                    "general.language", "general.english"});
-    int y = kPanelPadTop;
+                                    "general.theme", "general.font_size", "general.layout",
+                                    "general.page_size", "general.language", "general.english"});
+    int y = card_begin(panel, kPanelPadTop, tr("general.card_input"));
     const int option_width = S(110);
     auto radios = [&](const char* label, std::initializer_list<std::pair<int, const char*>> items,
                       std::initializer_list<HWND*> handles) {
@@ -183,14 +168,27 @@ void EditorApp::create_general_panel(HWND panel) {
     const int x = radios("general.pinyin_style",
                          {{kFullPinyinId, "general.full_pinyin"}, {kInitialsId, "general.initials"}},
                          {&hFullPinyin_, &hInitials_});
-    make_hint(tr("general.pinyin_style_hint"), x, y - S(6), S(380), panel);
-    y += kRowH + S(8);
+    make_hint(tr("general.pinyin_style_hint"), x, y - S(6), S(400), panel);
+    y += S(40);
+    const int english_x = make_aligned_label(tr("general.english"), x0, labels, y, panel);
+    hEnglishCorrection_ = make_check(kEnglishCorrectionId, tr("general.english_correction"),
+                                     english_x, y, S(300), panel);
+    y += kRowH;
+    make_hint(tr("general.english_correction_hint"), english_x, y - S(6), S(400), panel, 1);
+    y = card_end(panel, y + S(14));
+
+    y = card_begin(panel, y, tr("general.card_appearance"));
     radios("general.theme", {{kLightId, "general.light"}, {kDarkId, "general.dark"}},
            {&hLight_, &hDark_});
     radios("general.font_size",
            {{kFontSmallId, "general.small"}, {kFontMediumId, "general.medium"},
             {kFontLargeId, "general.large"}},
            {&hFontSmall_, &hFontMedium_, &hFontLarge_});
+    const int layout_x = radios(
+        "general.layout", {{kVerticalId, "general.vertical"}, {kHorizontalId, "general.horizontal"}},
+        {&hVertical_, &hHorizontal_});
+    make_hint(tr("general.layout_hint"), layout_x, y - S(6), S(400), panel, 1);
+    y += S(20);
 
     const int page_x = make_aligned_label(tr("general.page_size"), x0, labels, y, panel);
     hPageSize_ = make_combo(kPageSizeId, page_x, y, S(80), panel);
@@ -207,17 +205,12 @@ void EditorApp::create_general_panel(HWND panel) {
         combo_add(hLanguage_, language.name.c_str());
     }
     y += kRowH;
-
-    const int english_x = make_aligned_label(tr("general.english"), x0, labels, y, panel);
-    hEnglishCorrection_ = make_check(kEnglishCorrectionId, tr("general.english_correction"),
-                                     english_x, y, S(300), panel);
-    y += kRowH;
-    make_hint(tr("general.english_correction_hint"), english_x, y - S(6), S(380), panel);
+    card_end(panel, y - S(6));
 }
 
 void EditorApp::create_fuzzy_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
-    int y = kPanelPadTop;
+    int y = card_begin(panel, kPanelPadTop, tr("nav.fuzzy"));
     hFuzzyEnabled_ = make_check(kFuzzyEnabledId, tr("fuzzy.enable"), x0, y, S(400), panel);
     y += kRowH + S(4);
 
@@ -234,12 +227,13 @@ void EditorApp::create_fuzzy_panel(HWND panel) {
                                       column_width - S(10), panel);
     }
     y += kFuzzyInitialCount * kRowH + S(6);
-    make_hint(tr("fuzzy.hint"), x0, y, S(460), panel);
+    make_hint(tr("fuzzy.hint"), x0, y, S(500), panel);
+    card_end(panel, y + S(40));
 }
 
 void EditorApp::create_keys_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
-    int y = kPanelPadTop;
+    int y = card_begin(panel, kPanelPadTop, tr("keys.card"));
     const int labels = label_width({"keys.switch", "keys.style", "keys.punct", "keys.shape"});
     const int box_width = S(340);
     struct Row {
@@ -282,20 +276,21 @@ void EditorApp::create_keys_panel(HWND panel) {
             return std::wstring{};
         });
     }
-    y += S(8);
-    make_hint(tr("keys.capture_hint"), x0, y, S(460), panel);
-    y += kRowH + S(8);
+    make_hint(tr("keys.capture_hint"), x0, y - S(4), S(500), panel);
+    y += S(40);
     make_button(kRestoreKeysId, tr("keys.restore"), x0, y, S(160), panel);
+    card_end(panel, y + S(30));
 }
 
 void EditorApp::create_dictionary_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
-    int y = kPanelPadTop;
+    int y = card_begin(panel, kPanelPadTop, tr("dictionary.card"));
     hLearning_ = make_check(kLearningId, tr("dictionary.learning"), x0, y, S(400), panel);
     y += kRowH;
-    make_hint(tr("dictionary.learning_hint"), x0 + S(20), y - S(6), S(420), panel);
-    y += kRowH + S(8);
+    make_hint(tr("dictionary.learning_hint"), x0 + S(20), y - S(6), S(440), panel);
+    y += S(40);
     make_button(kClearLearningId, tr("dictionary.clear"), x0, y, S(160), panel);
+    card_end(panel, y + S(30));
 }
 
 // Two tiers (cxxime/experience_log.h, docs/privacy.md): input collection needs the
@@ -303,23 +298,27 @@ void EditorApp::create_dictionary_panel(HWND panel) {
 // the program unchecks it. Revoking keeps the logs; "Delete all records" removes both tiers'.
 void EditorApp::create_privacy_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
-    int y = kPanelPadTop;
-    hExperience_ = make_check(kExperienceId, tr("privacy.experience"), x0, y, S(460), panel);
+    int y = card_begin(panel, kPanelPadTop, tr("privacy.card_program"));
+    hExperience_ = make_check(kExperienceId, tr("privacy.experience"), x0, y, S(480), panel);
     y += kRowH;
-    make_hint(tr("privacy.what"), x0 + S(20), y - S(6), S(460), panel);
-    y += kRowH + S(8);
+    make_hint(tr("privacy.what"), x0 + S(20), y - S(6), S(480), panel);
+    y += S(40);
     hCollectInput_ =
-        make_check(kCollectInputId, tr("privacy.collect_input"), x0, y, S(460), panel);
+        make_check(kCollectInputId, tr("privacy.collect_input"), x0, y, S(480), panel);
     y += kRowH;
-    make_hint(tr("privacy.input_what"), x0 + S(20), y - S(6), S(460), panel);
-    y += kRowH + S(8);
-    make_hint(tr("privacy.local"), x0, y - S(6), S(480), panel, 1);
-    y += S(kFontPt + 10);
+    make_hint(tr("privacy.input_what"), x0 + S(20), y - S(6), S(480), panel);
+    y += S(34);
+    y = card_end(panel, y);
+
+    y = card_begin(panel, y, tr("privacy.card_records"));
+    make_hint(tr("privacy.local"), x0, y, S(500), panel, 1);
+    y += S(kFontPt + 12);
     // The full list of what each tier records (docs/privacy*.md on GitHub).
     make_web_link(kPrivacyDocLinkId, tr("privacy.doc_link"), x0, y, S(300), panel);
-    y += kRowH + S(8);
+    y += kRowH + S(4);
     make_button(kOpenLogsId, tr("privacy.open_logs"), x0, y, S(160), panel);
     make_button(kDeleteLogsId, tr("privacy.delete_logs"), x0 + S(172), y, S(160), panel);
+    card_end(panel, y + S(30));
 }
 
 void EditorApp::on_privacy_check(int control_id) {
@@ -364,6 +363,8 @@ void EditorApp::populate_controls() {
     set_check(hFontSmall_, font <= kFontSmall);
     set_check(hFontMedium_, font > kFontSmall && font < kFontLarge);
     set_check(hFontLarge_, font >= kFontLarge);
+    set_check(hVertical_, config_.layout != "horizontal");
+    set_check(hHorizontal_, config_.layout == "horizontal");
 
     combo_set_index(hPageSize_,
                     std::clamp(config_.page_size, kMinPageSize, kMaxPageSize) - kMinPageSize);
@@ -387,6 +388,7 @@ void EditorApp::populate_controls() {
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
         set_check(hFuzzyGroups_[i], (config_.fuzzy_groups & (1 << i)) != 0);
     }
+    populate_learning();
     update_enabled_controls();
 }
 
@@ -398,6 +400,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.font_size = get_check(hFontSmall_) ? kFontSmall
                   : get_check(hFontLarge_) ? kFontLarge
                                            : kFontMedium;
+    c.layout = get_check(hHorizontal_) ? "horizontal" : "vertical";
     c.page_size = std::clamp(combo_index(hPageSize_) + kMinPageSize, kMinPageSize, kMaxPageSize);
     const int language_index = combo_index(hLanguage_);
     c.ui_language = language_index > 0 && language_index <= static_cast<int>(languages_.size())
@@ -409,6 +412,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.experience_program = get_check(hExperience_);
     c.collect_input = c.experience_program && get_check(hCollectInput_);
     c.update_notify = get_check(hUpdateNotify_);
+    read_learning(c);
     c.fuzzy_pinyin = get_check(hFuzzyEnabled_);
     c.fuzzy_groups = 0;
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
@@ -569,7 +573,8 @@ bool EditorApp::handle_command(int control_id, int notification) {
         }
         return true;
     default:
-        return handle_update_command(control_id, notification);
+        return handle_learning_command(control_id, notification) ||
+               handle_update_command(control_id, notification);
     }
 }
 

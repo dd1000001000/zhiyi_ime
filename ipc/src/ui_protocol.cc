@@ -196,6 +196,12 @@ UiPacketParseResult decode_ui_snapshot_packet(const void* data, std::size_t size
     if (header.payload_size < kCommentsPayloadSize) {
         for (auto& comment : parsed.candidate_comments) comment = {};
     }
+    constexpr std::size_t kGlossesPayloadSize =
+        offsetof(UiPresentationSnapshot, candidate_glosses) +
+        sizeof(UiPresentationSnapshot::candidate_glosses);
+    if (header.payload_size < kGlossesPayloadSize) {
+        for (auto& gloss : parsed.candidate_glosses) gloss = {};
+    }
     parsed.candidate_recommended_mask &=
         parsed.candidate_page.count >= 32 ? ~0u : ((1u << parsed.candidate_page.count) - 1u);
     if ((parsed.flags & ~kKnownSnapshotFlags) != 0 || !valid_ownership(parsed.ownership)) {
@@ -307,6 +313,11 @@ bool is_valid_ui_snapshot(const UiPresentationSnapshot& snapshot) {
         const UiCandidateComment& comment = snapshot.candidate_comments[index];
         if (comment.length > static_cast<std::uint32_t>(kCandidateCommentCapacity) ||
             !is_valid_utf8(comment.text, comment.length)) {
+            return false;
+        }
+        const UiCandidateGloss& gloss = snapshot.candidate_glosses[index];
+        if (gloss.length > static_cast<std::uint32_t>(kCandidateGlossCapacity) ||
+            !is_valid_utf8(gloss.text, gloss.length)) {
             return false;
         }
     }

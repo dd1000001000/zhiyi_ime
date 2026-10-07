@@ -40,7 +40,10 @@ struct Candidate {
     std::string input_code;
     // Picked by the Laya model as the best continuation (shown with a sparkle mark).
     bool recommended = false;
-    bool learned = false;  // from the user's own selections (self-learning): a small dot mark
+    bool learned = false;  // from the user's own selections (self-learning)
+    // Learning mode: the translation shown after the candidate (encoded senses,
+    // candidate_presentation.h); set for the candidate window only.
+    std::string gloss;
 };
 
 enum class CandidateExtentState : std::uint32_t {

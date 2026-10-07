@@ -20,6 +20,7 @@ struct LayoutConfig {
     int margin_y = 12;
     int spacing = 10;          // preedit to candidates gap
     int candidate_spacing = 8; // between candidate cells
+    int row_spacing = 4;       // between candidate rows (vertical layout)
     int hilite_spacing = 4;    // inner gap: label↔text
     int hilite_padding_x = 4;  // highlight rect horizontal padding (InflateRect)
     int hilite_padding_y = 2;  // highlight rect vertical padding (InflateRect)
@@ -63,6 +64,14 @@ struct Config {
     // update.notify: the settings program checks GitHub for a new version when it opens and
     // offers to install it (settings/update_page; the Update page can always check by hand).
     bool update_notify = true;
+    // Learning mode (docs/learning-mode.md): the language of the translations shown after
+    // Chinese and English candidates; empty: none. A language pack must be installed.
+    std::string chinese_gloss_target;  // en ja ko fr de es ru
+    std::string english_gloss_target;  // zh ja ko fr de es ru
+    // A "learning" section was read. User configs written before it hold style.layout
+    // "horizontal" without the user having chosen it (there was no setting), so load_user keeps
+    // the default (vertical) for them.
+    bool learning_section_loaded = false;
     bool pinyin_initials = false;     // pinyin style: full pinyin (false) or initials (true)
     // Fuzzy pinyin: master switch and the enabled pairs (FuzzyGroup bits, spellings_index.h).
     bool fuzzy_pinyin = false;
@@ -75,7 +84,7 @@ struct Config {
     // style
     std::string font_name = "Microsoft YaHei UI";
     int font_size = 14;
-    std::string layout = "horizontal";  // horizontal | vertical
+    std::string layout = "vertical";  // vertical | horizontal (no translations)
     std::string render_backend = "d2d";  // gdi | d2d
     // What is typed is shown in the document, underlined (pinyin with syllable boundaries,
     // the English word being typed). Always on: style.inline_preedit is no longer read, because

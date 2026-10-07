@@ -17,6 +17,7 @@
 #include <commctrl.h>
 
 #include <cxxime/config.h>
+#include <cxxime/glossary.h>
 #include <cxxime/settings_route.h>
 #include <cxxime/update.h>
 
@@ -40,6 +41,7 @@ private:
     void create_fuzzy_panel(HWND panel);
     void create_keys_panel(HWND panel);
     void create_dictionary_panel(HWND panel);
+    void create_learning_panel(HWND panel);
     void create_privacy_panel(HWND panel);
     void open_log_folder();
     void delete_experience_log();
@@ -65,6 +67,7 @@ private:
     // Light or dark window (editor_theme.cc), following the IME theme.
     void apply_ui_theme(bool dark, bool force = false);
     LRESULT control_colors(UINT message, HDC dc, HWND control);
+    bool on_page(HWND control) const;  // on a settings page (a card), not the window itself
     bool draw_choice_button(LPARAM notification, LRESULT* result);
     // Updates (editor_update_panel.cc)
     void init_update();
@@ -78,6 +81,29 @@ private:
     bool handle_update_message(UINT message, WPARAM wparam, LPARAM lparam);
     void update_enabled_controls();
     void clear_learning_data();
+    // Learning (editor_learning_panel.cc)
+    struct PackState;
+    void init_learning();
+    void populate_learning();
+    void read_learning(cxxime::Config& config);
+    void fill_target_combo(HWND combo, const std::string& source, const std::string& selected);
+    std::string combo_target(HWND combo, const std::string& source) const;
+    void refresh_pack(PackState& pack);
+    void show_pack_tab(int tab);
+    void layout_pack_rows();
+    void paint_pack_list(HWND list, HDC dc);
+    void draw_target_item(const DRAWITEMSTRUCT& item);
+    void draw_gloss_preview(const DRAWITEMSTRUCT& item);
+    void start_pack_check(int pack_index);  // -1: every installed pack
+    void on_packs_checked(const update::GlossaryCheckResult& result, int pack_index);
+    void start_pack_download(int pack_index);
+    void on_pack_downloaded(int pack_index, update::Status status, const std::wstring& path);
+    void remove_pack_at(int pack_index);
+    void on_pack_action(int pack_index);
+    bool handle_learning_command(int control_id, int notification);
+    bool handle_learning_message(UINT message, WPARAM wparam, LPARAM lparam);
+    bool handle_learning_item(UINT message, LPARAM lparam);  // WM_MEASUREITEM / WM_DRAWITEM
+    static LRESULT CALLBACK pack_list_proc(HWND, UINT, WPARAM, LPARAM);
     void set_switch_key_boxes(const cxxime::Config& config);
     void update_switch_key_notes();
     void restore_default_keys();
@@ -94,7 +120,7 @@ private:
     HWND make_hint(const wchar_t* text, int x, int y, int width, HWND parent, int lines = 2);
     int panel_ = 0;
     cxxime::SettingsPanel initial_panel_ = cxxime::SettingsPanel::kInput;
-    static constexpr int kPanelCount = 7;
+    static constexpr int kPanelCount = 8;
     HWND hPanels_[kPanelCount] = {};
 
     // General
@@ -102,6 +128,7 @@ private:
     HWND hFullPinyin_ = nullptr, hInitials_ = nullptr;
     HWND hLight_ = nullptr, hDark_ = nullptr;
     HWND hFontSmall_ = nullptr, hFontMedium_ = nullptr, hFontLarge_ = nullptr;
+    HWND hVertical_ = nullptr, hHorizontal_ = nullptr;  // candidate layout
     HWND hPageSize_ = nullptr;
     HWND hLanguage_ = nullptr;
     HWND hEnglishCorrection_ = nullptr;
@@ -119,6 +146,35 @@ private:
 
     // Dictionary
     HWND hLearning_ = nullptr;
+
+    // Learning
+    struct PackState {
+        std::string source;
+        std::string target;
+        bool installed = false;
+        bool builtin = false;  // the installer has it (restored without the network)
+        std::uint32_t version = 0;
+        std::uint32_t entries = 0;
+        std::uint64_t size = 0;
+        enum class Busy { kNone, kChecking, kDownloading } busy = Busy::kNone;
+        std::uint64_t done = 0;
+        std::uint64_t total = 0;
+        bool remote_known = false;  // the server's version below is known
+        update::GlossaryPack remote;
+        std::wstring note;          // last result: up to date, update available, failure
+        bool note_good = false;     // shown in the accent color
+        std::shared_ptr<std::atomic<bool>> cancel;
+    };
+    HWND hChineseTarget_ = nullptr, hEnglishTarget_ = nullptr;
+    HWND hGlossPreview_ = nullptr;
+    HWND hPackTabs_[2] = {};
+    HWND hCheckAllPacks_ = nullptr;
+    HWND hPackList_ = nullptr;
+    std::vector<HWND> hPackActions_;  // one per row: download / cancel / check / update
+    std::vector<HWND> hPackRemoves_;
+    std::vector<PackState> packs_;    // zh -> 7 targets, then en -> 7 targets
+    int pack_tab_ = 0;
+    int last_chinese_target_ = 0, last_english_target_ = 0;  // combo indexes
 
     // Privacy
     HWND hExperience_ = nullptr;

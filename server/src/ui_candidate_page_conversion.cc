@@ -43,6 +43,8 @@ CandidatePage candidate_page_from_snapshot(const UiPresentationSnapshot& snapsho
                           sizeof(source_candidate.hint));
         candidate.recommended = (snapshot.candidate_recommended_mask >> index & 1u) != 0;
         candidate.learned = (snapshot.candidate_learned_mask >> index & 1u) != 0;
+        const UiCandidateGloss& gloss = snapshot.candidate_glosses[index];
+        candidate.gloss = packet_text(gloss.text, gloss.length, sizeof(gloss.text));
         page.candidates.push_back(std::move(candidate));
     }
     return page;

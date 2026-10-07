@@ -94,6 +94,11 @@ GitHub when Settings opens; "Check for updates" downloads it too. This is a plai
 version (User-Agent). The installer is downloaded only after "Update now", and is started only
 after its signature and SHA-256 are verified.
 
+Language packs in Settings > Learning work the same way: the pack list (`glossary.json`) is
+downloaded when Settings opens (with the reminder above on) and on "Check" or "Check all", a pack
+file on "Download" or "Update to vN", and both are used only after their signature and SHA-256
+are verified. Translations are looked up on this computer; nothing you type is sent.
+
 ## Developer diagnostics (not part of this program)
 
 `diagnostics.trace_mode` (default `off`) is a detailed developer trace that records typed codes,

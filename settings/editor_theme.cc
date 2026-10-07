@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cwchar>
+#include <iterator>
 
 #include "editor_app_internal.h"
 
@@ -27,7 +28,47 @@ constexpr DWORD kUseImmersiveDarkModeBefore20H1 = 19;  // Windows 10 1809 - 1909
 
 UiColors g_colors = {};
 HBRUSH g_window_brush = nullptr;
+HBRUSH g_card_brush = nullptr;
 HBRUSH g_control_brush = nullptr;
+
+constexpr wchar_t kPrimaryProp[] = L"ZhiyiPrimaryButton";
+constexpr wchar_t kSelectedProp[] = L"ZhiyiSelectedButton";
+constexpr wchar_t kHoverProp[] = L"ZhiyiButtonHover";
+
+// Hover for the hand-drawn buttons: repaint on enter and leave.
+LRESULT CALLBACK ButtonHoverProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam,
+                                 UINT_PTR subclass_id, DWORD_PTR) {
+    switch (message) {
+    case WM_MOUSEMOVE:
+        if (!GetPropW(window, kHoverProp)) {
+            SetPropW(window, kHoverProp, reinterpret_cast<HANDLE>(1));
+            TRACKMOUSEEVENT track = {sizeof(track), TME_LEAVE, window, 0};
+            TrackMouseEvent(&track);
+            InvalidateRect(window, nullptr, FALSE);
+        }
+        break;
+    case WM_MOUSELEAVE:
+        RemovePropW(window, kHoverProp);
+        InvalidateRect(window, nullptr, FALSE);
+        break;
+    case WM_NCDESTROY:
+        RemovePropW(window, kHoverProp);
+        RemovePropW(window, kPrimaryProp);
+        RemovePropW(window, kSelectedProp);
+        RemoveWindowSubclass(window, ButtonHoverProc, subclass_id);
+        break;
+    }
+    return DefSubclassProc(window, message, wparam, lparam);
+}
+
+COLORREF mix(COLORREF a, COLORREF b, int percent_b) {
+    auto channel = [&](int shift) {
+        const int x = (a >> shift) & 0xFF;
+        const int y = (b >> shift) & 0xFF;
+        return ((x * (100 - percent_b) + y * percent_b) / 100) << shift;
+    };
+    return static_cast<COLORREF>(channel(0) | channel(8) | channel(16));
+}
 
 bool has_class(HWND window, const wchar_t* name) {
     wchar_t class_name[32] = {};
@@ -82,22 +123,33 @@ void set_ui_dark(bool dark) {
                     RGB(32, 32, 32),     // window
                     RGB(240, 240, 240),  // text
                     RGB(160, 160, 160),  // hint
-                    RGB(45, 45, 45),     // control
+                    RGB(51, 51, 51),     // control
                     RGB(110, 170, 255),  // link
-                    RGB(0, 95, 184)};    // selected page
+                    RGB(0, 95, 184),     // accent
+                    RGB(43, 43, 43),     // card
+                    RGB(62, 62, 62),     // border
+                    RGB(45, 60, 82),     // selected page
+                    RGB(153, 203, 255),  // selected page text
+                    RGB(56, 56, 56)};    // button hover
     } else {
         g_colors = {false,
-                    GetSysColor(COLOR_WINDOW),
-                    GetSysColor(COLOR_WINDOWTEXT),
-                    RGB(110, 110, 110),
-                    GetSysColor(COLOR_WINDOW),
-                    RGB(0, 102, 204),
-                    RGB(0, 122, 215)};
+                    RGB(243, 243, 243),  // window
+                    RGB(28, 28, 28),     // text
+                    RGB(110, 110, 110),  // hint
+                    RGB(255, 255, 255),  // control
+                    RGB(0, 102, 204),    // link
+                    RGB(0, 103, 192),    // accent
+                    RGB(255, 255, 255),  // card
+                    RGB(225, 225, 225),  // border
+                    RGB(224, 236, 250),  // selected page
+                    RGB(0, 84, 166),     // selected page text
+                    RGB(242, 242, 242)}; // button hover
     }
-    for (HBRUSH* brush : {&g_window_brush, &g_control_brush}) {
+    for (HBRUSH* brush : {&g_window_brush, &g_card_brush, &g_control_brush}) {
         if (*brush) DeleteObject(*brush);
     }
     g_window_brush = CreateSolidBrush(g_colors.window);
+    g_card_brush = CreateSolidBrush(g_colors.card);
     g_control_brush = CreateSolidBrush(g_colors.control);
 }
 
@@ -105,6 +157,95 @@ HBRUSH window_brush() {
     ui_colors();
     return g_window_brush;
 }
+
+HBRUSH card_brush() {
+    ui_colors();
+    return g_card_brush;
+}
+
+void fill_round_rect(HDC dc, const RECT& rect, int radius, COLORREF fill, COLORREF border) {
+    HBRUSH brush = CreateSolidBrush(fill);
+    HPEN pen = CreatePen(PS_SOLID, 1, border);
+    HGDIOBJ old_brush = SelectObject(dc, brush);
+    HGDIOBJ old_pen = SelectObject(dc, pen);
+    RoundRect(dc, rect.left, rect.top, rect.right, rect.bottom, radius * 2, radius * 2);
+    SelectObject(dc, old_pen);
+    SelectObject(dc, old_brush);
+    DeleteObject(pen);
+    DeleteObject(brush);
+}
+
+void set_button_primary(HWND button, bool primary) {
+    if (primary) {
+        SetPropW(button, kPrimaryProp, reinterpret_cast<HANDLE>(1));
+    } else {
+        RemovePropW(button, kPrimaryProp);
+    }
+    InvalidateRect(button, nullptr, FALSE);
+}
+
+void set_button_selected(HWND button, bool selected) {
+    if (selected) {
+        SetPropW(button, kSelectedProp, reinterpret_cast<HANDLE>(1));
+    } else {
+        RemovePropW(button, kSelectedProp);
+    }
+    InvalidateRect(button, nullptr, FALSE);
+}
+
+void draw_button(const DRAWITEMSTRUCT& item) {
+    const UiColors& colors = ui_colors();
+    const HWND button = item.hwndItem;
+    const HDC dc = item.hDC;
+    RECT rect = item.rcItem;
+    const bool primary = GetPropW(button, kPrimaryProp) != nullptr;
+    const bool selected = GetPropW(button, kSelectedProp) != nullptr;
+    const bool hover = GetPropW(button, kHoverProp) != nullptr;
+    const bool pressed = (item.itemState & ODS_SELECTED) != 0;
+    const bool disabled = (item.itemState & ODS_DISABLED) != 0;
+
+    // The corners show what is behind the button: a card on a page, else the window.
+    const HWND parent = GetParent(button);
+    const bool on_page = parent != GetAncestor(button, GA_ROOT);
+    FillRect(dc, &rect, on_page ? card_brush() : window_brush());
+
+    COLORREF fill = colors.card;
+    COLORREF border = colors.border;
+    COLORREF text = disabled ? colors.hint : colors.text;
+    if (selected) {
+        fill = colors.nav_selected;
+        border = colors.nav_selected;
+        text = colors.nav_selected_text;
+    } else if (primary && !disabled) {
+        fill = pressed ? mix(colors.accent, RGB(0, 0, 0), 15)
+               : hover ? mix(colors.accent, RGB(255, 255, 255), 10)
+                       : colors.accent;
+        border = fill;
+        text = RGB(255, 255, 255);
+    } else {
+        if (!disabled && (hover || pressed)) fill = colors.button_hover;
+        if (pressed) fill = mix(fill, colors.text, 6);
+        border = mix(colors.border, colors.text, colors.dark ? 15 : 10);
+    }
+    if (on_page && !selected && fill == colors.card && !colors.dark) fill = RGB(251, 251, 251);
+    fill_round_rect(dc, rect, S(4), fill, border);
+
+    wchar_t label[128] = {};
+    GetWindowTextW(button, label, 128);
+    HGDIOBJ old_font = SelectObject(dc, reinterpret_cast<HFONT>(SendMessageW(button, WM_GETFONT,
+                                                                             0, 0)));
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, text);
+    DrawTextW(dc, label, -1, &rect, DT_SINGLELINE | DT_VCENTER | DT_CENTER | DT_END_ELLIPSIS);
+    SelectObject(dc, old_font);
+    if ((item.itemState & ODS_FOCUS) != 0 && (item.itemState & ODS_NOFOCUSRECT) == 0) {
+        RECT focus = rect;
+        InflateRect(&focus, -S(3), -S(3));
+        DrawFocusRect(dc, &focus);
+    }
+}
+
+void enable_button_hover(HWND button) { SetWindowSubclass(button, ButtonHoverProc, 1, 0); }
 
 HBRUSH control_brush() {
     ui_colors();
@@ -126,9 +267,16 @@ void EditorApp::apply_ui_theme(bool dark, bool force) {
                  RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW);
 }
 
+bool EditorApp::on_page(HWND control) const {
+    const HWND parent = GetParent(control);
+    return std::find(std::begin(hPanels_), std::end(hPanels_), parent) != std::end(hPanels_);
+}
+
 LRESULT EditorApp::control_colors(UINT message, HDC dc, HWND control) {
     const UiColors& colors = ui_colors();
-    SetBkColor(dc, colors.window);
+    const bool card = on_page(control);
+    const HBRUSH background = card ? card_brush() : window_brush();
+    SetBkColor(dc, card ? colors.card : colors.window);
     if (message == WM_CTLCOLOREDIT || message == WM_CTLCOLORLISTBOX) {
         SetTextColor(dc, colors.text);
         if (control == hList_) return reinterpret_cast<LRESULT>(window_brush());
@@ -150,7 +298,7 @@ LRESULT EditorApp::control_colors(UINT message, HDC dc, HWND control) {
     } else {
         SetTextColor(dc, colors.text);
     }
-    return reinterpret_cast<LRESULT>(window_brush());
+    return reinterpret_cast<LRESULT>(background);
 }
 
 // Dark check boxes and radio buttons: the dark style's box or circle, and the text in the
@@ -168,7 +316,7 @@ bool EditorApp::draw_choice_button(LPARAM notification, LRESULT* result) {
     const HWND button = draw->hdr.hwndFrom;
     const HDC dc = draw->hdc;
     const RECT rect = draw->rc;
-    FillRect(dc, &rect, window_brush());
+    FillRect(dc, &rect, on_page(button) ? card_brush() : window_brush());
 
     const LONG type = GetWindowLongW(button, GWL_STYLE) & BS_TYPEMASK;
     const bool radio = type == BS_RADIOBUTTON || type == BS_AUTORADIOBUTTON;

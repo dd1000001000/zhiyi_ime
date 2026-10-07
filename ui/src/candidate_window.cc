@@ -755,7 +755,7 @@ void CandidateWindow::update(const CandidatePresentationPage& presentation) {
         candidate.text = item.text;
         candidate.comment = item.hint;
         candidate.recommended = item.recommended;
-        candidate.learned = item.learned;
+        candidate.gloss = item.gloss;
         page.candidates.push_back(std::move(candidate));
     }
     update(page);
@@ -817,6 +817,7 @@ void CandidateWindow::update(const CandidatePage& page) {
     scaled_cfg_.margin_y = (int)(scaled_cfg_.margin_y * s);
     scaled_cfg_.spacing = (int)(scaled_cfg_.spacing * s);
     scaled_cfg_.candidate_spacing = (int)(scaled_cfg_.candidate_spacing * s);
+    scaled_cfg_.row_spacing = (int)(scaled_cfg_.row_spacing * s);
     scaled_cfg_.hilite_padding_x = (int)(scaled_cfg_.hilite_padding_x * s);
     scaled_cfg_.hilite_padding_y = (int)(scaled_cfg_.hilite_padding_y * s);
     scaled_cfg_.round_corner = (int)(scaled_cfg_.round_corner * s);
@@ -1050,6 +1051,7 @@ void CandidateWindow::update(const CandidatePage& page) {
             cr.comment_rect.top += preedit_h;     cr.comment_rect.bottom += preedit_h;
             cr.highlight_rect.top += preedit_h;   cr.highlight_rect.bottom += preedit_h;
             cr.mark_rect.top += preedit_h;        cr.mark_rect.bottom += preedit_h;
+            cr.gloss_rect.top += preedit_h;       cr.gloss_rect.bottom += preedit_h;
         }
         int preedit_w = x + cfg.margin_x;
         if (cfg.max_width > 0) {

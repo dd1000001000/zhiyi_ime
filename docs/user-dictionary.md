@@ -178,7 +178,7 @@ struct Entry {
 
 - `record_candidate_preference(candidate, code, receipt)`：记录选中的候选。符号（`kSymbol`）与组合（`kComposed`）候选不记录；相同 text+code 次数加一、权重加一。冻结后拒绝记录。`receipt` 记下这次改动前的状态。
 - `revoke_candidate_preference(receipt)`：撤回上一次记录（条目没被再次改动时）。上屏后紧接着按 Backspace 时引擎调用它：刚上屏就删，说明选错了，这次学习作废（Rime 的 `DiscardSession`）。
-- `apply_candidate_preferences(code, source, candidates, limit)`：翻译结果排序前应用偏好，命中项标记 `learned = true`（候选窗口在词的右下角画一个小点），不在结果里的条目补进来并标记 `origin = kLearned`，不产生重复项。
+- `apply_candidate_preferences(code, source, candidates, limit)`：翻译结果排序前应用偏好，命中项标记 `learned = true`，不在结果里的条目补进来并标记 `origin = kLearned`，不产生重复项。
   命中的条目有两类：按当前输入精确记录的，以及（拼音）音节能被当前输入拼出来的——每个音节打全或只打声母（z / zh）、
   末尾的 儿 打成 r、最后一个音节可以没打完（`pinyin_spelling_match.h` 的 `match_typed_spelling`，不做更长的词的联想）。
   于是在 `xianzai` 下学过的 现在 对 `xz`、`xianz`、`xianza` 都有效；短输入的 Top-N 快速路径同样适用，因为匹配只扫首字母桶里的几十条，不依赖切分。

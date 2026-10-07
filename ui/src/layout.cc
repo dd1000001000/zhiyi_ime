@@ -222,7 +222,6 @@ LayoutResult calculate_horizontal_layout(HDC hdc,
         cr.text = candidates[i].text;
         cr.comment = std::move(comment);
         cr.recommended = candidates[i].recommended;
-        cr.learned = candidates[i].learned;
         cr.label_rect = {x, y, x + label_w, y + rh};
         int text_left = x + label_w + cfg.hilite_spacing;
         cr.text_rect = {text_left, y, text_left + text_size.cx + text_slack, y + rh};
@@ -305,6 +304,13 @@ LayoutResult calculate_vertical_layout(HDC hdc,
     int max_w = cfg.max_width > 0 ? cfg.max_width : 600;
     int max_h = cfg.max_height > 0 ? cfg.max_height : 0;  // 0 = no limit
 
+    // Learning mode translations: a column after the candidates in a smaller font, with the
+    // senses that fit.
+    LayoutFont gloss_font(font_name, gloss_font_point(font_size), dpi);
+    const HFONT gf = gloss_font.get();
+    std::vector<std::size_t> sense_counts(candidates.size(), 0);
+    int widest_gloss = 0;
+
     // First pass: measure all to find widest label/text columns
     int widest_label = 0, widest_text = 0;
     for (int i = 0; i < (int)candidates.size(); ++i) {
@@ -316,13 +322,29 @@ LayoutResult calculate_vertical_layout(HDC hdc,
                  (candidates[i].recommended ? recommendation_mark_width(rh) : 0);
         if (lw > widest_label) widest_label = lw;
         if (tw > widest_text) widest_text = tw;
+        if (!candidates[i].gloss.empty()) {
+            sense_counts[i] = decode_candidate_gloss(candidates[i].gloss).size();
+            const int gw = measure_wstr(hdc, gf, to_wstr(gloss_display_text(
+                                                     candidates[i].gloss, sense_counts[i]))).cx;
+            if (gw > widest_gloss) widest_gloss = gw;
+        }
     }
 
+    // Room for the renderer: DirectWrite draws a little wider than GDI measures.
+    const int gloss_slack = widest_gloss > 0 ? text_slack + widest_gloss / 20 : 0;
+    widest_gloss += gloss_slack;
     int text_x = cfg.margin_x + widest_label + cfg.hilite_spacing;
+    const int gloss_gap = widest_gloss > 0 ? rh * 3 / 5 : 0;
 
-    // Clamp text column width to available space
+    // Clamp the columns to the available space: the translations give way first.
     int avail_text_w = max_w - text_x - cfg.hilite_padding_x - cfg.margin_x;
-    if (widest_text > avail_text_w) widest_text = avail_text_w;
+    if (widest_gloss > 0 && widest_text + gloss_gap + widest_gloss > avail_text_w) {
+        widest_gloss = (std::max)(rh * 4, avail_text_w - widest_text - gloss_gap);
+    }
+    if (widest_text + gloss_gap + widest_gloss > avail_text_w) {
+        widest_text = (std::max)(0, avail_text_w - gloss_gap - widest_gloss);
+    }
+    const int gloss_x = text_x + widest_text + gloss_gap;
 
     // Second pass: add candidates, stop when height exceeded
     int y = cfg.margin_y;
@@ -353,12 +375,23 @@ LayoutResult calculate_vertical_layout(HDC hdc,
                                                  : static_cast<int>(cr.comment_rect.right);
             cr.mark_rect = {right, y, right + recommendation_mark_width(rh), y + rh};
         }
-        RECT bounds = {cr.label_rect.left, y, text_x + widest_text, y + rh};
+        if (sense_counts[i] > 0) {
+            // Drop senses from the end until the rest fit; one sense is kept (cut with "…").
+            std::size_t count = sense_counts[i];
+            cr.gloss = gloss_display_text(candidates[i].gloss, count);
+            while (count > 1 &&
+                   measure_wstr(hdc, gf, to_wstr(cr.gloss)).cx + gloss_slack > widest_gloss) {
+                cr.gloss = gloss_display_text(candidates[i].gloss, --count);
+            }
+            cr.gloss_rect = {gloss_x, y, gloss_x + widest_gloss, y + rh};
+        }
+        RECT bounds = {cr.label_rect.left, y,
+                       widest_gloss > 0 ? gloss_x + widest_gloss : text_x + widest_text, y + rh};
         cr.highlight_rect = bounds;
         InflateRect(&cr.highlight_rect, cfg.hilite_padding_x, cfg.hilite_padding_y);
 
         result.rects.push_back(cr);
-        y += rh + cfg.candidate_spacing;
+        y += rh + cfg.row_spacing;
     }
 
     // Middle truncation: single candidate that exceeds available width
@@ -380,11 +413,12 @@ LayoutResult calculate_vertical_layout(HDC hdc,
         }
     }
 
-    result.width = text_x + widest_text + cfg.hilite_padding_x + cfg.margin_x;
+    result.width = (widest_gloss > 0 ? gloss_x + widest_gloss : text_x + widest_text) +
+                   cfg.hilite_padding_x + cfg.margin_x;
     if (result.width < cfg.min_width) result.width = cfg.min_width;
     if (cfg.max_width > 0 && result.width > cfg.max_width) result.width = cfg.max_width;
     if (!result.rects.empty())
-        y -= cfg.candidate_spacing;
+        y -= cfg.row_spacing;
     result.height = y + cfg.margin_y;
     return result;
 }

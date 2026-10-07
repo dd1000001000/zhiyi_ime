@@ -3,6 +3,7 @@
 #ifndef CXXIME_SETTINGS_EDITOR_APP_INTERNAL_H_
 #define CXXIME_SETTINGS_EDITOR_APP_INTERNAL_H_
 
+#include <initializer_list>
 #include <string>
 
 #include <windows.h>
@@ -13,7 +14,8 @@ namespace settings {
 
 inline constexpr int kFontPt = 14;
 inline constexpr int kNavFontPt = kFontPt + 1;
-inline constexpr int kUpdatePanel = 5;  // page index of Updates
+inline constexpr int kLearningPanel = 4;  // page index of Learning
+inline constexpr int kUpdatePanel = 6;    // page index of Updates
 
 extern float g_dpi;
 extern HFONT g_hFont;
@@ -29,23 +31,56 @@ extern int kCtlX;
 
 int S(int value);
 
-// Settings window colors, light or dark (editor_theme.cc; EditorApp::apply_ui_theme).
+// Settings window colors, light or dark (editor_theme.cc; EditorApp::apply_ui_theme). Pages are
+// cards on the window background: controls on a page take the card color.
 struct UiColors {
     bool dark;
-    COLORREF window;
+    COLORREF window;        // behind the cards, and the page list
     COLORREF text;
     COLORREF hint;
-    COLORREF control;   // edit and list boxes
+    COLORREF control;       // edit and list boxes
     COLORREF link;
-    COLORREF selected;  // the selected page in the list
+    COLORREF accent;        // primary button, progress, focus
+    COLORREF card;
+    COLORREF border;        // card and button outlines
+    COLORREF nav_selected;  // the selected page in the list
+    COLORREF nav_selected_text;
+    COLORREF button_hover;
 };
 const UiColors& ui_colors();
 void set_ui_dark(bool dark);
 HBRUSH window_brush();
+HBRUSH card_brush();
 HBRUSH control_brush();
 void init_layout();
 HFONT get_font();
+HFONT get_title_font();  // card titles
+HFONT get_small_font();  // secondary text drawn by hand
+HFONT get_icon_font(int point);  // Segoe Fluent Icons, else Segoe MDL2 Assets
+void release_shared_fonts();     // the fonts above
 
+// Cards: a page is a column of rounded cards, each with an optional title. Controls go inside
+// at x >= kPanelPadLeft; card_begin() returns the y of the first row, card_end() the top of the
+// next card. The page window paints the cards (paint_panel, from PanelForwardProc).
+int card_begin(HWND panel, int top, const wchar_t* title);
+int card_end(HWND panel, int content_bottom);
+void clear_cards();
+void set_card_visible(HWND panel, int index, bool visible);  // index in card_begin order
+void paint_panel(HWND panel, HDC dc);
+void fill_round_rect(HDC dc, const RECT& rect, int radius, COLORREF fill, COLORREF border);
+
+// Push buttons are drawn by hand (BS_OWNERDRAW, draw_button from WM_DRAWITEM): rounded, with a
+// hover color; a primary button is filled with the accent color.
+void set_button_primary(HWND button, bool primary);
+void set_button_selected(HWND button, bool selected);  // a tab: tinted like the selected page
+void draw_button(const DRAWITEMSTRUCT& item);
+void enable_button_hover(HWND button);
+HWND make_page_button(int id, const wchar_t* text, int x, int y, int width, int height,
+                      HWND parent);
+
+// Width of a right-aligned label column: the widest of these labels (lengths differ between
+// languages).
+int label_width(std::initializer_list<const char*> keys);
 int make_label(const wchar_t* text, int x, int y, HWND parent);
 void make_aligned_label(const wchar_t* text, int y, HWND parent);
 int make_aligned_label(const wchar_t* text, int x, int width, int y, HWND parent);

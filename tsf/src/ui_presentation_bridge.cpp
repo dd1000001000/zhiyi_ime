@@ -235,6 +235,9 @@ void TextService::_publish_ui_presentation() {
             full.resize(end);
         }
         copy_packet_text(comment.text, sizeof(comment.text), &comment.length, full);
+        cxxime::UiCandidateGloss& gloss = snapshot.candidate_glosses[index];
+        const std::string fitted = cxxime::fit_candidate_gloss(candidate.gloss, sizeof(gloss.text));
+        copy_packet_text(gloss.text, sizeof(gloss.text), &gloss.length, fitted);
     }
     if (snapshot.candidate_page.count != 0) {
         snapshot.flags |= cxxime::ui_snapshot_flag(cxxime::UiSnapshotFlag::kHasCandidates);

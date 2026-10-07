@@ -159,6 +159,12 @@ bool decode_engine_presentation(const cxxime::IPCResponse& response,
         }
         item.recommended = (response.candidate_recommended_mask >> index & 1u) != 0;
         item.learned = (response.candidate_learned_mask >> index & 1u) != 0;
+        // A translation that does not read as UTF-8 is left out; the candidate stays.
+        std::wstring gloss_check;
+        if (!read_field(response.candidate_glosses[index], &item.gloss) ||
+            !utf8_to_utf16(item.gloss, &gloss_check)) {
+            item.gloss.clear();
+        }
         page.items.push_back(std::move(item));
     }
     if (page.highlighted >= static_cast<int>(page.items.size())) {

@@ -16,6 +16,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <vector>
 
 #include <windows.h>
 
@@ -100,6 +101,45 @@ void clean_downloads(const std::wstring& directory, const std::wstring& keep = {
 // every settings start: right after an update the installer that opened settings may still be
 // running, so its file cannot be deleted yet.
 void clean_installed_downloads(const std::wstring& directory, const std::string& current_version);
+
+// Learning mode language packs (docs/learning-mode.md), in the release tagged "glossary" (not
+// marked latest):
+//   glossary.json      {"packs": [{"id", "source", "target", "version", "format", "min_app",
+//                                  "file", "size", "sha256", "entries"}, ...]}
+//   glossary.json.sig  signed like latest.json
+//   <id>.v<version>.gloss
+inline constexpr char kGlossaryReleasePath[] = "glossary/";  // under kDownloadPrefix
+
+struct GlossaryPack {
+    std::string id;  // <source>-<target>
+    std::string source;
+    std::string target;
+    std::uint32_t version = 0;
+    std::uint32_t format = 0;
+    std::string min_app;  // the oldest program version that reads it ("" = any)
+    std::string file;
+    std::string url;
+    std::uint64_t size = 0;
+    std::string sha256;
+    std::uint32_t entries = 0;
+};
+
+bool parse_glossary_manifest(const std::string& text, const std::string& download_prefix,
+                             std::vector<GlossaryPack>* packs);
+
+struct GlossaryCheckResult {
+    Status status = Status::kNetwork;
+    std::vector<GlossaryPack> packs;
+};
+
+// Downloads and verifies glossary.json (blocking; run on a worker thread).
+GlossaryCheckResult check_glossaries();
+
+// Downloads a pack to `path` (via path.part, resumed), checking its size and SHA-256. The
+// installed pack may be mapped by the server, so the caller moves it into place.
+// `progress` and `cancel` as for download_installer.
+Status download_glossary(const GlossaryPack& pack, const std::wstring& path,
+                         const Progress& progress, const std::atomic<bool>* cancel);
 
 // %USERPROFILE%\zhiyi\update-state.json: a version the user skipped, and the version being
 // installed (so the next settings start can say it was updated).

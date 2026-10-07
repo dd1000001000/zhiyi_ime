@@ -28,8 +28,11 @@ constexpr int kOkId = 2001;
 constexpr int kCancelId = 2002;
 constexpr int kApplyId = 2003;
 
-const char* const kPanelKeys[] = {"nav.general", "nav.fuzzy",   "nav.keys",  "nav.dictionary",
-                                  "nav.privacy", "nav.update", "nav.about"};
+const char* const kPanelKeys[] = {"nav.general",  "nav.fuzzy",   "nav.keys",
+                                  "nav.dictionary", "nav.learning", "nav.privacy",
+                                  "nav.update",   "nav.about"};
+// Segoe Fluent Icons / MDL2 Assets glyphs for the pages above.
+const wchar_t kPanelIcons[] = {0xE713, 0xE8D2, 0xE765, 0xE82D, 0xE7BE, 0xE72E, 0xE895, 0xE946};
 
 UINT settings_navigate_message() {
     static const UINT message = RegisterWindowMessageW(cxxime::kSettingsNavigateMessage);
@@ -43,11 +46,11 @@ int settings_panel_index(cxxime::SettingsPanel panel) {
     case cxxime::SettingsPanel::kDictionary:
         return 3;
     case cxxime::SettingsPanel::kDiagnostics:
-        return 4;
+        return 5;
     case cxxime::SettingsPanel::kUpdate:
         return kUpdatePanel;
     case cxxime::SettingsPanel::kAbout:
-        return 6;
+        return 7;
     default:
         return 0;
     }
@@ -89,7 +92,7 @@ int EditorApp::run(HINSTANCE hInst, float dpiScale, cxxime::SettingsPanel initia
     app.hwnd_ = CreateWindowExW(0, cxxime::kSettingsWindowClass, cxxime::kSettingsWindowTitle,
                                 WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX |
                                     WS_CLIPCHILDREN,
-                                CW_USEDEFAULT, CW_USEDEFAULT, S(660), S(420), nullptr, nullptr,
+                                CW_USEDEFAULT, CW_USEDEFAULT, S(800), S(650), nullptr, nullptr,
                                 hInst, &app);
     if (!app.hwnd_) return 1;
     ShowWindow(app.hwnd_, SW_SHOW);
@@ -113,8 +116,8 @@ void EditorApp::create_controls(HWND window) {
 
     const int right_margin = S(16);
     const int bottom_margin = S(12);
-    const int button_width = S(80);
-    const int button_height = S(26);
+    const int button_width = S(88);
+    const int button_height = S(30);
     const int button_gap = S(10);
     const int footer_height = S(kFontPt + 16);
     const int footer_y = client_rect.bottom - bottom_margin - footer_height;
@@ -137,7 +140,7 @@ void EditorApp::create_controls(HWND window) {
     hList_ = CreateWindowExW(0, L"LISTBOX", L"",
                              WS_CHILD | WS_VISIBLE | WS_TABSTOP | LBS_NOTIFY | LBS_OWNERDRAWFIXED |
                                  LBS_NOINTEGRALHEIGHT,
-                             0, 0, kListW, footer_y, window,
+                             S(8), kPadY, kListW - S(8), footer_y - kPadY, window,
                              reinterpret_cast<HMENU>(static_cast<INT_PTR>(kListId)),
                              GetModuleHandle(nullptr), nullptr);
     hListFont_ = make_ui_font(kNavFontPt, FW_NORMAL);
@@ -159,26 +162,24 @@ void EditorApp::create_controls(HWND window) {
     create_fuzzy_panel(hPanels_[1]);
     create_keys_panel(hPanels_[2]);
     create_dictionary_panel(hPanels_[3]);
-    create_privacy_panel(hPanels_[4]);
+    create_learning_panel(hPanels_[kLearningPanel]);
+    create_privacy_panel(hPanels_[5]);
     create_update_panel(hPanels_[kUpdatePanel]);
-    create_about_panel(hPanels_[6], panel_width);
+    create_about_panel(hPanels_[7], panel_width);
 
     const struct {
         int id;
         const char* key;
         int x;
-        DWORD style;
     } buttons[] = {
-        {kOkId, "button.ok", ok_x, BS_DEFPUSHBUTTON},
-        {kCancelId, "button.cancel", cancel_x, BS_PUSHBUTTON},
-        {kApplyId, "button.apply", apply_x, BS_PUSHBUTTON},
+        {kOkId, "button.ok", ok_x},
+        {kCancelId, "button.cancel", cancel_x},
+        {kApplyId, "button.apply", apply_x},
     };
     for (const auto& button : buttons) {
-        HWND control = CreateWindowExW(
-            0, L"BUTTON", tr(button.key), WS_CHILD | WS_VISIBLE | WS_TABSTOP | button.style,
-            button.x, button_y, button_width, button_height, window,
-            reinterpret_cast<HMENU>(static_cast<INT_PTR>(button.id)), nullptr, nullptr);
-        SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
+        HWND control = make_page_button(button.id, tr(button.key), button.x, button_y,
+                                        button_width, button_height, window);
+        if (button.id == kOkId) set_button_primary(control, true);
     }
 }
 
@@ -190,7 +191,12 @@ void EditorApp::destroy_controls() {
     }
     hList_ = hFooter_ = hAboutTitle_ = nullptr;
     hUpdateStatus_ = nullptr;  // show_update_state() waits for the new page
+    hChineseTarget_ = hEnglishTarget_ = hGlossPreview_ = hPackList_ = hCheckAllPacks_ = nullptr;
+    hPackTabs_[0] = hPackTabs_[1] = nullptr;
+    hPackActions_.clear();
+    hPackRemoves_.clear();
     hints_.clear();
+    clear_cards();
     for (HWND& panel : hPanels_) {
         panel = nullptr;
     }
@@ -224,12 +230,13 @@ void EditorApp::show_panel(int idx) {
 }
 
 void EditorApp::release_fonts() {
-    for (HFONT* font : {&hFooterFont_, &hListFont_, &hAboutTitleFont_, &hHintFont_, &g_hFont}) {
+    for (HFONT* font : {&hFooterFont_, &hListFont_, &hAboutTitleFont_, &hHintFont_}) {
         if (*font) {
             DeleteObject(*font);
             *font = nullptr;
         }
     }
+    release_shared_fonts();
 }
 
 bool EditorApp::load_config() {
@@ -258,6 +265,9 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(pinyin_initials);
     KEEP_PAGE_EDIT(theme);
     KEEP_PAGE_EDIT(font_size);
+    KEEP_PAGE_EDIT(layout);
+    KEEP_PAGE_EDIT(chinese_gloss_target);
+    KEEP_PAGE_EDIT(english_gloss_target);
     KEEP_PAGE_EDIT(page_size);
     KEEP_PAGE_EDIT(ui_language);
     KEEP_PAGE_EDIT(english.correction);
@@ -346,7 +356,7 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (!a) return DefWindowProcW(hwnd, msg, wp, lp);
 
     const UINT navigate_message = settings_navigate_message();
-    if (a->handle_update_message(msg, wp, lp)) {
+    if (a->handle_update_message(msg, wp, lp) || a->handle_learning_message(msg, wp, lp)) {
         return 0;
     }
     if (navigate_message != 0 && msg == navigate_message) {
@@ -366,12 +376,14 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         a->ui_language_ = resolve_ui_language(a->config_.ui_language);
         load_ui_strings(a->ui_language_);
         a->init_update();  // may open the Updates page
+        a->init_learning();
         a->create_controls(hwnd);
         a->populate_controls();
         a->apply_ui_theme(ui_colors().dark, true);  // populate_controls() chose it
         a->show_panel(settings_panel_index(a->initial_panel_));
         if (a->config_.update_notify) {
             a->start_update_check(true);
+            a->start_pack_check(-1);  // installed language packs
         }
         return 0;
     case WM_CTLCOLORSTATIC:
@@ -447,36 +459,46 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         break;
     }
+    case DM_GETDEFID:  // Enter in IsDialogMessage: OK (the drawn buttons cannot be default)
+        return MAKELRESULT(kOkId, DC_HASDEFID);
     case WM_MEASUREITEM:
         if (wp == kListId) {
-            reinterpret_cast<LPMEASUREITEMSTRUCT>(lp)->itemHeight = S(40);
+            reinterpret_cast<LPMEASUREITEMSTRUCT>(lp)->itemHeight = S(38);
             return TRUE;
         }
+        if (a->handle_learning_item(msg, lp)) return TRUE;
         break;
     case WM_DRAWITEM: {
         const auto* dis = reinterpret_cast<const DRAWITEMSTRUCT*>(lp);
+        if (a->handle_learning_item(msg, lp)) return TRUE;
+        if (dis->CtlType == ODT_BUTTON) {
+            draw_button(*dis);
+            return TRUE;
+        }
         if (dis->CtlID != kListId) break;
         const int idx = static_cast<int>(dis->itemID);
         if (idx < 0 || idx >= kPanelCount) break;
 
+        // The selected page: a tinted pill with an accent bar, like the cards' rounded corners.
         HDC dc = dis->hDC;
+        const UiColors& colors = ui_colors();
         const RECT r = dis->rcItem;
         FillRect(dc, &r, window_brush());
-        const RECT hr = {r.left + 4, r.top + 3, r.right - 4, r.bottom - 3};
-        if (dis->itemState & ODS_SELECTED) {
-            HBRUSH brush = CreateSolidBrush(ui_colors().selected);
-            HGDIOBJ old_pen = SelectObject(dc, GetStockObject(NULL_PEN));
-            HGDIOBJ old_brush = SelectObject(dc, brush);
-            RoundRect(dc, hr.left, hr.top, hr.right, hr.bottom, 6, 6);
-            SelectObject(dc, old_brush);
-            SelectObject(dc, old_pen);
-            DeleteObject(brush);
-            SetTextColor(dc, RGB(255, 255, 255));
-        } else {
-            SetTextColor(dc, ui_colors().dark ? ui_colors().text : RGB(60, 60, 60));
+        const RECT hr = {r.left, r.top + S(2), r.right - S(4), r.bottom - S(2)};
+        const bool selected = (dis->itemState & ODS_SELECTED) != 0;
+        if (selected) {
+            fill_round_rect(dc, hr, S(6), colors.nav_selected, colors.nav_selected);
+            const RECT bar = {hr.left, hr.top + S(9), hr.left + S(3), hr.bottom - S(9)};
+            fill_round_rect(dc, bar, S(1), colors.accent, colors.accent);
         }
         SetBkMode(dc, TRANSPARENT);
-        RECT tr_rect = {hr.left + 12, r.top, hr.right - 4, r.bottom};
+        SetTextColor(dc, selected ? colors.nav_selected_text
+                                  : (colors.dark ? colors.text : RGB(60, 60, 60)));
+        RECT icon_rect = {hr.left + S(12), r.top, hr.left + S(36), r.bottom};
+        HGDIOBJ old_font = SelectObject(dc, get_icon_font(kFontPt));
+        DrawTextW(dc, &kPanelIcons[idx], 1, &icon_rect, DT_SINGLELINE | DT_VCENTER | DT_LEFT);
+        SelectObject(dc, old_font);
+        RECT tr_rect = {hr.left + S(40), r.top, hr.right - S(4), r.bottom};
         DrawTextW(dc, tr(kPanelKeys[idx]), -1, &tr_rect, DT_SINGLELINE | DT_VCENTER | DT_LEFT);
         return TRUE;
     }

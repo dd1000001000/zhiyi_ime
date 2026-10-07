@@ -107,15 +107,23 @@ bool D2DRenderer::initialize(HWND hwnd, const Theme& theme, UINT dpi) {
                          DWRITE_TEXT_ALIGNMENT_LEADING);
     fmt_small_ = mkfmt(dwrite_factory_, theme.font_name.c_str(), 9.0f * dpi / 72.0f,
                         DWRITE_TEXT_ALIGNMENT_CENTER);
-    if (!fmt_left_ || !fmt_right_ || !fmt_preedit_ || !fmt_small_) {
+    fmt_gloss_ = mkfmt(dwrite_factory_, theme.font_name.c_str(),
+                       (float)gloss_font_point(theme.font_size) * dpi / 72.0f,
+                       DWRITE_TEXT_ALIGNMENT_LEADING);
+    if (!fmt_left_ || !fmt_right_ || !fmt_preedit_ || !fmt_small_ || !fmt_gloss_) {
         finalize();
         return false;
+    }
+    if (SUCCEEDED(dwrite_factory_->CreateEllipsisTrimmingSign(fmt_gloss_, &gloss_ellipsis_))) {
+        DWRITE_TRIMMING trimming = {DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0};
+        fmt_gloss_->SetTrimming(&trimming, gloss_ellipsis_);
     }
     return true;
 }
 
 void D2DRenderer::finalize() {
-    for (auto* p : {&fmt_small_, &fmt_preedit_, &fmt_right_, &fmt_left_}) { if (*p) { (*p)->Release(); *p = nullptr; } }
+    if (gloss_ellipsis_) { gloss_ellipsis_->Release(); gloss_ellipsis_ = nullptr; }
+    for (auto* p : {&fmt_gloss_, &fmt_small_, &fmt_preedit_, &fmt_right_, &fmt_left_}) { if (*p) { (*p)->Release(); *p = nullptr; } }
     if (dwrite_factory_) { dwrite_factory_->Release(); dwrite_factory_ = nullptr; }
     for (auto* p : {&border_brush_, &nav_brush_, &label_brush_, &preedit_cursor_brush_,
                     &preedit_active_border_brush_, &preedit_active_back_brush_,
@@ -304,15 +312,17 @@ void D2DRenderer::render(const RenderContext& ctx) {
             render_target_->DrawText(wc.c_str(), (UINT32)wc.length(), fmt_left_,
                                     comment_rect, brush);
         }
+        if (!cr.gloss.empty() && fmt_gloss_) {
+            auto wg = dec(cr.gloss);
+            D2D1_RECT_F gloss_rect = {
+                (float)cr.gloss_rect.left, (float)cr.gloss_rect.top,
+                (float)cr.gloss_rect.right, (float)cr.gloss_rect.bottom,
+            };
+            render_target_->DrawText(wg.c_str(), (UINT32)wg.length(), fmt_gloss_, gloss_rect,
+                                     hl ? highlight_text_brush_ : comment_brush_);
+        }
         if (recommended) {
             draw_sparkle(cr.mark_rect, ctx.sparkle_t, hl);
-        }
-        if (cr.learned) {
-            const RECT dot = learned_mark_rect(cr.text_rect);
-            const D2D1_ELLIPSE e = {
-                {(dot.left + dot.right) / 2.0f, (dot.top + dot.bottom) / 2.0f},
-                (dot.right - dot.left) / 2.0f, (dot.bottom - dot.top) / 2.0f};
-            render_target_->FillEllipse(e, hl ? highlight_text_brush_ : comment_brush_);
         }
     }
 

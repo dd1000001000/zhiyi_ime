@@ -316,6 +316,7 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(l, "margin_y", config.layout_config.margin_y);
         load_int(l, "spacing", config.layout_config.spacing);
         load_int(l, "candidate_spacing", config.layout_config.candidate_spacing);
+        load_int(l, "row_spacing", config.layout_config.row_spacing);
         load_int(l, "hilite_spacing", config.layout_config.hilite_spacing);
         load_int(l, "hilite_padding_x", config.layout_config.hilite_padding_x);
         load_int(l, "hilite_padding_y", config.layout_config.hilite_padding_y);
@@ -356,6 +357,11 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
     if (!config.experience_program) config.collect_input = false;  // needs the first tier
     if (j.contains("update") && j["update"].is_object()) {
         load_bool(j["update"], "notify", config.update_notify);
+    }
+    config.learning_section_loaded = j.contains("learning") && j["learning"].is_object();
+    if (config.learning_section_loaded) {
+        load_string(j["learning"], "chinese_target", config.chinese_gloss_target);
+        load_string(j["learning"], "english_target", config.english_gloss_target);
     }
 
     bool switch_keys_loaded = true;
@@ -459,12 +465,14 @@ bool Config::load(const std::string& path) {
 
 bool Config::load_user(const std::string& path) {
     const DiagnosticsConfig package_diagnostics = diagnostics;
+    const std::string package_layout = layout;
     if (!load(path)) {
         return false;
     }
     const DiagnosticTraceMode user_trace_mode = diagnostics.trace_mode;
     diagnostics = package_diagnostics;
     diagnostics.trace_mode = user_trace_mode;
+    if (!learning_section_loaded) layout = package_layout;  // written before the setting existed
     return true;
 }
 
@@ -489,12 +497,14 @@ bool Config::load_json(const std::string& json_text) {
 
 bool Config::load_user_json(const std::string& json_text) {
     const DiagnosticsConfig package_diagnostics = diagnostics;
+    const std::string package_layout = layout;
     if (!load_json(json_text)) {
         return false;
     }
     const DiagnosticTraceMode user_trace_mode = diagnostics.trace_mode;
     diagnostics = package_diagnostics;
     diagnostics.trace_mode = user_trace_mode;
+    if (!learning_section_loaded) layout = package_layout;  // written before the setting existed
     return true;
 }
 
@@ -610,6 +620,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["layout"]["margin_y"] = config.layout_config.margin_y;
     j["layout"]["spacing"] = config.layout_config.spacing;
     j["layout"]["candidate_spacing"] = config.layout_config.candidate_spacing;
+    j["layout"]["row_spacing"] = config.layout_config.row_spacing;
     j["layout"]["hilite_spacing"] = config.layout_config.hilite_spacing;
     j["layout"]["hilite_padding_x"] = config.layout_config.hilite_padding_x;
     j["layout"]["hilite_padding_y"] = config.layout_config.hilite_padding_y;
@@ -659,6 +670,8 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["privacy"]["experience_program"] = config.experience_program;
     j["privacy"]["collect_input"] = config.collect_input && config.experience_program;
     j["update"]["notify"] = config.update_notify;
+    j["learning"]["chinese_target"] = config.chinese_gloss_target;
+    j["learning"]["english_target"] = config.english_gloss_target;
 
     return j;
 }

@@ -20,6 +20,7 @@ private:
     HFONT hfont_ = nullptr;
     HFONT preedit_font_ = nullptr;
     HFONT nav_font_ = nullptr;
+    HFONT gloss_font_ = nullptr;  // learning mode translations
     HBRUSH bg_brush_ = nullptr;
     HBRUSH hl_brush_ = nullptr;
     HBRUSH hover_brush_ = nullptr;

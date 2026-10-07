@@ -161,6 +161,12 @@ void fill_process_response_fields(const ProcessKeyResult& result,
         }
         if (item.recommended) response->candidate_recommended_mask |= 1u << index;
         if (item.learned) response->candidate_learned_mask |= 1u << index;
+        if (!item.gloss.empty() && is_valid_utf8_field(item.gloss)) {
+            response_copy_field(response->candidate_glosses[index],
+                                sizeof(response->candidate_glosses[index]),
+                                cxxime::fit_candidate_gloss(
+                                    item.gloss, sizeof(response->candidate_glosses[index])));
+        }
     }
 }
 }  // namespace

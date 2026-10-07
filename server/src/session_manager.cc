@@ -21,6 +21,7 @@
 #include <cxxime/english_learning.h>
 #include <cxxime/experience_log.h>
 #include <cxxime/dictionary_manifest.h>
+#include <cxxime/glossary.h>
 #include <cxxime/input_limits.h>
 #include <cxxime/logging.h>
 #include <cxxime/manual_candidate_order.h>
@@ -260,6 +261,25 @@ void advance_candidate_revision(SessionEntry& entry, const CandidateStateToken& 
     }
 }
 
+// Learning mode (docs/learning-mode.md): the translation of each candidate on the page, shown
+// by the vertical candidate window.
+void add_glosses(const SessionEntry& entry, cxxime::CandidatePresentationPage& page) {
+    if (!entry.resources.runtime) return;
+    const cxxime::Config& config = entry.resources.runtime->config();
+    if ((config.chinese_gloss_target.empty() && config.english_gloss_target.empty()) ||
+        config.layout == "horizontal") {
+        return;
+    }
+    const auto& entries = entry.engine->context().translation().entries;
+    for (std::size_t i = 0; i < page.items.size() && i < entries.size(); ++i) {
+        const cxxime::Candidate& candidate = entries[i].candidate;
+        if (candidate.source == cxxime::CandidateSource::kSymbol) continue;
+        page.items[i].gloss = cxxime::candidate_gloss(
+            config.chinese_gloss_target, config.english_gloss_target, candidate.text,
+            candidate.syllables, candidate.source == cxxime::CandidateSource::kEnglish);
+    }
+}
+
 void fill_session_presentation(const SessionEntry& entry, ProcessKeyResult& result) {
     const cxxime::Context& context = entry.engine->context();
     result.composing = context.is_composing();
@@ -320,6 +340,7 @@ void fill_session_presentation(const SessionEntry& entry, ProcessKeyResult& resu
         result.focused_preedit_end_bytes = result.preedit.size();
     }
     result.presentation = context.translation().presentation_page();
+    add_glosses(entry, result.presentation);
 }
 
 cxxime::InputMode next_input_mode(cxxime::InputMode mode) {

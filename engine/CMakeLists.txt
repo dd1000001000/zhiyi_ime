@@ -35,6 +35,7 @@ add_library(cxxime-engine STATIC
     src/wubi_processor.cc
     src/wubi_input_policy.cc
     src/config.cc
+    src/glossary.cc
     src/engine.cc
     src/engine_runtime.cc
     src/ascii_composer.cc

@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <type_traits>
 
 #include <cxxime/data_path.h>
 #include <cxxime/installer_version.h>
@@ -94,6 +95,55 @@ bool parse_manifest(const std::string& text, const std::string& download_prefix,
         return false;
     }
     *manifest = std::move(parsed);
+    return true;
+}
+
+bool parse_glossary_manifest(const std::string& text, const std::string& download_prefix,
+                             std::vector<GlossaryPack>* packs) {
+    const nlohmann::json json = nlohmann::json::parse(text, nullptr, false);
+    if (!packs || !json.is_object() || !json.contains("packs") || !json["packs"].is_array()) {
+        return false;
+    }
+    auto is_language = [](const std::string& code) {
+        return code.size() == 2 && std::islower(static_cast<unsigned char>(code[0])) &&
+               std::islower(static_cast<unsigned char>(code[1]));
+    };
+    std::vector<GlossaryPack> parsed;
+    for (const nlohmann::json& item : json["packs"]) {
+        if (!item.is_object()) return false;
+        GlossaryPack pack;
+        auto get_string = [&](const char* key, std::string* value) {
+            const auto found = item.find(key);
+            if (found == item.end() || !found->is_string()) return false;
+            *value = found->get<std::string>();
+            return true;
+        };
+        auto get_number = [&](const char* key, auto* value) {
+            const auto found = item.find(key);
+            if (found == item.end() || !found->is_number_unsigned()) return false;
+            *value = found->get<std::remove_pointer_t<decltype(value)>>();
+            return true;
+        };
+        if (!get_string("source", &pack.source) || !get_string("target", &pack.target) ||
+            !get_string("id", &pack.id) || !get_string("file", &pack.file) ||
+            !get_string("sha256", &pack.sha256) || !get_number("version", &pack.version) ||
+            !get_number("format", &pack.format) || !get_number("size", &pack.size)) {
+            return false;
+        }
+        get_string("min_app", &pack.min_app);
+        get_number("entries", &pack.entries);
+        // <source>-<target>.v<version>.gloss: a safe file name made of known parts.
+        if (!is_language(pack.source) || !is_language(pack.target) ||
+            pack.id != pack.source + "-" + pack.target || pack.version == 0 ||
+            pack.file != pack.id + ".v" + std::to_string(pack.version) + ".gloss" ||
+            !is_lower_hex(pack.sha256, 64) || pack.size == 0 ||
+            (!pack.min_app.empty() && !is_release_version(pack.min_app))) {
+            return false;
+        }
+        pack.url = download_prefix + kGlossaryReleasePath + pack.file;
+        parsed.push_back(std::move(pack));
+    }
+    *packs = std::move(parsed);
     return true;
 }
 

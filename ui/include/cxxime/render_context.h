@@ -12,6 +12,7 @@
 #include <windows.h>
 
 #include <cxxime/candidate.h>
+#include <cxxime/candidate_presentation.h>
 
 namespace cxxime {
 
@@ -52,20 +53,28 @@ struct CandidateRect {
     RECT highlight_rect{};
     bool recommended = false;  // Laya's pick: sparkle at the top-right corner
     RECT mark_rect{};          // space reserved after the text for the sparkle
-    bool learned = false;      // self-learned: a small dot at the bottom-right of the text
+    std::string gloss;         // learning mode translation as shown ("n. now · adv. at present")
+    RECT gloss_rect{};         // a column after the candidates (vertical layout only)
 };
-
-// The dot marking a learned candidate, inside the text's render slack.
-inline RECT learned_mark_rect(const RECT& text_rect) {
-    const int row = text_rect.bottom - text_rect.top;
-    const int d = (std::max)(2, row / 10);
-    const int right = text_rect.right - (std::max)(1, row / 20);
-    const int bottom = text_rect.bottom - (std::max)(1, row / 5);
-    return {right - d, bottom - d, right, bottom};
-}
 
 // Width reserved after a recommended candidate for its sparkle mark.
 inline int recommendation_mark_width(int row_height) { return row_height * 9 / 20; }
+
+// Learning mode translations are drawn at 80% of the candidate font.
+inline int gloss_font_point(int font_size) { return (std::max)(8, font_size * 4 / 5); }
+
+// "n. now · adv. at present": the first `count` senses of an encoded translation.
+inline std::string gloss_display_text(const std::string& encoded, std::size_t count) {
+    std::string text;
+    std::size_t used = 0;
+    for (const GlossPart& part : decode_candidate_gloss(encoded)) {
+        if (used++ == count) break;
+        if (!text.empty()) text += " \xC2\xB7 ";  // " · "
+        if (!part.label.empty()) text += part.label + " ";
+        text += part.text;
+    }
+    return text;
+}
 
 Theme make_light_theme();
 Theme make_dark_theme();

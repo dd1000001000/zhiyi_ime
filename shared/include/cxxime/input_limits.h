@@ -13,6 +13,8 @@ constexpr std::size_t kCandidateCapacity = 10;
 constexpr std::size_t kCandidateTextCapacity = 256;
 // Annotation after a candidate (IPCResponse::candidate_comments), with its terminator.
 constexpr std::size_t kCandidateCommentCapacity = 64;
+// Learning mode translation of a candidate (candidate_presentation.h), with its terminator.
+constexpr std::size_t kCandidateGlossCapacity = 128;
 
 } // namespace cxxime
 

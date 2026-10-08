@@ -143,6 +143,7 @@ void EditorApp::create_learning_panel(HWND panel) {
         nullptr);
     for (HWND combo : {hChineseTarget_, hEnglishTarget_}) {
         SendMessageW(combo, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
+        scroll_page_on_wheel(combo);
     }
     y += kRowH;
     const int preview_width = S(250);

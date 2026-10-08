@@ -90,6 +90,9 @@ void make_aligned_label(const wchar_t* text, int y, HWND parent);
 int make_aligned_label(const wchar_t* text, int x, int width, int y, HWND parent);
 HWND make_edit(int id, int x, int y, int width, HWND parent);
 HWND make_combo(int id, int x, int y, int width, HWND parent);
+// The mouse wheel over a closed drop-down list scrolls the page (it would otherwise change the
+// selection, and on the General page start a graphics card test). make_combo does this already.
+void scroll_page_on_wheel(HWND combo);
 void set_combo_drop_count(HWND combo, int count);
 HWND make_check(int id, const wchar_t* text, int x, int y, int width, HWND parent);
 // A web link (opened in the browser; right-click copies it). Its address comes from

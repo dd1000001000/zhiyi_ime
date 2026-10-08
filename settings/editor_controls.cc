@@ -195,7 +195,9 @@ void scroll_panel_to(HWND panel, int position) {
     for (Card& card : g_cards[panel]) OffsetRect(&card.rect, 0, old - position);
     ScrollWindowEx(panel, 0, old - position, nullptr, nullptr, nullptr, nullptr,
                    SW_SCROLLCHILDREN | SW_INVALIDATE | SW_ERASE);
-    UpdateWindow(panel);
+    // The controls too, now: left to the idle loop they lag behind the page while the wheel
+    // turns (about 2 ms for the General page).
+    RedrawWindow(panel, nullptr, nullptr, RDW_UPDATENOW | RDW_ALLCHILDREN);
 }
 
 // WM_VSCROLL / WM_MOUSEWHEEL on a scrollable page; false for any other page.
@@ -333,12 +335,30 @@ HWND make_edit(int id, int x, int y, int width, HWND parent) {
     return edit;
 }
 
+namespace {
+
+LRESULT CALLBACK ComboWheelProc(HWND combo, UINT message, WPARAM wparam, LPARAM lparam, UINT_PTR id,
+                                DWORD_PTR) {
+    if (message == WM_MOUSEWHEEL && !SendMessageW(combo, CB_GETDROPPEDSTATE, 0, 0)) {
+        return SendMessageW(GetParent(combo), WM_MOUSEWHEEL, wparam, lparam);
+    }
+    if (message == WM_NCDESTROY) RemoveWindowSubclass(combo, ComboWheelProc, id);
+    return DefSubclassProc(combo, message, wparam, lparam);
+}
+
+}  // namespace
+
+void scroll_page_on_wheel(HWND combo) {
+    if (combo) SetWindowSubclass(combo, ComboWheelProc, 1, 0);
+}
+
 HWND make_combo(int id, int x, int y, int width, HWND parent) {
     HWND combo =
         CreateWindowExW(0, L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST,
                         x, y, width, 200, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
                         GetModuleHandle(nullptr), nullptr);
     SendMessageW(combo, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
+    scroll_page_on_wheel(combo);
     return combo;
 }
 

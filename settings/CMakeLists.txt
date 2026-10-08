@@ -10,6 +10,10 @@ add_executable(cxxime-settings WIN32
     editor_general_panel.cc
     editor_backup.cc
     editor_gpu.cc
+    data_move.cc
+    data_move.h
+    editor_data_folder.cc
+    editor_translator.cc
     editor_learning_panel.cc
     editor_theme.cc
     editor_update_panel.cc
@@ -47,6 +51,7 @@ target_link_libraries(cxxime-settings PRIVATE
     cxxime-shared
     cxxime-ui
     cxxime-update
+    miniz
     comctl32.lib
     imm32.lib
 )

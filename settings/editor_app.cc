@@ -159,11 +159,15 @@ void EditorApp::create_controls(HWND window) {
         SetWindowSubclass(hPanels_[i], PanelForwardProc, 3000 + i,
                           reinterpret_cast<DWORD_PTR>(window));
     }
+    make_panel_scrollable(hPanels_[0]);
     create_general_panel(hPanels_[0]);
+    update_panel_scroll(hPanels_[0]);
     create_fuzzy_panel(hPanels_[1]);
     create_keys_panel(hPanels_[2]);
     create_dictionary_panel(hPanels_[3]);
+    make_panel_scrollable(hPanels_[kLearningPanel]);
     create_learning_panel(hPanels_[kLearningPanel]);
+    update_panel_scroll(hPanels_[kLearningPanel]);
     create_privacy_panel(hPanels_[5]);
     create_update_panel(hPanels_[kUpdatePanel]);
     create_about_panel(hPanels_[7], panel_width);
@@ -269,6 +273,8 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(layout);
     KEEP_PAGE_EDIT(chinese_gloss_target);
     KEEP_PAGE_EDIT(english_gloss_target);
+    KEEP_PAGE_EDIT(mt_enable);
+    KEEP_PAGE_EDIT(mt_device);
     KEEP_PAGE_EDIT(page_size);
     KEEP_PAGE_EDIT(ui_language);
     KEEP_PAGE_EDIT(english.correction);
@@ -364,7 +370,8 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
     const UINT navigate_message = settings_navigate_message();
     if (a->handle_update_message(msg, wp, lp) || a->handle_learning_message(msg, wp, lp) ||
-        a->handle_gpu_message(msg, wp, lp)) {
+        a->handle_gpu_message(msg, wp, lp) || a->handle_data_message(msg, wp, lp) ||
+        a->handle_translator_message(msg, wp, lp)) {
         return 0;
     }
     if (navigate_message != 0 && msg == navigate_message) {

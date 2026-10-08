@@ -117,6 +117,22 @@ private:
     std::string selected_device() const;
     void on_device_selected();
     bool handle_gpu_message(UINT message, WPARAM wparam, LPARAM lparam);
+    // Data location (editor_data_folder.cc)
+    void create_data_card(HWND panel, int y);
+    void show_data_folder();
+    void choose_data_folder(bool to_default);
+    bool handle_data_message(UINT message, WPARAM wparam, LPARAM lparam);
+    // Offline translation (editor_translator.cc)
+    void create_translator_card(HWND panel, int y);
+    void populate_translator();
+    void read_translator(cxxime::Config& config);
+    void show_translator_state();
+    void start_translator_check();
+    void start_translator_install();
+    void start_translator_test();
+    void remove_translator();
+    bool handle_translator_command(int control_id, int notification);
+    bool handle_translator_message(UINT message, WPARAM wparam, LPARAM lparam);
     bool handle_learning_item(UINT message, LPARAM lparam);  // WM_MEASUREITEM / WM_DRAWITEM
     static LRESULT CALLBACK pack_list_proc(HWND, UINT, WPARAM, LPARAM);
     void set_switch_key_boxes(const cxxime::Config& config);
@@ -156,6 +172,9 @@ private:
     bool gpu_testing_ = false;
     bool device_warning_ = false;  // the hint says the card is slower than the CPU
     std::vector<UiLanguage> languages_;
+    HWND hDataFolder_ = nullptr, hDataHint_ = nullptr;
+    HWND hDataChange_ = nullptr, hDataDefault_ = nullptr;
+    bool data_moving_ = false;  // a move runs in the background
 
     // Fuzzy pinyin: master switch and one check box per pair (FuzzyGroup bit order)
     HWND hFuzzyEnabled_ = nullptr;
@@ -198,6 +217,15 @@ private:
     std::vector<PackState> packs_;    // zh -> 7 targets, then en -> 7 targets
     int pack_tab_ = 0;
     int last_chinese_target_ = 0, last_english_target_ = 0;  // combo indexes
+    HWND hTranslator_ = nullptr, hTranslatorDevice_ = nullptr, hTranslatorStatus_ = nullptr;
+    HWND hTranslatorAction_ = nullptr, hTranslatorRemove_ = nullptr, hTranslatorHint_ = nullptr;
+    std::vector<GpuAdapter> mt_choices_;  // cards with more than 2 GB of their own memory
+    enum class MtBusy { kNone, kChecking, kDownloading, kTesting } mt_busy_ = MtBusy::kNone;
+    bool mt_remote_known_ = false;
+    update::TranslatorManifest mt_remote_;
+    std::uint64_t mt_done_mb_ = 0, mt_total_mb_ = 0;
+    std::shared_ptr<std::atomic<bool>> mt_cancel_;
+    std::wstring mt_note_;  // the last result (failed, cancelled)
 
     // Privacy
     HWND hExperience_ = nullptr;

@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <cxxime/config.h>
+#include <cxxime/data_path.h>
 #include <cxxime/english_lexicon.h>
 #include <cxxime/gpu_adapters.h>
 #include <cxxime/segmentor.h>
@@ -64,13 +65,9 @@ std::string resolve_model_dir(const std::string& dir) {
     return laya::wide_to_utf8(p.lexically_normal().wstring());
 }
 
-// %LOCALAPPDATA%\zhiyi\laya-cache: machine-specific (the packed layout depends on the CPU), so
-// neither the roaming profile nor the user data directory that users back up.
-std::string laya_cache_dir() {
-    wchar_t buf[MAX_PATH] = {};
-    if (SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, buf) != S_OK) return {};
-    return laya::wide_to_utf8(std::wstring(buf) + L"\\zhiyi\\laya-cache");
-}
+// <local data>\laya-cache (%LOCALAPPDATA%\zhiyi\ or the chosen data folder's local\):
+// machine-specific (the packed layout depends on the CPU), so not in what users back up.
+std::string laya_cache_dir() { return local_data_path("laya-cache"); }
 
 laya::RerankerOptions model_options(const Config& config) {
     laya::RerankerOptions opt;
@@ -284,12 +281,27 @@ double rank_prior(const double (&table)[N], size_t rank) {
     return table[(std::min)(rank, N - 1)];
 }
 
+// Nothing before the caret (or only spaces and line breaks): the model has nothing to go on,
+// so the engine's order stays.
+bool has_context(const std::string& context) {
+    for (size_t i = 0; i < context.size(); ++i) {
+        const char c = context[i];
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') continue;
+        if (context.compare(i, 3, "\xE3\x80\x80") == 0) {  // U+3000 ideographic space
+            i += 2;
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 bool LayaRerank::apply(const Config& config, const std::string& context, const std::string& input,
                        TranslationResult& result) {
     const auto& lc = config.laya;
-    if (!lc.enable || result.entries.size() < 2) return false;
+    if (!lc.enable || result.entries.size() < 2 || !has_context(context)) return false;
 
     // 1. The candidates covering the whole input, any length (显示 / 西安市, 今天 / 今天是).
     //    Candidates for part of the input (飘 for "piaol") keep their places.
@@ -376,7 +388,8 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
 bool LayaRerank::apply_english(const Config& config, const std::string& context,
                                const std::string& typed, std::vector<EnglishWord>& words) {
     const auto& lc = config.laya;
-    if (!lc.enable || !lc.english || words.size() < 2 || typed.empty()) return false;
+    if (!lc.enable || !lc.english || words.size() < 2 || typed.empty() || !has_context(context))
+        return false;
     auto model = get_model(config);
     if (!model) return false;
 

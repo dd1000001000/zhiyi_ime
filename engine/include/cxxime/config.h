@@ -72,6 +72,12 @@ struct Config {
     // Chinese and English candidates; empty: none. A language pack must be installed.
     std::string chinese_gloss_target;  // en ja ko fr de es ru
     std::string english_gloss_target;  // zh ja ko fr de es ru
+    // Offline translation (docs/learning-mode.md): candidates the language pack has no
+    // translation for are translated by a downloaded model (Hy-MT2) on a graphics card.
+    bool mt_enable = false;        // learning.translator
+    std::string mt_device;         // learning.translator_device: a card key (gpu_adapters.h)
+    int mt_context_chars = 32;     // learning.translator_context_chars: text before the caret
+    int mt_idle_seconds = 60;      // learning.translator_idle_seconds: unloaded after this
     // A "learning" section was read. User configs written before it hold style.layout
     // "horizontal" without the user having chosen it (there was no setting), so load_user keeps
     // the default (vertical) for them.

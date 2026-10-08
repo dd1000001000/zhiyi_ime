@@ -210,6 +210,39 @@ public:
         SetEvent(update_event_);
     }
 
+    void add_glosses(const std::vector<std::pair<std::string, std::string>>& glosses) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!running_ || !pending_snapshot_) {
+            return;
+        }
+        // The latest snapshot stays in pending_snapshot_ after it is shown: filling it and
+        // counting a new revision shows it again.
+        cxxime::UiPresentationSnapshot& snapshot = pending_snapshot_->snapshot;
+        bool changed = false;
+        const std::uint32_t count = (std::min)(snapshot.candidate_page.count,
+                                               static_cast<std::uint32_t>(cxxime::kCandidateCapacity));
+        for (std::uint32_t i = 0; i < count; ++i) {
+            cxxime::UiCandidateGloss& gloss = snapshot.candidate_glosses[i];
+            if (gloss.length != 0) continue;
+            const cxxime::UiCandidate& candidate = snapshot.candidate_page.candidates[i];
+            const std::string text = packet_text(candidate.text, candidate.text_length,
+                                                 sizeof(candidate.text));
+            for (const auto& [source, translation] : glosses) {
+                if (source != text) continue;
+                const std::string fitted = cxxime::fit_candidate_gloss(translation, sizeof(gloss.text));
+                std::memcpy(gloss.text, fitted.data(), fitted.size());
+                gloss.text[fitted.size()] = '\0';
+                gloss.length = static_cast<std::uint32_t>(fitted.size());
+                changed = true;
+                break;
+            }
+        }
+        if (changed) {
+            ++presentation_revision_;
+            SetEvent(update_event_);
+        }
+    }
+
     void update_config(const std::shared_ptr<const cxxime::Config>& config) {
         if (!config) {
             return;
@@ -610,6 +643,11 @@ void UiPresentationController::present(cxxime::UiEndpointId endpoint,
 
 void UiPresentationController::update_config(const std::shared_ptr<const cxxime::Config>& config) {
     impl_->update_config(config);
+}
+
+void UiPresentationController::add_glosses(
+    const std::vector<std::pair<std::string, std::string>>& glosses) {
+    impl_->add_glosses(glosses);
 }
 
 std::uint32_t UiPresentationController::visible_candidate_count(

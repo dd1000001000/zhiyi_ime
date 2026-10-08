@@ -92,7 +92,20 @@ cmake -DCXXIME_PRODUCTION_BUILD=OFF  →  优先级 2
 NSIS 安装到 Program Files  →  优先级 3
 ```
 
-### 本机缓存 `%LOCALAPPDATA%\zhiyi\laya-cache\`
+### 数据位置（设置 > 常规）
+
+用户可以在“常规”页把所有数据放到别的文件夹（如 D 盘）。所选文件夹记在注册表
+`HKCU\Software\ZhiyiIME` 的 `DataDirectory`（UTF-16 路径，不在数据文件夹里，否则启动时找不到）：
+
+| | 默认 | 选了文件夹后 |
+|---|---|---|
+| `user_data_dir()` 用户数据 | `%USERPROFILE%\zhiyi\` | `<所选文件夹>\zhiyi\` |
+| `local_data_dir()` 本机缓存与下载的模型 | `%LOCALAPPDATA%\zhiyi\` | `<所选文件夹>\zhiyi\local\` |
+
+所选文件夹不存在（移动硬盘未连接）时两者都回到默认位置，设置里会提示。开发诊断日志（未打包时）跟随
+`user_data_dir()`。设置程序移动数据时持有互斥量 `Local\ZhiyiIME.DataMove`，`zhiyi-server` 启动时等它释放再加载。
+
+### 本机缓存 `local_data_dir()\laya-cache\`
 
 ```
 C:\Users\<username>\AppData\Local\zhiyi\laya-cache\
@@ -101,6 +114,7 @@ C:\Users\<username>\AppData\Local\zhiyi\laya-cache\
     ├── laya.data             权重，按本机 CPU 预打包（约 340 MB）
     └── tokenizer.bin         分词器的紧凑镜像（排好序的词表与 merges，约 13 MB）
 C:\Users\<username>\AppData\Local\zhiyi\laya-gpu.json   显卡测速结果（按显卡和驱动版本），设置程序写入
+C:\Users\<username>\AppData\Local\zhiyi\translator\    离线翻译模型与运行库（学习模式，设置程序下载）
 ```
 
 Laya 模型的本机缓存（`laya.cache`，见 [设置指南](settings-guide.md)），两部分：
@@ -115,7 +129,7 @@ key 不匹配的旧缓存会在下次启动时删除；缓存写不进去或损�
 
 ### user_data_dir()
 
-用户可写目录。固定解析为 `%USERPROFILE%\zhiyi\`（CSIDL_PROFILE + `\zhiyi\`）。
+用户可写目录。默认 `%USERPROFILE%\zhiyi\`（CSIDL_PROFILE + `\zhiyi\`），选了数据位置时为 `<所选文件夹>\zhiyi\`（见上）。
 
 首次调用时通过 `CreateDirectoryW` 自动创建。
 

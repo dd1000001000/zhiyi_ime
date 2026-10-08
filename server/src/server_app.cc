@@ -19,6 +19,7 @@
 
 #include "ipc_response_builder.h"
 #include "lexicon_control_handler.h"
+#include "machine_translator.h"
 #include "user_backup_service.h"
 
 namespace {
@@ -235,6 +236,11 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
             }
             ui_presentation_router_.send_command(endpoint, command);
         });
+    // Offline translations arrive after their page was shown (machine_translator.h).
+    MachineTranslator::instance().set_callback(
+        [this](const std::vector<std::pair<std::string, std::string>>& glosses) {
+            ui_presentation_controller_.add_glosses(glosses);
+        });
     if (!ui_controller_started) {
         CXXIME_LOG(L"%s", L"ui_presentation event=start_controller result=degraded");
     } else if (!ui_presentation_router_.start(
@@ -299,6 +305,9 @@ void ServerApp::prepare_user_data_shutdown() {
 }
 
 void ServerApp::finalize() {
+    // The model server first: it holds the graphics card and the model file.
+    MachineTranslator::instance().set_callback({});
+    MachineTranslator::instance().stop();
     diagnostic_log_maintenance_.stop();
     dictionary_monitor_.stop();
     system_lifecycle_monitor_.stop();

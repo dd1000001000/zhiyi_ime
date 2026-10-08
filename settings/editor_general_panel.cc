@@ -233,7 +233,8 @@ void EditorApp::create_general_panel(HWND panel) {
         combo_add(hLanguage_, language.name.c_str());
     }
     y += kRowH;
-    card_end(panel, y - S(6));
+    y = card_end(panel, y - S(6));
+    create_data_card(panel, y);
 }
 
 void EditorApp::create_fuzzy_panel(HWND panel) {
@@ -428,6 +429,7 @@ void EditorApp::populate_controls() {
         set_check(hFuzzyGroups_[i], (config_.fuzzy_groups & (1 << i)) != 0);
     }
     populate_learning();
+    populate_translator();
     update_enabled_controls();
 }
 
@@ -455,6 +457,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.collect_input = c.experience_program && get_check(hCollectInput_);
     c.update_notify = get_check(hUpdateNotify_);
     read_learning(c);
+    read_translator(c);
     c.fuzzy_pinyin = get_check(hFuzzyEnabled_);
     c.fuzzy_groups = 0;
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
@@ -589,6 +592,12 @@ bool EditorApp::handle_command(int control_id, int notification) {
             on_device_selected();
         }
         return true;
+    case kDataChangeId:
+    case kDataDefaultId:
+        if (notification == BN_CLICKED) {
+            choose_data_folder(control_id == kDataDefaultId);
+        }
+        return true;
     case kExportBackupId:
         export_user_backup();
         return true;
@@ -631,6 +640,7 @@ bool EditorApp::handle_command(int control_id, int notification) {
         return true;
     default:
         return handle_learning_command(control_id, notification) ||
+               handle_translator_command(control_id, notification) ||
                handle_update_command(control_id, notification);
     }
 }

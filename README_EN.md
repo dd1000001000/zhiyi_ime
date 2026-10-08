@@ -31,7 +31,12 @@
   language packs (about 40,000 Chinese and 20,000 English words) looked up on your computer. The
   installer includes Chinese → English and English → Chinese; the others are downloaded on the
   Learning page in Settings. The word lists are open at
-  [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary): corrections welcome.
+  [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary): corrections welcome. Phrases,
+  rare words and short sentences the packs lack can be translated by a downloadable on-device model
+  (Tencent Hy-MT2 1.8B) on the graphics card: a page at once, filled in as it arrives, offline
+  (needs a dedicated card with more than 2 GB of memory).
+- **Choose where data lives**: the user dictionary, learning records, language packs, model caches
+  and downloaded models can move to another drive with one click on the General page.
 - **Pinyin or Wubi**: pinyin accepts full pinyin, initials and a mix of both (`wsyige` → 我是一个),
   plus an initials mode where each letter is one character (`zgr` → 中国人).
 - **Fuzzy pinyin**: z=zh, c=ch, s=sh, n=l, an=ang, en=eng, in=ing, each pair on or off; words found

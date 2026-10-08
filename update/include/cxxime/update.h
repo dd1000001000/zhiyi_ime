@@ -141,6 +141,44 @@ GlossaryCheckResult check_glossaries();
 Status download_glossary(const GlossaryPack& pack, const std::wstring& path,
                          const Progress& progress, const std::atomic<bool>* cancel);
 
+// The offline translation model (docs/learning-mode.md, translator_files.h), in the release
+// tagged "translator" (not marked latest):
+//   translator.json      {"version": N, "min_app": "1.2.0",
+//                         "model": {"file", "size", "sha256"},
+//                         "runtime": {"file", "size", "sha256"}}
+//   translator.json.sig  signed like latest.json
+//   <model>.gguf, <runtime>.zip (llama.cpp's llama-server and its DLLs, with their licenses)
+inline constexpr char kTranslatorReleasePath[] = "translator/";  // under kDownloadPrefix
+
+struct TranslatorFile {
+    std::string file;
+    std::string url;
+    std::uint64_t size = 0;
+    std::string sha256;
+};
+
+struct TranslatorManifest {
+    std::uint32_t version = 0;
+    std::string min_app;  // the oldest program version that runs it ("" = any)
+    TranslatorFile model;    // .gguf
+    TranslatorFile runtime;  // .zip
+};
+
+bool parse_translator_manifest(const std::string& text, const std::string& download_prefix,
+                               TranslatorManifest* manifest);
+
+struct TranslatorCheckResult {
+    Status status = Status::kNetwork;
+    TranslatorManifest manifest;
+};
+
+// Downloads and verifies translator.json (blocking; run on a worker thread).
+TranslatorCheckResult check_translator();
+
+// Downloads one of its files to `path` (via path.part, resumed), checking size and SHA-256.
+Status download_translator_file(const TranslatorFile& file, const std::wstring& path,
+                                const Progress& progress, const std::atomic<bool>* cancel);
+
 // %USERPROFILE%\zhiyi\update-state.json: a version the user skipped, and the version being
 // installed (so the next settings start can say it was updated).
 struct State {

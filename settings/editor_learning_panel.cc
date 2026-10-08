@@ -192,8 +192,9 @@ void EditorApp::create_learning_panel(HWND panel) {
         hPackRemoves_.push_back(make_page_button(kPackRemoveFirstId + row, tr("learning.remove"),
                                                  0, 0, S(68), S(28), hPackList_));
     }
-    card_end(panel, y + row_height * kRows - S(6));
+    y = card_end(panel, y + row_height * kRows - S(6));
     show_pack_tab(pack_tab_);
+    create_translator_card(panel, y);
 }
 
 void EditorApp::show_pack_tab(int tab) {

@@ -90,6 +90,15 @@ video memory. The IME turns off ONNX Runtime's own usage events; under its licen
 may collect usage information through Windows diagnostic data, which the Windows "Diagnostics &
 feedback" settings control. It does not go through the IME and does not contain what you type.
 
+## Offline translation (not part of this program)
+
+With offline translation on (Settings > Learning), candidates the language pack lacks and up to 32
+characters before the caret are given to the translation model running on this computer
+(llama.cpp's `llama-server.exe`, listening on 127.0.0.1 only with a random key). The text is only
+processed in this computer's memory and video memory, **never sent over the network**; translations
+are remembered in memory only, not written to a file. The model and its runtime are downloaded from
+GitHub only on "Download" or "Update".
+
 ## Update check (not part of this program)
 
 "Tell me when a new version is available" in Settings > Updates (on by default, setting

@@ -4,6 +4,8 @@
 
 #include <string>
 
+#include <cxxime/data_path.h>
+
 #include <windows.h>
 #include <shlobj.h>
 
@@ -68,17 +70,19 @@ std::wstring resolve_diagnostic_log_directory() {
         return {};
     }
 
-    wchar_t profile[MAX_PATH] = {};
-    if (FAILED(SHGetFolderPathW(nullptr, CSIDL_PROFILE, nullptr, 0, profile))) {
+    // In the user data directory (%USERPROFILE%\zhiyi\ or the chosen data folder).
+    const std::string user_dir = user_data_dir();
+    if (user_dir.empty()) {
         return {};
     }
-
-    std::wstring root(profile);
-    root += L"\\zhiyi";
-    if (!create_directory(root)) {
-        return {};
+    const int length = MultiByteToWideChar(CP_UTF8, 0, user_dir.c_str(),
+                                           static_cast<int>(user_dir.size()), nullptr, 0);
+    std::wstring root(static_cast<size_t>(length > 0 ? length : 0), L'\0');
+    if (length > 0) {
+        MultiByteToWideChar(CP_UTF8, 0, user_dir.c_str(), static_cast<int>(user_dir.size()),
+                            &root[0], length);
     }
-    root += L"\\logs";
+    root += L"logs";
     return create_directory(root) ? root : std::wstring();
 }
 

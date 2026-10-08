@@ -65,6 +65,10 @@ void release_shared_fonts();     // the fonts above
 int card_begin(HWND panel, int top, const wchar_t* title);
 int card_end(HWND panel, int content_bottom);
 void clear_cards();
+// A page taller than the window scrolls: call before its controls are made (the bar takes
+// its width), then update_panel_scroll() once they are.
+void make_panel_scrollable(HWND panel);
+void update_panel_scroll(HWND panel);
 void set_card_visible(HWND panel, int index, bool visible);  // index in card_begin order
 void paint_panel(HWND panel, HDC dc);
 void fill_round_rect(HDC dc, const RECT& rect, int radius, COLORREF fill, COLORREF border);
@@ -92,6 +96,14 @@ HWND make_check(int id, const wchar_t* text, int x, int y, int width, HWND paren
 // web_link_url(id).
 constexpr int kPrivacyDocLinkId = 5004;  // docs/privacy*.md on GitHub (ui string privacy.doc_url)
 constexpr int kReleaseLinkId = 5005;     // the latest release on GitHub (update::kReleasesPage)
+// The data location row on the General page (editor_data_folder.cc).
+constexpr int kDataChangeId = 5010;
+constexpr int kDataDefaultId = 5011;
+// Offline translation on the Learning page (editor_translator.cc).
+constexpr int kTranslatorId = 5020;
+constexpr int kTranslatorDeviceId = 5021;
+constexpr int kTranslatorActionId = 5022;
+constexpr int kTranslatorRemoveId = 5023;
 HWND make_web_link(int id, const wchar_t* text, int x, int y, int width, HWND parent);
 HWND make_button(int id, const wchar_t* text, int x, int y, int width, HWND parent);
 HWND make_radio(int id, const wchar_t* text, int x, int y, int width, HWND parent, bool group);

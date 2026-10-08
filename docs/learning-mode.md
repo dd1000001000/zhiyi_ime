@@ -153,6 +153,28 @@ value  1–3 个义项：{词性 u8, 译文 UTF-8 \0}，以词性 0xFF 结尾
 - 格式版本保证旧版输入法遇到新格式时跳过不加载，不会出错。
 - 服务器上的清单可以给某个包标“最低软件版本”，旧版输入法不会去下载它用不了的包。
 
+## 离线翻译
+
+语言包只收常用词。词表里没有的候选（词组、生僻词、短句、新词）可以用下载到本机的翻译模型翻译：
+
+- **模型**：腾讯 [Hy-MT2-1.8B](https://huggingface.co/tencent/Hy-MT2-1.8B-GGUF) 的 Q4_K_M 量化版（1.13 GB，Apache-2.0），
+  由 llama.cpp 的 `llama-server.exe`（Vulkan 版，MIT）在显卡上运行。两者都不在安装包里，在“学习”页点“下载”时从本仓库的
+  `translator` 发布下载（签名清单 `translator.json` + 模型 + 运行库压缩包，校验签名和 SHA-256），放在本机数据目录的
+  `translator\v<版本>\`（`shared/include/cxxime/translator_files.h`）。
+- **只用显卡**：只有显存大于 2 GB 的独立显卡才能打开，在“学习”页选用哪块显卡；约占 1.5 GB 显存。不支持 CPU 运行。
+- **什么时候翻**：学习模式打开、竖排、这一项打开时，每页里语言包查不到、含文字、不超过 32 个字的候选
+  （通常 3–7 个）交给模型，一页的几个词同时翻译（模型服务有 10 个并行通道，RTX 5070 Ti 上一页约 50–150 ms）。
+  候选窗口先照常显示，翻译好了再补到这一页上；打字很快时只翻最新的一页。模型的译文没有词性，只显示译文；
+  和原文一样的（如“yyds”）不显示。
+- **上文**：光标前最多 32 个字（`learning.translator_context_chars`）随词一起交给模型，帮助多义词选对意思；
+  比推荐模型用的上文短，翻得快。
+- **加载与卸载**：第一次需要翻译时由 `zhiyi-server` 启动模型服务（约 3 秒，包括让显卡预先编译计算程序），
+  60 秒（`learning.translator_idle_seconds`）没有要翻的词就关闭，释放显存。学习模式或这一项关闭时不会加载。
+  模型服务只监听 127.0.0.1 的随机端口，用随机密钥访问，随 `zhiyi-server` 一起退出。
+- **缓存**：翻过的词记在 `zhiyi-server` 的内存里（最多 2 万条），翻页回来不用重翻；不写入文件。
+- 实现：`engine/src/machine_translation.cc`（启动模型服务、按显卡名称找到 Vulkan 设备、并行请求），
+  `server/src/machine_translator.cc`（后台线程、缓存、空闲卸载），`settings/editor_translator.cc`（下载、试翻）。
+
 ## 下载与更新
 
 语言包放在 GitHub 上单独的 Release（tag `glossary`，不标记为 latest，不影响软件更新）：

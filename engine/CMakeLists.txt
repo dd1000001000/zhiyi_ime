@@ -73,7 +73,10 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         src/laya/text_util.cpp
         src/laya/tokenizer.cpp
         src/laya/reranker.cpp
+        src/machine_translation.cc
     )
+    # Offline translation (machine_translation.h): llama-server.exe over HTTP on 127.0.0.1.
+    target_link_libraries(cxxime-engine PUBLIC winhttp ws2_32 bcrypt)
     target_include_directories(cxxime-engine PRIVATE ${LAYA_ORT_DIR}/include)
     target_link_libraries(cxxime-engine PUBLIC ${LAYA_ORT_DIR}/lib/onnxruntime.lib delayimp)
     target_link_options(cxxime-engine INTERFACE /DELAYLOAD:onnxruntime.dll)

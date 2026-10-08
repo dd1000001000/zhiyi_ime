@@ -71,6 +71,14 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int) {
         LocalFree(argv);
     }
 
+    // Settings is moving the data folder: load nothing until it is done (the input method may
+    // start the server meanwhile from any program).
+    if (HANDLE moving = OpenMutexW(SYNCHRONIZE, FALSE, cxxime::kDataMoveMutex)) {
+        const DWORD waited = WaitForSingleObject(moving, INFINITE);
+        if (waited == WAIT_OBJECT_0 || waited == WAIT_ABANDONED) ReleaseMutex(moving);
+        CloseHandle(moving);
+    }
+
     // One server per sign-in session: the input method may start it from several programs at
     // once (server_launcher.h).
     HANDLE instance = CreateMutexW(nullptr, TRUE, cxxime::kServerInstanceMutex);

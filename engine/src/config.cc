@@ -372,6 +372,13 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
     if (config.learning_section_loaded) {
         load_string(j["learning"], "chinese_target", config.chinese_gloss_target);
         load_string(j["learning"], "english_target", config.english_gloss_target);
+        auto& learning = j["learning"];
+        load_bool(learning, "translator", config.mt_enable);
+        load_string(learning, "translator_device", config.mt_device);
+        load_int(learning, "translator_context_chars", config.mt_context_chars);
+        load_int(learning, "translator_idle_seconds", config.mt_idle_seconds);
+        config.mt_context_chars = (std::max)(0, (std::min)(config.mt_context_chars, 256));
+        config.mt_idle_seconds = (std::max)(5, config.mt_idle_seconds);
     }
 
     bool switch_keys_loaded = true;
@@ -684,6 +691,10 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["startup"]["autostart"] = config.autostart;
     j["learning"]["chinese_target"] = config.chinese_gloss_target;
     j["learning"]["english_target"] = config.english_gloss_target;
+    j["learning"]["translator"] = config.mt_enable;
+    j["learning"]["translator_device"] = config.mt_device;
+    j["learning"]["translator_context_chars"] = config.mt_context_chars;
+    j["learning"]["translator_idle_seconds"] = config.mt_idle_seconds;
 
     return j;
 }

@@ -5,8 +5,8 @@
 // may run it (gpu_adapters.h). Choosing a card runs a speed test here: the model runs on the
 // card and on the CPU in turn, and the hint shows both times, in the warning color when the
 // card is slower (the choice stays). The result is remembered per card and driver in
-// %LOCALAPPDATA%\zhiyi\laya-gpu.json (machine-specific, so not in the user data directory
-// that backups carry); a card the model cannot run on goes back to the CPU and is not offered
+// laya-gpu.json in local_data_dir() (machine-specific, so not in the user data that backups
+// carry); a card the model cannot run on goes back to the CPU and is not offered
 // again until its driver changes.
 
 #include "editor_app.h"
@@ -16,10 +16,9 @@
 #include <string>
 #include <thread>
 
-#include <shlobj.h>
-
 #include <json.hpp>
 
+#include <cxxime/data_path.h>
 #include <cxxime/laya_rerank.h>
 
 #include "editor_app_internal.h"
@@ -37,11 +36,7 @@ struct GpuTestDone {
     LayaGpuTest result;
 };
 
-std::wstring gpu_state_path() {
-    wchar_t buf[MAX_PATH] = {};
-    if (SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, buf) != S_OK) return {};
-    return std::wstring(buf) + L"\\zhiyi\\laya-gpu.json";
-}
+std::wstring gpu_state_path() { return utf8_to_wstr(local_data_path("laya-gpu.json")); }
 
 nlohmann::json read_gpu_state() {
     std::ifstream file(gpu_state_path());

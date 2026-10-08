@@ -24,6 +24,7 @@ struct OpenCard {
     std::wstring title;
 };
 std::map<HWND, std::vector<Card>> g_cards;
+std::map<HWND, int> g_scroll;  // scrollable pages: how far they are scrolled
 std::map<HWND, OpenCard> g_open_cards;
 
 HFONT g_title_font = nullptr;
@@ -150,7 +151,80 @@ int card_end(HWND panel, int content_bottom) {
 void clear_cards() {
     g_cards.clear();
     g_open_cards.clear();
+    g_scroll.clear();
 }
+
+void make_panel_scrollable(HWND panel) {
+    // The bar shows from the start (disabled while everything fits), so the page is laid out
+    // in the width that is left beside it.
+    SetWindowLongPtrW(panel, GWL_STYLE, GetWindowLongPtrW(panel, GWL_STYLE) | WS_VSCROLL);
+    SetWindowPos(panel, nullptr, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    SCROLLINFO info = {sizeof(info), SIF_ALL | SIF_DISABLENOSCROLL, 0, 0, 1, 0, 0};
+    SetScrollInfo(panel, SB_VERT, &info, FALSE);
+    g_scroll[panel] = 0;
+}
+
+void update_panel_scroll(HWND panel) {
+    if (g_scroll.find(panel) == g_scroll.end()) return;
+    int bottom = 0;
+    for (const Card& card : g_cards[panel]) bottom = (std::max)(bottom, static_cast<int>(card.rect.bottom));
+    RECT client = {};
+    GetClientRect(panel, &client);
+    SCROLLINFO info = {sizeof(info), SIF_RANGE | SIF_PAGE | SIF_DISABLENOSCROLL};
+    info.nMin = 0;
+    info.nMax = bottom + card_gap() + g_scroll[panel];
+    info.nPage = static_cast<UINT>(client.bottom);
+    SetScrollInfo(panel, SB_VERT, &info, TRUE);
+}
+
+namespace {
+
+void scroll_panel_to(HWND panel, int position) {
+    SCROLLINFO info = {sizeof(info), SIF_ALL};
+    GetScrollInfo(panel, SB_VERT, &info);
+    const int last = (std::max)(0, info.nMax - static_cast<int>(info.nPage) + 1);
+    position = (std::max)(0, (std::min)(position, last));
+    const int old = g_scroll[panel];
+    if (position == old) return;
+    g_scroll[panel] = position;
+    info.fMask = SIF_POS;
+    info.nPos = position;
+    SetScrollInfo(panel, SB_VERT, &info, TRUE);
+    // Cards are kept in page coordinates of the moment they were made: move them along.
+    for (Card& card : g_cards[panel]) OffsetRect(&card.rect, 0, old - position);
+    ScrollWindowEx(panel, 0, old - position, nullptr, nullptr, nullptr, nullptr,
+                   SW_SCROLLCHILDREN | SW_INVALIDATE | SW_ERASE);
+    UpdateWindow(panel);
+}
+
+// WM_VSCROLL / WM_MOUSEWHEEL on a scrollable page; false for any other page.
+bool scroll_message(HWND panel, UINT message, WPARAM wparam) {
+    if (g_scroll.find(panel) == g_scroll.end()) return false;
+    SCROLLINFO info = {sizeof(info), SIF_ALL};
+    GetScrollInfo(panel, SB_VERT, &info);
+    int position = g_scroll[panel];
+    const int line = kRowH;
+    if (message == WM_MOUSEWHEEL) {
+        position -= GET_WHEEL_DELTA_WPARAM(wparam) * line / WHEEL_DELTA * 2;
+    } else {
+        switch (LOWORD(wparam)) {
+        case SB_LINEUP: position -= line; break;
+        case SB_LINEDOWN: position += line; break;
+        case SB_PAGEUP: position -= static_cast<int>(info.nPage); break;
+        case SB_PAGEDOWN: position += static_cast<int>(info.nPage); break;
+        case SB_THUMBTRACK:
+        case SB_THUMBPOSITION: position = info.nTrackPos; break;
+        case SB_TOP: position = 0; break;
+        case SB_BOTTOM: position = info.nMax; break;
+        default: return true;
+        }
+    }
+    scroll_panel_to(panel, position);
+    return true;
+}
+
+}  // namespace
 
 void set_card_visible(HWND panel, int index, bool visible) {
     auto found = g_cards.find(panel);
@@ -396,6 +470,10 @@ LRESULT CALLBACK PanelForwardProc(HWND window, UINT message, WPARAM wparam, LPAR
     if (message == WM_DRAWITEM || message == WM_MEASUREITEM || message == WM_CTLCOLORSTATIC ||
         message == WM_CTLCOLORBTN || message == WM_CTLCOLOREDIT || message == WM_CTLCOLORLISTBOX) {
         return SendMessageW(reinterpret_cast<HWND>(reference_data), message, wparam, lparam);
+    }
+    if ((message == WM_VSCROLL || message == WM_MOUSEWHEEL) &&
+        scroll_message(window, message, wparam)) {
+        return 0;
     }
     // The page draws its cards; themed check boxes ask for this background too.
     if (message == WM_ERASEBKGND || message == WM_PRINTCLIENT) {

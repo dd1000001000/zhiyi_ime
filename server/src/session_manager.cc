@@ -2,6 +2,8 @@
 
 #include "session_manager.h"
 
+#include "machine_translator.h"
+
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -277,12 +279,33 @@ void add_glosses(const SessionEntry& entry, cxxime::CandidatePresentationPage& p
         return;
     }
     const auto& entries = entry.engine->context().translation().entries;
+    // Not in the language pack: the offline translation model (machine_translator.h), when on.
+    const bool translator = config.mt_enable && !config.mt_device.empty();
+    std::vector<cxxime::mt::Item> missing;
     for (std::size_t i = 0; i < page.items.size() && i < entries.size(); ++i) {
         const cxxime::Candidate& candidate = entries[i].candidate;
         if (candidate.source == cxxime::CandidateSource::kSymbol) continue;
+        const bool english = candidate.source == cxxime::CandidateSource::kEnglish;
         page.items[i].gloss = cxxime::candidate_gloss(
             config.chinese_gloss_target, config.english_gloss_target, candidate.text,
-            candidate.syllables, candidate.source == cxxime::CandidateSource::kEnglish);
+            candidate.syllables, english);
+        const std::string& target = english ? config.english_gloss_target : config.chinese_gloss_target;
+        if (!translator || !page.items[i].gloss.empty() || target.empty() ||
+            !cxxime::mt::translatable(candidate.text)) {
+            continue;
+        }
+        std::string translation;
+        if (MachineTranslator::instance().cached(target, candidate.text, &translation)) {
+            page.items[i].gloss = translation;  // shown without a part of speech
+        } else {
+            missing.push_back({target, candidate.text});
+        }
+    }
+    if (!missing.empty()) {
+        MachineTranslator::instance().request(
+            std::move(missing),
+            entry.engine->laya_context(static_cast<std::size_t>(config.mt_context_chars)),
+            config.mt_device, config.mt_idle_seconds);
     }
 }
 

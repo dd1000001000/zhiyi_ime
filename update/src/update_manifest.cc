@@ -4,6 +4,7 @@
 
 #include <cxxime/update.h>
 
+#include <algorithm>
 #include <cctype>
 #include <filesystem>
 #include <fstream>
@@ -144,6 +145,51 @@ bool parse_glossary_manifest(const std::string& text, const std::string& downloa
         parsed.push_back(std::move(pack));
     }
     *packs = std::move(parsed);
+    return true;
+}
+
+bool parse_translator_manifest(const std::string& text, const std::string& download_prefix,
+                               TranslatorManifest* manifest) {
+    const nlohmann::json json = nlohmann::json::parse(text, nullptr, false);
+    if (!manifest || !json.is_object()) return false;
+    TranslatorManifest parsed;
+    const auto version = json.find("version");
+    if (version == json.end() || !version->is_number_unsigned()) return false;
+    parsed.version = version->get<std::uint32_t>();
+    if (json.contains("min_app") && json["min_app"].is_string()) {
+        parsed.min_app = json["min_app"].get<std::string>();
+    }
+    // A plain file name ending in `extension`: letters, digits, '.', '-', '_'.
+    auto safe_name = [](const std::string& name, const char* extension) {
+        const std::string ext = extension;
+        if (name.size() <= ext.size() || name.size() > 128 ||
+            name.compare(name.size() - ext.size(), ext.size(), ext) != 0 || name[0] == '.') {
+            return false;
+        }
+        return std::all_of(name.begin(), name.end(), [](char c) {
+            return std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '-' || c == '_';
+        });
+    };
+    auto read_file = [&](const char* key, const char* extension, TranslatorFile* file) {
+        const auto found = json.find(key);
+        if (found == json.end() || !found->is_object()) return false;
+        const nlohmann::json& item = *found;
+        if (!item.contains("file") || !item["file"].is_string() || !item.contains("sha256") ||
+            !item["sha256"].is_string() || !item.contains("size") || !item["size"].is_number_unsigned()) {
+            return false;
+        }
+        file->file = item["file"].get<std::string>();
+        file->sha256 = item["sha256"].get<std::string>();
+        file->size = item["size"].get<std::uint64_t>();
+        file->url = download_prefix + kTranslatorReleasePath + file->file;
+        return safe_name(file->file, extension) && is_lower_hex(file->sha256, 64) && file->size > 0;
+    };
+    if (parsed.version == 0 || !read_file("model", ".gguf", &parsed.model) ||
+        !read_file("runtime", ".zip", &parsed.runtime) ||
+        (!parsed.min_app.empty() && !is_release_version(parsed.min_app))) {
+        return false;
+    }
+    *manifest = std::move(parsed);
     return true;
 }
 

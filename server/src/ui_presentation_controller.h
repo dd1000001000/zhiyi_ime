@@ -6,6 +6,9 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include <cxxime/config.h>
 #include <cxxime/ui_channel.h>
@@ -27,6 +30,9 @@ public:
                  std::uint64_t candidate_placement_cycle,
                  std::uint64_t router_revision);
     void update_config(const std::shared_ptr<const cxxime::Config>& config);
+    // Offline translations that arrived after the page was shown (machine_translator.h):
+    // candidates of the latest page with no translation and one of these texts get it.
+    void add_glosses(const std::vector<std::pair<std::string, std::string>>& glosses);
     std::uint32_t visible_candidate_count(
         std::uint32_t session_id, const cxxime::CandidateUiContext& context) const;
 

@@ -119,11 +119,15 @@ bool activate_existing_settings(const std::wstring& path, SettingsPanel panel) {
         return false;
     }
 
+    // Settings brings itself forward on this message too (editor_app.cc), with the right passed on.
+    DWORD process_id = 0;
+    GetWindowThreadProcessId(window, &process_id);
+    if (process_id != 0) AllowSetForegroundWindow(process_id);
     const UINT message = RegisterWindowMessageW(kSettingsNavigateMessage);
     if (message != 0) {
         PostMessageW(window, message, static_cast<WPARAM>(panel), 0);
     }
-    ShowWindow(window, SW_RESTORE);
+    if (IsIconic(window)) ShowWindow(window, SW_RESTORE);
     SetForegroundWindow(window);
     return true;
 }
@@ -162,6 +166,8 @@ bool open_settings(SettingsPanel panel) {
         CXXIME_LOG(L"settings_launch result=0 error=%lu", GetLastError());
         return false;
     }
+    // Lets the new window come to the front when this process may (tray menu, menu click).
+    AllowSetForegroundWindow(process_info.dwProcessId);
     CloseHandle(process_info.hProcess);
     CloseHandle(process_info.hThread);
     return true;

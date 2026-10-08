@@ -53,6 +53,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int) {
         for (int attempt = 0; attempt < 30; ++attempt) {
             HWND existing = FindWindowW(cxxime::kSettingsWindowClass, nullptr);
             if (existing) {
+                DWORD process_id = 0;
+                GetWindowThreadProcessId(existing, &process_id);
+                if (process_id != 0) AllowSetForegroundWindow(process_id);
                 if (IsIconic(existing)) ShowWindow(existing, SW_RESTORE);
                 SetForegroundWindow(existing);
                 if (initialPanel != cxxime::SettingsPanel::kInput) {

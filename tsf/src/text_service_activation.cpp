@@ -90,6 +90,10 @@ void TextService::_handle_ime_menu_command(cxxime::ImeMenuCommand command) {
                                                 : cxxime::SettingsPanel::kInput;
         // The server opens settings (outside this program's sandbox); without a server (after
         // Exit, or startup.autostart off) this program does, and settings starts the server.
+        // The menu click made this app the foreground one; the server and the settings program
+        // are background processes, so pass the right to bring a window forward on to them
+        // (otherwise the settings window opens behind this app).
+        AllowSetForegroundWindow(ASFW_ANY);
         if ((!_ensure_ipc_session() || !_client.open_settings(_sessionId, panel)) &&
             !cxxime::open_settings(panel)) {
             CXXIME_LOG(L"%s", L"settings_request source=tsf result=0");

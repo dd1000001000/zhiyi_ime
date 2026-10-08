@@ -98,6 +98,9 @@ int EditorApp::run(HINSTANCE hInst, float dpiScale, cxxime::SettingsPanel initia
     if (!app.hwnd_) return 1;
     ShowWindow(app.hwnd_, SW_SHOW);
     UpdateWindow(app.hwnd_);
+    // Started by the server for a menu click: the IME passed it the right to come forward
+    // (text_service_activation.cpp); without it Windows keeps the window behind the app.
+    SetForegroundWindow(app.hwnd_);
 
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0)) {
@@ -374,9 +377,11 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         a->handle_translator_message(msg, wp, lp)) {
         return 0;
     }
-    if (navigate_message != 0 && msg == navigate_message) {
+    if (navigate_message != 0 && msg == navigate_message) {  // opened again from the IME
         a->refresh_config();
         a->show_panel(settings_panel_index(static_cast<cxxime::SettingsPanel>(wp)));
+        if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
+        SetForegroundWindow(hwnd);
         return 0;
     }
 

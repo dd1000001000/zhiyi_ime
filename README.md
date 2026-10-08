@@ -53,11 +53,11 @@
 
 <img src="docs/media/accuracy.zh-CN.svg" alt="首选准确率：知意输入法 vs 只按词频排序" width="100%">
 
-### 与其他开源模型对比
+### 与其他模型对比
 
-[metasequoiaime/pinyin-ime-reranker](https://huggingface.co/metasequoiaime/pinyin-ime-reranker-25M)（4M / 25M，Apache-2.0）是另一个给拼音候选按上文重新排序的开源模型。用同样的测试集、同样的候选比较：它体积小得多，但只支持中文，准确率低于知意的模型；英文补全只有知意支持。
+同样的测试集、同样的候选，比较只按词频排序、[水杉 metasequoiaime/pinyin-ime-reranker](https://huggingface.co/metasequoiaime/pinyin-ime-reranker-25M)（4M / 25M，另一个按上文给拼音候选重新排序的开源模型，只支持中文）、未微调的原始 [Laya](https://huggingface.co/convaiinnovations/laya) 多语言模型，以及知意 1.1 和 1.2 的模型。1.2 的模型由 1.1 的模型蒸馏到更小的 mmBERT-small，并加入 LCCC 和 C4 中文语料扩充训练：准确率更高，CPU 上快约一倍，内存、显存和模型文件都只有原来的一半左右。
 
-<img src="docs/media/compare.zh-CN.svg" alt="知意输入法与 metasequoiaime 重排模型对比：(a) 中文实际候选 (b) 中文同音词 (c) 英文补全 (d) 模型大小" width="100%">
+<img src="docs/media/compare.zh-CN.svg" alt="候选排序模型对比：(a) 中文实际候选 (b) 中文同音词 (c) 英文补全 (d) CPU 耗时 (e) 显卡耗时 (f) 内存 (g) 显存 (h) 模型文件" width="100%">
 
 ## 安装说明
 
@@ -81,7 +81,9 @@
 
 - [CxxIME](https://github.com/deanxyuan/cxx-ime)：输入法框架、拼音引擎、候选窗与设置程序（Apache License 2.0）
 - [rime-ice（雾凇拼音）](https://github.com/iDvel/rime-ice)：中文拼音词库与英文词表（GPL-3.0）
-- [Laya](https://huggingface.co/convaiinnovations/laya)：上文推荐所用的模型（Apache-2.0）
+- [Laya](https://huggingface.co/convaiinnovations/laya)：上文推荐模型的结构与蒸馏用的老师模型（Apache-2.0）
+- [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small)：上文推荐模型的编码器 mmBERT-small（MIT）
+- [LCCC](https://github.com/thu-coai/CDial-GPT)（MIT）与 [C4](https://huggingface.co/datasets/allenai/c4) 中文部分（ODC-BY）：模型蒸馏的部分语料
 - [wordfreq](https://github.com/rspeer/wordfreq)：英文词频（CC BY-SA 4.0）
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime)：模型推理（MIT）
 - [DirectML](https://github.com/microsoft/DirectML)：显卡推理（微软 DirectML 许可，可再分发）

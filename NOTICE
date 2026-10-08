@@ -11,7 +11,8 @@ The original copyright and license notices are retained in the source files take
 from CxxIME; files added by 知意输入法 carry a GPL-3.0-only notice.
 
 Changes made to CxxIME (2026-10):
-- Laya context reranking: a fine-tuned Laya decision model (ONNX Runtime, CPU) picks the
+- Laya context reranking: a Laya decision model (fine-tuned, then distilled into
+  mmBERT-small; ONNX Runtime, CPU or DirectML) picks the
   first candidate for pinyin homophones and English completions from the preceding text;
   the pick is marked with a sparkle in the candidate window
   (engine/src/laya_rerank.cc, engine/src/laya/, ui/src/sparkle.h).

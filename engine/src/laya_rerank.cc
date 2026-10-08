@@ -229,6 +229,14 @@ void LayaRerank::set_capture(CaptureFn capture) {
     s.capture = std::move(capture);
 }
 
+std::string LayaRerank::model_id(const Config& config) const {
+    const laya::RerankerOptions opt = model_options(config);
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(
+        std::filesystem::path(laya::utf8_to_wide(opt.model_dir)) / laya::utf8_to_wide(opt.onnx_file), ec);
+    return ec ? std::string() : std::to_string(size);
+}
+
 LayaGpuTest LayaRerank::test_gpu(const Config& config, const std::string& adapter) {
     LayaGpuTest result;
     laya::RerankerOptions opt = model_options(config);

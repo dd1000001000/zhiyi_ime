@@ -7,9 +7,9 @@
 
 | 指标 | 数值 | 说明 |
 |------|------|------|
-| 安装包 | ~190 MB | 单文件安装器，含词典、Laya 模型（int8，词表裁剪后约 195 MB 解压后）与 ONNX Runtime |
-| Server 内存 | 私有提交 ~50–70 MB | 词典、Laya 模型权重（按本机 CPU 预打包）和分词器镜像都是只读映射的共享页：首次启动在 `%LOCALAPPDATA%\zhiyi\laya-cache` 生成约 350 MB 缓存（见 [路径解析](path-resolution.md)）；引擎 + 模型实测私有 44–66 MB，1.0.5 为 477 MB |
-| 上文推荐 | 每次约 30 ms（CPU）/ 约 9 ms（RTX 5070 Ti） | Laya 模型在 CPU 上推理（4 线程），或在设置里选的独立显卡上（DirectML）；结果按上文缓存 |
+| 安装包 | ~120 MB | 单文件安装器，含词典、Laya 模型（int8，词表裁剪后解压约 85 MB）与 ONNX Runtime |
+| Server 内存 | 私有提交 ~50–70 MB | 词典、Laya 模型权重（按本机 CPU 预打包）和分词器镜像都是只读映射的共享页：首次启动在 `%LOCALAPPDATA%\zhiyi\laya-cache` 生成约 140 MB 缓存（见 [路径解析](path-resolution.md)）；引擎 + 模型实测私有 44–66 MB，1.0.5 为 477 MB |
+| 上文推荐 | 每次约 12 ms（CPU）/ 约 6 ms（RTX 5070 Ti） | Laya 模型在 CPU 上推理（4 线程），或在设置里选的独立显卡上（DirectML）；结果按上文缓存 |
 | IPC 往返延迟 | < 1 ms | 实测 preedit 平均 ~50 µs（见 [IPC 架构设计](ipc-architecture.md)） |
 | 启动 | 词典只读映射 + 整体预取 | 文件支持的共享页，不计入私有内存；启动时 `PrefetchVirtualMemory` 一次读入 |
 

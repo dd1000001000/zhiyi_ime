@@ -48,7 +48,7 @@
     "general.device_cpus": "CPU ({1} × {0})",
     "general.device_gpu": "GPU ({0})",
     "general.device_gpu_n": "GPU {1} ({0})",
-    "general.device_hint": "A graphics card is tested first; it takes about 500 MB of video memory and 200 MB of memory",
+    "general.device_hint": "A graphics card is tested first; it takes about 300 MB of video memory and 220 MB of memory",
     "general.device_testing": "Testing the speed of this graphics card…",
     "general.device_result": "About {0} ms per recommendation on this graphics card, {1} ms on the CPU",
     "general.device_none": "No graphics card on this computer can run the recommendation model",

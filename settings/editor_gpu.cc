@@ -4,10 +4,10 @@
 // on a graphics card (laya.device). The row is shown only when this computer has a card that
 // may run it (gpu_adapters.h). Choosing a card runs a speed test here: the model runs on the
 // card and on the CPU in turn, and the hint shows both times, in the warning color when the
-// card is slower (the choice stays). The result is remembered per card and driver in
+// card is slower (the choice stays). The result is remembered per card, driver and model in
 // laya-gpu.json in local_data_dir() (machine-specific, so not in the user data that backups
 // carry); a card the model cannot run on goes back to the CPU and is not offered
-// again until its driver changes.
+// again until its driver or the model changes.
 
 #include "editor_app.h"
 
@@ -47,18 +47,20 @@ nlohmann::json read_gpu_state() {
     return state;
 }
 
-// The recorded test of this card with this driver, or nullptr.
-const nlohmann::json* find_test(const nlohmann::json& state, const GpuAdapter& adapter) {
+// The recorded test of this card with this driver and model (LayaRerank::model_id), or nullptr.
+const nlohmann::json* find_test(const nlohmann::json& state, const GpuAdapter& adapter,
+                                const std::string& model) {
     for (const auto& test : state["tests"]) {
         if (test.is_object() && test.value("key", "") == adapter.key &&
-            test.value("driver", std::uint64_t{0}) == adapter.driver_version) {
+            test.value("driver", std::uint64_t{0}) == adapter.driver_version &&
+            test.value("model", "") == model) {
             return &test;
         }
     }
     return nullptr;
 }
 
-void remember_test(const GpuAdapter& adapter, const LayaGpuTest& result) {
+void remember_test(const GpuAdapter& adapter, const LayaGpuTest& result, const std::string& model) {
     nlohmann::json state = read_gpu_state();
     auto& tests = state["tests"];
     tests.erase(std::remove_if(tests.begin(), tests.end(),
@@ -69,6 +71,7 @@ void remember_test(const GpuAdapter& adapter, const LayaGpuTest& result) {
     tests.push_back({{"key", adapter.key},
                      {"name", adapter.name},
                      {"driver", adapter.driver_version},
+                     {"model", model},
                      {"faster", result.faster},
                      {"gpu_ms", result.gpu_ms},
                      {"cpu_ms", result.cpu_ms}});
@@ -123,8 +126,9 @@ void EditorApp::fill_device_combo() {
 void EditorApp::load_gpu_choices() {
     gpu_choices_.clear();
     const nlohmann::json state = read_gpu_state();
+    const std::string model = LayaRerank::instance().model_id(config_);
     for (GpuAdapter& adapter : list_gpu_adapters()) {
-        const nlohmann::json* test = find_test(state, adapter);
+        const nlohmann::json* test = find_test(state, adapter, model);
         if (!test || test->value("gpu_ms", -1.0) > 0) {
             gpu_choices_.push_back(std::move(adapter));
         }
@@ -155,7 +159,8 @@ void EditorApp::populate_device() {
     combo_set_index(hDevice_, index);
     // A card's recorded speed, when it is the one in use.
     const nlohmann::json state = read_gpu_state();
-    const nlohmann::json* test = index > 0 ? find_test(state, gpu_choices_[index - 1]) : nullptr;
+    const nlohmann::json* test =
+        index > 0 ? find_test(state, gpu_choices_[index - 1], LayaRerank::instance().model_id(config_)) : nullptr;
     if (test) {
         show_device_result(test->value("gpu_ms", 0.0), test->value("cpu_ms", 0.0));
     } else {
@@ -178,7 +183,7 @@ void EditorApp::on_device_selected() {
     }
     const GpuAdapter adapter = gpu_choices_[index - 1];
     const nlohmann::json state = read_gpu_state();
-    if (const nlohmann::json* test = find_test(state, adapter)) {  // tested with this driver
+    if (const nlohmann::json* test = find_test(state, adapter, LayaRerank::instance().model_id(config_))) {
         show_device_result(test->value("gpu_ms", 0.0), test->value("cpu_ms", 0.0));
         return;
     }
@@ -198,7 +203,7 @@ bool EditorApp::handle_gpu_message(UINT message, WPARAM, LPARAM lparam) {
     if (message != kGpuTestedMessage) return false;
     std::unique_ptr<GpuTestDone> done(reinterpret_cast<GpuTestDone*>(lparam));
     gpu_testing_ = false;
-    remember_test(done->adapter, done->result);
+    remember_test(done->adapter, done->result, LayaRerank::instance().model_id(config_));
     if (done->result.gpu_ms > 0 && done->result.cpu_ms > 0) {  // it ran: the choice stays
         show_device_result(done->result.gpu_ms, done->result.cpu_ms);
         update_enabled_controls();

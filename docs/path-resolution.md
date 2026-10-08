@@ -111,9 +111,9 @@ NSIS 安装到 Program Files  →  优先级 3
 C:\Users\<username>\AppData\Local\zhiyi\laya-cache\
 └── <key>\                    key = 模型文件 + tokenizer.json + ONNX Runtime 版本 + CPU 型号的哈希
     ├── laya.onnx             优化后的图（权重引用 laya.data）
-    ├── laya.data             权重，按本机 CPU 预打包（约 340 MB）
+    ├── laya.data             权重，按本机 CPU 预打包（约 125 MB）
     └── tokenizer.bin         分词器的紧凑镜像（排好序的词表与 merges，约 13 MB）
-C:\Users\<username>\AppData\Local\zhiyi\laya-gpu.json   显卡测速结果（按显卡和驱动版本），设置程序写入
+C:\Users\<username>\AppData\Local\zhiyi\laya-gpu.json   显卡测速结果（按显卡、驱动版本和模型），设置程序写入
 C:\Users\<username>\AppData\Local\zhiyi\translator\    离线翻译模型与运行库（学习模式，设置程序下载）
 ```
 

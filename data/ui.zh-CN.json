@@ -48,7 +48,7 @@
     "general.device_cpus": "CPU（{1} × {0}）",
     "general.device_gpu": "GPU（{0}）",
     "general.device_gpu_n": "GPU {1}（{0}）",
-    "general.device_hint": "选择显卡时会先测一下速度；约占 500 MB 显存和 200 MB 内存",
+    "general.device_hint": "选择显卡时会先测一下速度；约占 300 MB 显存和 220 MB 内存",
     "general.device_testing": "正在测试这块显卡的速度，请稍候……",
     "general.device_result": "这块显卡每次推荐约 {0} ms，CPU 约 {1} ms",
     "general.device_none": "这台电脑上没有能运行推荐模型的显卡",

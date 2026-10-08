@@ -214,8 +214,17 @@ Upstream: https://huggingface.co/convaiinnovations/laya
 License: Apache License 2.0
 
 The model in models/laya/ (laya.int8g.onnx, tokenizer.json, rl_agent_config.json)
-is the multilingual Laya checkpoint fine-tuned with LoRA on Chinese pinyin and
-English completion data, exported to ONNX and quantized to int8.
+has the Laya decision-model architecture on the mmBERT-small encoder. It was
+distilled from the multilingual Laya checkpoint fine-tuned with LoRA on Chinese
+pinyin and English completion data, exported to ONNX and quantized to int8.
+
+mmBERT-small: https://huggingface.co/jhu-clsp/mmBERT-small (Marone et al., 2025,
+Johns Hopkins University CLSP), MIT License; the tokenizer is mmBERT's.
+
+Part of the distillation text was drawn from:
+- LCCC (Wang et al., 2020), https://github.com/thu-coai/CDial-GPT, MIT License;
+- the Chinese portion of C4 (Raffel et al., 2020), https://huggingface.co/datasets/allenai/c4,
+  Open Data Commons Attribution License (ODC-BY) 1.0.
 
 
 Microsoft Visual C++ Runtime

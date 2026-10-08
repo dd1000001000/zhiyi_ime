@@ -73,11 +73,11 @@ in the [development notes](docs/development.md#上文推荐模型laya) (Chinese)
 
 <img src="docs/media/accuracy.en-US.svg" alt="First-candidate accuracy: Zhiyi IME vs word frequency only" width="100%">
 
-### Compared with another open model
+### Compared with other models
 
-[metasequoiaime/pinyin-ime-reranker](https://huggingface.co/metasequoiaime/pinyin-ime-reranker-25M) (4M / 25M, Apache-2.0) is another open model that reranks pinyin candidates by the preceding text. On the same test sets and the same candidates it is much smaller, but Chinese only and less accurate than Zhiyi's model; only Zhiyi handles English completion.
+The same test sets and the same candidates, ranked by word frequency only, by [metasequoiaime/pinyin-ime-reranker](https://huggingface.co/metasequoiaime/pinyin-ime-reranker-25M) (4M / 25M, another open model that reranks pinyin candidates by the preceding text; Chinese only), by the untuned multilingual [Laya](https://huggingface.co/convaiinnovations/laya) model, and by the models of Zhiyi 1.1 and 1.2. The 1.2 model is the 1.1 model distilled into the smaller mmBERT-small, with more training text from LCCC and Chinese C4: it is more accurate, about twice as fast on the CPU, and takes about half the memory, video memory and disk space.
 
-<img src="docs/media/compare.en-US.svg" alt="Zhiyi IME vs the metasequoiaime rerankers: (a) real Chinese candidates (b) Chinese homophones (c) English completion (d) model size" width="100%">
+<img src="docs/media/compare.en-US.svg" alt="Candidate-ranking models: (a) real Chinese candidates (b) Chinese homophones (c) English completion (d) CPU time (e) GPU time (f) memory (g) video memory (h) model file" width="100%">
 
 ## Installation
 
@@ -104,7 +104,9 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [CxxIME](https://github.com/deanxyuan/cxx-ime): the input method framework, pinyin engine,
   candidate window and settings app (Apache License 2.0)
 - [rime-ice](https://github.com/iDvel/rime-ice): the Chinese pinyin dictionary and English word list (GPL-3.0)
-- [Laya](https://huggingface.co/convaiinnovations/laya): the model behind the recommendations (Apache-2.0)
+- [Laya](https://huggingface.co/convaiinnovations/laya): the recommendation model's architecture and the teacher it was distilled from (Apache-2.0)
+- [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small): the recommendation model's encoder, mmBERT-small (MIT)
+- [LCCC](https://github.com/thu-coai/CDial-GPT) (MIT) and the Chinese part of [C4](https://huggingface.co/datasets/allenai/c4) (ODC-BY): part of the distillation text
 - [wordfreq](https://github.com/rspeer/wordfreq): English word frequencies (CC BY-SA 4.0)
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime): model inference (MIT)
 - [DirectML](https://github.com/microsoft/DirectML): inference on graphics cards (Microsoft DirectML

@@ -68,6 +68,10 @@ public:
     // shared model, and times a typical first page on each. Takes a few seconds; blocks.
     LayaGpuTest test_gpu(const Config& config, const std::string& adapter);
 
+    // Settings: tells the configured model file apart (its size in bytes, empty when missing), so
+    // a speed test recorded with another model is run again rather than shown.
+    std::string model_id(const Config& config) const;
+
     LayaRerankStats stats() const;
 
 private:

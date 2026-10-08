@@ -29,6 +29,10 @@ LayaGpuTest LayaRerank::test_gpu(const Config&, const std::string&) {
     return result;
 }
 
+std::string LayaRerank::model_id(const Config&) const {
+    return {};
+}
+
 LayaRerankStats LayaRerank::stats() const {
     return {};
 }

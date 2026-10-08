@@ -5,6 +5,8 @@
 #include <InputScope.h>
 
 #include <algorithm>
+#include <cwchar>
+#include <iterator>
 #include <new>
 
 namespace {
@@ -46,6 +48,18 @@ bool range_is_private(ITfContext* context, TfEditCookie ec, ITfRange* range) {
     }
     VariantClear(&value);
     return hidden;
+}
+
+// Chromium (Chrome, Edge, Electron apps) marks its documents transitory, yet they hold the input
+// box's text: an empty read there is an empty box, not an unreadable one.
+bool is_chromium_document(ITfContext* context) {
+    HWND window = nullptr;
+    com_ptr<ITfContextView> view;
+    if (SUCCEEDED(context->GetActiveView(&view)) && view) view->GetWnd(&window);
+    if (!window) window = GetFocus();
+    wchar_t name[64] = {};
+    return window && GetClassNameW(window, name, static_cast<int>(std::size(name))) > 0 &&
+           wcsncmp(name, L"Chrome_", 7) == 0;  // Chrome_RenderWidgetHostHWND, Chrome_WidgetWin_1
 }
 
 class ReadSession : public ITfEditSession {
@@ -119,7 +133,8 @@ TextBeforeCaret read_text_before_caret(ITfContext* context, TfClientId client_id
     // Classic Win32 edit boxes reach TSF through the IMM compatibility layer, whose transitory
     // documents hold only the composition: a read "succeeds" with no text.
     TF_STATUS status = {};
-    if (SUCCEEDED(context->GetStatus(&status)) && (status.dwStaticFlags & TF_SS_TRANSITORY) != 0) {
+    if (SUCCEEDED(context->GetStatus(&status)) && (status.dwStaticFlags & TF_SS_TRANSITORY) != 0 &&
+        !is_chromium_document(context)) {
         return TextBeforeCaret::kUnavailable;
     }
     ReadSession* session = new (std::nothrow) ReadSession(context, max_chars);

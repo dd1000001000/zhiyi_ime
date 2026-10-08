@@ -278,10 +278,6 @@ bool TextService::_ProcessKeyEvent(ITfContext* pic, WPARAM wParam, LPARAM lParam
         }
         // Only where the model recommends: pinyin, or English word completion.
         if ((_chinese_mode || english_words) && _ensure_ipc_session()) _send_text_before_caret(pic);
-    } else if (!_composing && wParam == VK_RETURN && _config.laya.enable && _sessionId) {
-        // Enter outside a composition sends a chat message or starts a line: where the box
-        // cannot be read, the text committed before it is no longer the context.
-        _client.set_context(_sessionId, "", cxxime::kContextNewInputBox);
     }
 
     cxxime::IPCResponse response = {};

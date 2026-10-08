@@ -47,15 +47,7 @@
 
 ## 推荐准确率
 
-同样的候选，只按词频排序（不看上文）和知意输入法（看上文的模型）把正确的词放在第一位的比例。
-打字越省事（简拼、最后一个音没打完），只靠词频越难猜中，看上文的提升也越大。测试方法见
-[开发说明](docs/development.md#上文推荐模型laya)。
-
-<img src="docs/media/accuracy.zh-CN.svg" alt="首选准确率：知意输入法 vs 只按词频排序" width="100%">
-
-### 与其他模型对比
-
-同样的测试集、同样的候选，比较只按词频排序、[水杉 metasequoiaime/pinyin-ime-reranker](https://huggingface.co/metasequoiaime/pinyin-ime-reranker-25M)（4M / 25M，另一个按上文给拼音候选重新排序的开源模型，只支持中文）、未微调的原始 [Laya](https://huggingface.co/convaiinnovations/laya) 多语言模型，以及知意 1.1 和 1.2 的模型。1.2 的模型由 1.1 的模型蒸馏到更小的 mmBERT-small，并加入 LCCC 和 C4 中文语料扩充训练：准确率更高，CPU 上快约一倍，内存、显存和模型文件都只有原来的一半左右。
+同样的测试集、同样的候选，比较把正确的词放在第一位的比例，以及速度和占用：只按词频排序（不看上文）、[水杉 metasequoiaime/pinyin-ime-reranker](https://huggingface.co/metasequoiaime/pinyin-ime-reranker-25M)（4M / 25M，另一个按上文给拼音候选重新排序的开源模型，只支持中文）、未微调的原始 [Laya](https://huggingface.co/convaiinnovations/laya) 多语言模型，以及知意 1.1 和 1.2 的模型。1.2 的模型由 1.1 的模型蒸馏到更小的 mmBERT-small，并加入 LCCC 和 C4 中文语料扩充训练：准确率更高，CPU 上快约一倍，内存、显存和模型文件都只有原来的一半左右。测试方法见[开发说明](docs/development.md#上文推荐模型laya)。
 
 <img src="docs/media/compare.zh-CN.svg" alt="候选排序模型对比：(a) 中文实际候选 (b) 中文同音词 (c) 英文补全 (d) CPU 耗时 (e) 显卡耗时 (f) 内存 (g) 显存 (h) 模型文件" width="100%">
 

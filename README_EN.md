@@ -66,16 +66,7 @@
 
 ## Recommendation accuracy
 
-How often the right word comes first among the same candidates: sorted by word frequency only
-(no context) versus Zhiyi IME (the context-aware model). The less you type (initials, an unfinished
-last syllable), the harder frequency alone guesses, and the more the context helps. Test details are
-in the [development notes](docs/development.md#上文推荐模型laya) (Chinese).
-
-<img src="docs/media/accuracy.en-US.svg" alt="First-candidate accuracy: Zhiyi IME vs word frequency only" width="100%">
-
-### Compared with other models
-
-The same test sets and the same candidates, ranked by word frequency only, by [metasequoiaime/pinyin-ime-reranker](https://huggingface.co/metasequoiaime/pinyin-ime-reranker-25M) (4M / 25M, another open model that reranks pinyin candidates by the preceding text; Chinese only), by the untuned multilingual [Laya](https://huggingface.co/convaiinnovations/laya) model, and by the models of Zhiyi 1.1 and 1.2. The 1.2 model is the 1.1 model distilled into the smaller mmBERT-small, with more training text from LCCC and Chinese C4: it is more accurate, about twice as fast on the CPU, and takes about half the memory, video memory and disk space.
+How often the right word comes first, and how fast and how large each model is, on the same test sets and the same candidates: word frequency only (no context), [metasequoiaime/pinyin-ime-reranker](https://huggingface.co/metasequoiaime/pinyin-ime-reranker-25M) (4M / 25M, another open model that reranks pinyin candidates by the preceding text; Chinese only), the untuned multilingual [Laya](https://huggingface.co/convaiinnovations/laya) model, and the models of Zhiyi 1.1 and 1.2. The 1.2 model is the 1.1 model distilled into the smaller mmBERT-small, with more training text from LCCC and Chinese C4: it is more accurate, about twice as fast on the CPU, and takes about half the memory, video memory and disk space. Test details are in the [development notes](docs/development.md#上文推荐模型laya) (Chinese).
 
 <img src="docs/media/compare.en-US.svg" alt="Candidate-ranking models: (a) real Chinese candidates (b) Chinese homophones (c) English completion (d) CPU time (e) GPU time (f) memory (g) video memory (h) model file" width="100%">
 

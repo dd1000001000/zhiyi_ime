@@ -386,6 +386,16 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
 
     switch (msg) {
+    case WM_MOUSEWHEEL:
+        // With the keyboard focus here (or on the page list) the wheel comes to this window:
+        // scroll the page that is shown. Only a scrolling page (WS_VSCROLL): any other passes
+        // the wheel back up to this window.
+        for (HWND panel : a->hPanels_) {
+            if (panel && IsWindowVisible(panel) && (GetWindowLongPtrW(panel, GWL_STYLE) & WS_VSCROLL)) {
+                return SendMessageW(panel, msg, wp, lp);
+            }
+        }
+        return 0;
     case WM_CREATE:
         a->hwnd_ = hwnd;
         // Strings are needed before any control exists; load_config() reports errors with them.

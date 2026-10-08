@@ -497,9 +497,13 @@ LRESULT CALLBACK PanelForwardProc(HWND window, UINT message, WPARAM wparam, LPAR
     }
     // A STATIC window is transparent to the mouse (HTTRANSPARENT), its scroll bar included, so
     // the bar could not be clicked or dragged; the default hit test finds it.
+    // The same transparency sent the mouse wheel over labels and empty parts of a scrolling page
+    // past the page to the main window, which dropped it: the page scrolled only while the
+    // pointer happened to be over a button. A scrolling page takes the mouse itself.
     if (message == WM_NCHITTEST) {
         const LRESULT hit = DefWindowProcW(window, message, wparam, lparam);
         if (hit == HTVSCROLL) return hit;
+        if (hit == HTCLIENT && g_scroll.find(window) != g_scroll.end()) return HTCLIENT;
     }
     // Clicks and drags on the bar: the default handling runs the scroll loop (WM_VSCROLL above).
     if ((message == WM_NCLBUTTONDOWN || message == WM_NCLBUTTONDBLCLK) && wparam == HTVSCROLL) {

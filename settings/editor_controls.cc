@@ -495,6 +495,16 @@ LRESULT CALLBACK PanelForwardProc(HWND window, UINT message, WPARAM wparam, LPAR
         scroll_message(window, message, wparam)) {
         return 0;
     }
+    // A STATIC window is transparent to the mouse (HTTRANSPARENT), its scroll bar included, so
+    // the bar could not be clicked or dragged; the default hit test finds it.
+    if (message == WM_NCHITTEST) {
+        const LRESULT hit = DefWindowProcW(window, message, wparam, lparam);
+        if (hit == HTVSCROLL) return hit;
+    }
+    // Clicks and drags on the bar: the default handling runs the scroll loop (WM_VSCROLL above).
+    if ((message == WM_NCLBUTTONDOWN || message == WM_NCLBUTTONDBLCLK) && wparam == HTVSCROLL) {
+        return DefWindowProcW(window, message, wparam, lparam);
+    }
     // The page draws its cards; themed check boxes ask for this background too.
     if (message == WM_ERASEBKGND || message == WM_PRINTCLIENT) {
         paint_panel(window, reinterpret_cast<HDC>(wparam));

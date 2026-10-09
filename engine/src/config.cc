@@ -264,6 +264,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_double(l, "rank_prior_weight", config.laya.rank_prior_weight);
         load_double(l, "english_rank_prior_weight", config.laya.english_rank_prior_weight);
         load_int(l, "context_chars", config.laya.context_chars);
+        load_int(l, "context_memory_seconds", config.laya.context_memory_seconds);
+        config.laya.context_memory_seconds = (std::max)(0, config.laya.context_memory_seconds);
         load_int(l, "threads", config.laya.threads);
         load_string(l, "device", config.laya.device);
         load_bool(l, "cache", config.laya.cache);
@@ -605,6 +607,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["rank_prior_weight"] = config.laya.rank_prior_weight;
     j["laya"]["english_rank_prior_weight"] = config.laya.english_rank_prior_weight;
     j["laya"]["context_chars"] = config.laya.context_chars;
+    j["laya"]["context_memory_seconds"] = config.laya.context_memory_seconds;
     j["laya"]["threads"] = config.laya.threads;
     j["laya"]["device"] = config.laya.device;
     j["laya"]["cache"] = config.laya.cache;

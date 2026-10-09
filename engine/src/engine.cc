@@ -207,24 +207,41 @@ void append_bounded(std::string& history, const std::string& text) {
 
 }  // namespace
 
+const std::string& Engine::live_laya_history() const {
+    static const std::string kNone;
+    const int seconds = runtime_ ? runtime_->config().laya.context_memory_seconds : 0;
+    if (!laya_history_read_ && seconds > 0 &&
+        std::chrono::steady_clock::now() - laya_history_time_ > std::chrono::seconds(seconds)) {
+        return kNone;
+    }
+    return laya_history_;
+}
+
 std::string Engine::laya_context(std::size_t max_chars) const {
-    return tail_chars(laya_history_, max_chars);
+    return tail_chars(live_laya_history(), max_chars);
 }
 
 void Engine::set_text_before_caret(const std::string& text) {
     laya_history_.clear();
     append_bounded(laya_history_, text);
+    laya_history_read_ = true;
+    laya_history_time_ = std::chrono::steady_clock::now();
 }
 
-void Engine::clear_laya_context() { laya_history_.clear(); }
+void Engine::clear_laya_context() {
+    laya_history_.clear();
+    laya_history_read_ = false;
+}
 
 void Engine::remember_commit(const std::string& text) {
     if (text.empty()) return;
+    if (&live_laya_history() != &laya_history_) laya_history_.clear();  // forgotten: start afresh
     append_bounded(laya_history_, text);
+    laya_history_time_ = std::chrono::steady_clock::now();
 }
 
 std::string Engine::laya_context(const CompositionState& state) const {
-    std::string context = laya_history_;
+    std::string context = live_laya_history();
     for (const auto& segment : state.converted_segments()) context += segment.text;
     return context;
 }

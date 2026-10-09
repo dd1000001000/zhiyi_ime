@@ -157,6 +157,7 @@
 | `english.mixed_in_chinese` | true | 中文模式下提供完整的英文单词 |
 | `laya.enable` / `laya.english` | true / true | 上文推荐（总开关，即“常规”页的“按上文推荐候选” / 其中的英文部分） |
 | `laya.context_chars` / `laya.english_context_chars` | 128 / 192 | 交给模型的上文长度（光标前的字符数） |
+| `laya.context_memory_seconds` | 60 | 读不到输入框文字的程序里，用之前打过的字当上文；这么多秒没打字就清空（0 = 一直保留） |
 | `laya.threads` | 4 | 推理线程数（CPU） |
 | `laya.device` | 空 | 空 = CPU；否则为显卡名（同型号的第二块为 `<型号> #2`），用 DirectML 在这块卡上推理，输入固定为 256 个 token、32 个候选（不够的补齐，更长时从最早的上文截掉）；这块卡不在或失败时用 CPU |
 | `laya.cache` | true | 把模型权重按本机 CPU 打包后的副本和分词器的紧凑镜像存在 `%LOCALAPPDATA%\zhiyi\laya-cache`（首次启动生成，约 140 MB），以后启动直接映射，服务端少占约 100 MB 内存、少花约 0.8 s；false = 每次启动在内存里打包和解析，不写缓存 |

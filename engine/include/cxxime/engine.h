@@ -5,6 +5,7 @@
 
 #include <optional>
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <utility>
@@ -152,6 +153,10 @@ private:
     void remember_commit(const std::string& text);
     std::string laya_context(const CompositionState& state) const;
     std::string laya_history_;  // the model's context: the input box's text, or earlier commits
+    bool laya_history_read_ = false;  // read from the input box (not only remembered commits)
+    std::chrono::steady_clock::time_point laya_history_time_{};  // last read or commit
+    // laya_history_, or nothing once remembered commits are older than laya.context_memory_seconds.
+    const std::string& live_laya_history() const;
     // English words mixed into the first pinyin page (config.english.mixed_in_chinese).
     void add_english_candidates(const std::string& input, int page_size, TranslationResult& result) const;
     // English (ASCII) mode word completion (config.english.completion_in_ascii): letters build

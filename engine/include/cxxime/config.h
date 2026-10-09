@@ -145,6 +145,9 @@ struct Config {
         double rank_prior_weight = 0.0;
         double english_rank_prior_weight = 0.2;
         int context_chars = 128;  // trailing characters before the caret fed to the model
+        // Where the input box cannot be read, the text typed before is the context; it is
+        // forgotten after this many seconds without typing (0 = kept).
+        int context_memory_seconds = 60;
         int threads = 4;          // ONNX Runtime intra-op threads
         // "" = the CPU; otherwise the name of the graphics card that runs the model (DirectML,
         // gpu_adapters.h). When that card is missing or fails, the CPU is used.

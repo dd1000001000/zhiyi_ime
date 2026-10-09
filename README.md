@@ -24,8 +24,8 @@
   打字时顺便学外语。中文候选可以翻成英、日、韩、法、德、西、俄语，英文候选可以翻成中、日、韩、法、德、西、俄语；
   多音字按读音分别翻译。翻译来自离线语言包（中文约 4 万词、英文约 2 万词），只在本机查表。安装包自带中 → 英、
   英 → 中，其余在设置的“学习”页按需下载。词表公开在 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary)，
-  欢迎纠错。词表里没有的词组、生僻词和短句，可以下载本机翻译模型（腾讯 Hy-MT2 1.8B）在显卡上翻译，
-  一页的词同时翻、随后补上，不联网（需要显存大于 2 GB 的独立显卡）
+  欢迎纠错。词表里没有的词组、生僻词和短句，可以下载本机翻译模型（从腾讯 Hy-MT2-7B 蒸馏，约 0.4 GB）翻译，
+  显卡或 CPU 都能运行（CPU 上一页约 0.3 秒），一页的词同时翻、随后补上，不联网
 - **数据位置可选**：词库、学习记录、语言包、模型缓存和下载的模型都可以放到别的盘，在“常规”页一键移动
 - **拼音或五笔**：拼音支持全拼、首字母简拼和二者混合（`wsyige` → 我是一个），也可以切换成首字母模式
   （每个字母对应一个字，`zgr` → 中国人）
@@ -51,6 +51,12 @@
 
 <img src="docs/media/compare.zh-CN.svg" alt="候选排序模型对比：(a) 中文实际候选 (b) 中文同音词 (c) 英文补全 (d) CPU 耗时 (e) 显卡耗时 (f) 内存 (g) 显存 (h) 模型文件" width="100%">
 
+## 离线翻译模型
+
+学习模式里语言包查不到的候选由本机的翻译模型翻译。1.3.0 起换成知意 v2：以 [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) 为底座，用腾讯 [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B) 对约 115 万条输入法候选（短词、一口气打出的整句、英文词，带光标前的上文）的译文蒸馏而来。和之前用的 Hy-MT2 1.8B 相比，准确率相近（中译英更好，中文译成日韩法德西俄稍差），下载只有约三分之一，显卡上更快、显存更少，并且可以在 CPU 上运行（一页约 0.3 秒），没有独立显卡的电脑也能用。
+
+<img src="docs/media/translator.zh-CN.svg" alt="离线翻译模型对比：(a) 全部 (b) 中译英 (c) 中文译其他语言 (d) 英文译其他语言 (e) 显卡耗时 (f) CPU 耗时 (g) 显存 (h) 内存 (i) 下载大小" width="100%">
+
 ## 安装说明
 
 **系统要求**：Windows 10 / 11（64 位）。
@@ -75,6 +81,9 @@
 - [rime-ice（雾凇拼音）](https://github.com/iDvel/rime-ice)：中文拼音词库与英文词表（GPL-3.0）
 - [Laya](https://huggingface.co/convaiinnovations/laya)：上文推荐模型的结构与蒸馏用的老师模型（Apache-2.0）
 - [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small)：上文推荐模型的编码器 mmBERT-small（MIT）
+- [LMT-60](https://huggingface.co/NiuTrans/LMT-60-0.6B)（NiuTrans）：离线翻译模型的底座（Apache-2.0）
+- [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B)（腾讯混元）：离线翻译的第 1 版模型（1.8B）和蒸馏用的老师模型（7B）（Apache-2.0）
+- [llama.cpp](https://github.com/ggml-org/llama.cpp)：离线翻译模型的运行库（MIT，随模型下载）
 - [LCCC](https://github.com/thu-coai/CDial-GPT)（MIT）与 [C4](https://huggingface.co/datasets/allenai/c4) 中文部分（ODC-BY）：模型蒸馏的部分语料
 - [wordfreq](https://github.com/rspeer/wordfreq)：英文词频（CC BY-SA 4.0）
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime)：模型推理（MIT）

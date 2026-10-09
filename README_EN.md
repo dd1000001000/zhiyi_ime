@@ -33,8 +33,8 @@
   Learning page in Settings. The word lists are open at
   [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary): corrections welcome. Phrases,
   rare words and short sentences the packs lack can be translated by a downloadable on-device model
-  (Tencent Hy-MT2 1.8B) on the graphics card: a page at once, filled in as it arrives, offline
-  (needs a dedicated card with more than 2 GB of memory).
+  (about 0.4 GB, distilled from Tencent Hy-MT2-7B) on a graphics card or the CPU (about 0.3 s a page
+  on the CPU): a page at once, filled in as it arrives, offline.
 - **Choose where data lives**: the user dictionary, learning records, language packs, model caches
   and downloaded models can move to another drive with one click on the General page.
 - **Pinyin or Wubi**: pinyin accepts full pinyin, initials and a mix of both (`wsyige` → 我是一个),
@@ -70,6 +70,12 @@ How often the right word comes first, and how fast and how large each model is, 
 
 <img src="docs/media/compare.en-US.svg" alt="Candidate-ranking models: (a) real Chinese candidates (b) Chinese homophones (c) English completion (d) CPU time (e) GPU time (f) memory (g) video memory (h) model file" width="100%">
 
+## Offline translation model
+
+Candidates the learning-mode language packs lack are translated by a model on your computer. From 1.3.0 it is Zhiyi v2: [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) distilled from Tencent [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B)'s translations of about 1.15 million IME candidates (short words, sentences typed in one go and English words, with the text before the caret). Compared with Hy-MT2 1.8B used before, it is about as accurate (better from Chinese into English, a little worse from Chinese into the other languages), a third of the download, faster on the graphics card with less video memory, and it runs on the CPU too (about 0.3 s a page), so computers without a dedicated graphics card can use it.
+
+<img src="docs/media/translator.en-US.svg" alt="Offline translation models: (a) all (b) Chinese to English (c) Chinese to other languages (d) English to other languages (e) GPU time (f) CPU time (g) video memory (h) memory (i) download size" width="100%">
+
 ## Installation
 
 **Requirements**: Windows 10 / 11 (64-bit).
@@ -97,6 +103,9 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [rime-ice](https://github.com/iDvel/rime-ice): the Chinese pinyin dictionary and English word list (GPL-3.0)
 - [Laya](https://huggingface.co/convaiinnovations/laya): the recommendation model's architecture and the teacher it was distilled from (Apache-2.0)
 - [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small): the recommendation model's encoder, mmBERT-small (MIT)
+- [LMT-60](https://huggingface.co/NiuTrans/LMT-60-0.6B) (NiuTrans): the base of the offline translation model (Apache-2.0)
+- [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B) (Tencent Hunyuan): the first offline translation model (1.8B) and the teacher it was distilled from (7B) (Apache-2.0)
+- [llama.cpp](https://github.com/ggml-org/llama.cpp): the offline translation runtime (MIT, downloaded with the model)
 - [LCCC](https://github.com/thu-coai/CDial-GPT) (MIT) and the Chinese part of [C4](https://huggingface.co/datasets/allenai/c4) (ODC-BY): part of the distillation text
 - [wordfreq](https://github.com/rspeer/wordfreq): English word frequencies (CC BY-SA 4.0)
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime): model inference (MIT)

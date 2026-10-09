@@ -74,6 +74,22 @@ const std::map<std::string, const char*>& language_names() {
     return names;
 }
 
+// The distilled model's language names (its prompt is English).
+const std::map<std::string, const char*>& english_names() {
+    static const std::map<std::string, const char*> names = {
+        {"en", "English"}, {"ja", "Japanese"}, {"ko", "Korean"}, {"fr", "French"},
+        {"de", "German"},  {"es", "Spanish"},  {"ru", "Russian"}, {"zh", "Chinese"},
+    };
+    return names;
+}
+
+// CPU threads for the model: a few, so typing elsewhere stays smooth (4 were as fast as 12 on a
+// 6-core Ryzen: a page is small).
+int cpu_threads() {
+    const unsigned logical = std::thread::hardware_concurrency();
+    return static_cast<int>((std::max)(1u, (std::min)(4u, logical / 2)));
+}
+
 std::string random_key() {
     unsigned char bytes[16] = {};
     BCryptGenRandom(nullptr, bytes, sizeof(bytes), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
@@ -224,6 +240,10 @@ bool find_installed(InstalledModel* installed) {
     found.server = version_dir + wide(kTranslatorRuntimeDir) + L"\\" + wide(kTranslatorServerExe);
     found.dir = version_dir;
     found.version = state.value("version", 0u);
+    if (state.contains("prompt") && state["prompt"].is_string()) {
+        found.prompt = state["prompt"].get<std::string>();
+        if (found.prompt != kStudentPrompt) return false;  // asked in a way this version does not know
+    }
     if (!file_exists(found.model) || !file_exists(found.server)) return false;
     if (installed) *installed = std::move(found);
     return true;
@@ -299,6 +319,19 @@ std::string translation_prompt(const std::string& target, const std::string& tex
            text;
 }
 
+std::string student_prompt(const Item& item, const std::string& context) {
+    const auto name = [](const std::string& code) {
+        const auto found = english_names().find(code);
+        return std::string(found == english_names().end() ? code.c_str() : found->second);
+    };
+    std::string prompt = "<|im_start|>system\nTranslate the input method candidate into " + name(item.target) +
+                         ". Use the context only to pick the meaning. Output only the translation."
+                         "<|im_end|>\n<|im_start|>user\n";
+    if (!context.empty()) prompt += "Context: " + context + "\n";
+    prompt += name(item.source) + ": " + item.text + "<|im_end|>\n<|im_start|>assistant\n";
+    return prompt;
+}
+
 struct LlamaServer::Impl {
     HANDLE job = nullptr;
     HANDLE process = nullptr;
@@ -336,7 +369,8 @@ void LlamaServer::stop() {
 bool LlamaServer::start(const InstalledModel& installed, const std::string& device_key,
                         std::string* error) {
     stop();
-    const std::string device = vulkan_device(installed, device_key, error);
+    const bool cpu = device_key == kCpuDevice;
+    const std::string device = cpu ? "none" : vulkan_device(installed, device_key, error);
     if (device.empty()) return false;
     const int port = free_port();
     if (port == 0) {
@@ -353,11 +387,13 @@ bool LlamaServer::start(const InstalledModel& installed, const std::string& devi
     SetInformationJobObject(impl_->job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
 
     const std::wstring dir = installed.dir + wide(kTranslatorRuntimeDir);
+    // --cache-ram 0: no prompt cache in memory. Its default (8 GB) grew the server to several GB
+    // over a long session; the prompts are short, so it saves nothing.
     std::wstring command = L"\"" + installed.server + L"\" -m \"" + installed.model + L"\" --device " +
-                           wide(device) + L" -ngl 99 -np " + std::to_wstring(kParallel) + L" -c " +
-                           std::to_wstring(kContextSize) + L" --host 127.0.0.1 --port " +
-                           std::to_wstring(port) + L" --api-key " + impl_->http.key +
-                           L" --no-webui --offline --log-disable";
+                           wide(device) + (cpu ? L" -ngl 0 -t " + std::to_wstring(cpu_threads()) : L" -ngl 99") +
+                           L" -np " + std::to_wstring(kParallel) + L" -c " + std::to_wstring(kContextSize) +
+                           L" --cache-ram 0 --host 127.0.0.1 --port " + std::to_wstring(port) +
+                           L" --api-key " + impl_->http.key + L" --no-webui --offline --log-disable";
     STARTUPINFOW startup = {sizeof(startup)};
     PROCESS_INFORMATION process = {};
     if (!CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE,
@@ -385,12 +421,14 @@ bool LlamaServer::start(const InstalledModel& installed, const std::string& devi
         Sleep(100);
     }
     device_ = device_key;
+    prompt_ = installed.prompt;
     // The first requests of each batch size build the card's compute pipelines (seconds): do
-    // that now, not on the first page.
+    // that now, not on the first page. The processor needs one to page the model in.
     std::vector<Item> warm(kParallel, Item{"en", "\xE4\xBD\xA0\xE5\xA5\xBD"});  // 你好
     for (size_t n : {size_t{1}, size_t{3}, size_t{5}, size_t{kParallel}}) {
         warm.resize(n);
         translate(warm, {}, 30000);
+        if (cpu) break;
     }
     return true;
 }
@@ -402,6 +440,25 @@ std::vector<std::string> LlamaServer::translate(const std::vector<Item>& items,
     std::vector<std::thread> threads;
     for (size_t i = 0; i < items.size(); ++i) {
         threads.emplace_back([this, &items, &results, &context, timeout_ms, i] {
+            if (prompt_ == kStudentPrompt) {
+                const nlohmann::json body = {
+                    {"prompt", student_prompt(items[i], context)},
+                    {"n_predict", 48},
+                    {"temperature", 0},
+                    {"top_k", 1},
+                    {"repeat_penalty", 1.05},
+                    {"stop", {"<|im_end|>"}},
+                };
+                const std::string text = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+                DWORD status = 0;
+                const std::string response = impl_->http.request(L"/completion", &text, timeout_ms, &status);
+                if (status != 200) return;
+                const nlohmann::json answer = nlohmann::json::parse(response, nullptr, false);
+                if (answer.is_object() && answer.contains("content") && answer["content"].is_string()) {
+                    results[i] = clean_translation(items[i].text, answer["content"].get<std::string>());
+                }
+                return;
+            }
             const nlohmann::json body = {
                 {"messages", {{{"role", "user"},
                                {"content", translation_prompt(items[i].target, items[i].text, context)}}}},

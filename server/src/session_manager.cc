@@ -298,7 +298,7 @@ void add_glosses(const SessionEntry& entry, cxxime::CandidatePresentationPage& p
         if (MachineTranslator::instance().cached(target, candidate.text, &translation)) {
             page.items[i].gloss = translation;  // shown without a part of speech
         } else {
-            missing.push_back({target, candidate.text});
+            missing.push_back({target, candidate.text, english ? "en" : "zh"});
         }
     }
     if (!missing.empty()) {

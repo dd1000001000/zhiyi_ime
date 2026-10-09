@@ -2,10 +2,9 @@
 //
 // "Offline translation" on the Learning page (docs/learning-mode.md): download, update and
 // remove the translation model (update.h: the release tagged "translator"; translator_files.h:
-// where it goes), turn it on, and choose the graphics card it runs on. Only cards with more
-// than 2 GB of their own memory are offered (gpu_adapters.h); without one the card is grayed
-// out. Turning it on or choosing another card first translates a word on that card, and a card
-// the model cannot run on is not kept.
+// where it goes), turn it on, and choose where it runs: a graphics card with more than 2 GB of
+// its own memory (gpu_adapters.h), or the CPU, offered last. Turning it on or choosing another
+// one first translates a word there, and a choice the model cannot run on is not kept.
 
 #include "editor_app.h"
 
@@ -192,9 +191,10 @@ MtInstalled install(const update::TranslatorManifest& manifest, const std::atomi
         result.status = update::Status::kDisk;
         return result;
     }
-    const nlohmann::json state = {{"version", manifest.version},
-                                  {"dir", wstr_to_utf8(version)},
-                                  {"model", manifest.model.file}};
+    nlohmann::json state = {{"version", manifest.version},
+                            {"dir", wstr_to_utf8(version)},
+                            {"model", manifest.model.file}};
+    if (!manifest.prompt.empty()) state["prompt"] = manifest.prompt;
     const fs::path json = root / kTranslatorInstalled;
     {
         std::ofstream out(fs::path(json.wstring() + L".tmp"), std::ios::binary | std::ios::trunc);
@@ -226,9 +226,14 @@ void EditorApp::create_translator_card(HWND panel, int y) {
     const int device_x = make_aligned_label(tr("learning.translator_device"), x0 + S(20), labels, y, panel);
     hTranslatorDevice_ = make_combo(kTranslatorDeviceId, device_x, y, S(420), panel);
     mt_choices_ = list_gpu_adapters();
+    const size_t cards = mt_choices_.size();
+    GpuAdapter cpu;
+    cpu.name = cpu_info().name;
+    cpu.key = mt::kCpuDevice;
+    mt_choices_.push_back(cpu);
     for (size_t i = 0; i < mt_choices_.size(); ++i) {
-        std::wstring label = mt_choices_.size() > 1 ? L"GPU " + std::to_wstring(i + 1) : L"GPU";
-        label += L"（" + utf8_to_wstr(mt_choices_[i].name) + L"）";
+        std::wstring label = i == cards ? L"CPU" : cards > 1 ? L"GPU " + std::to_wstring(i + 1) : L"GPU";
+        if (!mt_choices_[i].name.empty()) label += L"（" + utf8_to_wstr(mt_choices_[i].name) + L"）";
         combo_add(hTranslatorDevice_, label.c_str());
     }
     y += kRowH;
@@ -240,9 +245,7 @@ void EditorApp::create_translator_card(HWND panel, int y) {
     hTranslatorRemove_ = make_button(kTranslatorRemoveId, tr("learning.remove"), client.right - x0 - S(78), y,
                                      S(78), panel);
     y += kRowH;
-    hTranslatorHint_ = make_hint(mt_choices_.empty() ? tr("learning.translator_no_gpu")
-                                                     : tr("learning.translator_hint"),
-                                 x0, y - S(4), client.right - x0 * 2, panel);
+    hTranslatorHint_ = make_hint(tr("learning.translator_hint"), x0, y - S(4), client.right - x0 * 2, panel);
     y += S(40);
     card_end(panel, y);
     show_translator_state();
@@ -255,15 +258,14 @@ void EditorApp::populate_translator() {
     for (size_t i = 0; i < mt_choices_.size(); ++i) {
         if (mt_choices_[i].key == config_.mt_device) index = static_cast<int>(i);
     }
-    if (!mt_choices_.empty()) combo_set_index(hTranslatorDevice_, index);
+    combo_set_index(hTranslatorDevice_, index);
     show_translator_state();
 }
 
 void EditorApp::read_translator(Config& config) {
     if (!hTranslator_) return;
     const int index = combo_index(hTranslatorDevice_);
-    const bool usable = !mt_choices_.empty() && mt::find_installed(nullptr);
-    config.mt_enable = usable && get_check(hTranslator_);
+    config.mt_enable = mt::find_installed(nullptr) && get_check(hTranslator_);
     if (index >= 0 && index < static_cast<int>(mt_choices_.size())) {
         config.mt_device = mt_choices_[static_cast<size_t>(index)].key;
     }
@@ -273,7 +275,6 @@ void EditorApp::show_translator_state() {
     if (!hTranslatorStatus_) return;
     mt::InstalledModel installed;
     const bool have = mt::find_installed(&installed);
-    const bool gpu = !mt_choices_.empty();
     std::wstring status;
     const wchar_t* action = nullptr;
     switch (mt_busy_) {
@@ -311,11 +312,11 @@ void EditorApp::show_translator_state() {
     }
     SetWindowTextW(hTranslatorAction_, label.c_str());
     ShowWindow(hTranslatorAction_, action ? SW_SHOW : SW_HIDE);
-    EnableWindow(hTranslatorAction_, gpu && mt_busy_ != MtBusy::kTesting && mt_busy_ != MtBusy::kChecking);
+    EnableWindow(hTranslatorAction_, mt_busy_ != MtBusy::kTesting && mt_busy_ != MtBusy::kChecking);
     ShowWindow(hTranslatorRemove_, have && mt_busy_ == MtBusy::kNone ? SW_SHOW : SW_HIDE);
-    EnableWindow(hTranslator_, gpu && have && mt_busy_ == MtBusy::kNone);
-    if (!gpu || !have) set_check(hTranslator_, false);
-    EnableWindow(hTranslatorDevice_, gpu && have && mt_busy_ == MtBusy::kNone && get_check(hTranslator_));
+    EnableWindow(hTranslator_, have && mt_busy_ == MtBusy::kNone);
+    if (!have) set_check(hTranslator_, false);
+    EnableWindow(hTranslatorDevice_, have && mt_busy_ == MtBusy::kNone && get_check(hTranslator_));
 }
 
 void EditorApp::start_translator_check() {
@@ -451,10 +452,8 @@ bool EditorApp::handle_translator_message(UINT message, WPARAM wparam, LPARAM lp
         if (done->status == update::Status::kOk) {
             mt_note_.clear();
             show_translator_state();
-            if (!mt_choices_.empty()) {  // downloaded to be used: on, after a test on the card
-                set_check(hTranslator_, true);
-                start_translator_test();
-            }
+            set_check(hTranslator_, true);  // downloaded to be used: on, after a test where it runs
+            start_translator_test();
         } else {
             mt_note_ = !done->error.empty() ? done->error
                        : done->status == update::Status::kCancelled ? tr("learning.cancelled")

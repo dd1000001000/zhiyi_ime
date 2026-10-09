@@ -4,15 +4,16 @@
 // local_data_dir() (data_path.h):
 //
 //   translator\translator.json      what is installed: {"version": N, "dir": "v<N>",
-//                                     "model": "<file>.gguf"}
-//   translator\v<N>\<model>.gguf    Hy-MT2-1.8B, Q4_K_M
+//                                     "model": "<file>.gguf", "prompt": "zhiyi-mt-1" (v2)}
+//   translator\v<N>\<model>.gguf    v1: Hy-MT2-1.8B, Q4_K_M; v2: the model distilled from
+//                                   Hy-MT2-7B (LMT-60-0.6B fine-tuned), Q4_K_M
 //   translator\v<N>\runtime\        llama.cpp (Vulkan build): llama-server.exe and its DLLs
 //
 // Each version has its own folder, so an update is installed while the model server may still
 // run the previous one; Settings deletes old folders once they are not in use.
 //
-// zhiyi-server runs runtime\llama-server.exe on the chosen graphics card while candidates need
-// translating (machine_translator.cc).
+// zhiyi-server runs runtime\llama-server.exe on the chosen graphics card or the CPU while
+// candidates need translating (machine_translator.cc).
 #ifndef CXXIME_TRANSLATOR_FILES_H_
 #define CXXIME_TRANSLATOR_FILES_H_
 

@@ -159,6 +159,9 @@ bool parse_translator_manifest(const std::string& text, const std::string& downl
     if (json.contains("min_app") && json["min_app"].is_string()) {
         parsed.min_app = json["min_app"].get<std::string>();
     }
+    if (json.contains("prompt") && json["prompt"].is_string()) {
+        parsed.prompt = json["prompt"].get<std::string>();
+    }
     // A plain file name ending in `extension`: letters, digits, '.', '-', '_'.
     auto safe_name = [](const std::string& name, const char* extension) {
         const std::string ext = extension;

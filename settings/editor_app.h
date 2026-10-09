@@ -219,7 +219,7 @@ private:
     int last_chinese_target_ = 0, last_english_target_ = 0;  // combo indexes
     HWND hTranslator_ = nullptr, hTranslatorDevice_ = nullptr, hTranslatorStatus_ = nullptr;
     HWND hTranslatorAction_ = nullptr, hTranslatorRemove_ = nullptr, hTranslatorHint_ = nullptr;
-    std::vector<GpuAdapter> mt_choices_;  // cards with more than 2 GB of their own memory
+    std::vector<GpuAdapter> mt_choices_;  // cards with more than 2 GB of their own memory, then the CPU
     enum class MtBusy { kNone, kChecking, kDownloading, kTesting } mt_busy_ = MtBusy::kNone;
     bool mt_remote_known_ = false;
     update::TranslatorManifest mt_remote_;

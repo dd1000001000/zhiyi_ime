@@ -143,7 +143,7 @@ Status download_glossary(const GlossaryPack& pack, const std::wstring& path,
 
 // The offline translation model (docs/learning-mode.md, translator_files.h), in the release
 // tagged "translator" (not marked latest):
-//   translator.json      {"version": N, "min_app": "1.2.0",
+//   translator.json      {"version": N, "min_app": "1.2.0", "prompt": "zhiyi-mt-1" (optional),
 //                         "model": {"file", "size", "sha256"},
 //                         "runtime": {"file", "size", "sha256"}}
 //   translator.json.sig  signed like latest.json
@@ -160,6 +160,7 @@ struct TranslatorFile {
 struct TranslatorManifest {
     std::uint32_t version = 0;
     std::string min_app;  // the oldest program version that runs it ("" = any)
+    std::string prompt;   // how the model is asked (machine_translation.h; "" = Hy-MT2's way)
     TranslatorFile model;    // .gguf
     TranslatorFile runtime;  // .zip
 };

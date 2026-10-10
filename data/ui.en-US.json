@@ -90,7 +90,7 @@
     "keys.punct": "Punctuation:",
     "keys.shape": "Full/half width:",
     "keys.card": "Switch keys",
-    "keys.capture_hint": "Click a key box, then press the new key (Esc cancels). Right-click clears it (no shortcut).",
+    "keys.capture_hint": "Click a key box, then press the new key (Esc cancels). Right-click clears it (no shortcut). Any switch key can be Shift or Ctrl tapped alone, each for one switch.",
     "keys.press": "Press a key…",
     "keys.need_combo": "Needs Ctrl/Alt + key, Shift + Space or F1-F11",
     "keys.tap_only": "Only Shift or Ctrl alone",

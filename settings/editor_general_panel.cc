@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cwchar>
 #include <string>
+#include <tuple>
 
 #include <shellapi.h>
 
@@ -79,28 +80,41 @@ constexpr int kMinPageSize = 3;
 constexpr int kMaxPageSize = 10;
 
 
-bool switch_action_enabled(const Config& config, const char* key) {
-    const auto found = config.ascii_switch_key.find(key);
-    return found != config.ascii_switch_key.end() && found->second != "noop";
+// What a tapped Shift or Ctrl does (ascii_composer switch_key, either side): one of
+// kTapActions, "code" the Chinese/English switch; "noop" nothing.
+std::string tap_action(const Config& config, const char* left, const char* right) {
+    for (const char* key : {left, right}) {
+        const auto found = config.ascii_switch_key.find(key);
+        if (found != config.ascii_switch_key.end() && found->second != "noop") return found->second;
+    }
+    return "noop";
 }
 
-// Chinese/English switch: a combination (shortcuts.ascii_toggle), else Shift or Ctrl tapped
-// alone (ascii_composer switch_key, either side), else none.
-KeyChoice switch_key_choice(const Config& config) {
-    if (config.ascii_toggle_shortcut.enabled()) {
-        return KeyChoice::of(config.ascii_toggle_shortcut);
-    }
-    if (switch_action_enabled(config, "Shift_L") || switch_action_enabled(config, "Shift_R")) {
-        return KeyChoice::tap(VK_SHIFT);
-    }
-    if (switch_action_enabled(config, "Control_L") || switch_action_enabled(config, "Control_R")) {
-        return KeyChoice::tap(VK_CONTROL);
+// The switch keys in box order (中英切换, 输入方式切换, 中英文标点, 全角/半角): the
+// switch_key action of a tapped Shift or Ctrl for each.
+constexpr const char* kTapActions[] = {"code", "toggle_style", "toggle_punct", "toggle_shape"};
+
+bool is_toggle_action(const std::string& action) {
+    return action == kTapActions[1] || action == kTapActions[2] || action == kTapActions[3];
+}
+
+// A switch key: its combination (shortcuts.*), else Shift or Ctrl tapped alone, else none.
+// Any action but the three others taps the Chinese/English switch (set_ascii_mode, clear ...).
+KeyChoice switch_key_choice(const Config& config, int slot) {
+    const KeyboardShortcut* combos[] = {&config.ascii_toggle_shortcut,
+                                        &config.english_style_shortcut,
+                                        &config.punct_toggle_shortcut,
+                                        &config.shape_toggle_shortcut};
+    if (combos[slot]->enabled()) return KeyChoice::of(*combos[slot]);
+    for (const auto& [left, right, vk] : {std::tuple{"Shift_L", "Shift_R", VK_SHIFT},
+                                          std::tuple{"Control_L", "Control_R", VK_CONTROL}}) {
+        const std::string action = tap_action(config, left, right);
+        if (action == "noop") continue;
+        if (slot == 0 ? !is_toggle_action(action) : action == kTapActions[slot]) {
+            return KeyChoice::tap(static_cast<uint32_t>(vk));
+        }
     }
     return KeyChoice::none();
-}
-
-KeyboardShortcut combo_of(const KeyChoice& choice) {
-    return choice.kind == KeyChoice::Kind::kCombo ? choice.combo : KeyboardShortcut{};
 }
 
 // "中英切换:" -> "中英切换" for messages.
@@ -113,17 +127,24 @@ std::wstring label_name(const char* key) {
     return name;
 }
 
-void apply_switch_key_choice(Config& config, const KeyChoice& choice) {
-    // "code": the keys typed so far are committed as letters, then the mode switches.
-    const bool tap = choice.kind == KeyChoice::Kind::kTap;
-    const char* shift = tap && choice.tap_key == VK_SHIFT ? "code" : "noop";
-    const char* ctrl = tap && choice.tap_key == VK_CONTROL ? "code" : "noop";
+// The four boxes (box order) into the config: combinations to shortcuts.*, a tapped Shift or
+// Ctrl to its switch_key action ("code" for the Chinese/English switch: the keys typed so far
+// are committed as letters, then the mode switches).
+void apply_switch_key_choices(Config& config, const KeyChoice (&choices)[4]) {
+    KeyboardShortcut* combos[] = {&config.ascii_toggle_shortcut, &config.english_style_shortcut,
+                                  &config.punct_toggle_shortcut, &config.shape_toggle_shortcut};
+    const char* shift = "noop";
+    const char* ctrl = "noop";
+    for (int slot = 0; slot < 4; ++slot) {
+        const KeyChoice& choice = choices[slot];
+        *combos[slot] = choice.kind == KeyChoice::Kind::kCombo ? choice.combo : KeyboardShortcut{};
+        if (choice.kind != KeyChoice::Kind::kTap) continue;
+        (choice.tap_key == VK_SHIFT ? shift : ctrl) = kTapActions[slot];
+    }
     config.ascii_switch_key["Shift_L"] = shift;
     config.ascii_switch_key["Shift_R"] = shift;
     config.ascii_switch_key["Control_L"] = ctrl;
     config.ascii_switch_key["Control_R"] = ctrl;
-    config.ascii_toggle_shortcut =
-        choice.kind == KeyChoice::Kind::kCombo ? choice.combo : KeyboardShortcut{};
 }
 
 } // namespace
@@ -271,7 +292,7 @@ void EditorApp::create_keys_panel(HWND panel) {
         HWND* box;
         const char* hint;
     };
-    // Only the Chinese/English switch takes Shift or Ctrl tapped alone.
+    // Each takes Shift or Ctrl tapped alone, or a combination.
     const Row rows[] = {
         {"keys.switch", kSwitchKeyId, &hSwitchKey_, "keys.switch_hint"},
         {"keys.style", kStyleKeyId, &hStyleKey_, "keys.style_hint"},
@@ -280,8 +301,7 @@ void EditorApp::create_keys_panel(HWND panel) {
     };
     for (const Row& row : rows) {
         const int x = make_aligned_label(tr(row.label), x0, labels, y, panel);
-        *row.box = create_key_capture(row.id, x, y, box_width, kCtrlH, panel,
-                                      row.box == &hSwitchKey_);
+        *row.box = create_key_capture(row.id, x, y, box_width, kCtrlH, panel, true);
         y += kRowH;
         if (row.hint) {
             make_hint(tr(row.hint), x, y - S(6), S(380), panel);
@@ -305,8 +325,8 @@ void EditorApp::create_keys_panel(HWND panel) {
             return std::wstring{};
         });
     }
-    make_hint(tr("keys.capture_hint"), x0, y - S(4), S(500), panel);
-    y += S(40);
+    make_hint(tr("keys.capture_hint"), x0, y - S(4), S(500), panel, 3);
+    y += S(58);
     make_button(kRestoreKeysId, tr("keys.restore"), x0, y, S(160), panel);
     card_end(panel, y + S(30));
 }
@@ -451,7 +471,9 @@ bool EditorApp::read_controls(bool report_errors) {
     c.autostart = get_check(hAutostart_);
     c.laya.enable = get_check(hLaya_);
     c.laya.device = selected_device();
-    apply_switch_key_choice(c, key_capture_get(hSwitchKey_));
+    const KeyChoice choices[4] = {key_capture_get(hSwitchKey_), key_capture_get(hStyleKey_),
+                                  key_capture_get(hPunctKey_), key_capture_get(hShapeKey_)};
+    apply_switch_key_choices(c, choices);
     c.candidate_learning = get_check(hLearning_);
     c.experience_program = get_check(hExperience_);
     c.collect_input = c.experience_program && get_check(hCollectInput_);
@@ -467,10 +489,7 @@ bool EditorApp::read_controls(bool report_errors) {
     }
 
     // The boxes refuse repeated keys; the checks below guard the saved file.
-    Config keys = c;
-    keys.english_style_shortcut = combo_of(key_capture_get(hStyleKey_));
-    keys.punct_toggle_shortcut = combo_of(key_capture_get(hPunctKey_));
-    keys.shape_toggle_shortcut = combo_of(key_capture_get(hShapeKey_));
+    const Config& keys = c;
     if (!switch_keys_valid(keys)) {
         if (report_errors) {
             const char* message = "keys.same";
@@ -485,17 +504,14 @@ bool EditorApp::read_controls(bool report_errors) {
         }
         return false;
     }
-    c.english_style_shortcut = keys.english_style_shortcut;
-    c.punct_toggle_shortcut = keys.punct_toggle_shortcut;
-    c.shape_toggle_shortcut = keys.shape_toggle_shortcut;
     return true;
 }
 
 void EditorApp::set_switch_key_boxes(const Config& config) {
-    key_capture_set(hSwitchKey_, switch_key_choice(config));
-    key_capture_set(hStyleKey_, KeyChoice::of(config.english_style_shortcut));
-    key_capture_set(hPunctKey_, KeyChoice::of(config.punct_toggle_shortcut));
-    key_capture_set(hShapeKey_, KeyChoice::of(config.shape_toggle_shortcut));
+    key_capture_set(hSwitchKey_, switch_key_choice(config, 0));
+    key_capture_set(hStyleKey_, switch_key_choice(config, 1));
+    key_capture_set(hPunctKey_, switch_key_choice(config, 2));
+    key_capture_set(hShapeKey_, switch_key_choice(config, 3));
     update_switch_key_notes();
 }
 

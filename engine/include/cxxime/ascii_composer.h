@@ -3,6 +3,7 @@
 #ifndef CXXIME_ASCII_COMPOSER_H_
 #define CXXIME_ASCII_COMPOSER_H_
 
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -22,6 +23,11 @@ enum class AsciiModeSwitchStyle {
     UNSET_ASCII_MODE,
     CANDIDATE,     // commit highlighted/first candidate + toggle
     APPEND,        // CapsLock modifies letters in buffer, no mode switch
+    // The other switch keys on a tapped Shift or Ctrl (settings "keys"): the input style,
+    // Chinese/English punctuation, full/half width. No mode switch here: the engine runs them.
+    TOGGLE_STYLE,
+    TOGGLE_PUNCT,
+    TOGGLE_SHAPE,
 };
 
 enum class InlineAsciiResult {
@@ -55,6 +61,13 @@ public:
     void sync_caps_lock(bool caps_lock, Context& ctx) { apply_caps_lock_overlay(caps_lock, ctx); }
 
     AsciiModeSwitchStyle get_binding(uint32_t key_code) const;
+    // A tap of a modifier bound to TOGGLE_STYLE / TOGGLE_PUNCT / TOGGLE_SHAPE, once (NOOP when
+    // none since the last call).
+    AsciiModeSwitchStyle take_tap_toggle() {
+        const AsciiModeSwitchStyle toggle = tap_toggle_;
+        tap_toggle_ = AsciiModeSwitchStyle::NOOP;
+        return toggle;
+    }
 
 private:
     void toggle_mode(uint32_t key_code, Context& ctx);
@@ -72,6 +85,8 @@ private:
     bool ctrl_pressed_ = false;
     bool alt_pressed_ = false;
     bool win_pressed_ = false;
+    std::chrono::steady_clock::time_point modifier_down_time_{};
+    AsciiModeSwitchStyle tap_toggle_ = AsciiModeSwitchStyle::NOOP;
 
 };
 

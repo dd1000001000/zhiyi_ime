@@ -90,7 +90,7 @@
     "keys.punct": "中英文标点:",
     "keys.shape": "全角/半角:",
     "keys.card": "切换快捷键",
-    "keys.capture_hint": "左键点击按键框后按下新按键（Esc 取消），右键点击清空（不使用快捷键）。",
+    "keys.capture_hint": "左键点击按键框后按下新按键（Esc 取消），右键点击清空（不使用快捷键）。每个切换键都可以设成单独轻按 Shift 或 Ctrl，同一个键只能给一项。",
     "keys.press": "请按下按键…",
     "keys.need_combo": "需要 Ctrl/Alt 组合键、Shift + Space 或 F1-F11",
     "keys.tap_only": "只能单独轻按 Shift 或 Ctrl",

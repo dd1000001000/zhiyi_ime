@@ -38,6 +38,9 @@ static AsciiModeSwitchStyle parse_style(const std::string& s) {
     if (s == "append")           return AsciiModeSwitchStyle::APPEND;
     if (s == "set_ascii_mode")   return AsciiModeSwitchStyle::SET_ASCII_MODE;
     if (s == "unset_ascii_mode") return AsciiModeSwitchStyle::UNSET_ASCII_MODE;
+    if (s == "toggle_style")     return AsciiModeSwitchStyle::TOGGLE_STYLE;
+    if (s == "toggle_punct")     return AsciiModeSwitchStyle::TOGGLE_PUNCT;
+    if (s == "toggle_shape")     return AsciiModeSwitchStyle::TOGGLE_SHAPE;
     return AsciiModeSwitchStyle::NOOP;
 }
 
@@ -67,7 +70,10 @@ void AsciiComposer::load_config(const Config& config) {
         if (vk == VK_CAPITAL) {
             if (style == AsciiModeSwitchStyle::INLINE_ASCII ||
                 style == AsciiModeSwitchStyle::SET_ASCII_MODE ||
-                style == AsciiModeSwitchStyle::UNSET_ASCII_MODE) {
+                style == AsciiModeSwitchStyle::UNSET_ASCII_MODE ||
+                style == AsciiModeSwitchStyle::TOGGLE_STYLE ||
+                style == AsciiModeSwitchStyle::TOGGLE_PUNCT ||
+                style == AsciiModeSwitchStyle::TOGGLE_SHAPE) {
                 style = AsciiModeSwitchStyle::CLEAR;
             }
         }
@@ -129,6 +135,20 @@ bool AsciiComposer::process_key(uint32_t key_code, bool is_key_up, Context& ctx,
             CXXIME_LOG(L"AsciiComposer::process_key: modifier key up, shift_pressed_=%d", shift_pressed_);
             if (shift_pressed_ || ctrl_pressed_ || alt_pressed_ || win_pressed_) {
                 const AsciiModeSwitchStyle style = get_binding(key_code);
+                if (style == AsciiModeSwitchStyle::TOGGLE_STYLE ||
+                    style == AsciiModeSwitchStyle::TOGGLE_PUNCT ||
+                    style == AsciiModeSwitchStyle::TOGGLE_SHAPE) {
+                    // A quick tap only: Ctrl held for Ctrl+click or Ctrl+wheel is no switch.
+                    constexpr auto kMaxTap = std::chrono::milliseconds(500);
+                    if (std::chrono::steady_clock::now() - modifier_down_time_ <= kMaxTap) {
+                        tap_toggle_ = style;
+                    }
+                    shift_pressed_ = false;
+                    ctrl_pressed_ = false;
+                    alt_pressed_ = false;
+                    win_pressed_ = false;
+                    return false;
+                }
                 const bool binding_applied = style != AsciiModeSwitchStyle::NOOP &&
                                              style != AsciiModeSwitchStyle::APPEND;
                 if (binding_applied) {
@@ -144,6 +164,7 @@ bool AsciiComposer::process_key(uint32_t key_code, bool is_key_up, Context& ctx,
         } else {
             CXXIME_LOG(L"AsciiComposer::process_key: modifier key down");
             if (!shift_pressed_ && !ctrl_pressed_ && !alt_pressed_ && !win_pressed_) {
+                modifier_down_time_ = std::chrono::steady_clock::now();
                 if (is_shift) shift_pressed_ = true;
                 if (is_ctrl)  ctrl_pressed_ = true;
                 if (is_alt)   alt_pressed_ = true;

@@ -373,6 +373,25 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
     const bool modifier_binding_applied =
         ascii_composer_.process_key(event.keycode, event.is_key_up, context_,
                                     event.is_caps_lock());
+    // The other switch keys on a tapped Shift or Ctrl (ascii_composer.switch_key).
+    switch (ascii_composer_.take_tap_toggle()) {
+    case AsciiModeSwitchStyle::TOGGLE_PUNCT:
+        record_total_us(trace_, total_start, trace_enabled_);
+        return ProcessResult::TOGGLE_PUNCT;
+    case AsciiModeSwitchStyle::TOGGLE_SHAPE:
+        record_total_us(trace_, total_start, trace_enabled_);
+        return ProcessResult::TOGGLE_SHAPE;
+    case AsciiModeSwitchStyle::TOGGLE_STYLE:
+        // As the style shortcut below: not used in Wubi mode.
+        if (!opts.chinese_mode || mode_ == InputMode::PINYIN) {
+            record_total_us(trace_, total_start, trace_enabled_);
+            return opts.chinese_mode ? ProcessResult::TOGGLE_PINYIN_STYLE
+                                     : ProcessResult::TOGGLE_ENGLISH_STYLE;
+        }
+        break;
+    default:
+        break;
+    }
 
     // The key after a commit decides what the commit taught: Backspace takes it back (the
     // text was wrong), any other key keeps it; modifiers alone decide nothing.

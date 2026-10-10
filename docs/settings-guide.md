@@ -163,6 +163,7 @@
 | `laya.cache` | true | 把模型权重按本机 CPU 打包后的副本和分词器的紧凑镜像存在 `%LOCALAPPDATA%\zhiyi\laya-cache`（首次启动生成，约 140 MB），以后启动直接映射，服务端少占约 100 MB 内存、少花约 0.8 s；false = 每次启动在内存里打包和解析，不写缓存 |
 | `laya.max_candidates` | 0 | 模型查看的前几个候选（其中覆盖全部输入的参与比较）；0 = 每页候选数的 2 倍 |
 | `laya.rank_prior_weight` / `laya.english_rank_prior_weight` | 0 / 0.2 | 引擎排位先验的权重（模型分数加上 权重 × log P(正确词排第 r 位)）；0 = 只看模型 |
+| `laya.sentence_score_weight` / `laya.sentence_min_chars` | 1.0 / 4 | 长句：没有词典词覆盖全部输入、引擎组出的整句至少这么多字时，模型分数加上 权重 × 引擎整句分数（ln）；0 = 只看模型 |
 | `privacy.experience_program` / `collect_input` | false / false | 用户体验改进计划两档 |
 | `update.notify` | true | 打开设置时检查更新 |
 | `startup.autostart` | true | 登录时启动后台服务；false = 第一次切换到知意输入法时再启动 |

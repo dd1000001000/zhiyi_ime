@@ -22,6 +22,7 @@
 #include <cxxime/data_path.h>
 #include <cxxime/english_lexicon.h>
 #include <cxxime/gpu_adapters.h>
+#include <cxxime/pinyin_composer.h>
 #include <cxxime/segmentor.h>
 #include <cxxime/translation_result.h>
 
@@ -304,6 +305,16 @@ bool has_context(const std::string& context) {
     return false;
 }
 
+size_t utf8_length(const std::string& s) {
+    return static_cast<size_t>(std::count_if(s.begin(), s.end(), [](char c) {
+        return (static_cast<unsigned char>(c) & 0xC0) != 0x80;
+    }));
+}
+
+// Sentences compared at most: more long options than this overflow the model's option budget
+// (head_max_len 256 tokens), which then cuts every option short.
+constexpr size_t kMaxSentenceOptions = 8;
+
 }  // namespace
 
 bool LayaRerank::apply(const Config& config, const std::string& context, const std::string& input,
@@ -325,14 +336,48 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     }
     if (static_cast<int>(idx.size()) < (std::max)(2, lc.min_candidates)) return false;
 
+    // A long input no dictionary word covers: its candidates are sentences the engine composed.
+    // The model was trained to guess a word; alone it picks worse sentences than the composer's
+    // own order, so the composer's ln score is mixed in (bench eval_long.py, 822 phrases of 4-16
+    // characters typed in full: 41% right in the composer's order, 33% by the model alone, 50%
+    // mixed with weight 1).
+    const Candidate& lead = result.entries[idx[0]].candidate;
+    const bool sentences = lc.sentence_score_weight > 0 && lead.origin == CandidateOrigin::kComposed &&
+                           lead.composed_score < 0 &&
+                           utf8_length(lead.text) >= static_cast<size_t>((std::max)(1, lc.sentence_min_chars));
+    if (sentences && idx.size() > kMaxSentenceOptions) idx.resize(kMaxSentenceOptions);
+
     // 2. Score with the model (cached).
     const std::string pinyin = pinyin_for_model(input);
     const std::string ctx = laya::utf8_tail(context, static_cast<size_t>((std::max)(0, lc.context_chars)));
     std::vector<std::string> texts;
-    std::string key = ctx + '\x1f' + pinyin + '\x1f' + std::to_string(lc.rank_prior_weight);
+    std::string key = ctx + '\x1f' + pinyin + '\x1f' + std::to_string(lc.rank_prior_weight) + '\x1f' +
+                      (sentences ? std::to_string(lc.sentence_score_weight) : std::string());
     for (size_t i : idx) {
         texts.push_back(result.entries[i].candidate.text);
         key += '\x1f' + texts.back();
+    }
+    // The composer's score of each candidate (ln, as composed_word_score): a sentence's own, a
+    // dictionary word's as a one-word sentence; anything else (a learned or user word) gets the
+    // best of the others, so only the model weighs it.
+    std::vector<double> composed(idx.size(), 0.0);
+    if (sentences) {
+        double best = -1e300;
+        std::vector<bool> known(idx.size(), false);
+        for (size_t k = 0; k < idx.size(); ++k) {
+            const Candidate& c = result.entries[idx[k]].candidate;
+            if (c.composed_score < 0) {
+                composed[k] = static_cast<double>(c.composed_score) / kComposedScoreScale;
+            } else if (c.origin == CandidateOrigin::kSystem && c.source_frequency > 0) {
+                composed[k] = static_cast<double>(composed_word_score(c.source_frequency)) / kComposedScoreScale;
+            } else {
+                continue;
+            }
+            known[k] = true;
+            best = (std::max)(best, composed[k]);
+        }
+        for (size_t k = 0; k < idx.size(); ++k)
+            if (!known[k]) composed[k] = best;
     }
 
     State& s = state();
@@ -361,7 +406,8 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
             std::vector<double> mixed(p.size());
             for (size_t i = 0; i < p.size(); ++i)
                 mixed[i] = std::log((std::max)(p[i], 1e-9f)) +
-                           lc.rank_prior_weight * rank_prior(kRankPriorZh, i);
+                           lc.rank_prior_weight * rank_prior(kRankPriorZh, i) +
+                           (sentences ? lc.sentence_score_weight * composed[i] : 0.0);
             order.resize(p.size());
             std::iota(order.begin(), order.end(), size_t{0});
             std::stable_sort(order.begin(), order.end(),

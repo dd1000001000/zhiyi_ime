@@ -158,6 +158,7 @@ Candidate rebuild_candidate(const std::string& input, const CompositionPath& pat
     candidate.source = CandidateSource::kPinyin;
     candidate.source_frequency = nodes[node_index].weakest_frequency;
     candidate.frequency = sentence_frequency(nodes[node_index].aggregate_score);
+    candidate.composed_score = nodes[node_index].aggregate_score;
     return candidate;
 }
 
@@ -284,15 +285,17 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
                     break;
                 }
 
-                // Homophones within a tenth of the span's most common word (改 / 该, not 瓦 / 哇);
-                // a repeated short code takes its most common word only.
+                // Homophones within a tenth of the span's most common word (改 / 该, not 瓦 / 哇;
+                // limits.homophone_ratio); a repeated short code takes its most common word only.
                 const int top_frequency =
                     memo_entry->candidates.empty() ? 0 : memo_entry->candidates.front().source_frequency;
                 size_t taken = 0;
                 for (const auto& candidate : memo_entry->candidates) {
                     if (taken > 0 && (path.kind == CompositionPathKind::kRepeatedShortCode ||
-                                      static_cast<int64_t>(candidate.source_frequency) * 10 <
-                                          top_frequency)) {
+                                      (limits.homophone_ratio > 0 &&
+                                       static_cast<int64_t>(candidate.source_frequency) *
+                                               limits.homophone_ratio <
+                                           top_frequency))) {
                         break;
                     }
                     ++taken;

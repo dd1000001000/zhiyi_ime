@@ -334,6 +334,13 @@ bool spells_input(const std::string& input, const std::string& syllables) {
 
 constexpr size_t kMaxTypedSpanSentences = 12;
 
+// Long input (this many syllables) that no dictionary word covers: the context model chooses
+// among the composed sentences (LayaRerank, laya.sentence_score_weight), so the composer offers
+// it more of them: 8 sentences over up to 8 words per span of any frequency, not 5 over 3
+// within a tenth of the most common (bench eval_long.py: the right phrase of 4-16 characters is
+// among the first 8 for 63% of full-pinyin inputs, first for 42%).
+constexpr size_t kWideSentenceSyllables = 4;
+
 struct CompositionPathSpec {
     size_t id_sequence_index = 0;
     size_t segmented_path_index = 0;
@@ -1300,6 +1307,22 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         const auto composition_start = std::chrono::steady_clock::now();
         PinyinComposer composer(*dict_);
         CompositionLimits composition_limits;
+        size_t longest_path = 0;
+        for (const auto& path : composition_paths) {
+            longest_path = (std::max)(longest_path, path.syllables->size());
+        }
+        if (!input_covered && longest_path >= kWideSentenceSyllables) {
+            composition_limits.max_candidates_per_range = 8;
+            composition_limits.homophone_ratio = 0;
+            composition_limits.max_sentences = 8;
+            composition_limits.sentence_cutoff = 1e9;  // the first 8, however far apart
+            composition_limits.max_range_queries = 512;
+            composition_limits.max_entry_scans = 16384;
+            composition_limits.max_span_candidates = 2048;
+            composition_limits.max_beam_width = 64;
+            composition_limits.max_nodes = 4096;
+            composition_limits.max_final_candidates = 64;
+        }
         CompositionStats composition_stats;
         const QueryDeadline no_deadline;
         const QueryDeadline& composition_deadline = budget ? budget->deadline : no_deadline;
@@ -1626,6 +1649,7 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
         candidate.source = CandidateSource::kPinyin;
         candidate.source_frequency = final_state.frequency;
         candidate.frequency = sentence_frequency(final_state.score);
+        candidate.composed_score = (std::min)(final_state.score, int64_t{-1});
         results.push_back(std::move(candidate));
     }
     return results;

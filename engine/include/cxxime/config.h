@@ -144,6 +144,12 @@ struct Config {
         // this rank), the rank distribution measured on the training data.
         double rank_prior_weight = 0.0;
         double english_rank_prior_weight = 0.2;
+        // Long input that no dictionary word covers (the first compared candidate is a sentence
+        // the engine composed, at least sentence_min_chars characters): the model, trained to
+        // guess a word, alone picks worse sentences than the composer, so its log P is mixed with
+        // sentence_score_weight * the composer's ln score (Candidate::composed_score).
+        double sentence_score_weight = 1.0;
+        int sentence_min_chars = 4;
         int context_chars = 128;  // trailing characters before the caret fed to the model
         // Where the input box cannot be read, the text typed before is the context; it is
         // forgotten after this many seconds without typing (0 = kept).

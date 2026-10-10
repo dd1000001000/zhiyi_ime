@@ -263,6 +263,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(l, "max_candidates", config.laya.max_candidates);
         load_double(l, "rank_prior_weight", config.laya.rank_prior_weight);
         load_double(l, "english_rank_prior_weight", config.laya.english_rank_prior_weight);
+        load_double(l, "sentence_score_weight", config.laya.sentence_score_weight);
+        load_int(l, "sentence_min_chars", config.laya.sentence_min_chars);
         load_int(l, "context_chars", config.laya.context_chars);
         load_int(l, "context_memory_seconds", config.laya.context_memory_seconds);
         config.laya.context_memory_seconds = (std::max)(0, config.laya.context_memory_seconds);
@@ -606,6 +608,8 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["max_candidates"] = config.laya.max_candidates;
     j["laya"]["rank_prior_weight"] = config.laya.rank_prior_weight;
     j["laya"]["english_rank_prior_weight"] = config.laya.english_rank_prior_weight;
+    j["laya"]["sentence_score_weight"] = config.laya.sentence_score_weight;
+    j["laya"]["sentence_min_chars"] = config.laya.sentence_min_chars;
     j["laya"]["context_chars"] = config.laya.context_chars;
     j["laya"]["context_memory_seconds"] = config.laya.context_memory_seconds;
     j["laya"]["threads"] = config.laya.threads;

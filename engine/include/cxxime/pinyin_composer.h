@@ -37,6 +37,9 @@ struct CompositionLimits {
     uint32_t max_entry_scans = 2048;
     // Homophones per syllable span (Rime's max_homophones): the model picks among the sentences.
     uint32_t max_candidates_per_range = 3;
+    // ... and only those within 1 / homophone_ratio of the span's most common word (改 / 该, not
+    // 瓦 / 哇); 0 = any.
+    uint32_t homophone_ratio = 10;
     uint32_t max_span_candidates = 256;
     uint32_t max_beam_width = 32;
     uint32_t max_nodes = 1024;

@@ -205,6 +205,27 @@ void append_bounded(std::string& history, const std::string& text) {
     }
 }
 
+// For a long input the composer offers the context model up to 8 sentences to choose among
+// (pinyin_translator.cc kWideSentenceSyllables); the page shows the first kShownSentences of
+// them, after reranking, and the rest go to the end, behind the words for part of the input
+// (这个输入法), so those stay on the first page.
+void move_extra_sentences_back(const std::string& input, TranslationResult& result) {
+    constexpr std::size_t kShownSentences = 5;
+    std::vector<CandidateEntry> extra;
+    std::size_t sentences = 0;
+    for (std::size_t i = 0; i < result.entries.size();) {
+        const auto* action = std::get_if<TextSelectionAction>(&result.entries[i].selection);
+        if (result.entries[i].candidate.origin == CandidateOrigin::kComposed && action &&
+            action->consumed_input_bytes == input.size() && ++sentences > kShownSentences) {
+            extra.push_back(std::move(result.entries[i]));
+            result.entries.erase(result.entries.begin() + static_cast<std::ptrdiff_t>(i));
+        } else {
+            ++i;
+        }
+    }
+    for (auto& entry : extra) result.entries.push_back(std::move(entry));
+}
+
 }  // namespace
 
 const std::string& Engine::live_laya_history() const {
@@ -1123,6 +1144,7 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     // so page 1 stays a permutation of the original first page.
     if (request.scheme == CompositionScheme::kPinyin && page_index == 0 && page_offset == 0) {
         LayaRerank::instance().apply(runtime_->config(), laya_context(state), request.input, result);
+        move_extra_sentences_back(request.input, result);
         if (laya_first_page && static_cast<int>(result.entries.size()) > page_size) {
             result.entries.resize(page_size);
             result.page_size = page_size;

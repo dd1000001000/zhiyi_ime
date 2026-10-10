@@ -36,6 +36,9 @@ struct Candidate {
     std::string syllables;
     CandidateOrigin origin = CandidateOrigin::kSystem;
     int source_frequency = 0;  // Raw dictionary frequency when ranking uses a derived score.
+    // A sentence the engine composed (kComposed): its aggregate score, the sum of its words'
+    // composed_word_score (ln, in thousandths; pinyin_composer.h). Always below 0; 0 = none.
+    int64_t composed_score = 0;
     // Canonical input used to query this candidate when it differs from the user's raw keys.
     std::string input_code;
     // Picked by the Laya model as the best continuation (shown with a sparkle mark).

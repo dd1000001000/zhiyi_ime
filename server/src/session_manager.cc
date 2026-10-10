@@ -18,6 +18,7 @@
 
 #include <cxxime/data_path.h>
 #include <cxxime/candidate_preference.h>
+#include <cxxime/candidate_presentation.h>
 #include <cxxime/diagnostics_config.h>
 #include <cxxime/disabled_system_lexicon.h>
 #include <cxxime/english_learning.h>
@@ -269,36 +270,58 @@ void advance_candidate_revision(SessionEntry& entry, const CandidateStateToken& 
     }
 }
 
+bool learning_mode_shown(const cxxime::Config& config) {
+    return (!config.chinese_gloss_target.empty() || !config.english_gloss_target.empty()) &&
+           config.layout != "horizontal";
+}
+
+bool translator_enabled(const cxxime::Config& config) {
+    return config.mt_enable && !config.mt_device.empty();
+}
+
+const std::string& gloss_target(const cxxime::Config& config, const cxxime::Candidate& candidate) {
+    return candidate.source == cxxime::CandidateSource::kEnglish ? config.english_gloss_target
+                                                                 : config.chinese_gloss_target;
+}
+
+// The translation the candidate window shows for `candidate`: from the language pack, or else
+// one the offline translation model (machine_translator.h) has made, shown without a part of
+// speech. `asked` tells whether the model was asked already (it may have found nothing).
+std::string shown_gloss(const cxxime::Config& config, const cxxime::Candidate& candidate,
+                        bool* asked = nullptr) {
+    if (asked) *asked = false;
+    if (candidate.source == cxxime::CandidateSource::kSymbol) return {};
+    std::string gloss = cxxime::candidate_gloss(
+        config.chinese_gloss_target, config.english_gloss_target, candidate.text,
+        candidate.syllables, candidate.source == cxxime::CandidateSource::kEnglish);
+    const std::string& target = gloss_target(config, candidate);
+    if (gloss.empty() && translator_enabled(config) && !target.empty() &&
+        MachineTranslator::instance().cached(target, candidate.text, &gloss) && asked) {
+        *asked = true;
+    }
+    return gloss;
+}
+
 // Learning mode (docs/learning-mode.md): the translation of each candidate on the page, shown
 // by the vertical candidate window.
 void add_glosses(const SessionEntry& entry, cxxime::CandidatePresentationPage& page) {
     if (!entry.resources.runtime) return;
     const cxxime::Config& config = entry.resources.runtime->config();
-    if ((config.chinese_gloss_target.empty() && config.english_gloss_target.empty()) ||
-        config.layout == "horizontal") {
-        return;
-    }
+    if (!learning_mode_shown(config)) return;
     const auto& entries = entry.engine->context().translation().entries;
-    // Not in the language pack: the offline translation model (machine_translator.h), when on.
-    const bool translator = config.mt_enable && !config.mt_device.empty();
     std::vector<cxxime::mt::Item> missing;
     for (std::size_t i = 0; i < page.items.size() && i < entries.size(); ++i) {
         const cxxime::Candidate& candidate = entries[i].candidate;
-        if (candidate.source == cxxime::CandidateSource::kSymbol) continue;
-        const bool english = candidate.source == cxxime::CandidateSource::kEnglish;
-        page.items[i].gloss = cxxime::candidate_gloss(
-            config.chinese_gloss_target, config.english_gloss_target, candidate.text,
-            candidate.syllables, english);
-        const std::string& target = english ? config.english_gloss_target : config.chinese_gloss_target;
-        if (!translator || !page.items[i].gloss.empty() || target.empty() ||
-            !cxxime::mt::translatable(candidate.text)) {
-            continue;
-        }
-        std::string translation;
-        if (MachineTranslator::instance().cached(target, candidate.text, &translation)) {
-            page.items[i].gloss = translation;  // shown without a part of speech
-        } else {
-            missing.push_back({target, candidate.text, english ? "en" : "zh"});
+        bool asked = false;
+        page.items[i].gloss = shown_gloss(config, candidate, &asked);
+        // Not in the language pack nor asked yet: to the model, when on.
+        const std::string& target = gloss_target(config, candidate);
+        if (page.items[i].gloss.empty() && !asked &&
+            candidate.source != cxxime::CandidateSource::kSymbol &&
+            translator_enabled(config) && !target.empty() &&
+            cxxime::mt::translatable(candidate.text)) {
+            missing.push_back({target, candidate.text,
+                               candidate.source == cxxime::CandidateSource::kEnglish ? "en" : "zh"});
         }
     }
     if (!missing.empty()) {
@@ -1701,6 +1724,18 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     const bool was_composing = engine.context().is_composing();
     const auto key_start = std::chrono::steady_clock::now();
     auto result = engine.process_key(event, opts, static_cast<int>(visible_candidate_count));
+    if (result == cxxime::ProcessResult::COMMIT_TRANSLATION) {
+        // Ctrl+1..9 in learning mode: the first sense of the translation the window shows.
+        std::string translation;
+        const std::optional<int> index = engine.take_translation_request();
+        const cxxime::Candidate* candidate = index ? engine.context().candidate(*index) : nullptr;
+        if (candidate && resources.runtime) {
+            const auto senses =
+                cxxime::decode_candidate_gloss(shown_gloss(resources.runtime->config(), *candidate));
+            if (!senses.empty()) translation = senses.front().text;
+        }
+        result = engine.commit_translation(index.value_or(-1), translation);
+    }
     std::optional<cxxime::CandidatePick> pick = engine.take_candidate_pick();
     if (!event.is_key_up) {
         cxxime::ExperienceLog& experience = cxxime::ExperienceLog::instance();

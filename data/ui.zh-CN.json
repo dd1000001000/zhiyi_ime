@@ -200,6 +200,7 @@
     "learning.off": "关",
     "learning.not_downloaded": "（未下载）",
     "learning.hint": "打开后候选窗口改为竖排。灰色的语言要先在下面下载语言包。",
+    "learning.keys_hint": "打字时按 Ctrl+1～9 打出那个候选的翻译（第一个意思）；没有翻译的候选不打字。",
     "learning.preview": "预览",
     "learning.card_packs": "语言包",
     "learning.tab_chinese": "中文 → 外语",

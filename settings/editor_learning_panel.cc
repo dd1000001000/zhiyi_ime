@@ -150,6 +150,8 @@ void EditorApp::create_learning_panel(HWND panel) {
     const int preview_x = client.right - kPanelPadLeft - preview_width;
     make_hint(tr("learning.hint"), x0, y, preview_x - x0 - S(16), panel);
     y += S(40);
+    make_hint(tr("learning.keys_hint"), x0, y, preview_x - x0 - S(16), panel);
+    y += S(40);
     const int preview_height = (std::max)(y - top, S(118));
     hGlossPreview_ = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_OWNERDRAW,
                                      preview_x, top, preview_width, preview_height, panel,

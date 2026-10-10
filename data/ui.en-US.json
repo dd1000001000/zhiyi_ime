@@ -200,6 +200,7 @@
     "learning.off": "Off",
     "learning.not_downloaded": " (not downloaded)",
     "learning.hint": "The candidate window becomes vertical. Download a gray language's pack below first.",
+    "learning.keys_hint": "While typing, Ctrl+1–9 types that candidate's translation (its first sense); nothing for a candidate without one.",
     "learning.preview": "Preview",
     "learning.card_packs": "Language packs",
     "learning.tab_chinese": "Chinese → other",

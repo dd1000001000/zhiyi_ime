@@ -23,6 +23,9 @@ enum class ProcessResult {
     TOGGLE_ENGLISH_STYLE,
     // The same shortcut in Chinese pinyin mode: full pinyin <-> initials (首字母).
     TOGGLE_PINYIN_STYLE,
+    // Learning mode: Ctrl+1..9 asks for that candidate's translation (docs/learning-mode.md).
+    // The server looks it up and calls Engine::commit_translation; never sent to the client.
+    COMMIT_TRANSLATION,
 };
 
 // Abstract processor interface

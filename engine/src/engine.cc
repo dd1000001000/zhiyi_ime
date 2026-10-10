@@ -192,6 +192,34 @@ std::string tail_chars(const std::string& text, std::size_t max_chars) {
     return text.substr(begin);
 }
 
+// The first / last code point of UTF-8 `text` (0 when empty).
+char32_t first_code_point(const std::string& text) {
+    if (text.empty()) return 0;
+    const auto lead = static_cast<unsigned char>(text[0]);
+    const int length = lead < 0x80 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4;
+    char32_t code = length == 1 ? lead : lead & (0x7F >> length);
+    for (int i = 1; i < length && i < static_cast<int>(text.size()); ++i) {
+        code = (code << 6) | (static_cast<unsigned char>(text[i]) & 0x3F);
+    }
+    return code;
+}
+
+char32_t last_code_point(const std::string& text) {
+    std::size_t begin = text.size();
+    while (begin > 0 && (static_cast<unsigned char>(text[--begin]) & 0xC0) == 0x80) {
+    }
+    return first_code_point(text.substr(begin));
+}
+
+// A letter or digit of a script written with spaces between words (Latin, Cyrillic, Hangul),
+// not Chinese or Japanese, punctuation or a space.
+bool spaced_word_char(char32_t c) {
+    if (c < 0x80) return std::isalnum(static_cast<int>(c)) != 0;
+    return c >= 0xC0 && c != 0xD7 && c != 0xF7 && !(c >= 0x2000 && c < 0x2C00) &&
+           !(c >= 0x2E80 && c < 0xA000) && !(c >= 0xF900 && c < 0xFB00) &&
+           !(c >= 0xFE30 && c < 0xFE50) && !(c >= 0xFF00 && c < 0xFFF0) && c < 0x20000;
+}
+
 // Appends, keeping a bounded tail (bytes); LayaRerank trims to config.laya.context_chars.
 void append_bounded(std::string& history, const std::string& text) {
     history += text;
@@ -414,6 +442,28 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
                                     : ProcessResult::TOGGLE_ENGLISH_STYLE;
         }
         return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+    }
+
+    // Learning mode: Ctrl+1..9 types that candidate's translation (docs/learning-mode.md). While
+    // typing the key is ours even without a translation, so it never reaches the application
+    // (a browser would switch tabs); auto-repeat and the key-up are swallowed too.
+    const Config* config = runtime_ ? &runtime_->config() : nullptr;
+    if (!event.is_key_up && event.is_ctrl() && !event.is_alt() && !event.is_shift() &&
+        event.keycode >= '1' && event.keycode <= '9' && config &&
+        (!config->chinese_gloss_target.empty() || !config->english_gloss_target.empty()) &&
+        config->layout != "horizontal" &&
+        (context_.is_composing() || handled_shortcut_key_ == event.keycode)) {
+        record_total_us(trace_, total_start, trace_enabled_);
+        if (handled_shortcut_key_ == event.keycode) {
+            return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+        }
+        handled_shortcut_key_ = event.keycode;
+        const int index = static_cast<int>(event.keycode - '1');
+        if (index >= context_.selectable_candidate_count()) {
+            return ProcessResult::ACCEPTED;
+        }
+        translation_request_ = index;
+        return ProcessResult::COMMIT_TRANSLATION;
     }
 
     // Application and system shortcuts own modified key combinations unless
@@ -1033,6 +1083,36 @@ bool Engine::select_candidate(int index) {
         apply_commit_learning_plan();
     }
     return true;
+}
+
+ProcessResult Engine::commit_translation(int index, const std::string& translation) {
+    const CandidateEntry* entry = context_.candidate_entry(index);
+    const auto* action = entry ? std::get_if<TextSelectionAction>(&entry->selection) : nullptr;
+    if (!action || translation.empty() ||
+        action->consumed_input_bytes > context_.active_input().size()) {
+        return ProcessResult::ACCEPTED;
+    }
+    std::string text;
+    for (const auto& segment : context_.composition().converted_segments()) text += segment.text;
+    // "现在" then "now": no space; "I" then "now": a space, as between typed words.
+    if (spaced_word_char(last_code_point(live_laya_history() + text)) &&
+        spaced_word_char(first_code_point(translation))) {
+        text += ' ';
+    }
+    text += translation;
+    const std::string rest = context_.active_input().substr(action->consumed_input_bytes);
+    const bool english = english_composing_;
+    reset_composition_state();
+    english_composing_ = false;
+    if (!rest.empty() && !english &&
+        context_.start_composition(scheme_for_mode(mode_), rest, rest.size())) {
+        TranslationResult translated =
+            translate_current_composition(QueryDeadline::from_now(query_deadline_ms_));
+        if (translated.usable()) context_.update_translation(std::move(translated));
+    }
+    context_.committed_text = std::move(text);
+    context_.set_commit_source(CommitSource::kCandidate);
+    return ProcessResult::COMMITTED;
 }
 
 std::string Engine::get_commit_text() {

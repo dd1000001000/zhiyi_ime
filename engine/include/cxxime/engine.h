@@ -68,6 +68,16 @@ public:
         last_pick_.reset();
         return pick;
     }
+    // After COMMIT_TRANSLATION: the candidate whose translation Ctrl+1..9 asked for, once.
+    std::optional<int> take_translation_request() {
+        auto index = translation_request_;
+        translation_request_.reset();
+        return index;
+    }
+    // Types `translation` in place of candidate `index` (text confirmed before it stays; input
+    // after it is typed on). Nothing happens (ACCEPTED) without a translation; COMMITTED
+    // otherwise. Teaches nothing: the translation is not a pick of the candidate.
+    ProcessResult commit_translation(int index, const std::string& translation);
     void set_partial_selection_enabled(bool enabled) {
         translation_policy_.allow_partial_selection = enabled;
     }
@@ -190,6 +200,7 @@ private:
     TranslationPolicy translation_policy_;
     uint32_t handled_shortcut_key_ = 0;
     std::optional<CandidatePick> last_pick_;
+    std::optional<int> translation_request_;
 
     // Query trace (explicit ownership, not thread_local - see TraceContext constraints)
     QueryTrace trace_;

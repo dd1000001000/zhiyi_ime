@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cwchar>
+#include <optional>
 
 #include <imm.h>
 
@@ -20,6 +21,8 @@ namespace {
 constexpr wchar_t kClassName[] = L"ZhiyiKeyCapture";
 constexpr UINT_PTR kNoticeTimer = 1;
 constexpr UINT kNoticeMs = 2500;
+// A key the capture hook took: wParam the key, lParam the modifiers held.
+constexpr UINT kCapturedKey = WM_APP + 0x4B;
 
 struct State {
     KeyChoice choice;
@@ -69,6 +72,62 @@ uint32_t modifiers_down() {
     return modifiers;
 }
 
+// While a box captures, a low-level keyboard hook takes the keys before Windows hands them to
+// global hotkeys (other programs', this IME's activation key) or to input methods, which
+// would act on them while the box never saw them. Modifiers pass (the box reads their state,
+// a tapped one is a choice); so do the keys that leave the window (Win, Alt+Tab, Alt+Esc,
+// Ctrl+Esc): the capture ends when the box loses the focus.
+HHOOK g_capture_hook = nullptr;
+HWND g_capture_box = nullptr;
+DWORD g_capture_key_down = 0;  // a taken key, until its key-up
+
+bool async_down(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
+
+LRESULT CALLBACK capture_hook_proc(int code, WPARAM wparam, LPARAM lparam) {
+    if (code != HC_ACTION || !g_capture_box) return CallNextHookEx(nullptr, code, wparam, lparam);
+    const auto* key = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lparam);
+    const bool down = wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN;
+    const DWORD vk = key->vkCode;
+    if (!down && vk == g_capture_key_down) {
+        g_capture_key_down = 0;
+        return 1;
+    }
+    const bool alt = async_down(VK_MENU);
+    const bool leaves_window = vk == VK_LWIN || vk == VK_RWIN || async_down(VK_LWIN) ||
+                               async_down(VK_RWIN) || (alt && (vk == VK_TAB || vk == VK_ESCAPE)) ||
+                               (async_down(VK_CONTROL) && vk == VK_ESCAPE && !alt);
+    if (!down || modifier_bit(vk) != 0 || leaves_window || GetFocus() != g_capture_box) {
+        return CallNextHookEx(nullptr, code, wparam, lparam);
+    }
+    if (vk != g_capture_key_down) {  // not an auto-repeat
+        uint32_t modifiers = 0;
+        if (async_down(VK_SHIFT)) modifiers |= kKeyModifierShift;
+        if (async_down(VK_CONTROL)) modifiers |= kKeyModifierControl;
+        if (alt) modifiers |= kKeyModifierAlt;
+        g_capture_key_down = vk;
+        PostMessageW(g_capture_box, kCapturedKey, vk, modifiers);
+    }
+    return 1;
+}
+
+void remove_capture_hook(HWND window) {
+    if (g_capture_box != window) return;
+    if (g_capture_hook) UnhookWindowsHookEx(g_capture_hook);
+    g_capture_hook = nullptr;
+    g_capture_box = nullptr;
+    g_capture_key_down = 0;
+}
+
+void install_capture_hook(HWND window) {
+    if (g_capture_box && g_capture_box != window) remove_capture_hook(g_capture_box);
+    g_capture_box = window;
+    if (!g_capture_hook) {
+        // Without it (it may fail) the box still gets the keys nothing else takes.
+        g_capture_hook = SetWindowsHookExW(WH_KEYBOARD_LL, capture_hook_proc,
+                                           GetModuleHandleW(nullptr), 0);
+    }
+}
+
 void notify_changed(HWND window) {
     SendMessageW(GetParent(window), WM_COMMAND,
                  MAKEWPARAM(GetDlgCtrlID(window), kKeyCaptureChanged),
@@ -88,10 +147,12 @@ void start_capture(HWND window, State* state) {
     state->message = nullptr;
     state->modifiers_seen = 0;
     state->other_key_seen = false;
+    install_capture_hook(window);
     InvalidateRect(window, nullptr, TRUE);
 }
 
 void stop_capture(HWND window, State* state) {
+    remove_capture_hook(window);
     state->capturing = false;
     state->message = nullptr;
     InvalidateRect(window, nullptr, TRUE);
@@ -119,7 +180,9 @@ void reject(HWND window, State* state, const wchar_t* message) {
     InvalidateRect(window, nullptr, TRUE);
 }
 
-void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam) {
+// `modifiers`: held with the key (a key from the capture hook), else read from the key state.
+void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam,
+                 std::optional<uint32_t> modifiers = std::nullopt) {
     if ((lparam & (1 << 30)) != 0) return;  // auto-repeat
     if (const uint32_t bit = modifier_bit(vk)) {
         state->modifiers_seen |= bit;
@@ -137,7 +200,7 @@ void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam) {
         vk = MapVirtualKeyW(scan, MAPVK_VSC_TO_VK_EX);
     }
     state->other_key_seen = true;
-    const KeyboardShortcut shortcut = {modifiers_down(), vk};
+    const KeyboardShortcut shortcut = {modifiers ? *modifiers : modifiers_down(), vk};
     if (vk == VK_ESCAPE && shortcut.modifiers == 0) {
         stop_capture(window, state);  // cancel, keep the key
         return;
@@ -264,7 +327,14 @@ LRESULT CALLBACK key_capture_proc(HWND window, UINT message, WPARAM wparam, LPAR
             return 0;
         }
         break;
+    case kCapturedKey:
+        if (state && state->capturing) {
+            on_key_down(window, state, static_cast<UINT>(wparam), 0,
+                        static_cast<uint32_t>(lparam));
+        }
+        return 0;
     case WM_NCDESTROY:
+        remove_capture_hook(window);
         delete state;
         SetWindowLongPtrW(window, GWLP_USERDATA, 0);
         break;

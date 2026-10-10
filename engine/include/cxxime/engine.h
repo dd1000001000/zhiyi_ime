@@ -75,9 +75,12 @@ public:
         return index;
     }
     // Types `translation` in place of candidate `index` (text confirmed before it stays; input
-    // after it is typed on). Nothing happens (ACCEPTED) without a translation; COMMITTED
-    // otherwise. Teaches nothing: the translation is not a pick of the candidate.
-    ProcessResult commit_translation(int index, const std::string& translation);
+    // after it is typed on), after a space when `spaced` (its language writes spaces between
+    // words, learning.space_languages) and a word comes before it. Nothing happens (ACCEPTED)
+    // without a translation; COMMITTED otherwise. Teaches nothing: the translation is not a
+    // pick of the candidate.
+    ProcessResult commit_translation(int index, const std::string& translation,
+                                     bool spaced = false);
     void set_partial_selection_enabled(bool enabled) {
         translation_policy_.allow_partial_selection = enabled;
     }

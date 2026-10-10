@@ -1727,14 +1727,18 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     if (result == cxxime::ProcessResult::COMMIT_TRANSLATION) {
         // Ctrl+1..9 in learning mode: the first sense of the translation the window shows.
         std::string translation;
+        bool spaced = false;
         const std::optional<int> index = engine.take_translation_request();
         const cxxime::Candidate* candidate = index ? engine.context().candidate(*index) : nullptr;
         if (candidate && resources.runtime) {
-            const auto senses =
-                cxxime::decode_candidate_gloss(shown_gloss(resources.runtime->config(), *candidate));
+            const cxxime::Config& config = resources.runtime->config();
+            const auto senses = cxxime::decode_candidate_gloss(shown_gloss(config, *candidate));
             if (!senses.empty()) translation = senses.front().text;
+            const auto& languages = config.translation_space_languages;
+            spaced = std::find(languages.begin(), languages.end(),
+                               gloss_target(config, *candidate)) != languages.end();
         }
-        result = engine.commit_translation(index.value_or(-1), translation);
+        result = engine.commit_translation(index.value_or(-1), translation, spaced);
     }
     std::optional<cxxime::CandidatePick> pick = engine.take_candidate_pick();
     if (!event.is_key_up) {

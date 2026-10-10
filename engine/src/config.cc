@@ -383,6 +383,14 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(learning, "translator_idle_seconds", config.mt_idle_seconds);
         config.mt_context_chars = (std::max)(0, (std::min)(config.mt_context_chars, 256));
         config.mt_idle_seconds = (std::max)(5, config.mt_idle_seconds);
+        if (learning.contains("space_languages") && learning["space_languages"].is_array()) {
+            config.translation_space_languages.clear();
+            for (const auto& language : learning["space_languages"]) {
+                if (language.is_string()) {
+                    config.translation_space_languages.push_back(language.get<std::string>());
+                }
+            }
+        }
     }
 
     bool switch_keys_loaded = true;
@@ -702,6 +710,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["learning"]["translator_device"] = config.mt_device;
     j["learning"]["translator_context_chars"] = config.mt_context_chars;
     j["learning"]["translator_idle_seconds"] = config.mt_idle_seconds;
+    j["learning"]["space_languages"] = config.translation_space_languages;
 
     return j;
 }

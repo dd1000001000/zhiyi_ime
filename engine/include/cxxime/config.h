@@ -72,6 +72,9 @@ struct Config {
     // Chinese and English candidates; empty: none. A language pack must be installed.
     std::string chinese_gloss_target;  // en ja ko fr de es ru
     std::string english_gloss_target;  // zh ja ko fr de es ru
+    // learning.space_languages: Ctrl+1..9 types a translation into these languages with a space
+    // before it after a word (a letter or digit that is not Chinese or Japanese).
+    std::vector<std::string> translation_space_languages = {"en", "ko", "fr", "de", "es", "ru"};
     // Offline translation (docs/learning-mode.md): candidates the language pack has no
     // translation for are translated by a downloaded model (Hy-MT2) on a graphics card.
     bool mt_enable = false;        // learning.translator

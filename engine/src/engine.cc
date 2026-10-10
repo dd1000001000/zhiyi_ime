@@ -211,8 +211,8 @@ char32_t last_code_point(const std::string& text) {
     return first_code_point(text.substr(begin));
 }
 
-// A letter or digit of a script written with spaces between words (Latin, Cyrillic, Hangul),
-// not Chinese or Japanese, punctuation or a space.
+// A letter or digit that is not Chinese or Japanese (Latin, Cyrillic, Hangul), not punctuation
+// or a space: a word a translation is spaced from.
 bool spaced_word_char(char32_t c) {
     if (c < 0x80) return std::isalnum(static_cast<int>(c)) != 0;
     return c >= 0xC0 && c != 0xD7 && c != 0xF7 && !(c >= 0x2000 && c < 0x2C00) &&
@@ -1085,7 +1085,8 @@ bool Engine::select_candidate(int index) {
     return true;
 }
 
-ProcessResult Engine::commit_translation(int index, const std::string& translation) {
+ProcessResult Engine::commit_translation(int index, const std::string& translation,
+                                         bool spaced) {
     const CandidateEntry* entry = context_.candidate_entry(index);
     const auto* action = entry ? std::get_if<TextSelectionAction>(&entry->selection) : nullptr;
     if (!action || translation.empty() ||
@@ -1095,8 +1096,7 @@ ProcessResult Engine::commit_translation(int index, const std::string& translati
     std::string text;
     for (const auto& segment : context_.composition().converted_segments()) text += segment.text;
     // "现在" then "now": no space; "I" then "now": a space, as between typed words.
-    if (spaced_word_char(last_code_point(live_laya_history() + text)) &&
-        spaced_word_char(first_code_point(translation))) {
+    if (spaced && spaced_word_char(last_code_point(live_laya_history() + text))) {
         text += ' ';
     }
     text += translation;

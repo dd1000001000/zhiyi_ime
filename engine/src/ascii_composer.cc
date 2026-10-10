@@ -138,11 +138,7 @@ bool AsciiComposer::process_key(uint32_t key_code, bool is_key_up, Context& ctx,
                 if (style == AsciiModeSwitchStyle::TOGGLE_STYLE ||
                     style == AsciiModeSwitchStyle::TOGGLE_PUNCT ||
                     style == AsciiModeSwitchStyle::TOGGLE_SHAPE) {
-                    // A quick tap only: Ctrl held for Ctrl+click or Ctrl+wheel is no switch.
-                    constexpr auto kMaxTap = std::chrono::milliseconds(500);
-                    if (std::chrono::steady_clock::now() - modifier_down_time_ <= kMaxTap) {
-                        tap_toggle_ = style;
-                    }
+                    tap_toggle_ = style;
                     shift_pressed_ = false;
                     ctrl_pressed_ = false;
                     alt_pressed_ = false;
@@ -164,7 +160,6 @@ bool AsciiComposer::process_key(uint32_t key_code, bool is_key_up, Context& ctx,
         } else {
             CXXIME_LOG(L"AsciiComposer::process_key: modifier key down");
             if (!shift_pressed_ && !ctrl_pressed_ && !alt_pressed_ && !win_pressed_) {
-                modifier_down_time_ = std::chrono::steady_clock::now();
                 if (is_shift) shift_pressed_ = true;
                 if (is_ctrl)  ctrl_pressed_ = true;
                 if (is_alt)   alt_pressed_ = true;

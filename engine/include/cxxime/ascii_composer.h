@@ -3,7 +3,6 @@
 #ifndef CXXIME_ASCII_COMPOSER_H_
 #define CXXIME_ASCII_COMPOSER_H_
 
-#include <chrono>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -85,7 +84,6 @@ private:
     bool ctrl_pressed_ = false;
     bool alt_pressed_ = false;
     bool win_pressed_ = false;
-    std::chrono::steady_clock::time_point modifier_down_time_{};
     AsciiModeSwitchStyle tap_toggle_ = AsciiModeSwitchStyle::NOOP;
 
 };

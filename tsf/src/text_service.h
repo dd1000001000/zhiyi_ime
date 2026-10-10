@@ -169,7 +169,10 @@ public:
         return (_activateFlags & TF_TMF_IMMERSIVEMODE) != 0;
     }
     void set_composition_context(ITfContext* context);
-    void set_composing(bool val) { _composing = val; }
+    void set_composing(bool val) {
+        _composing = val;
+        if (val) _install_translation_key_hook();
+    }
     bool empty_composition_placeholder_active() const {
         return _emptyCompositionPlaceholderActive;
     }
@@ -317,6 +320,16 @@ private:
     void _reset_trace_composition(const char* reason);
     ITfContext* _current_edit_context_for_composition() const;
     uint32_t _get_modifiers() const;
+    // Learning mode: Ctrl+1..9 types a candidate's translation (docs/learning-mode.md). Eaten
+    // keys still reach Chromium apps as "processed" keys with their key code, which some (the
+    // Claude app) take as their own Ctrl+1..9; while typing, a low-level keyboard hook takes the
+    // keys before any program gets them and hands them to this text service.
+    bool _wants_translation_keys() const;
+    void _install_translation_key_hook();
+    void _remove_translation_key_hook();
+    bool _take_translation_key(UINT message, const KBDLLHOOKSTRUCT& key);
+    void _process_translation_key(UINT vk, bool key_up);
+    static LRESULT CALLBACK _translation_key_hook_proc(int code, WPARAM wp, LPARAM lp);
     bool _is_caps_lock_on() const;
     void _sync_ime_status(const cxxime::ImeStatus& status);
     void _handle_ime_menu_command(cxxime::ImeMenuCommand command);
@@ -483,6 +496,9 @@ private:
     std::uint64_t _localCandidatePlacementTargetGeneration = 0;
     cxxime::ConfigGeneration _configGeneration;
     HWND _configWindow = nullptr;
+    HHOOK _translationKeyHook = nullptr;
+    UINT _translationKeyDown = 0;  // a Ctrl+1..9 taken, until its key-up
+    std::optional<uint32_t> _modifierOverride;  // modifiers of a key taken by the hook
     std::uint32_t _configSubscriptionId = 0;
     bool _capsLockRefreshPending = false;
 

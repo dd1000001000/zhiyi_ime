@@ -61,6 +61,7 @@ void TextService::_stop_config_updates() {
         return;
     }
 
+    _remove_translation_key_hook();
     cxxime_tsf::unsubscribe_config_updates(_configWindow, _configSubscriptionId);
     DestroyWindow(_configWindow);
     _configWindow = nullptr;
@@ -105,6 +106,10 @@ LRESULT CALLBACK TextService::_config_window_proc(HWND hwnd, UINT msg, WPARAM wp
     if (msg == cxxime_tsf::WM_CXXIME_CONFIG_CHANGED && service &&
         wp == static_cast<WPARAM>(service->_configSubscriptionId)) {
         service->_apply_config_snapshot();
+        return 0;
+    }
+    if (msg == cxxime_tsf::WM_CXXIME_TRANSLATION_KEY && service) {
+        service->_process_translation_key(static_cast<UINT>(wp), lp != 0);
         return 0;
     }
     if (msg == cxxime_tsf::WM_CXXIME_UI_COMMAND && service) {

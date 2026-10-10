@@ -9,6 +9,7 @@
 #include <cxxime/diagnostics_config.h>
 #include <cxxime/logging.h>
 
+#include "config_coordinator.h"
 #include "globals.h"
 #include "tsf_trace.h"
 
@@ -478,7 +479,94 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext* pic, REFGUID rguid, BOOL* p
     return S_OK;
 }
 
+namespace {
+
+thread_local TextService* t_translation_key_owner = nullptr;
+
+// The focus is in this thread: keys typed now are for this text service.
+bool focus_in_this_thread() {
+    GUITHREADINFO info = {sizeof(info)};
+    HWND window = GetGUIThreadInfo(0, &info) && info.hwndFocus ? info.hwndFocus
+                                                               : GetForegroundWindow();
+    return window && GetWindowThreadProcessId(window, nullptr) == GetCurrentThreadId();
+}
+
+bool key_held(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
+
+}  // namespace
+
+bool TextService::_wants_translation_keys() const {
+    return _composing && _configWindow &&
+           (!_config.chinese_gloss_target.empty() || !_config.english_gloss_target.empty()) &&
+           _config.layout != "horizontal";
+}
+
+void TextService::_install_translation_key_hook() {
+    if (_translationKeyHook || !_wants_translation_keys() ||
+        (t_translation_key_owner && t_translation_key_owner != this)) {
+        return;
+    }
+    // Only while typing: every key of every program passes through the hook's thread.
+    _translationKeyHook = SetWindowsHookExW(WH_KEYBOARD_LL, _translation_key_hook_proc, g_hInst, 0);
+    if (_translationKeyHook) t_translation_key_owner = this;
+}
+
+void TextService::_remove_translation_key_hook() {
+    if (_translationKeyHook) UnhookWindowsHookEx(_translationKeyHook);
+    _translationKeyHook = nullptr;
+    _translationKeyDown = 0;
+    if (t_translation_key_owner == this) t_translation_key_owner = nullptr;
+}
+
+LRESULT CALLBACK TextService::_translation_key_hook_proc(int code, WPARAM wp, LPARAM lp) {
+    TextService* service = t_translation_key_owner;
+    if (code == HC_ACTION && service &&
+        service->_take_translation_key(static_cast<UINT>(wp),
+                                       *reinterpret_cast<const KBDLLHOOKSTRUCT*>(lp))) {
+        return 1;  // no program gets the key
+    }
+    return CallNextHookEx(nullptr, code, wp, lp);
+}
+
+bool TextService::_take_translation_key(UINT message, const KBDLLHOOKSTRUCT& key) {
+    const bool down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
+    const bool up = message == WM_KEYUP || message == WM_SYSKEYUP;
+    if (_translationKeyDown != 0 && key.vkCode == _translationKeyDown) {
+        if (up) {
+            _translationKeyDown = 0;
+            PostMessageW(_configWindow, cxxime_tsf::WM_CXXIME_TRANSLATION_KEY, key.vkCode, 1);
+        }
+        return down || up;  // auto-repeat and the key-up of a taken key
+    }
+    if (!_wants_translation_keys()) {
+        if (_translationKeyDown == 0) _remove_translation_key_hook();  // typing has ended
+        return false;
+    }
+    if (!down || key.vkCode < '1' || key.vkCode > '9' || !key_held(VK_CONTROL) ||
+        key_held(VK_MENU) || key_held(VK_SHIFT) || key_held(VK_LWIN) || key_held(VK_RWIN) ||
+        !focus_in_this_thread()) {
+        return false;
+    }
+    _translationKeyDown = key.vkCode;
+    PostMessageW(_configWindow, cxxime_tsf::WM_CXXIME_TRANSLATION_KEY, key.vkCode, 0);
+    return true;
+}
+
+void TextService::_process_translation_key(UINT vk, bool key_up) {
+    _modifierOverride = 0x02 | (_is_caps_lock_on() ? 0x08u : 0u);  // Ctrl
+    if (key_up) {
+        _ProcessKeyUp(vk, 0);
+    } else if (ITfContext* context = _current_edit_context_for_composition()) {
+        BOOL eaten = FALSE;
+        _ProcessKeyEvent(context, vk, 0, &eaten);
+        context->Release();
+    }
+    _modifierOverride.reset();
+    if (!_wants_translation_keys() && _translationKeyDown == 0) _remove_translation_key_hook();
+}
+
 uint32_t TextService::_get_modifiers() const {
+    if (_modifierOverride) return *_modifierOverride;
     BYTE kb[256] = {};
     uint32_t mods = 0;
     if (GetKeyboardState(kb)) {

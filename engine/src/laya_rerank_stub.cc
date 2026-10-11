@@ -4,6 +4,7 @@
 // applications. The model runs in the 64-bit server, so candidates keep their order here.
 
 #include <cxxime/laya_rerank.h>
+#include <cxxime/pinyin_composer.h>
 
 namespace cxxime {
 

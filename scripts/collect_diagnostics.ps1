@@ -378,14 +378,18 @@ Save-CommandOutput -Path (Join-Path $root "registry-clsid-64.txt") -Command {
 Save-CommandOutput -Path (Join-Path $root "registry-clsid-32.txt") -Command {
     reg.exe query "HKLM\SOFTWARE\Classes\CLSID\$cxxImeClsid" /s /reg:32
 }
+# The TIP's display name, built from its characters: the script stays ASCII, since Windows
+# PowerShell reads a file without a byte order mark in the ANSI code page (GBK on Chinese Windows),
+# where these characters break the whole script.
+$tipName = -join [char[]](0x77E5, 0x610F, 0x8F93, 0x5165, 0x6CD5)
 Save-CommandOutput -Path (Join-Path $root "registry-tip.txt") -Command {
-    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f "知意输入法"
+    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f $tipName
 }
 Save-CommandOutput -Path (Join-Path $root "registry-tip-64.txt") -Command {
-    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f "知意输入法" /reg:64
+    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f $tipName /reg:64
 }
 Save-CommandOutput -Path (Join-Path $root "registry-tip-32.txt") -Command {
-    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f "知意输入法" /reg:32
+    reg.exe query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f $tipName /reg:32
 }
 Save-CommandOutput -Path (Join-Path $root "keyboard-preload.txt") -Command {
     reg.exe query "HKCU\Keyboard Layout\Preload"

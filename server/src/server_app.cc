@@ -589,7 +589,7 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
     }
 
     case cxxime::IPCCommand::REFRESH_CANDIDATES: {
-        auto r = session_mgr_.current_presentation(request.session_id);
+        auto r = session_mgr_.refresh_candidates(request.session_id);
         fill_process_response(r, &response);
         break;
     }

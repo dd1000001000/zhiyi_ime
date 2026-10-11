@@ -119,6 +119,9 @@ struct SessionEntry {
     bool closing = false;
     uint64_t client_capabilities = 0;
     uint64_t candidate_revision = 0;
+    // The composition (Engine::continuation_key) whose continuation scores are in: its page is
+    // composed again when the client fetches it (REFRESH_CANDIDATES), not before.
+    std::string continuation_ready;
     SharedResourceSnapshot resources;
     std::mutex mutex;  // per-session concurrency protection
     // Input collection (second tier of the experience program): the input target reported by
@@ -211,12 +214,15 @@ public:
     // a client that can fetch a page without one (kClientCapabilityCandidateRefresh), the paths
     // the model still has to score are computed on a worker; when they are in, the session's
     // composition is the same (Engine::continuation_key) and `notifier` can reach its client,
-    // the first page is translated again, the model's sentence first, and the client told (it
-    // fetches the page: REFRESH_CANDIDATES). Off until started (tests, tools).
+    // the client is told, and fetches the page (REFRESH_CANDIDATES). Off until started (tests,
+    // tools).
     void start_background_continuation(RefreshNotifier notifier);
     void stop_background_continuation();
-    // REFRESH_CANDIDATES: the session's composition and candidates as they are, no key.
-    ProcessKeyResult current_presentation(uint32_t id);
+    // REFRESH_CANDIDATES: the session's composition and candidates, no key; the first page
+    // composed again with the model's sentence first when its scores are in for this very
+    // composition. Only here does the page change: a key the client sent before (a space for
+    // the page it shows) is handled first, on that page.
+    ProcessKeyResult refresh_candidates(uint32_t id);
 
     cxxime::IPCStatus add_user_entry(cxxime::UserDictKind kind, const std::string& text,
                                      const std::string& code,

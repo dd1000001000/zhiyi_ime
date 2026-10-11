@@ -28,6 +28,7 @@
 #include <cxxime/segmentor.h>
 #include <cxxime/translation_result.h>
 
+#include "laya/continuation_cache.h"
 #include "laya/reranker.h"
 #include "laya/slots.h"
 #include "laya/text_util.h"
@@ -42,6 +43,11 @@ void laya_log(const std::wstring& message) {
     OutputDebugStringW((L"[ZhiyiIME][laya] " + message + L"\n").c_str());
 }
 
+// A generation of continuation scores: about 40 syllable paths of 8 syllables (a composition
+// has 1 to laya.continuation_paths); the largest composition, 4 paths x 24 syllables (2.4 MB),
+// still fits.
+constexpr size_t kContinuationCacheBytes = 8u << 20;
+
 struct State {
     std::mutex mu;
     std::shared_ptr<laya::Reranker> model;
@@ -49,11 +55,9 @@ struct State {
     bool loading = false;
     bool failed = false;
     std::unordered_map<std::string, std::vector<size_t>> cache;  // context|pinyin|cands -> order
-    // Continuation scores: context and the typed units -> ln P per slot and character. Two
-    // generations: when the newer is full it becomes the older one, so scores just computed in
-    // the background are still there when the page is translated again.
-    std::unordered_map<std::string, std::shared_ptr<const std::vector<std::vector<float>>>>
-        continuation, continuation_older;
+    // Continuation scores: context and the typed units -> ln P per slot and character, at most
+    // 2 x kContinuationCacheBytes.
+    laya::ContinuationCache continuation{kContinuationCacheBytes};
     bool continuation_in_background = false;
     LayaRerankStats stats;
     LayaRerank::CaptureFn capture;
@@ -136,7 +140,6 @@ std::shared_ptr<laya::Reranker> get_model(const Config& config) {
         s.failed = false;
         s.cache.clear();
         s.continuation.clear();
-        s.continuation_older.clear();
     }
     if (s.model || s.loading || s.failed) return s.model;
     // Checked here, before a loader thread exists, so processes without a model (tests, tools)
@@ -344,8 +347,6 @@ std::vector<laya::Unit> pinyin_units(const laya::Reranker& model, const std::str
     return units;
 }
 
-constexpr size_t kMaxCachedContinuations = 256;
-
 std::string continuation_key(const std::string& context, const std::vector<laya::Unit>& units) {
     std::string key = context + '\x1f';
     for (const auto& u : units) key += u.kind + u.text + ':';
@@ -357,20 +358,13 @@ using SlotScores = std::shared_ptr<const std::vector<std::vector<float>>>;
 SlotScores cached_continuation(const std::string& key) {
     State& s = state();
     std::lock_guard<std::mutex> lk(s.mu);
-    auto it = s.continuation.find(key);
-    if (it != s.continuation.end()) return it->second;
-    it = s.continuation_older.find(key);
-    return it == s.continuation_older.end() ? nullptr : it->second;
+    return s.continuation.find(key);
 }
 
 void cache_continuation(const std::string& key, SlotScores scores) {
     State& s = state();
     std::lock_guard<std::mutex> lk(s.mu);
-    if (s.continuation.size() >= kMaxCachedContinuations) {
-        s.continuation_older = std::move(s.continuation);
-        s.continuation.clear();
-    }
-    s.continuation[key] = std::move(scores);
+    s.continuation.insert(key, std::move(scores));
 }
 
 SlotScores run_continuation(laya::Reranker& model, const std::string& context,

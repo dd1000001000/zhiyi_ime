@@ -200,6 +200,10 @@ struct Config {
         // Typed segmentations (xian / xi'an) the model reads per key: one model call each; the
         // readings of an abbreviation ("g" as guo, gong, ge...) share a call.
         int continuation_paths = 4;
+        // The model starts on a composition only after the typing has paused this long (the
+        // server's background worker; CPU and graphics card alike): keys in quick succession
+        // make no work that the next key throws away.
+        int continuation_delay_ms = 100;
         // The model's sentences then also go through the word choice (as sentences did before):
         // off, the lattice order stands and its first sentence is recommended.
         bool continuation_rerank = false;

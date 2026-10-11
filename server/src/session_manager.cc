@@ -2058,9 +2058,12 @@ void SessionManager::schedule_continuation(uint32_t id, SessionEntry& entry) {
     if (!work || (entry.client_capabilities & cxxime::kClientCapabilityCandidateRefresh) == 0) {
         return;
     }
+    std::shared_ptr<const cxxime::EngineRuntimeState> runtime = shared_.snapshot().runtime;
+    if (!runtime) return;
+    const std::chrono::milliseconds delay(runtime->config().laya.continuation_delay_ms);
     std::lock_guard<std::mutex> lock(continuation_mutex_);
     if (!continuation_worker_) return;
-    continuation_worker_->submit(id, std::move(key), std::move(work), shared_.snapshot().runtime);
+    continuation_worker_->submit(id, std::move(key), std::move(work), std::move(runtime), delay);
 }
 
 void SessionManager::continuation_done(uint32_t id, const std::string& key) {
@@ -2071,20 +2074,18 @@ void SessionManager::continuation_done(uint32_t id, const std::string& key) {
         std::lock_guard<std::mutex> lock(continuation_mutex_);
         notifier = refresh_notifier_;
     }
-    // The page changes only when the client showing the session can be told.
+    // Only a client that can be told fetches the page.
     std::function<void()> notify = notifier ? notifier(id) : std::function<void()>();
     if (!notify) return;
     {
         std::lock_guard<std::mutex> lock(entry->mutex);
-        if (entry->closing) return;
-        const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
-        if (!entry->engine->refresh_continuation(key)) return;
-        advance_candidate_revision(*entry, candidate_state_before);
+        if (entry->closing || entry->engine->continuation_key() != key) return;
+        entry->continuation_ready = key;
     }
     notify();
 }
 
-ProcessKeyResult SessionManager::current_presentation(uint32_t id) {
+ProcessKeyResult SessionManager::refresh_candidates(uint32_t id) {
     auto entry = lookup_session(id);
     ProcessKeyResult ret;
     if (!entry) return ret;  // ERR_INVALID_SESSION
@@ -2093,8 +2094,16 @@ ProcessKeyResult SessionManager::current_presentation(uint32_t id) {
     auto& s = *entry;
     ret.ime_status = s.ime_status;
     if (!s.engine->context().is_composing()) {
+        s.continuation_ready.clear();
         ret.status = cxxime::IPCStatus::ERR_ENGINE_PROCESS_FAILED;
         return ret;
+    }
+    if (!s.continuation_ready.empty()) {
+        // Refused when the composition, the page or the highlight moved since.
+        const std::string key = std::move(s.continuation_ready);
+        s.continuation_ready.clear();
+        const CandidateStateToken candidate_state_before = candidate_state_token(*s.engine);
+        if (s.engine->refresh_continuation(key)) advance_candidate_revision(s, candidate_state_before);
     }
     ret.status = cxxime::IPCStatus::OK;
     ret.result = cxxime::ProcessResult::ACCEPTED;

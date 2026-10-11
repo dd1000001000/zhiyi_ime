@@ -2,11 +2,13 @@
 //
 // Long pinyin in the background (laya_rerank.h, LayaRerank::set_continuation_in_background):
 // a key translates without the continuation model and leaves the syllable paths it lacked;
-// this thread computes them, the latest composition of each session only, and reports the
-// session and composition (Engine::continuation_key) back, which then translates again.
+// this thread computes them once the session has been quiet for the job's delay
+// (laya.continuation_delay_ms), the latest composition of each session only, and reports the
+// session and composition (Engine::continuation_key) back.
 #ifndef CXXIME_SERVER_CONTINUATION_WORKER_H_
 #define CXXIME_SERVER_CONTINUATION_WORKER_H_
 
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
@@ -32,15 +34,18 @@ public:
     ContinuationWorker(Compute compute, Done done);
     ~ContinuationWorker();
 
-    // Replaces what is waiting for the session (an earlier composition is not computed).
+    // Replaces what is waiting for the session (an earlier composition is not computed); it
+    // starts `delay` after this call, unless replaced in the meantime.
     void submit(std::uint32_t session_id, std::string key,
                 std::shared_ptr<const cxxime::ContinuationWork> work,
-                std::shared_ptr<const cxxime::EngineRuntimeState> runtime);
+                std::shared_ptr<const cxxime::EngineRuntimeState> runtime,
+                std::chrono::milliseconds delay = std::chrono::milliseconds(0));
     // Waits for the computation running, if any; nothing else is computed or reported.
     void stop();
 
 private:
     struct Job {
+        std::chrono::steady_clock::time_point due;
         std::string key;
         std::shared_ptr<const cxxime::ContinuationWork> work;
         std::shared_ptr<const cxxime::EngineRuntimeState> runtime;

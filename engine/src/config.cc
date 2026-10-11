@@ -300,6 +300,7 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_double(l, "continuation_weight", config.laya.continuation_weight);
         load_int(l, "continuation_min_syllables", config.laya.continuation_min_syllables);
         load_int(l, "continuation_paths", config.laya.continuation_paths);
+        load_int(l, "continuation_delay_ms", config.laya.continuation_delay_ms);
         load_bool(l, "continuation_rerank", config.laya.continuation_rerank);
         // The same for the rank prior: 0.4 was the default until schema 1.1, which turned it off.
         // Applied once: a file saved since then (schema 1.1) keeps what it says.
@@ -652,6 +653,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["continuation_weight"] = config.laya.continuation_weight;
     j["laya"]["continuation_min_syllables"] = config.laya.continuation_min_syllables;
     j["laya"]["continuation_paths"] = config.laya.continuation_paths;
+    j["laya"]["continuation_delay_ms"] = config.laya.continuation_delay_ms;
     j["laya"]["continuation_rerank"] = config.laya.continuation_rerank;
     j["laya"]["english_freq_weight"] = config.laya.english_freq_weight;
     j["laya"]["english_correction_weight"] = config.laya.english_correction_weight;

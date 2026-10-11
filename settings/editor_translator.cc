@@ -150,8 +150,8 @@ MtInstalled install(const update::TranslatorManifest& manifest, const std::atomi
     const std::uint64_t total = manifest.model.size + manifest.runtime.size;
     std::uint64_t base = 0;
     DWORD last_post = 0;
-    auto progress = [&](std::uint64_t done, std::uint64_t) {
-        if (GetTickCount() - last_post < 200) return;
+    auto progress = [&](std::uint64_t done, std::uint64_t size) {
+        if (done < size && GetTickCount() - last_post < 200) return;  // the end always shows
         last_post = GetTickCount();
         PostMessageW(window, kMtProgressMessage, static_cast<WPARAM>((base + done) >> 20),
                      static_cast<LPARAM>(total >> 20));
@@ -164,19 +164,30 @@ MtInstalled install(const update::TranslatorManifest& manifest, const std::atomi
             fs::copy_file(installed.model, model, error);
         }
     }
+    // Downloaded files stay in `downloads` until the whole install is done, so a failed try
+    // (e.g. the runtime download) does not lose the model already downloaded.
+    auto fetch = [&](const update::TranslatorFile& file, const fs::path& path) {
+        if (fs::exists(path, error) && same_sha256(path, file.sha256)) {
+            progress(file.size, file.size);
+            return update::Status::kOk;
+        }
+        return update::download_translator_file(file, path.wstring(), progress, cancel);
+    };
     if (!fs::exists(model, error)) {
         const fs::path download = downloads / fs::u8path(manifest.model.file);
-        result.status = update::download_translator_file(manifest.model, download.wstring(), progress, cancel);
+        result.status = fetch(manifest.model, download);
         if (result.status != update::Status::kOk) return result;
-        fs::rename(download, model, error);
-        if (error) {
-            result.status = update::Status::kDisk;
-            return result;
+        if (!CreateHardLinkW(model.c_str(), download.c_str(), nullptr)) {
+            fs::copy_file(download, model, error);
+            if (error) {
+                result.status = update::Status::kDisk;
+                return result;
+            }
         }
     }
     base = manifest.model.size;
     const fs::path archive = downloads / fs::u8path(manifest.runtime.file);
-    result.status = update::download_translator_file(manifest.runtime, archive.wstring(), progress, cancel);
+    result.status = fetch(manifest.runtime, archive);
     if (result.status != update::Status::kOk) return result;
     if (!unzip(archive, staging / kTranslatorRuntimeDir) ||
         !fs::exists(staging / kTranslatorRuntimeDir / kTranslatorServerExe, error)) {

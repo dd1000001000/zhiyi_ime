@@ -228,7 +228,10 @@ Status download_checked(const std::string& url, std::uint64_t size, const std::s
         return Status::kDisk;
     }
 
-    if (done < size) {
+    // One request from `done` to the end (or until the connection fails).
+    std::vector<char> buffer(256 * 1024);
+    bool connected = false;  // the server answered once
+    auto fetch_rest = [&]() -> Status {
         Get get;
         Status status = get.open(url, done);
         if (status != Status::kOk) return status;
@@ -242,18 +245,18 @@ Status download_checked(const std::string& url, std::uint64_t size, const std::s
             if (status != Status::kOk) return status;
         }
         if (get.status_code() != 200 && get.status_code() != 206) return Status::kNetwork;
+        connected = true;
         LARGE_INTEGER end = {};
         end.QuadPart = static_cast<LONGLONG>(done);
         if (!SetFilePointerEx(file, end, nullptr, FILE_BEGIN)) return Status::kDisk;
 
-        std::vector<char> buffer(256 * 1024);
         auto last_report = std::chrono::steady_clock::now();
         if (progress) progress(done, size);
         for (;;) {
             if (cancel && cancel->load()) return Status::kCancelled;
             DWORD read = 0;
             if (!get.read(buffer.data(), static_cast<DWORD>(buffer.size()), &read)) {
-                return Status::kNetwork;  // the .part stays: the next try resumes
+                return Status::kNetwork;  // the .part stays: resumed
             }
             if (read == 0) break;
             if (done + read > size) {
@@ -272,7 +275,23 @@ Status download_checked(const std::string& url, std::uint64_t size, const std::s
             }
         }
         if (progress) progress(done, size);
-        if (done != size) return Status::kNetwork;
+        return done == size ? Status::kOk : Status::kNetwork;
+    };
+    // A connection dropped midway (common to GitHub from some networks) is resumed where it
+    // stopped: up to kMaxRetries tries in a row that bring nothing new, a few seconds apart.
+    // A server never reached fails at once.
+    constexpr int kMaxRetries = 5;
+    for (int failures = 0; done < size;) {
+        const std::uint64_t before = done;
+        const Status status = fetch_rest();
+        if (status == Status::kOk) break;
+        if (status != Status::kNetwork || !connected) return status;
+        failures = done > before ? 1 : failures + 1;
+        if (failures > kMaxRetries) return Status::kNetwork;
+        for (int waited = 0; waited < failures * 1000; waited += 100) {
+            if (cancel && cancel->load()) return Status::kCancelled;
+            Sleep(100);
+        }
     }
 
     if (!sha256_file(file, &hash) || hash != sha256) {

@@ -34,7 +34,9 @@
   [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary): corrections welcome. Phrases,
   rare words and short sentences the packs lack can be translated by a downloadable on-device model
   (about 0.4 GB, distilled from Tencent Hy-MT2-7B) on a graphics card or the CPU (about 0.3 s a page
-  on the CPU): a page at once, filled in as it arrives, offline.
+  on the CPU): a page at once, filled in as it arrives, offline. While typing, hold Ctrl and press
+  1-9 to type that candidate's translation (its first sense) instead of the candidate: `xianzai`
+  then Ctrl+1 types `now`; a candidate without a translation types nothing.
 - **Choose where data lives**: the user dictionary, learning records, language packs, model caches
   and downloaded models can move to another drive with one click on the General page.
 - **Pinyin or Wubi**: pinyin accepts full pinyin, initials and a mix of both (`wsyige` → 我是一个),

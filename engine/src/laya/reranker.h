@@ -17,15 +17,9 @@ struct MemoryInfo;
 
 namespace laya {
 
-// 必须与训练时的 INSTRUCTIONS / INSTRUCTIONS_EN / decision_state 格式完全一致 (模型就是按这个格式训练的)。
 enum class Task { kPinyin, kEnglish };  // 拼音同音词 / 英文单词补全
-extern const char* const kInstructions;
-extern const char* const kInstructionsEnglish;
-// 猜词提示词 (rl_agent_config.json 里 "zhiyi_prompt": "guess" 的模型): 不给拼音 / 已打字母,
-// 只凭上文从候选里猜下一个词, 中英文共用。
+// 猜词提示词, 必须与训练时完全一致: 不给拼音 / 已打字母, 只凭上文从候选里猜下一个词, 中英文共用。
 extern const char* const kInstructionsGuess;
-// kPinyin: input = "jin'tian"; kEnglish: input = 已打的字母 ("comp")
-std::string decision_state(const std::string& context, const std::string& input, Task task = Task::kPinyin);
 
 struct Sequence {
   std::vector<int64_t> ids;
@@ -58,7 +52,8 @@ class Reranker {
   explicit Reranker(const RerankerOptions& opt);  // 失败抛异常
   ~Reranker();
 
-  // laya.common.build_sequence 的移植 (choice 题, criteria = {候选: 候选})。
+  // laya.common.build_sequence 的移植 (choice 题, criteria = {候选: 候选})。pinyin 和 task 不进
+  // 提示词 (猜词提示词只有上文)。
   Sequence build(const std::string& context, const std::string& pinyin,
                  const std::vector<std::string>& candidates, Task task = Task::kPinyin) const;
 
@@ -68,7 +63,6 @@ class Reranker {
   std::vector<float> score(const Sequence& seq) const;
 
   const BpeTokenizer& tokenizer() const { return *tok_; }
-  bool guess_prompt() const { return guess_prompt_; }
   const std::string& load_note() const { return load_note_; }  // how the model was loaded (log)
   bool on_gpu() const { return gpu_; }
 
@@ -78,11 +72,9 @@ class Reranker {
   std::unique_ptr<Ort::Session> session_;
   std::string load_note_;
   std::unique_ptr<Ort::MemoryInfo> mem_;
-  std::vector<int64_t> head_ids_;     // "choice question: <instructions>" 只编码一次
-  std::vector<int64_t> head_ids_en_;  // 英文任务的 instructions
+  std::vector<int64_t> head_ids_;  // "choice question: <instructions>" 只编码一次
   int max_len_ = 1024;
   int head_max_len_ = 256;
-  bool guess_prompt_ = false;
   bool gpu_ = false;
 };
 

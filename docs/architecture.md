@@ -71,7 +71,6 @@ Windows TSF 中英文输入法：中文拼音或五笔 86，英文单词联想 /
 | **WubiProcessor** | 五笔按键处理（编码输入、Z 键通配、候选选择） | `WubiProcessor` |
 | **Translator** | 拼音→汉字候选翻译（Syllabifier 主路径 + PinyinSegmentor 回退，长拼音查询页缓存） | `PinyinTranslator` |
 | **WubiTranslator** | 五笔→汉字候选翻译（按编码精确/前缀查找） | `WubiTranslator` |
-| **MixedTranslator** | 混合模式翻译（拼音+五笔交叉排序，三种排序策略） | `MixedTranslator` |
 | **Segmentor** | 音节切分 | `Syllabifier`（BFS+DFS）+ `PinyinSegmentor`（回退） |
 | **SpellingsIndex** | Patricia trie 拼写索引（缩写扩展，Prism 层） | `SpellingsIndex` |
 | **AsciiComposer** | 可配置中英文切换，CapsLock overlay | `AsciiComposer` |

@@ -40,7 +40,6 @@ bool valid_candidate_extent_state(CandidateExtentState state) {
 constexpr std::uint32_t kKnownSnapshotFlags =
     ui_snapshot_flag(UiSnapshotFlag::kComposing) |
     ui_snapshot_flag(UiSnapshotFlag::kCandidateVisible) |
-    ui_snapshot_flag(UiSnapshotFlag::kReservedStatusVisible) |
     ui_snapshot_flag(UiSnapshotFlag::kHasCaret) |
     ui_snapshot_flag(UiSnapshotFlag::kHasPreedit) |
     ui_snapshot_flag(UiSnapshotFlag::kHasCandidates) |

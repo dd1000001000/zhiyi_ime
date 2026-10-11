@@ -479,10 +479,6 @@ HRESULT register_categories() {
         return hr;
     }
 
-    // Older builds incorrectly advertised activation support for 16-bit tasks.
-    pCategoryMgr->UnregisterCategory(
-        c_clsidTextService, GUID_TFCAT_TIPCAP_WOW16, c_clsidTextService);
-
     for (const auto& guid : kSupportCategories) {
         hr = pCategoryMgr->RegisterCategory(c_clsidTextService, guid, c_clsidTextService);
         if (FAILED(hr)) {

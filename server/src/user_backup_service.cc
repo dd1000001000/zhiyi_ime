@@ -112,8 +112,6 @@ nlohmann::json take_device_settings(nlohmann::json* config) {
             config->erase(section);
         }
     }
-    // Backups before 0.7.5 also kept the floating status window position here; ignored.
-    config->erase("status_window");
     return device;
 }
 

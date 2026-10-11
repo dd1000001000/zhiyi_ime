@@ -116,9 +116,8 @@ struct Config {
     std::string layout = "vertical";  // vertical | horizontal (no translations)
     std::string render_backend = "d2d";  // gdi | d2d
     // What is typed is shown in the document, underlined (pinyin with syllable boundaries,
-    // the English word being typed). Always on: style.inline_preedit is no longer read, because
-    // the popup-only mode left a placeholder character in the document and older user configs
-    // still hold false.
+    // the English word being typed). Always on, not a setting: the popup-only mode left a
+    // placeholder character in the document.
     bool inline_preedit = true;
     std::string preedit_type = "composition";
 

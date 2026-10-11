@@ -308,7 +308,7 @@ struct IPCResponse {
     uint32_t candidate_offset = 0;
     uint32_t candidate_total = 0;
     char candidates[kCandidateCapacity][kCandidateTextCapacity] = {};
-    char candidate_hints[kCandidateCapacity][4] = {};  // Remaining Wubi code, up to 3 ASCII letters.
+    char candidate_hints[kCandidateCapacity][4] = {};  // Unused (candidate_comments); kept for the layout.
     uint32_t highlighted = 0;
     uint32_t ascii_mode = 0;
     uint32_t composing = 0;
@@ -329,8 +329,7 @@ struct IPCResponse {
     // Bit i: candidates[i] is the Laya recommendation (sparkle mark).
     uint32_t candidate_recommended_mask = 0;
     // Text shown after candidates[i]: the Wubi remaining code or the correct pinyin of a fuzzy
-    // match ("zhong guo"). candidate_hints only fits 3 letters; it keeps short hints for older
-    // clients.
+    // match ("zhong guo").
     char candidate_comments[kCandidateCapacity][kCandidateCommentCapacity] = {};
     // Bit i: candidates[i] was learned from the user's selections.
     uint32_t candidate_learned_mask = 0;

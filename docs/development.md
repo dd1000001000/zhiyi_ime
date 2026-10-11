@@ -44,7 +44,7 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 
 - [Laya](https://huggingface.co/convaiinnovations/laya) 结构的决策模型，编码器是 mmBERT-small（22 层、宽 384）。1.2.0 起由 1.1 的模型（mmBERT-base 上中英联合训练的 LoRA r64）蒸馏而来，训练样本 111 万条（原有的输入法实际候选样本，加上从 LCCC 和 C4 中文抽取、由输入法生成候选的样本）。导出为 int8 ONNX，在 CPU 上推理（默认 4 线程），每次约 10–20 ms；显卡上约 6 ms。
 - 模型只看上文和候选词，不看拼音或已打的字母（“猜词”提示词，模型目录的 `rl_agent_config.json` 中
-  `"zhiyi_prompt": "guess"`；没有这一项的旧模型仍用带拼音的提示词）。训练时中文上文是上一句加本句，
+  `"zhiyi_prompt": "guess"`）。训练时中文上文是上一句加本句，
   英文是最后 192 个字符；中文候选是输入法实际给出的第一页（全拼、末音节不完整、简拼和混打）。
 - 模型权重随 [Release model-zhen-small-distill](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-small-distill)
   发布（`scripts/fetch_model.py`）；训练代码与训练、评测数据涉及第三方语料版权，不公开。

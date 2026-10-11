@@ -141,8 +141,7 @@
 ## 配置文件
 
 - 程序目录下的 `data\default.json`：出厂默认值。
-- `%USERPROFILE%\zhiyi\default.json`：用户设置，覆盖同名字段。设置程序保存的就是这个文件，旧版本留下的未知字段
-  （如已移除的 `status_window`）会被忽略。
+- `%USERPROFILE%\zhiyi\default.json`：用户设置，覆盖同名字段。设置程序保存的就是这个文件，不认识的字段会被忽略。
 
 修改用户配置文件后，后台服务会自动重新加载。常用字段：
 

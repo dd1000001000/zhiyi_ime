@@ -222,7 +222,7 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         if (config.page_size > 100) config.page_size = 100;
         load_int(e, "input_mode", config.input_mode);
         if (config.input_mode < 0) config.input_mode = 0;
-        if (config.input_mode > 1) config.input_mode = 0;  // former mixed mode: pinyin
+        if (config.input_mode > 1) config.input_mode = 0;
         load_string(e, "pinyin_scheme", config.pinyin_scheme);
         if (!find_pinyin_scheme(config.pinyin_scheme)) {
             CXXIME_LOG(L"Config: unknown pinyin scheme '%S', falling back to full Pinyin",
@@ -296,11 +296,6 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_bool(l, "cache", config.laya.cache);
         load_bool(l, "english", config.laya.english);
         load_int(l, "english_context_chars", config.laya.english_context_chars);
-        // Settings saves every key, so 48 / 96 in a user file are the defaults before 1.0
-        // (there is no control for them), not a choice: use the current defaults instead.
-        if (config.laya.context_chars == 48) config.laya.context_chars = Config::LayaConfig{}.context_chars;
-        if (config.laya.english_context_chars == 96)
-            config.laya.english_context_chars = Config::LayaConfig{}.english_context_chars;
         // The same for the rank prior: 0.4 was the default until schema 1.1, which turned it off.
         // Applied once: a file saved since then (schema 1.1) keeps what it says.
         const bool before_rank_prior_off =
@@ -666,7 +661,6 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["style"]["font_point"] = config.font_size;
     j["style"]["layout"] = config.layout;
     j["style"]["render_backend"] = config.render_backend;
-    j["style"]["inline_preedit"] = config.inline_preedit;
     j["style"]["preedit_type"] = config.preedit_type;
 
     j["layout"]["min_width"] = config.layout_config.min_width;

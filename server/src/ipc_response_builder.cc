@@ -155,9 +155,6 @@ void fill_process_response_fields(const ProcessKeyResult& result,
                 fit_comment(item.hint, sizeof(response->candidate_comments[index]));
             response_copy_field(response->candidate_comments[index],
                                 sizeof(response->candidate_comments[index]), comment);
-            // Older clients read the short field only (Wubi codes fit).
-            response_copy_field(response->candidate_hints[index],
-                                sizeof(response->candidate_hints[index]), item.hint);
         }
         if (item.recommended) response->candidate_recommended_mask |= 1u << index;
         if (item.learned) response->candidate_learned_mask |= 1u << index;

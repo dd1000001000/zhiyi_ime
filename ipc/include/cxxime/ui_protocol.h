@@ -46,9 +46,6 @@ enum class UiOwnership : std::uint32_t {
 enum class UiSnapshotFlag : std::uint32_t {
     kComposing = 1u << 0,
     kCandidateVisible = 1u << 1,
-    // Set by input method modules before 0.7.5 (the removed floating status window);
-    // accepted and ignored.
-    kReservedStatusVisible = 1u << 2,
     kHasCaret = 1u << 3,
     kHasPreedit = 1u << 4,
     kHasCandidates = 1u << 5,

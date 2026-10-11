@@ -241,40 +241,10 @@ bool UserLexicon::load(const std::string& path) {
 
     std::vector<Entry> entries;
     std::uint64_t sequence = 0;
-    if (!parse_entries(contents, false, kind_, false, &entries, &sequence)) {
+    // Pinyin entries with a non-canonical code are skipped (and gone at the next save).
+    if (!parse_entries(contents, false, kind_, kind_ == UserDictKind::PINYIN, &entries,
+                       &sequence)) {
         return false;
-    }
-    if (kind_ == UserDictKind::PINYIN) {
-        const bool requires_migration = !validate_contents(contents, kind_);
-        std::vector<Entry> canonical_entries;
-        canonical_entries.reserve(entries.size());
-        for (auto& entry : entries) {
-            if (is_canonical_pinyin_user_code(entry.code, entry.syllables)) {
-                canonical_entries.push_back(std::move(entry));
-            }
-        }
-        if (requires_migration) {
-            const std::string quarantine_path = path + ".noncanonical";
-            std::string quarantine_contents;
-            if (!read_user_data_file(quarantine_path, &quarantine_contents)) {
-                return false;
-            }
-            const bool already_archived =
-                quarantine_contents.size() >= contents.size() &&
-                quarantine_contents.compare(quarantine_contents.size() - contents.size(),
-                                            contents.size(), contents) == 0;
-            if (!already_archived) {
-                if (!quarantine_contents.empty() && quarantine_contents.back() != '\n') {
-                    quarantine_contents.push_back('\n');
-                }
-                quarantine_contents.append(contents);
-            }
-            if (!write_user_data_file_atomically(quarantine_path, quarantine_contents) ||
-                !write_user_data_file_atomically(path, serialize_entries(canonical_entries))) {
-                return false;
-            }
-        }
-        entries = std::move(canonical_entries);
     }
 
     Snapshot next;

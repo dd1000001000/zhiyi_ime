@@ -326,7 +326,7 @@ if (!deadline_hit && !(trace && trace->deadline_exceeded))
 |------|-----|
 | 触发条件 | 任意输入长度，只要输入与页参数命中已缓存条目 |
 | 容量 | LRU 64 条（`kMaxQueryCacheEntries = 64`），`sequence` 递增序号实现淘汰 |
-| 命中条件 | input + page_index + candidate_offset + page_size + 用户词/偏好/手动排序/禁用词/整句学习版本全匹配 |
+| 命中条件 | input + page_index + candidate_offset + page_size + 用户词/偏好（含整句）/手动排序/禁用词版本全匹配 |
 | 失效 | 任一相关版本变化后全部缓存自动失效 |
 | 非缓存场景 | deadline 命中或 deadline_exceeded 时不写入缓存，避免缓存过期/不完整结果 |
 

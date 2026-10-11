@@ -16,7 +16,6 @@
 namespace cxxime {
 
 class ShortCodeCache;
-class CompositionLearningService;
 struct QueryTrace;
 struct QueryBudget;
 struct QueryScratch;
@@ -29,7 +28,6 @@ public:
     virtual void clear_query_cache() {}
     virtual void set_sentence_composition_enabled(bool enabled) {}
     virtual void set_candidate_learning_enabled(bool enabled) {}
-    virtual void set_composition_learning_service(CompositionLearningService* service) {}
 };
 
 // Pinyin translator implementation
@@ -43,7 +41,6 @@ public:
     void clear_query_cache() override { query_cache_.clear(); }
     void set_sentence_composition_enabled(bool enabled) override;
     void set_candidate_learning_enabled(bool enabled) override;
-    void set_composition_learning_service(CompositionLearningService* service) override;
 
     TranslationResult translate(const TranslationRequest& request) override;
     CandidatePage translate_page(const std::string& pinyin, int page_index = 0,
@@ -69,7 +66,6 @@ private:
         uint64_t candidate_preference_version = 0;
         uint64_t manual_candidate_order_version = 0;
         uint64_t disabled_system_entry_version = 0;
-        uint64_t composition_learning_version = 0;
         uint64_t sequence = 0;
         CandidatePage page;
     };
@@ -78,7 +74,6 @@ private:
         uint64_t candidate_preference = 0;
         uint64_t manual_candidate_order = 0;
         uint64_t disabled_system_entry = 0;
-        uint64_t composition_learning = 0;
     };
     IndexedFastResult lookup_indexed_fast(const std::string& key, int limit,
                                           QueryTrace* trace) const;
@@ -112,7 +107,6 @@ private:
     uint64_t query_cache_sequence_ = 0;
     bool sentence_composition_enabled_ = true;
     bool candidate_learning_enabled_ = false;
-    CompositionLearningService* composition_learning_ = nullptr;
     static constexpr size_t kMaxQueryCacheEntries = 64;
 };
 

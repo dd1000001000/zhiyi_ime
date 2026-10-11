@@ -12,7 +12,6 @@
 #include <string_view>
 #include <utility>
 
-#include <cxxime/composition_learning.h>
 #include <cxxime/pinyin_composer.h>
 #include <cxxime/pinyin_resource.h>
 #include <cxxime/query_budget.h>
@@ -478,14 +477,6 @@ void PinyinTranslator::set_candidate_learning_enabled(bool enabled) {
     query_cache_.clear();
 }
 
-void PinyinTranslator::set_composition_learning_service(CompositionLearningService* service) {
-    if (composition_learning_ == service) {
-        return;
-    }
-    composition_learning_ = service;
-    query_cache_.clear();
-}
-
 bool PinyinTranslator::is_indexable_key(const std::string& pinyin) {
     if (pinyin.empty())
         return false;
@@ -537,15 +528,6 @@ PinyinTranslator::IndexedFastResult PinyinTranslator::lookup_indexed_fast(
         dict_->apply_candidate_preferences(key, CandidateSource::kPinyin, result.candidates,
                                            limit);
     }
-    if (candidate_learning_enabled_ && composition_learning_) {
-        auto learned = composition_learning_->lookup_candidates(key, limit);
-        if (dict_) {
-            dict_->filter_disabled_system_candidates(learned);
-        }
-        for (auto& candidate : learned) {
-            merge_candidate_by_score(result.candidates, std::move(candidate));
-        }
-    }
     sort_candidates_by_score(result.candidates);
     if ((int)result.candidates.size() > limit)
         result.candidates.resize(limit);
@@ -566,9 +548,6 @@ PinyinTranslator::QueryCacheVersions PinyinTranslator::query_cache_versions() co
         versions.manual_candidate_order = dict_->manual_candidate_order_version();
         versions.disabled_system_entry = dict_->disabled_system_entry_version();
     }
-    versions.composition_learning = candidate_learning_enabled_ && composition_learning_
-                                        ? composition_learning_->version()
-                                        : 0;
     return versions;
 }
 
@@ -587,8 +566,7 @@ bool PinyinTranslator::lookup_query_cache(const std::string& input, int page_ind
             entry.user_dict_version == versions.user_dict &&
             entry.candidate_preference_version == versions.candidate_preference &&
             entry.manual_candidate_order_version == versions.manual_candidate_order &&
-            entry.disabled_system_entry_version == versions.disabled_system_entry &&
-            entry.composition_learning_version == versions.composition_learning) {
+            entry.disabled_system_entry_version == versions.disabled_system_entry) {
             entry.sequence = ++query_cache_sequence_;
             page = entry.page;
             if (trace) {
@@ -625,8 +603,7 @@ void PinyinTranslator::store_query_cache(const std::string& input, int page_inde
     if (current_versions.user_dict != versions.user_dict ||
         current_versions.candidate_preference != versions.candidate_preference ||
         current_versions.manual_candidate_order != versions.manual_candidate_order ||
-        current_versions.disabled_system_entry != versions.disabled_system_entry ||
-        current_versions.composition_learning != versions.composition_learning) {
+        current_versions.disabled_system_entry != versions.disabled_system_entry) {
         return;
     }
     for (auto& entry : query_cache_) {
@@ -637,8 +614,7 @@ void PinyinTranslator::store_query_cache(const std::string& input, int page_inde
             entry.user_dict_version == versions.user_dict &&
             entry.candidate_preference_version == versions.candidate_preference &&
             entry.manual_candidate_order_version == versions.manual_candidate_order &&
-            entry.disabled_system_entry_version == versions.disabled_system_entry &&
-            entry.composition_learning_version == versions.composition_learning) {
+            entry.disabled_system_entry_version == versions.disabled_system_entry) {
             entry.page = page;
             entry.sequence = ++query_cache_sequence_;
             return;
@@ -663,7 +639,6 @@ void PinyinTranslator::store_query_cache(const std::string& input, int page_inde
     entry.candidate_preference_version = versions.candidate_preference;
     entry.manual_candidate_order_version = versions.manual_candidate_order;
     entry.disabled_system_entry_version = versions.disabled_system_entry;
-    entry.composition_learning_version = versions.composition_learning;
     entry.sequence = ++query_cache_sequence_;
     entry.page = page;
     query_cache_.push_back(std::move(entry));
@@ -861,18 +836,6 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
                                                need);
         }
         dict_->filter_disabled_system_candidates(candidates);
-        if (candidate_learning_enabled_ && composition_learning_) {
-            auto learned = composition_learning_->lookup_candidates(query_key, need);
-            dict_->filter_disabled_system_candidates(learned);
-            for (auto& candidate : learned) {
-                candidate.input_code = query_key;
-                merge_candidate_by_score(candidates, std::move(candidate));
-            }
-            sort_candidates_by_score(candidates);
-            if (static_cast<int>(candidates.size()) > need) {
-                candidates.resize(need);
-            }
-        }
         for (auto& candidate : candidates) {
             candidate.input_code = query_key;
         }
@@ -1408,25 +1371,13 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     }
 
     remove_oversized_candidates(sorted);
-    keep_initials_matches(pinyin, sorted);
 
     if (pinyin_scheme() == PinyinSchemeKind::kFullPinyin && candidate_learning_enabled_) {
         dict_->apply_candidate_preferences(pinyin, CandidateSource::kPinyin, sorted, need);
     }
+    // After the learned words and sentences too: initials mode keeps only what lines up.
+    keep_initials_matches(pinyin, sorted);
     dict_->filter_disabled_system_candidates(sorted);
-    if (pinyin_scheme() == PinyinSchemeKind::kFullPinyin && candidate_learning_enabled_ &&
-        composition_learning_) {
-        auto learned = composition_learning_->lookup_candidates(pinyin, need);
-        dict_->filter_disabled_system_candidates(learned);
-        keep_initials_matches(pinyin, learned);
-        for (auto& candidate : learned) {
-            merge_candidate_by_score(sorted, std::move(candidate));
-        }
-        sort_candidates_by_score(sorted);
-        if (static_cast<int>(sorted.size()) > need) {
-            sorted.resize(need);
-        }
-    }
     if (pinyin_scheme() == PinyinSchemeKind::kFullPinyin) {
         dict_->apply_manual_candidate_order(pinyin, CandidateSource::kPinyin, sorted, need);
     } else {

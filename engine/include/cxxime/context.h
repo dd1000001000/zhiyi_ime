@@ -12,7 +12,7 @@
 #include <vector>
 
 #include <cxxime/ascii_composer.h>
-#include <cxxime/composition_learning.h>
+#include <cxxime/commit_learning.h>
 #include <cxxime/composition_state.h>
 #include <cxxime/output_options.h>
 #include <cxxime/translation_result.h>

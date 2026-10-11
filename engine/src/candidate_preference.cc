@@ -15,6 +15,7 @@
 
 #include <cxxime/input_limits.h>
 #include <cxxime/ordinary_candidate.h>
+#include <cxxime/pinyin_composer.h>
 #include <cxxime/pinyin_spelling_match.h>
 #include <cxxime/user_dict_validation.h>
 #include <cxxime/user_data_merge.h>
@@ -131,17 +132,21 @@ std::string CandidatePreference::serialize_entries(const std::vector<Entry>& ent
         }
         output << entry.text << '\t' << entry.code << '\t' << entry.candidate_code << '\t'
                << entry.frequency << '\t' << entry.sequence << '\t' << entry.syllables << '\t'
-               << format_dee(entry.dee) << '\t' << entry.score << '\n';
+               << format_dee(entry.dee) << '\t' << entry.score;
+        if (entry.sentence) {
+            output << "\ts";
+        }
+        output << '\n';
     }
     return output.str();
 }
 
 // Six columns (text, code, candidate code, commits, sequence, syllables), seven with the
-// weight, or eight with the ranking score; a record without a weight is read as `commits`
-// selections at its sequence.
+// weight, eight with the ranking score, or nine with "s" for a sentence; a record without a
+// weight is read as `commits` selections at its sequence.
 bool CandidatePreference::parse_entry(const std::vector<std::string>& fields, Entry* entry) {
-    if (fields.size() < 6 || fields.size() > 8 || !is_ordinary_candidate_text(fields[0]) ||
-        fields[1].empty() || fields[2].empty()) {
+    if (fields.size() < 6 || fields.size() > 9 || !is_ordinary_candidate_text(fields[0]) ||
+        fields[1].empty() || fields[2].empty() || (fields.size() == 9 && fields[8] != "s")) {
         return false;
     }
     entry->text = fields[0];
@@ -155,7 +160,7 @@ bool CandidatePreference::parse_entry(const std::vector<std::string>& fields, En
     if (fields.size() >= 7 && !parse_dee(fields[6], &entry->dee)) {
         return false;  // a seventh column that is not a weight: an unknown format
     }
-    if (fields.size() == 8) {
+    if (fields.size() >= 8) {
         char* end = nullptr;
         const long score = std::strtol(fields[7].c_str(), &end, 10);
         if (fields[7].empty() || !end || *end != '\0' || score < 0 || score > INT_MAX) {
@@ -163,6 +168,7 @@ bool CandidatePreference::parse_entry(const std::vector<std::string>& fields, En
         }
         entry->score = static_cast<int>(score);
     }
+    entry->sentence = fields.size() == 9 && !entry->syllables.empty();
     return true;
 }
 
@@ -177,7 +183,7 @@ bool CandidatePreference::validate_contents(const std::string& contents) {
             continue;
         }
         const std::vector<std::string> fields = split_tsv_line(line);
-        const bool column_count_ok = fields.size() >= 6 && fields.size() <= 8;
+        const bool column_count_ok = fields.size() >= 6 && fields.size() <= 9;
         char* frequency_end = nullptr;
         char* sequence_end = nullptr;
         errno = 0;
@@ -197,12 +203,15 @@ bool CandidatePreference::validate_contents(const std::string& contents) {
             (fields.size() >= 7 && !parse_dee(fields[6], &dee))) {
             return false;
         }
-        if (fields.size() == 8) {
+        if (fields.size() >= 8) {
             char* score_end = nullptr;
             const long score = std::strtol(fields[7].c_str(), &score_end, 10);
             if (fields[7].empty() || !score_end || *score_end != '\0' || score < 0) {
                 return false;
             }
+        }
+        if (fields.size() == 9 && (fields[8] != "s" || fields[5].empty())) {
+            return false;
         }
     }
     return true;
@@ -331,9 +340,11 @@ void CandidatePreference::freeze() {
 
 bool CandidatePreference::record(const Candidate& candidate, const std::string& code,
                                  CandidatePreferenceReceipt* receipt) {
+    const bool sentence = candidate.origin == CandidateOrigin::kComposed;
     if (candidate.text.empty() || code.empty() || candidate.source == CandidateSource::kSymbol ||
         candidate.source == CandidateSource::kEnglish ||
-        candidate.origin == CandidateOrigin::kComposed || code.size() > kMaxInputCodeLength ||
+        (sentence && (kind_ != UserDictKind::PINYIN || candidate.syllables.empty())) ||
+        code.size() > kMaxInputCodeLength ||
         std::any_of(code.begin(), code.end(), [](char ch) { return ch < 'a' || ch > 'z'; })) {
         return false;
     }
@@ -360,6 +371,7 @@ bool CandidatePreference::record(const Candidate& candidate, const std::string& 
         change.previous_frequency = entry.frequency;
         change.previous_dee = entry.dee;
         change.previous_sequence = entry.sequence;
+        change.previous_sentence = entry.sentence;
         // An expired tentative word starts over as a new one.
         const double dee_now = decayed(entry.dee, entry.sequence, sequence_);
         if (expired(entry.frequency, dee_now)) {
@@ -381,6 +393,9 @@ bool CandidatePreference::record(const Candidate& candidate, const std::string& 
         if (candidate.frequency >= kRankingGroupsBegin && candidate.frequency < kRankingGroupsEnd) {
             entry.score = candidate.frequency;
         }
+        // Picked as a dictionary word: a word from now on (a sentence stays one only while it
+        // is only ever composed).
+        entry.sentence = entry.sentence && sentence;
     } else {
         Entry entry;
         entry.text = candidate.text;
@@ -392,6 +407,7 @@ bool CandidatePreference::record(const Candidate& candidate, const std::string& 
         if (candidate.frequency >= kRankingGroupsBegin && candidate.frequency < kRankingGroupsEnd) {
             entry.score = candidate.frequency;
         }
+        entry.sentence = sentence;
         const EntryId id = static_cast<EntryId>(entries_.size());
         if (!entry.syllables.empty()) {
             initial_index_[entry.syllables.front()].push_back(id);
@@ -431,6 +447,7 @@ bool CandidatePreference::revoke(const CandidatePreferenceReceipt& receipt) {
         entry.frequency = receipt.previous_frequency;
         entry.dee = receipt.previous_dee;
         entry.sequence = receipt.previous_sequence;
+        entry.sentence = receipt.previous_sentence;
     }
     last_update_ms_.store(GetTickCount64(), std::memory_order_release);
     dirty_.store(true, std::memory_order_release);
@@ -494,6 +511,20 @@ std::vector<Candidate> CandidatePreference::preferred_candidates(const std::stri
         learned.text = entry.text;
         learned.code = entry.candidate_code;
         learned.syllables = entry.syllables;
+        if (entry.sentence) {
+            // Picked once: ahead of the composed sentences only (the top of their band, under
+            // the words typed in full).
+            learned.frequency =
+                (pinned ? pinned_score(dee_now)
+                        : kSentenceBase + static_cast<int>(kSentenceScoreSpan)) +
+                spelling;
+            learned.source_frequency = learned.frequency;
+            learned.source = source;
+            learned.origin = CandidateOrigin::kComposed;
+            learned.learned = true;
+            candidates.push_back(std::move(learned));
+            continue;
+        }
         learned.frequency = pinned ? pinned_score(dee_now) + spelling : kLearnedBoostRequest;
         // A tentative word's remembered ranking score, read with this spelling's credibility.
         learned.source_frequency =
@@ -771,6 +802,7 @@ void CandidatePreference::rebuild_indexes_locked() {
                                      : existing.frequency + entry.frequency;
             existing.sequence = latest;
             existing.score = (std::max)(existing.score, entry.score);
+            existing.sentence = existing.sentence && entry.sentence;
             if (existing.syllables.empty()) {
                 existing.syllables = entry.syllables;
             }

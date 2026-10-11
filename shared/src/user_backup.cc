@@ -41,6 +41,8 @@ constexpr std::uint16_t kDataDescriptorFlag = 1U << 3;
 struct KnownBackupPath {
     const char* path;
     UserBackupComponent component;
+    // In backups of older versions only: accepted and left out of what is read.
+    bool retired = false;
 };
 
 constexpr KnownBackupPath kKnownPaths[] = {
@@ -52,7 +54,8 @@ constexpr KnownBackupPath kKnownPaths[] = {
     {"ranking/candidate_order_wubi.tsv", UserBackupComponent::kCandidateOrder},
     {"learning/learning_pinyin.tsv", UserBackupComponent::kLearning},
     {"learning/learning_wubi.tsv", UserBackupComponent::kLearning},
-    {"learning/learning_composition.tsv", UserBackupComponent::kLearning},
+    // Sentences learned before 1.4.0, now part of learning_pinyin.tsv; not carried over.
+    {"learning/learning_composition.tsv", UserBackupComponent::kLearning, true},
     {"learning/learning_english.json", UserBackupComponent::kLearning},
     {"disabled/disabled_pinyin.tsv", UserBackupComponent::kDisabledSystemLexicon},
     {"disabled/disabled_wubi.tsv", UserBackupComponent::kDisabledSystemLexicon},
@@ -185,10 +188,17 @@ bool read_file(const std::wstring& path, std::vector<unsigned char>* contents,
     return succeeded;
 }
 
+const KnownBackupPath* find_known_path(const std::string& path) {
+    const auto found = std::find_if(std::begin(kKnownPaths), std::end(kKnownPaths),
+                                    [&](const KnownBackupPath& item) { return path == item.path; });
+    return found == std::end(kKnownPaths) ? nullptr : &*found;
+}
+
 bool components_are_complete(const std::set<std::string>& paths, std::uint32_t components) {
     return std::all_of(std::begin(kKnownPaths), std::end(kKnownPaths),
                        [&](const KnownBackupPath& item) {
-                           return (components & user_backup_component_flag(item.component)) == 0 ||
+                           return item.retired ||
+                                  (components & user_backup_component_flag(item.component)) == 0 ||
                                   paths.find(item.path) != paths.end();
                        });
 }
@@ -203,7 +213,9 @@ bool valid_entries(const std::vector<UserBackupEntry>& entries, std::uint32_t* c
     }
     for (const UserBackupEntry& entry : entries) {
         UserBackupComponent expected;
-        if (!user_backup_component_for_path(entry.path, &expected) || expected != entry.component ||
+        const KnownBackupPath* known = find_known_path(entry.path);
+        if (!known || known->retired ||
+            !user_backup_component_for_path(entry.path, &expected) || expected != entry.component ||
             !paths.insert(entry.path).second || entry.contents.size() > kMaxUserBackupEntrySize ||
             *total_size > kMaxUserBackupArchiveSize - entry.contents.size()) {
             return false;
@@ -297,9 +309,8 @@ const char* user_backup_component_name(UserBackupComponent component) {
 }
 
 bool user_backup_component_for_path(const std::string& path, UserBackupComponent* component) {
-    const auto found = std::find_if(std::begin(kKnownPaths), std::end(kKnownPaths),
-                                    [&](const KnownBackupPath& item) { return path == item.path; });
-    if (found == std::end(kKnownPaths) || !component) {
+    const KnownBackupPath* found = find_known_path(path);
+    if (!found || !component) {
         return false;
     }
     *component = found->component;
@@ -465,6 +476,9 @@ bool read_user_backup_archive(const std::wstring& path, UserBackupArchive* archi
                 throw std::runtime_error("invalid backup file");
             }
             actual_components |= user_backup_component_flag(component);
+            if (find_known_path(entry_path)->retired) {
+                continue;
+            }
             result.summary.total_size += contents->second.size();
             result.entries.push_back({component, entry_path, std::move(contents->second)});
         }

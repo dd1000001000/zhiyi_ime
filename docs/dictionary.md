@@ -529,7 +529,7 @@ rime-ice 的 tencent 词表没有注音列，约 98 万条的权重被当成了�
 用户个性化数据分为三个独立资源：
 
 - **用户词库（user lexicon）**：手工添加的词条，采用多路内存索引（exact / prefix / abbr / mixed）+ TSV 持久化（`user_pinyin.tsv` / `user_wubi.tsv`）。词条存储 `text`、`code`、`syllables`（冒号分隔音节键）、`abbr_code`、`mixed_keys`，支持 `frequency`、`sequence`（版本计数）、`deleted`（软删除）。
-- **候选偏好（candidate preference）**：候选学习记录，按 code 索引 + 6 列 TSV 持久化（`learning_pinyin.tsv` / `learning_wubi.tsv`），在翻译结果上应用以提升命中候选（`origin = kLearned`）。
+- **候选偏好（candidate preference）**：候选学习记录，按 code 索引 + 8 列 TSV 持久化（学过的整句多一列）（`learning_pinyin.tsv` / `learning_wubi.tsv`），在翻译结果上应用以提升命中候选（`origin = kLearned`）。
 - **手动候选顺序（manual candidate order）**：用户为编码显式固定的候选顺序，按输入码索引 + 5 列 TSV 持久化（`candidate_order_pinyin.tsv` / `candidate_order_wubi.tsv`），优先级高于候选偏好。
 
 用户词评分分双档：`UserScoringProfile::kPinyin` 和 `kWubi`，由 `Dict` 初始化时通过 `UserLexicon::set_scoring_profile()` 设置（拼音词典用 `kPinyin`，五笔词典用 `kWubi`）；候选偏好得分高于普通用户词，用于把学过的候选稳定置前；手动候选顺序在偏好之上直接前置固定项。完整优先级见 [候选排序设计](candidate-ordering.md)。

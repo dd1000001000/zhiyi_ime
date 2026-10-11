@@ -42,8 +42,6 @@ constexpr UserDataMapping kUserDataMappings[] = {
      cxxime::UserBackupComponent::kCandidateOrder},
     {"learning/learning_pinyin.tsv", "learning_pinyin.tsv", cxxime::UserBackupComponent::kLearning},
     {"learning/learning_wubi.tsv", "learning_wubi.tsv", cxxime::UserBackupComponent::kLearning},
-    {"learning/learning_composition.tsv", "learning_composition.tsv",
-     cxxime::UserBackupComponent::kLearning},
     {"learning/learning_english.json", "learning_english.json",
      cxxime::UserBackupComponent::kLearning},
     {"disabled/disabled_pinyin.tsv", "disabled_pinyin.tsv",

@@ -138,7 +138,7 @@ recent_bonus      = (delta <= 1000) ? 1000 - delta : 0，delta = sequence_ - ent
 
 `import_file`：从源文件导入用户词库（严格模式，任一行非法即整体失败），文件大小上限 64 MiB（`kMaxUserDictImportBytes`），成功后整体替换当前用户词库并落盘。
 
-用户数据沿用与系统词典相同的纯符号判定：加载、导入以及手工新增/修改（用户词库、候选偏好、手动候选顺序、整句学习）都会过滤纯符号与 emoji，混合文本（如 `U盘`、`SDK`）保留。系统符号已在构建期从系统词典剥离（见 [词典系统设计](dictionary.md)），不会再经由用户数据回到候选中。
+用户数据沿用与系统词典相同的纯符号判定：加载、导入以及手工新增/修改（用户词库、候选偏好、手动候选顺序）都会过滤纯符号与 emoji，混合文本（如 `U盘`、`SDK`）保留。系统符号已在构建期从系统词典剥离（见 [词典系统设计](dictionary.md)），不会再经由用户数据回到候选中。
 
 ### 文件格式（用户词库）
 
@@ -166,6 +166,7 @@ struct Entry {
     uint64_t sequence = 0;      // 最后一次选中时的全局计数（tick）
     double dee = 1.0;           // 衰减权重，截至 sequence 那一刻
     int score = 0;              // 最后一次选中时该词的排序分（0 = 未知）
+    bool sentence = false;      // 学过的整句（见下文“整句”）
     bool deleted = false;       // 软删除标记
 };
 ```
@@ -176,7 +177,7 @@ struct Entry {
 
 ### 记录与查询
 
-- `record_candidate_preference(candidate, code, receipt)`：记录选中的候选。符号（`kSymbol`）与组合（`kComposed`）候选不记录；相同 text+code 次数加一、权重加一。冻结后拒绝记录。`receipt` 记下这次改动前的状态。
+- `record_candidate_preference(candidate, code, receipt)`：记录选中的候选。符号（`kSymbol`）候选不记录，组合（`kComposed`）候选只在拼音、带音节时作为整句记录；相同 text+code 次数加一、权重加一。冻结后拒绝记录。`receipt` 记下这次改动前的状态。
 - `revoke_candidate_preference(receipt)`：撤回上一次记录（条目没被再次改动时）。上屏后紧接着按 Backspace 时引擎调用它：刚上屏就删，说明选错了，这次学习作废（Rime 的 `DiscardSession`）。
 - `apply_candidate_preferences(code, source, candidates, limit)`：翻译结果排序前应用偏好，命中项标记 `learned = true`，不在结果里的条目补进来并标记 `origin = kLearned`，不产生重复项。
   命中的条目有两类：按当前输入精确记录的，以及（拼音）音节能被当前输入拼出来的——每个音节打全或只打声母（z / zh）、
@@ -201,22 +202,26 @@ dee_now = dee × exp((sequence − 当前 tick) / 200)
 - 通过声母或没打完的音节命中的加分词，加分基准是记住的排序分加上拼写可信度 × 500,000（词典排序的对数尺度）。
 - 五笔没有可加分的词频尺度，选一次就置顶，其余规则相同。
 
+### 整句
+
+逐段选出来或由组句上屏的拼音整句（`commit_learning.cc` 的学习计划：各段的词之外再加一条 `origin = kComposed` 的整句），
+和选过的词记在同一份 `learning_pinyin.tsv`、走同一个 tick，只多一个“整句”标记：
+
+- 按完整编码查询，也按音节匹配当前输入（`zhegsh` 命中学过的 这个事，分数减去声母的可信度）；
+- 不去词典里查（整句本来就不在词典里），但仍按隐藏的系统词过滤；
+- 选过一次只排在组出来的句子之前（`kSentenceBase + kSentenceScoreSpan`，仍在打全的整词之下）；
+- 选过两次以上和词一样置顶，所以同一串字母既学过词又学过整句时按权重排：`xian` 下选得多的 先 在逐段选过的 西安 之前；
+- 之后被当作词典里的词选中，就改记为词；撤销这次选中时恢复成整句。
+
+1.4.0 以前整句另存在 `learning_composition.tsv`，1.4.0 不再读它（学过的整句重新学），1.4.0 以前的备份里的这个文件导入时忽略。
+
 ### 持久化
 
-- TSV 8 列：`text<TAB>code<TAB>candidate_code<TAB>frequency<TAB>sequence<TAB>syllables<TAB>dee<TAB>score`；
-  读取时兼容 6 列（1.0.8 以前，权重按次数折算）和 7 列；保存时已遗忘的条目不再写出
+- TSV 8 列：`text<TAB>code<TAB>candidate_code<TAB>frequency<TAB>sequence<TAB>syllables<TAB>dee<TAB>score`，
+  整句多第 9 列 `s`；读取时兼容 6 列（1.0.8 以前，权重按次数折算）和 7 列；保存时已遗忘的条目不再写出
 - `save_if_due(delay)` 按最近更新时间合并落盘（服务端默认 1500ms）；`save()` 立即写盘
 - `freeze()` 后拒绝记录/删除/清空，但允许保存既有数据
 - 文件：`%USERPROFILE%\zhiyi\learning_pinyin.tsv`、`%USERPROFILE%\zhiyi\learning_wubi.tsv`
-
-### 整句学习
-
-`CompositionLearningService`（`engine/src/composition_learning.cc`）记录逐段选出来或由组句上屏的整句，按完整编码查询，
-也按音节匹配当前输入（同 `match_typed_spelling`：`zhegsh` 命中学过的 这个事，分数减去声母的可信度），
-规则与候选偏好一致：权重同样每 200 个 tick 衰减为 1/e；选过一次只排在组出来的句子之前（`kSentenceBase + kSentenceScoreSpan`，
-仍在打全的整词之下），低于 0.35 遗忘；选过两次以上置顶（`220,000,000 + dee_now × 1000`），低于 0.05 退回句首位置。
-`revoke(event)` 对应上屏后的 Backspace。
-文件 `%USERPROFILE%\zhiyi\learning_composition.tsv`，列为 `text code syllables count sequence dee`，第 6 列不是数字时按旧格式读。
 
 ## 手动候选顺序（固定排序）
 

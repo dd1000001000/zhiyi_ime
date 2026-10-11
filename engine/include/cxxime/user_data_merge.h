@@ -19,9 +19,6 @@ struct UserDataMergeResult {
 bool merge_lexicon_resource_contents(LexiconResource resource, UserDictKind kind,
                                      const std::string& current, const std::string& imported,
                                      UserDataMergeResult* result);
-bool merge_composition_learning_contents(const std::string& current,
-                                         const std::string& imported,
-                                         UserDataMergeResult* result);
 
 } // namespace cxxime
 

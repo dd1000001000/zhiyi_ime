@@ -19,7 +19,6 @@
 #include <vector>
 
 #include <cxxime/candidate_presentation.h>
-#include <cxxime/composition_learning.h>
 #include <cxxime/config.h>
 #include <cxxime/engine.h>
 #include <cxxime/ipc_protocol.h>
@@ -107,7 +106,7 @@ public:
                                             std::uint64_t expected_version,
                                             bool* version_conflict);
     bool save_candidate_preferences(bool force);
-    bool freeze_and_stop_composition_learning();
+    bool close_english_learning();
 };
 
 struct SessionEntry {
@@ -247,7 +246,7 @@ public:
     void merge_user_data(const std::map<std::string, std::string>& files,
                          std::size_t* imported_count, std::size_t* skipped_count);
     bool freeze_and_save_candidate_preferences();
-    bool freeze_and_stop_composition_learning();
+    bool close_english_learning();
 
 private:
     struct GlobalVisibleState {

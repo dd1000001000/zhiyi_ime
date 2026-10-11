@@ -314,7 +314,7 @@ live_path_count = 0
 
 - **触发条件**：任意输入长度，只要页参数与输入命中缓存条目
 - **容量**：LRU 64 条（`kMaxQueryCacheEntries = 64`），`sequence` 递增序号实现淘汰
-- **失效**：`user_dict_version` / `candidate_preference_version` / `manual_candidate_order_version` / `disabled_system_entry_version` / `composition_learning_version` 任一变化后条目不再命中
+- **失效**：`user_dict_version` / `candidate_preference_version` / `manual_candidate_order_version` / `disabled_system_entry_version` 任一变化后条目不再命中
 - **非缓存场景**：deadline 命中或 deadline_exceeded 时不写入
 
 详细机制见 [候选词选词算法 — 查询页缓存](candidate-selection.md#查询页缓存)。

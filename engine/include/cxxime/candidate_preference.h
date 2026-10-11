@@ -58,6 +58,7 @@ struct CandidatePreferenceReceipt {
     double previous_dee = 0.0;
     std::uint64_t previous_sequence = 0;
     std::uint64_t sequence = 0;  // the entry's sequence after the record
+    bool previous_sentence = false;
 };
 
 class CandidatePreference {
@@ -73,6 +74,9 @@ public:
 
     bool record(const Candidate& candidate, const std::string& code,
                 CandidatePreferenceReceipt* receipt = nullptr);
+    // A pinyin candidate of origin kComposed is a sentence picked segment by segment or
+    // committed as a composed sentence (commit_learning.h): learned like a word, but not looked
+    // up in the dictionary and, picked once, only ahead of the composed sentences.
     // Takes back a record() when nothing else touched the entry since.
     bool revoke(const CandidatePreferenceReceipt& receipt);
     // The learned words for `code`: those recorded under exactly this code, and (pinyin) those
@@ -107,6 +111,7 @@ private:
         std::uint64_t sequence = 0;  // tick of the last commit
         double dee = 1.0;            // decaying weight as of `sequence`
         int score = 0;               // the word's ranking score when last picked (0: unknown)
+        bool sentence = false;       // a pinyin sentence (ninth column "s")
         bool deleted = false;
     };
 

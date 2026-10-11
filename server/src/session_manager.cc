@@ -104,8 +104,7 @@ const LexiconDataFile* find_lexicon_data_file(const std::string& name) {
 constexpr char kEnglishLearningFile[] = "learning_english.json";
 
 bool known_user_data_file(const std::string& name) {
-    return name == "learning_composition.tsv" || name == kEnglishLearningFile ||
-           find_lexicon_data_file(name) != nullptr;
+    return name == kEnglishLearningFile || find_lexicon_data_file(name) != nullptr;
 }
 
 bool valid_lexicon_data_file_contents(const LexiconDataFile& file,
@@ -124,9 +123,6 @@ bool valid_lexicon_data_file_contents(const LexiconDataFile& file,
 }
 
 bool valid_user_data_file_contents(const std::string& name, const std::string& contents) {
-    if (name == "learning_composition.tsv") {
-        return cxxime::CompositionLearningService::validate_contents(contents);
-    }
     if (name == kEnglishLearningFile) {
         return cxxime::EnglishLearning::validate_contents(contents);
     }
@@ -571,24 +567,13 @@ bool SharedResources::load(const std::string& dict_path,
     std::string loaded_punct_path = cxxime::data_path("punctuation.json");
     auto loaded_punct_mapping = load_punctuation_mapping(loaded_punct_path);
     auto loaded_symbol_table = load_symbol_table(cxxime::data_path("symbols.json"));
-    auto loaded_composition_learning =
-        std::make_shared<cxxime::CompositionLearningService>();
-    if (!loaded_composition_learning->load(
-            cxxime::user_data_path("learning_composition.tsv"))) {
-        CXXIME_LOG(L"%s", L"SharedResources: composition learning initialization disabled");
-        loaded_composition_learning.reset();
-    } else if (!loaded_composition_learning->start()) {
-        CXXIME_LOG(L"%s", L"SharedResources: composition learning worker disabled");
-        loaded_composition_learning.reset();
-    }
     // English word mode learning (corrections picked, words kept as typed); process-wide.
     if (!cxxime::EnglishLearning::open_shared(cxxime::user_data_path("learning_english.json"))) {
         CXXIME_LOG(L"%s", L"SharedResources: English learning file unreadable, starting empty");
     }
     auto loaded_runtime = cxxime::EngineRuntimeState::create(
         *loaded_config, dictionaries.dict, dictionaries.wubi_dict,
-        dictionaries.pinyin_resources, loaded_symbol_table, loaded_composition_learning,
-        dictionaries.shuangpin_resources);
+        dictionaries.pinyin_resources, loaded_symbol_table, dictionaries.shuangpin_resources);
     if (!loaded_runtime) {
         return false;
     }
@@ -682,7 +667,7 @@ bool SharedResources::reload_dictionaries() {
     auto next_runtime = cxxime::EngineRuntimeState::create(
         current_runtime->config(), dictionaries.dict, dictionaries.wubi_dict,
         dictionaries.pinyin_resources, current_runtime->symbol_table_ptr(),
-        current_runtime->composition_learning_ptr(), dictionaries.shuangpin_resources);
+        dictionaries.shuangpin_resources);
     if (!next_runtime) {
         return false;
     }
@@ -913,7 +898,7 @@ bool SharedResources::prepare_config(const std::shared_ptr<const cxxime::Config>
     auto next_runtime = cxxime::EngineRuntimeState::create(
         *next_config, current_runtime->pinyin_dict_ptr(), current_runtime->wubi_dict_ptr(),
         std::move(next_pinyin_resources), current_runtime->symbol_table_ptr(),
-        current_runtime->composition_learning_ptr(), std::move(next_shuangpin_resources));
+        std::move(next_shuangpin_resources));
     if (!next_runtime) {
         return false;
     }
@@ -1090,18 +1075,7 @@ cxxime::IPCStatus SharedResources::clear_candidate_preferences(cxxime::UserDictK
     if (!dict->clear_candidate_preferences_and_save()) {
         return cxxime::IPCStatus::ERR_UNKNOWN_COMMAND;
     }
-    // Pinyin learning also includes the words built from consecutive picks.
     if (kind == cxxime::UserDictKind::PINYIN) {
-        std::shared_ptr<cxxime::CompositionLearningService> service;
-        {
-            std::lock_guard<std::mutex> lock(mutex);
-            if (runtime) {
-                service = runtime->composition_learning_ptr();
-            }
-        }
-        if (service && !service->clear_and_save()) {
-            return cxxime::IPCStatus::ERR_UNKNOWN_COMMAND;
-        }
         // English word mode learning is cleared with it (one switch for all self-learning).
         auto english = cxxime::EnglishLearning::shared();
         if (english && !english->clear_and_save()) {
@@ -1307,17 +1281,7 @@ bool SharedResources::save_candidate_preferences(bool force) {
     return pinyin_saved && wubi_saved;
 }
 
-bool SharedResources::freeze_and_stop_composition_learning() {
-    std::shared_ptr<cxxime::CompositionLearningService> service;
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (runtime) {
-            service = runtime->composition_learning_ptr();
-        }
-    }
-    const bool english_saved = cxxime::EnglishLearning::close_shared();
-    return (!service || service->freeze_and_stop()) && english_saved;
-}
+bool SharedResources::close_english_learning() { return cxxime::EnglishLearning::close_shared(); }
 
 bool SessionManager::prepare_config(const std::shared_ptr<const cxxime::Config>& config,
                                     unsigned long* error_code) {
@@ -2255,20 +2219,16 @@ bool SessionManager::snapshot_user_data(const std::vector<std::string>& file_nam
     std::map<std::string, std::string> snapshot;
     for (const std::string& name : file_names) {
         const LexiconDataFile* file = find_lexicon_data_file(name);
-        const bool composition = name == "learning_composition.tsv";
         const bool english = name == kEnglishLearningFile;
         const auto dict = !resources.runtime
                               ? nullptr
                               : file && file->kind == cxxime::UserDictKind::WUBI
                                     ? resources.runtime->wubi_dict_ptr()
                                     : resources.runtime->pinyin_dict_ptr();
-        bool ready = composition || english || file;
+        bool ready = english || file;
         if (ready && english) {
             const auto learning = cxxime::EnglishLearning::shared();
             ready = !learning || learning->flush();
-        } else if (ready && composition) {
-            ready = resources.runtime && resources.runtime->composition_learning() &&
-                    resources.runtime->composition_learning()->flush();
         } else if (ready && (!file || !dict)) {
             ready = false;
         } else if (ready) {
@@ -2310,7 +2270,6 @@ void SessionManager::merge_user_data(const std::map<std::string, std::string>& f
         std::lock_guard<std::mutex> reload_lock(reload_mutex_);
         const SharedResourceSnapshot resources = shared_.snapshot();
         const LexiconDataFile* file = find_lexicon_data_file(item.first);
-        const bool composition = item.first == "learning_composition.tsv";
         const auto dict = !resources.runtime
                               ? nullptr
                               : file && file->kind == cxxime::UserDictKind::WUBI
@@ -2328,12 +2287,8 @@ void SessionManager::merge_user_data(const std::map<std::string, std::string>& f
             }
             continue;
         }
-        bool ready = composition || (file && dict);
-        if (ready && composition) {
-            ready = resources.runtime && resources.runtime->composition_learning() &&
-                    resources.runtime->composition_learning()->merge_contents_and_save(
-                        item.second, &merged);
-        } else if (ready) {
+        bool ready = file && dict;
+        if (ready) {
             switch (file->resource) {
             case cxxime::LexiconResource::kUserLexicon:
                 ready = dict->merge_user_dict_contents(item.second, &merged);
@@ -2395,9 +2350,9 @@ bool SessionManager::freeze_and_save_candidate_preferences() {
     return shared_.save_candidate_preferences(true);
 }
 
-bool SessionManager::freeze_and_stop_composition_learning() {
+bool SessionManager::close_english_learning() {
     std::lock_guard<std::mutex> reload_lock(reload_mutex_);
-    return shared_.freeze_and_stop_composition_learning();
+    return shared_.close_english_learning();
 }
 
 void SessionManager::persist_english_word_mode(bool enabled) {

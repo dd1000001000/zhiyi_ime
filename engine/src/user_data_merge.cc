@@ -14,7 +14,6 @@
 #include <vector>
 
 #include <cxxime/candidate_preference.h>
-#include <cxxime/composition_learning.h>
 #include <cxxime/disabled_system_lexicon.h>
 #include <cxxime/input_limits.h>
 #include <cxxime/manual_candidate_order.h>
@@ -33,7 +32,6 @@ constexpr std::size_t kMaxCandidateOrderEntries = 100000;
 enum class RecordFormat {
     kCandidatePreference,
     kDisabledSystemLexicon,
-    kCompositionLearning,
 };
 
 std::vector<std::string> lines(const std::string& contents) {
@@ -107,9 +105,6 @@ bool valid_record_line(RecordFormat format, const std::string& line) {
     if (format == RecordFormat::kCandidatePreference) {
         return CandidatePreference::validate_contents(contents);
     }
-    if (format == RecordFormat::kCompositionLearning) {
-        return CompositionLearningService::validate_contents(contents);
-    }
     if (format == RecordFormat::kDisabledSystemLexicon) {
         return DisabledSystemLexicon::validate_contents(contents);
     }
@@ -119,9 +114,6 @@ bool valid_record_line(RecordFormat format, const std::string& line) {
 bool valid_record_contents(RecordFormat format, const std::string& contents) {
     if (format == RecordFormat::kCandidatePreference) {
         return CandidatePreference::validate_contents(contents);
-    }
-    if (format == RecordFormat::kCompositionLearning) {
-        return CompositionLearningService::validate_contents(contents);
     }
     if (format == RecordFormat::kDisabledSystemLexicon) {
         return DisabledSystemLexicon::validate_contents(contents);
@@ -221,32 +213,10 @@ bool merge_user_lexicon(UserDictKind kind, const std::string& current,
     return UserLexicon::validate_contents(result->contents, kind);
 }
 
-bool learning_record_less_valuable(const std::pair<const std::string, std::string>& left,
-                                   const std::pair<const std::string, std::string>& right) {
-    const auto left_fields = fields(left.second);
-    const auto right_fields = fields(right.second);
-    std::uint64_t left_count = 0;
-    std::uint64_t right_count = 0;
-    std::uint64_t left_sequence = 0;
-    std::uint64_t right_sequence = 0;
-    parse_unsigned(left_fields[3], &left_count);
-    parse_unsigned(right_fields[3], &right_count);
-    parse_unsigned(left_fields[4], &left_sequence);
-    parse_unsigned(right_fields[4], &right_sequence);
-    if (left_count != right_count) {
-        return left_count < right_count;
-    }
-    if (left_sequence != right_sequence) {
-        return left_sequence < right_sequence;
-    }
-    return left.first < right.first;
-}
-
 bool merge_records(RecordFormat format, const std::string& current,
                    const std::string& imported, UserDataMergeResult* result) {
     const bool disabled = format == RecordFormat::kDisabledSystemLexicon;
     const bool preference = format == RecordFormat::kCandidatePreference;
-    const bool composition = format == RecordFormat::kCompositionLearning;
     const auto key_for = [&](const std::string& line, const std::vector<std::string>& item) {
         return disabled ? line : make_key(item, 1, 0);
     };
@@ -262,12 +232,9 @@ bool merge_records(RecordFormat format, const std::string& current,
     for (const auto& record : records) {
         serialized_size += record.second.size() + 1;
     }
-    const std::size_t max_file_size =
-        composition ? CompositionLearningService::kMaxFileSize : kMaxMergedFileSize;
-    if (serialized_size > max_file_size) {
+    if (serialized_size > kMaxMergedFileSize) {
         return false;
     }
-    std::map<std::string, std::size_t> imported_occurrences;
     for (const std::string& line : lines(imported)) {
         const auto item = fields(line);
         if (!valid_record_line(format, line) ||
@@ -279,49 +246,20 @@ bool merge_records(RecordFormat format, const std::string& current,
         const auto existing = records.find(key);
         const std::size_t existing_size =
             existing == records.end() ? 0 : existing->second.size() + 1;
-        const std::string merged_line = existing != records.end() && (preference || composition)
+        const std::string merged_line = existing != records.end() && preference
                                             ? merge_learning_line(existing->second, line, 3, 4)
                                             : line;
-        if (!composition &&
-            serialized_size - existing_size + merged_line.size() + 1 > max_file_size) {
+        if (serialized_size - existing_size + merged_line.size() + 1 > kMaxMergedFileSize) {
             ++result->skipped_count;
             continue;
         }
-        if (existing != records.end() && (preference || composition)) {
+        if (existing != records.end() && preference) {
             records[key] = merged_line;
         } else {
             records[key] = line;
         }
         serialized_size = serialized_size - existing_size + records[key].size() + 1;
-        ++imported_occurrences[key];
         ++result->imported_count;
-    }
-    if (composition && (records.size() > CompositionLearningService::kMaxRecordCount ||
-                        serialized_size > max_file_size)) {
-        std::vector<std::string> eviction_order;
-        eviction_order.reserve(records.size());
-        for (const auto& record : records) {
-            eviction_order.push_back(record.first);
-        }
-        std::sort(
-            eviction_order.begin(), eviction_order.end(), [&](const auto& left, const auto& right) {
-                return learning_record_less_valuable(*records.find(left), *records.find(right));
-            });
-        for (const auto& key : eviction_order) {
-            if (records.size() <= CompositionLearningService::kMaxRecordCount &&
-                serialized_size <= max_file_size) {
-                break;
-            }
-            const auto victim = records.find(key);
-            const auto imported_count = imported_occurrences.find(key);
-            if (imported_count != imported_occurrences.end()) {
-                result->imported_count -= imported_count->second;
-                result->skipped_count += imported_count->second;
-                imported_occurrences.erase(imported_count);
-            }
-            serialized_size -= victim->second.size() + 1;
-            records.erase(victim);
-        }
     }
     result->contents = serialize(records);
     return valid_record_contents(format, result->contents);
@@ -444,22 +382,6 @@ bool merge_lexicon_resource_contents(LexiconResource resource, UserDictKind kind
         break;
     }
     if (!succeeded || merged.contents.size() > kMaxMergedFileSize) {
-        return false;
-    }
-    *result = std::move(merged);
-    return true;
-}
-
-bool merge_composition_learning_contents(const std::string& current,
-                                         const std::string& imported,
-                                         UserDataMergeResult* result) {
-    if (!result || current.size() > kMaxMergedFileSize ||
-        !valid_record_contents(RecordFormat::kCompositionLearning, current)) {
-        return false;
-    }
-    UserDataMergeResult merged;
-    if (!merge_records(RecordFormat::kCompositionLearning, current, imported, &merged) ||
-        merged.contents.size() > kMaxMergedFileSize) {
         return false;
     }
     *result = std::move(merged);

@@ -11,7 +11,7 @@
 
 #include <windows.h>
 
-#include <cxxime/composition_learning.h>
+#include <cxxime/commit_learning.h>
 #include <cxxime/input_limits.h>
 #include <cxxime/english_candidates.h>
 #include <cxxime/english_learning.h>
@@ -154,7 +154,7 @@ bool Engine::initialize(const std::string& dict_path, const std::string& config_
     }
     return initialize(EngineRuntimeState::create(
         std::move(config), std::move(dict), nullptr, std::move(pinyin_resources), nullptr,
-        nullptr, std::move(shuangpin_resources)));
+        std::move(shuangpin_resources)));
 }
 
 bool Engine::initialize(std::shared_ptr<const EngineRuntimeState> runtime) {
@@ -1688,12 +1688,7 @@ void Engine::apply_commit_learning_plan() {
             last_learning_.receipts.emplace_back(dictionary, std::move(receipt));
         }
     }
-    if (plan.composition && runtime_->composition_learning() &&
-        runtime_->composition_learning()->enqueue(*plan.composition)) {
-        last_learning_.composition = plan.composition;
-    }
-    last_learning_.armed =
-        !last_learning_.receipts.empty() || last_learning_.composition.has_value();
+    last_learning_.armed = !last_learning_.receipts.empty();
 }
 
 void Engine::revoke_last_commit_learning() {
@@ -1701,9 +1696,6 @@ void Engine::revoke_last_commit_learning() {
     last_learning_ = {};
     for (const auto& [dictionary, receipt] : session.receipts) {
         dictionary->revoke_candidate_preference(receipt);
-    }
-    if (session.composition && runtime_ && runtime_->composition_learning()) {
-        runtime_->composition_learning()->revoke(*session.composition);
     }
 }
 
@@ -1864,7 +1856,6 @@ void Engine::rebuild_pipeline(InputMode mode, bool force) {
     }
     translator_->set_sentence_composition_enabled(sentence_composition_enabled_);
     translator_->set_candidate_learning_enabled(config.candidate_learning);
-    translator_->set_composition_learning_service(runtime_->composition_learning());
 }
 
 std::string Engine::derive_spellings_path(const std::string& dict_path) {

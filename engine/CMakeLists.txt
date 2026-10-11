@@ -2,7 +2,7 @@ project(cxxime-engine CXX)
 
 add_library(cxxime-engine STATIC
     src/composition_state.cc
-    src/composition_learning.cc
+    src/commit_learning.cc
     src/composition_presentation.cc
     src/context.cc
     src/pinyin_segment_paths.cc

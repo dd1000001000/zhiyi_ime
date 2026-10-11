@@ -13,7 +13,7 @@
 
 #include <cxxime/ascii_composer.h>
 #include <cxxime/candidate_preference.h>
-#include <cxxime/composition_learning.h>
+#include <cxxime/commit_learning.h>
 #include <cxxime/composition_presentation.h>
 #include <cxxime/config.h>
 #include <cxxime/context.h>
@@ -170,7 +170,6 @@ private:
     void revoke_last_commit_learning();
     struct CommitLearningSession {
         std::vector<std::pair<Dict*, CandidatePreferenceReceipt>> receipts;
-        std::optional<CompositionLearningEvent> composition;
         bool armed = false;  // the next key decides: Backspace undoes, anything else keeps
     };
     CommitLearningSession last_learning_;

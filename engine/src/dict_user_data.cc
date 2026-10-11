@@ -204,6 +204,11 @@ void Dict::apply_candidate_preferences(const std::string& code, CandidateSource 
                                       : (std::max)(existing->frequency, preference.frequency);
             continue;
         }
+        if (preference.origin == CandidateOrigin::kComposed) {
+            // A learned sentence: composed, never in the dictionary.
+            candidates.push_back(std::move(preference));
+            continue;
+        }
         if (!preference_candidate_available(preference, source)) {
             if (!add_unlisted) {
                 continue;

@@ -57,13 +57,12 @@ C:\Users\<username>\zhiyi\
 ├── punctuation.json          标点映射覆盖（可选）
 ├── user_pinyin.tsv           用户词库（拼音）
 ├── user_wubi.tsv             用户词库（五笔）
-├── learning_pinyin.tsv       选词偏好（拼音）
+├── learning_pinyin.tsv       选词偏好（拼音，含学过的整句）
 ├── learning_wubi.tsv         选词偏好（五笔）
 ├── candidate_order_pinyin.tsv 手动候选顺序（拼音）
 ├── candidate_order_wubi.tsv   手动候选顺序（五笔）
 ├── disabled_pinyin.tsv       系统词隐藏列表（拼音）
 ├── disabled_wubi.tsv         系统词隐藏列表（五笔）
-├── learning_composition.tsv  整句学习
 ├── learning_english.json     英文学习（选过的纠正、常打的新词）
 ├── logs\                     诊断日志与用户体验改进计划记录（见 docs/privacy.md）
 ├── updates\                  下载的更新安装包

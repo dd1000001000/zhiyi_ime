@@ -182,8 +182,8 @@
 | `laya.continuation` | true | 长拼音由统一模型参与组句（模型没有组句头时不起作用）；关掉时按上一行的方式排长句 |
 | `laya.continuation_weight` | 0.5 | 组句时每个词的分数 = ln P(模型) + 权重 × 引擎的词分数 |
 | `laya.continuation_min_syllables` | 4 | 从几个音节起由模型参与组句 |
-| `laya.continuation_paths` | 4 | 每次按键最多给模型几种拼音切分（每种一次模型调用） |
-| `laya.continuation_rerank` | false | 组出的整句再交给选词头重排；关时按组句顺序，第一个整句加星标 |
+| `laya.continuation_paths` | 4 | 每个组合最多给模型几种拼音切分（每种一次模型调用，在后台算） |
+| `laya.continuation_rerank` | false | 模型组出的整句再交给选词头重排；关时模型的第一句放在第一个并加星标，这一页不再重排 |
 | `privacy.experience_program` / `collect_input` | false / false | 用户体验改进计划两档 |
 | `update.notify` | true | 打开设置时检查更新 |
 | `startup.autostart` | true | 登录时启动后台服务；false = 第一次切换到知意输入法时再启动 |

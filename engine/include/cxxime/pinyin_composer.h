@@ -124,6 +124,9 @@ public:
     virtual size_t min_syllables() const { return 1; }
     // Whether the model scored anything (then the composed sentences are its).
     virtual bool scored() const = 0;
+    // The translator composed without the model after all (nothing it scored made a sentence):
+    // scored() is false from then on.
+    virtual void discard() {}
 };
 
 class PinyinComposer {

@@ -148,9 +148,17 @@ struct ProcessKeyResult {
     cxxime::ImeStatus ime_status;
 };
 
+class ContinuationWorker;
+
 class SessionManager {
 public:
     using ConfigPatchHandler = std::function<void(const std::string& merge_patch_json)>;
+    // How to tell the client showing session `session_id` that its candidates changed; empty
+    // when no client shows it (its page then stays as the key left it).
+    using RefreshNotifier = std::function<std::function<void()>(uint32_t session_id)>;
+
+    SessionManager();
+    ~SessionManager();
 
     bool initialize(const std::string& dict_path,
                     const std::shared_ptr<const cxxime::Config>& config =
@@ -198,6 +206,17 @@ public:
     // SET_CONTEXT: the text before the caret (flags: cxxime::kContextTextRead / kContextNewInputBox).
     bool set_context(uint32_t id, const std::string& text, uint32_t flags);
     ProcessKeyResult focus_out(uint32_t id);
+
+    // Long pinyin with the continuation model in the background (laya_rerank.h): after a key of
+    // a client that can fetch a page without one (kClientCapabilityCandidateRefresh), the paths
+    // the model still has to score are computed on a worker; when they are in, the session's
+    // composition is the same (Engine::continuation_key) and `notifier` can reach its client,
+    // the first page is translated again, the model's sentence first, and the client told (it
+    // fetches the page: REFRESH_CANDIDATES). Off until started (tests, tools).
+    void start_background_continuation(RefreshNotifier notifier);
+    void stop_background_continuation();
+    // REFRESH_CANDIDATES: the session's composition and candidates as they are, no key.
+    ProcessKeyResult current_presentation(uint32_t id);
 
     cxxime::IPCStatus add_user_entry(cxxime::UserDictKind kind, const std::string& text,
                                      const std::string& code,
@@ -276,6 +295,10 @@ private:
     static void cycle_input_style(const cxxime::EngineRuntimeState* runtime,
                                   GlobalVisibleState& state);
 
+    // After a key or a pick: the composition's continuation work to the worker, if any.
+    void schedule_continuation(uint32_t id, SessionEntry& entry);
+    void continuation_done(uint32_t id, const std::string& key);
+
     SharedResources shared_;
     std::unordered_map<uint32_t, std::shared_ptr<SessionEntry>> sessions_;
     GlobalVisibleState global_state_;
@@ -284,6 +307,9 @@ private:
     std::mutex state_mutex_;
     std::mutex reload_mutex_;
     ConfigPatchHandler config_patch_handler_;
+    std::mutex continuation_mutex_;
+    std::unique_ptr<ContinuationWorker> continuation_worker_;
+    RefreshNotifier refresh_notifier_;
 };
 
 #endif // CXXIME_SESSION_MANAGER_H_

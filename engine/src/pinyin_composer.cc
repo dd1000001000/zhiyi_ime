@@ -191,10 +191,14 @@ void offer_result(std::vector<ComposedResult>& results, ComposedResult result, s
 
 std::vector<Candidate>
 PinyinComposer::compose(const std::string& input, const std::vector<CompositionPath>& paths,
-                        size_t requested_candidates, const QueryDeadline& deadline,
+                        size_t requested_candidates, const QueryDeadline& query_deadline,
                         const CompositionLimits& limits, CompositionStats& stats,
                         SpanScorer* scorer) const {
     stats = CompositionStats{};
+    // The scorer's model calls (prepare) move the deadline back by the time they take: the
+    // search keeps the budget a composition without the model has (a key's 30 ms would
+    // otherwise go to the model on the CPU, and the beam stop before any sentence).
+    QueryDeadline deadline = query_deadline;
     // Rank every path's sentences before choosing: the requested few would otherwise all be
     // homophones of the best path.
     const size_t result_capacity = static_cast<size_t>(limits.max_final_candidates);
@@ -244,8 +248,11 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
             stats.truncated = true;
             continue;
         }
-        if (scorer && !scorer->prepare(path, input)) {
-            continue;  // the model cannot read this path: not composed at all
+        if (scorer) {
+            const auto model_start = QueryDeadline::Clock::now();
+            const bool prepared = scorer->prepare(path, input);
+            if (deadline.enabled) deadline.expires_at += QueryDeadline::Clock::now() - model_start;
+            if (!prepared) continue;  // the model cannot read this path: not composed at all
         }
 
         const uint32_t span_capacity = limits.max_span_candidates > stats.span_candidate_count

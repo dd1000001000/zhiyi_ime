@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -108,6 +109,9 @@ class Reranker {
   int max_len_ = 1024;
   int head_max_len_ = 256;
   bool gpu_ = false;
+  // DirectML runs one call of a session at a time (the key path and the background
+  // continuation share the model); the CPU takes them together.
+  mutable std::mutex gpu_run_mutex_;
   bool slots_input_ = false;  // the graph reads unit_ids / slot_pos
 };
 

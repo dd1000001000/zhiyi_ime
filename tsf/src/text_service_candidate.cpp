@@ -293,6 +293,21 @@ bool TextService::navigate_candidate_page_from_ui(bool previous) {
     return applied;
 }
 
+bool TextService::refresh_candidates_from_server() {
+    cxxime::IPCResponse response = {};
+    if (!_ensure_ipc_session() ||
+        !_client.refresh_candidates(_sessionId, response, _candidate_ui_context())) {
+        return false;
+    }
+    ITfContext* context = _current_edit_context_for_composition();
+    BOOL eaten = FALSE;
+    const bool applied = _apply_engine_response(context, response, &eaten);
+    if (context) {
+        context->Release();
+    }
+    return applied;
+}
+
 void TextService::abort_candidate_ui_from_tsf() {
     if (_sessionId && _client.is_connected())
         _client.clear_composition(_sessionId);

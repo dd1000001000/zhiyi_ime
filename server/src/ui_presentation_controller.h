@@ -33,6 +33,10 @@ public:
     // Offline translations that arrived after the page was shown (machine_translator.h):
     // candidates of the latest page with no translation and one of these texts get it.
     void add_glosses(const std::vector<std::pair<std::string, std::string>>& glosses);
+    // A command for the client whose latest presentation is session `session_id`'s (the
+    // generations it carries are that presentation's); false when it is another's.
+    bool make_command(std::uint32_t session_id, cxxime::UiCommandType type,
+                      cxxime::UiEndpointId* endpoint, cxxime::UiCommand* command) const;
     std::uint32_t visible_candidate_count(
         std::uint32_t session_id, const cxxime::CandidateUiContext& context) const;
 

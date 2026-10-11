@@ -376,6 +376,8 @@ bool TextService::_is_current_ui_command(const cxxime::UiCommand& command) const
                    cxxime_tsf::CandidatePresenter::kServer;
     case cxxime::UiCommandType::kCommitComposition:
     case cxxime::UiCommandType::kCancelComposition:
+    // A refresh for the presentation shown (a key since then brought newer candidates).
+    case cxxime::UiCommandType::kRefreshCandidates:
         return command.composition_generation == _candidatePresentation.generation() &&
                command.presentation_generation ==
                    _candidatePresentation.presentation_generation();
@@ -424,6 +426,9 @@ void TextService::_handle_ui_command(const cxxime::UiCommand& command) {
         break;
     case cxxime::UiCommandType::kCancelComposition:
         _AbortComposition();
+        break;
+    case cxxime::UiCommandType::kRefreshCandidates:
+        refresh_candidates_from_server();
         break;
     case cxxime::UiCommandType::kNone:
         break;

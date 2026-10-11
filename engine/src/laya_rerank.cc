@@ -16,6 +16,7 @@
 #include <numeric>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -48,6 +49,12 @@ struct State {
     bool loading = false;
     bool failed = false;
     std::unordered_map<std::string, std::vector<size_t>> cache;  // context|pinyin|cands -> order
+    // Continuation scores: context and the typed units -> ln P per slot and character. Two
+    // generations: when the newer is full it becomes the older one, so scores just computed in
+    // the background are still there when the page is translated again.
+    std::unordered_map<std::string, std::shared_ptr<const std::vector<std::vector<float>>>>
+        continuation, continuation_older;
+    bool continuation_in_background = false;
     LayaRerankStats stats;
     LayaRerank::CaptureFn capture;
 };
@@ -128,6 +135,8 @@ std::shared_ptr<laya::Reranker> get_model(const Config& config) {
         s.model.reset();
         s.failed = false;
         s.cache.clear();
+        s.continuation.clear();
+        s.continuation_older.clear();
     }
     if (s.model || s.loading || s.failed) return s.model;
     // Checked here, before a loader thread exists, so processes without a model (tests, tools)
@@ -335,17 +344,69 @@ std::vector<laya::Unit> pinyin_units(const laya::Reranker& model, const std::str
     return units;
 }
 
-// The composer's lattice scorer (pinyin_composer.h): one continuation call per syllable path,
-// at most laya.continuation_paths of them per translation, the slot scores kept per path.
+constexpr size_t kMaxCachedContinuations = 256;
+
+std::string continuation_key(const std::string& context, const std::vector<laya::Unit>& units) {
+    std::string key = context + '\x1f';
+    for (const auto& u : units) key += u.kind + u.text + ':';
+    return key;
+}
+
+using SlotScores = std::shared_ptr<const std::vector<std::vector<float>>>;
+
+SlotScores cached_continuation(const std::string& key) {
+    State& s = state();
+    std::lock_guard<std::mutex> lk(s.mu);
+    auto it = s.continuation.find(key);
+    if (it != s.continuation.end()) return it->second;
+    it = s.continuation_older.find(key);
+    return it == s.continuation_older.end() ? nullptr : it->second;
+}
+
+void cache_continuation(const std::string& key, SlotScores scores) {
+    State& s = state();
+    std::lock_guard<std::mutex> lk(s.mu);
+    if (s.continuation.size() >= kMaxCachedContinuations) {
+        s.continuation_older = std::move(s.continuation);
+        s.continuation.clear();
+    }
+    s.continuation[key] = std::move(scores);
+}
+
+SlotScores run_continuation(laya::Reranker& model, const std::string& context,
+                            const std::vector<laya::Unit>& units) {
+    std::vector<std::vector<float>> scores;
+    try {
+        scores = model.continuation(context, units);
+    } catch (const std::exception& e) {
+        laya_log(L"continuation failed: " + laya::utf8_to_wide(e.what()));
+        scores.clear();
+    }
+    return std::make_shared<const std::vector<std::vector<float>>>(std::move(scores));
+}
+
+}  // namespace
+
+struct ContinuationWork {
+    std::string context;
+    std::vector<std::vector<laya::Unit>> units;  // one per syllable path the scorer lacked
+};
+
+namespace {
+
+// The composer's lattice scorer (pinyin_composer.h): the slot scores of at most
+// laya.continuation_paths syllable paths per translation, from the shared cache or (not in the
+// background) one model call each.
 class ContinuationScorer : public SpanScorer {
 public:
     ContinuationScorer(std::shared_ptr<laya::Reranker> model, std::string context,
-                       const Config::LayaConfig& lc)
+                       const Config::LayaConfig& lc, bool background)
         : model_(std::move(model)),
           context_(std::move(context)),
           weight_(lc.continuation_weight),
           min_syllables_(static_cast<size_t>((std::max)(1, lc.continuation_min_syllables))),
-          max_calls_(static_cast<size_t>((std::max)(1, lc.continuation_paths))) {}
+          max_calls_(static_cast<size_t>((std::max)(1, lc.continuation_paths))),
+          background_(background) {}
 
     bool prepare(const CompositionPath& path, const std::string& input) override {
         current_ = nullptr;
@@ -361,29 +422,32 @@ public:
         if (units.empty()) {  // shuangpin keys, a fuzzy reading: every syllable as typed in full
             for (const auto& s : *path.syllables) units.push_back({'f', s});
         }
-        std::string key;
-        for (const auto& u : units) key += u.kind + u.text + ':';
+        const std::string key = continuation_key(context_, units);
         auto it = cache_.find(key);
-        if (std::getenv("LAYA_TRACE")) {
-            std::string syl;
-            for (const auto& s : *path.syllables) syl += s + ':';
-            std::fprintf(stderr, "[trace] prepare path %s code %s units %s %s\n", syl.c_str(), code.c_str(), key.c_str(),
-                         it != cache_.end() ? "(cached)" : calls_ >= max_calls_ ? "(no calls left)" : "(model call)");
-        }
         if (it == cache_.end()) {
-            if (calls_ >= max_calls_) return false;
-            ++calls_;
-            std::vector<std::vector<float>> scores;
-            try {
-                scores = model_->continuation(context_, units);
-            } catch (const std::exception& e) {
-                laya_log(L"continuation failed: " + laya::utf8_to_wide(e.what()));
-                scores.clear();
+            // At most laya.continuation_paths distinct paths a translation: in the background
+            // the same ones every time, so the translation after the work finds them all.
+            if (cache_.size() + missing_keys_.size() >= max_calls_ && !missing_keys_.count(key)) {
+                trace_prepare(path, code, key, "(no calls left)");
+                return false;
             }
-            it = cache_.emplace(std::move(key), std::move(scores)).first;
+            SlotScores scores = cached_continuation(key);
+            if (!scores && background_) {
+                if (missing_keys_.insert(key).second) missing_.push_back(std::move(units));
+                trace_prepare(path, code, key, "(computed in the background)");
+                return false;
+            }
+            trace_prepare(path, code, key, scores ? "(cached)" : "(model call)");
+            if (!scores) {
+                scores = run_continuation(*model_, context_, units);
+                cache_continuation(key, scores);
+            }
+            it = cache_.emplace(key, std::move(scores)).first;
+        } else {
+            trace_prepare(path, code, key, "(cached)");
         }
-        if (it->second.size() != path.syllables->size()) return false;
-        current_ = &it->second;
+        if (it->second->size() != path.syllables->size()) return false;
+        current_ = it->second.get();
         scored_ = true;
         return true;
     }
@@ -404,16 +468,39 @@ public:
     double word_weight() const override { return weight_; }
     size_t min_syllables() const override { return min_syllables_; }
     bool scored() const override { return scored_; }
+    void discard() override { scored_ = false; }
+
+    // The paths it lacked, for the background (nullptr when none).
+    std::shared_ptr<const ContinuationWork> take_work() {
+        if (missing_.empty()) return nullptr;
+        auto work = std::make_shared<ContinuationWork>();
+        work->context = context_;
+        work->units = std::move(missing_);
+        missing_.clear();
+        missing_keys_.clear();
+        return work;
+    }
 
 private:
+    void trace_prepare(const CompositionPath& path, const std::string& code, const std::string& key,
+                       const char* how) const {
+        if (!std::getenv("LAYA_TRACE")) return;
+        std::string syl;
+        for (const auto& s : *path.syllables) syl += s + ':';
+        std::fprintf(stderr, "[trace] prepare path %s code %s units %s %s\n", syl.c_str(), code.c_str(),
+                     key.substr(key.find('\x1f') + 1).c_str(), how);
+    }
+
     std::shared_ptr<laya::Reranker> model_;
     std::string context_;
     double weight_;
     size_t min_syllables_;
     size_t max_calls_;
-    size_t calls_ = 0;
+    bool background_;
     bool scored_ = false;
-    std::unordered_map<std::string, std::vector<std::vector<float>>> cache_;  // path -> slot scores
+    std::unordered_map<std::string, SlotScores> cache_;  // the paths this translation scored
+    std::vector<std::vector<laya::Unit>> missing_;       // the paths left for the background
+    std::unordered_set<std::string> missing_keys_;
     const std::vector<std::vector<float>>* current_ = nullptr;
 };
 
@@ -425,7 +512,35 @@ std::unique_ptr<SpanScorer> LayaRerank::span_scorer(const Config& config, const 
     std::shared_ptr<laya::Reranker> model = get_model(config);
     if (!model || !model->has_slots()) return nullptr;
     const std::string ctx = laya::utf8_tail(context, static_cast<size_t>((std::max)(0, lc.context_chars)));
-    return std::make_unique<ContinuationScorer>(std::move(model), ctx, lc);
+    bool background = false;
+    {
+        State& s = state();
+        std::lock_guard<std::mutex> lk(s.mu);
+        background = s.continuation_in_background;
+    }
+    return std::make_unique<ContinuationScorer>(std::move(model), ctx, lc, background);
+}
+
+void LayaRerank::set_continuation_in_background(bool on) {
+    State& s = state();
+    std::lock_guard<std::mutex> lk(s.mu);
+    s.continuation_in_background = on;
+}
+
+std::shared_ptr<const ContinuationWork> LayaRerank::take_continuation_work(SpanScorer& scorer) {
+    auto* continuation = dynamic_cast<ContinuationScorer*>(&scorer);
+    return continuation ? continuation->take_work() : nullptr;
+}
+
+bool LayaRerank::compute_continuation(const Config& config, const ContinuationWork& work) {
+    std::shared_ptr<laya::Reranker> model = get_model(config);
+    if (!model || !model->has_slots()) return false;
+    for (const auto& units : work.units) {
+        const std::string key = continuation_key(work.context, units);
+        if (cached_continuation(key)) continue;
+        cache_continuation(key, run_continuation(*model, work.context, units));
+    }
+    return true;
 }
 
 bool LayaRerank::apply(const Config& config, const std::string& context, const std::string& input,
@@ -433,6 +548,30 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
                        const LayaApplyOptions& options) {
     const auto& lc = config.laya;
     if (!lc.enable || result.entries.size() < 2 || !has_context(context)) return false;
+
+    // Sentences the model composed in its own lattice (laya.continuation): when the first
+    // candidate for the whole input is one (no dictionary word leads, as 眼科医院 would), it goes
+    // first, recommended, and the page is not reranked (the word choice picks worse sentences
+    // than the lattice), unless laya.continuation_rerank. A leading dictionary word is left to
+    // the word choice as before (bench: forcing the sentence over it lost 4 points).
+    if (options.lattice_scored && !lc.continuation_rerank) {
+        for (size_t i = 0; i < result.entries.size(); ++i) {
+            const TextSelectionAction* a = text_action(result.entries[i]);
+            if (!a || a->consumed_input_bytes != input.size() || result.entries[i].candidate.text.empty()) {
+                continue;
+            }
+            const Candidate& lead = result.entries[i].candidate;
+            if (lead.origin != CandidateOrigin::kComposed || lead.composed_score >= 0 ||
+                utf8_length(lead.text) < static_cast<size_t>((std::max)(1, lc.sentence_min_chars))) {
+                break;
+            }
+            result.entries[i].candidate.recommended = true;
+            if (i == 0) return false;
+            std::rotate(result.entries.begin(), result.entries.begin() + static_cast<std::ptrdiff_t>(i),
+                        result.entries.begin() + static_cast<std::ptrdiff_t>(i) + 1);
+            return true;
+        }
+    }
 
     // 1. The candidates covering the whole input, any length (显示 / 西安市, 今天 / 今天是).
     //    Candidates for part of the input (飘 for "piaol") keep their places.
@@ -458,12 +597,6 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
                            lead.composed_score < 0 &&
                            utf8_length(lead.text) >= static_cast<size_t>((std::max)(1, lc.sentence_min_chars));
     if (sentences && idx.size() > kMaxSentenceOptions) idx.resize(kMaxSentenceOptions);
-    // Sentences the model's own lattice composed (laya.continuation): their order stands, the
-    // first one recommended, unless laya.continuation_rerank sends them through the word choice.
-    if (sentences && options.lattice_scored && !lc.continuation_rerank) {
-        result.entries[idx[0]].candidate.recommended = true;
-        return false;
-    }
 
     // 2. Score with the model (cached).
     const std::string pinyin = options.slots ? pinyin_for_model(model_pinyin.empty() ? input : model_pinyin)

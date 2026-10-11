@@ -40,6 +40,8 @@ public:
     CandidateSelectionCallResult select_candidate_with_revision(uint32_t session_id, int index,
                                                                 uint64_t candidate_revision);
     bool commit_composition(uint32_t session_id, IPCResponse& response);
+    bool refresh_candidates(uint32_t session_id, IPCResponse& response,
+                            CandidateUiContext candidate_ui = {});
     bool clear_composition(uint32_t session_id);
     bool focus_in(uint32_t session_id);
     bool set_input_target(uint32_t session_id, const std::string& app,

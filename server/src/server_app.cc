@@ -236,6 +236,18 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
             }
             ui_presentation_router_.send_command(endpoint, command);
         });
+    // Long pinyin: the continuation model's sentences arrive after the key; the client showing
+    // the session fetches its candidates again.
+    session_mgr_.start_background_continuation([this](uint32_t session_id) -> std::function<void()> {
+        cxxime::UiEndpointId endpoint = {};
+        cxxime::UiCommand command;
+        if (!ui_presentation_controller_.make_command(session_id,
+                                                      cxxime::UiCommandType::kRefreshCandidates,
+                                                      &endpoint, &command)) {
+            return {};
+        }
+        return [this, endpoint, command] { ui_presentation_router_.send_command(endpoint, command); };
+    });
     // Offline translations arrive after their page was shown (machine_translator.h).
     MachineTranslator::instance().set_callback(
         [this](const std::vector<std::pair<std::string, std::string>>& glosses) {
@@ -308,6 +320,8 @@ void ServerApp::finalize() {
     // The model server first: it holds the graphics card and the model file.
     MachineTranslator::instance().set_callback({});
     MachineTranslator::instance().stop();
+    // Before the presentation it reports to.
+    session_mgr_.stop_background_continuation();
     diagnostic_log_maintenance_.stop();
     dictionary_monitor_.stop();
     system_lifecycle_monitor_.stop();
@@ -571,6 +585,12 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
             break;
         }
         response.ime_status = ime_status;
+        break;
+    }
+
+    case cxxime::IPCCommand::REFRESH_CANDIDATES: {
+        auto r = session_mgr_.current_presentation(request.session_id);
+        fill_process_response(r, &response);
         break;
     }
 

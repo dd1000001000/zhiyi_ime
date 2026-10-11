@@ -124,6 +124,8 @@ public:
                         uint64_t* request_generation = nullptr);
     bool select_candidate_from_ui(UINT index, uint64_t candidate_revision);
     bool navigate_candidate_page_from_ui(bool previous);
+    // The server's candidates changed without a key (UiCommandType::kRefreshCandidates).
+    bool refresh_candidates_from_server();
     void abort_candidate_ui_from_tsf();
     HRESULT finalize_exact_candidate_ui_from_tsf();
     bool set_candidate_ui_element_shown(bool show);

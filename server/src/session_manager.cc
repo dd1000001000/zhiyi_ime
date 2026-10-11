@@ -2,6 +2,7 @@
 
 #include "session_manager.h"
 
+#include "continuation_worker.h"
 #include "machine_translator.h"
 
 #include <algorithm>
@@ -26,6 +27,7 @@
 #include <cxxime/dictionary_manifest.h>
 #include <cxxime/glossary.h>
 #include <cxxime/input_limits.h>
+#include <cxxime/laya_rerank.h>
 #include <cxxime/logging.h>
 #include <cxxime/manual_candidate_order.h>
 #include <cxxime/pinyin_resource.h>
@@ -780,7 +782,8 @@ uint32_t SessionManager::create_session(uint64_t client_capabilities) {
     entry->chinese_punct = entry->resources.runtime->config().initial_chinese_punct;
     entry->client_capabilities =
         client_capabilities & (cxxime::kClientCapabilitySegmentedSelection |
-                               cxxime::kClientCapabilitySegmentedPreeditPresentation);
+                               cxxime::kClientCapabilitySegmentedPreeditPresentation |
+                               cxxime::kClientCapabilityCandidateRefresh);
     const bool segmented_selection =
         (entry->client_capabilities & cxxime::kClientCapabilitySegmentedSelection) != 0;
     entry->candidate_revision = segmented_selection ? 1 : 0;
@@ -1881,6 +1884,7 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
         engine.last_trace().log_unchecked();
     }
 
+    schedule_continuation(id, s);
     return ret;
 }
 
@@ -2016,6 +2020,86 @@ ProcessKeyResult SessionManager::select_candidate(uint32_t id, int index,
     fill_session_presentation(s, ret);
     // A mouse pick: part of the current input, without a key.
     track_input(s, nullptr, was_composing, pick.has_value(), ret, pick);
+    schedule_continuation(id, s);
+    return ret;
+}
+
+SessionManager::SessionManager() = default;
+
+SessionManager::~SessionManager() { stop_background_continuation(); }
+
+void SessionManager::start_background_continuation(RefreshNotifier notifier) {
+    std::lock_guard<std::mutex> lock(continuation_mutex_);
+    if (continuation_worker_) return;
+    refresh_notifier_ = std::move(notifier);
+    continuation_worker_ = std::make_unique<ContinuationWorker>(
+        [](const cxxime::ContinuationWork& work, const cxxime::EngineRuntimeState& runtime) {
+            return cxxime::LayaRerank::instance().compute_continuation(runtime.config(), work);
+        },
+        [this](uint32_t id, const std::string& key) { continuation_done(id, key); });
+    cxxime::LayaRerank::instance().set_continuation_in_background(true);
+}
+
+void SessionManager::stop_background_continuation() {
+    std::unique_ptr<ContinuationWorker> worker;
+    {
+        std::lock_guard<std::mutex> lock(continuation_mutex_);
+        worker = std::move(continuation_worker_);
+    }
+    if (!worker) return;
+    cxxime::LayaRerank::instance().set_continuation_in_background(false);
+    worker->stop();
+}
+
+void SessionManager::schedule_continuation(uint32_t id, SessionEntry& entry) {
+    std::string key;
+    std::shared_ptr<const cxxime::ContinuationWork> work = entry.engine->take_continuation_work(&key);
+    // A client that cannot fetch a page without a key would show one thing and commit another.
+    if (!work || (entry.client_capabilities & cxxime::kClientCapabilityCandidateRefresh) == 0) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(continuation_mutex_);
+    if (!continuation_worker_) return;
+    continuation_worker_->submit(id, std::move(key), std::move(work), shared_.snapshot().runtime);
+}
+
+void SessionManager::continuation_done(uint32_t id, const std::string& key) {
+    auto entry = lookup_session(id);
+    if (!entry) return;
+    RefreshNotifier notifier;
+    {
+        std::lock_guard<std::mutex> lock(continuation_mutex_);
+        notifier = refresh_notifier_;
+    }
+    // The page changes only when the client showing the session can be told.
+    std::function<void()> notify = notifier ? notifier(id) : std::function<void()>();
+    if (!notify) return;
+    {
+        std::lock_guard<std::mutex> lock(entry->mutex);
+        if (entry->closing) return;
+        const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
+        if (!entry->engine->refresh_continuation(key)) return;
+        advance_candidate_revision(*entry, candidate_state_before);
+    }
+    notify();
+}
+
+ProcessKeyResult SessionManager::current_presentation(uint32_t id) {
+    auto entry = lookup_session(id);
+    ProcessKeyResult ret;
+    if (!entry) return ret;  // ERR_INVALID_SESSION
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    if (entry->closing) return ret;
+    auto& s = *entry;
+    ret.ime_status = s.ime_status;
+    if (!s.engine->context().is_composing()) {
+        ret.status = cxxime::IPCStatus::ERR_ENGINE_PROCESS_FAILED;
+        return ret;
+    }
+    ret.status = cxxime::IPCStatus::OK;
+    ret.result = cxxime::ProcessResult::ACCEPTED;
+    ret.composing = true;
+    fill_session_presentation(s, ret);
     return ret;
 }
 

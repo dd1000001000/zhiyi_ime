@@ -31,6 +31,7 @@
 namespace cxxime {
 
 class SymbolTable;
+struct ContinuationWork;
 
 // Which position the user picked (for the experience log): no text.
 struct CandidatePick {
@@ -68,6 +69,25 @@ public:
         last_pick_.reset();
         return pick;
     }
+    // Long pinyin with the continuation model in the background
+    // (LayaRerank::set_continuation_in_background): what the last translation of a key still
+    // needs from the model, once, and the composition it is for (continuation_key()); nullptr
+    // when nothing.
+    std::shared_ptr<const ContinuationWork> take_continuation_work(std::string* key) {
+        auto work = std::move(continuation_work_);
+        continuation_work_.reset();
+        if (key) *key = std::move(continuation_work_key_);
+        continuation_work_key_.clear();
+        return work;
+    }
+    // The composition the model's sentences are for: its context (the text before the caret and
+    // the segments already picked) and the input still to convert. Typing on, deleting or
+    // picking part of the input makes another one.
+    std::string continuation_key() const;
+    // The model's scores for `key` are in: translates the first page again, the model's
+    // sentence first, when the composition is still `key`'s and nothing moved on its first page
+    // (no other page, no other highlight). True when it did.
+    bool refresh_continuation(const std::string& key);
     // After COMMIT_TRANSLATION: the candidate whose translation Ctrl+1..9 asked for, once.
     std::optional<int> take_translation_request() {
         auto index = translation_request_;
@@ -179,6 +199,7 @@ private:
     // already confirmed inside the current composition.
     void remember_commit(const std::string& text);
     std::string laya_context(const CompositionState& state) const;
+    std::string continuation_key(const CompositionState& state) const;
     std::string laya_history_;  // the model's context: the input box's text, or earlier commits
     bool laya_history_read_ = false;  // read from the input box (not only remembered commits)
     std::chrono::steady_clock::time_point laya_history_time_{};  // last read or commit
@@ -218,6 +239,8 @@ private:
     uint32_t handled_shortcut_key_ = 0;
     std::optional<CandidatePick> last_pick_;
     std::optional<int> translation_request_;
+    std::shared_ptr<const ContinuationWork> continuation_work_;
+    std::string continuation_work_key_;
 
     // Query trace (explicit ownership, not thread_local - see TraceContext constraints)
     QueryTrace trace_;

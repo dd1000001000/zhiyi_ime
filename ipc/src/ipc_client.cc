@@ -283,6 +283,15 @@ bool IpcClient::commit_composition(uint32_t session_id, IPCResponse& response) {
     return send_request(req, response) && response.status == IPCStatus::OK;
 }
 
+bool IpcClient::refresh_candidates(uint32_t session_id, IPCResponse& response,
+                                   CandidateUiContext candidate_ui) {
+    IPCRequest req = {};
+    req.command = IPCCommand::REFRESH_CANDIDATES;
+    req.session_id = session_id;
+    req.candidate_ui = candidate_ui;
+    return send_request(req, response) && response.status == IPCStatus::OK;
+}
+
 bool IpcClient::clear_composition(uint32_t session_id) {
     IPCRequest req = {};
     req.command = IPCCommand::CLEAR_COMPOSITION;

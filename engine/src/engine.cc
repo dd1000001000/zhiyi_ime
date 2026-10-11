@@ -327,6 +327,32 @@ std::string Engine::laya_context(const CompositionState& state) const {
     return context;
 }
 
+std::string Engine::continuation_key(const CompositionState& state) const {
+    return laya_context(state) + '\x1f' + state.active().input + '\x1f' +
+           std::to_string(static_cast<int>(state.active().scheme)) + '\x1f' +
+           std::to_string(static_cast<int>(pinyin_style_));
+}
+
+std::string Engine::continuation_key() const {
+    return context_.is_composing() ? continuation_key(context_.composition()) : std::string();
+}
+
+bool Engine::refresh_continuation(const std::string& key) {
+    if (!translator_ || !context_.is_composing() || key.empty() || key != continuation_key() ||
+        context_.page_index() != 0 || context_.page_offset() != 0 || context_.highlighted() > 0) {
+        return false;
+    }
+    TranslationResult translated =
+        translate_current_composition(QueryDeadline::from_now(query_deadline_ms_));
+    // Paths still missing are not asked for again: the keys start the background work.
+    continuation_work_.reset();
+    continuation_work_key_.clear();
+    // Out of time (or nothing composed): the page of the key stays rather than an empty one.
+    if (!translated.usable() || translated.entries.empty()) return false;
+    context_.update_translation(std::move(translated));
+    return true;
+}
+
 void Engine::finalize() {
     reset_composition_state();
     handled_shortcut_key_ = 0;
@@ -1276,6 +1302,12 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     }
     TranslationResult result = translator_->translate(request);
     request.span_scorer = nullptr;
+    if (span_scorer) {
+        if (auto work = LayaRerank::instance().take_continuation_work(*span_scorer)) {
+            continuation_work_ = std::move(work);
+            continuation_work_key_ = continuation_key(state);
+        }
+    }
     if (runtime_->config().wubi_code_hint) {
         add_wubi_code_hints(state.active().input, result);
     }

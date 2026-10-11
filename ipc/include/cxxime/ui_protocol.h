@@ -139,6 +139,10 @@ enum class UiCommandType : std::uint32_t {
     kOpenDictionary = 12,
     kOpenAbout = 13,
     kRefreshInputIndicator = 15,
+    // The session's candidates changed without a key (the continuation model's sentences came
+    // in): the client fetches them (IPCCommand::REFRESH_CANDIDATES). Clients from before
+    // ignore it.
+    kRefreshCandidates = 16,
 };
 
 struct UiCommand {

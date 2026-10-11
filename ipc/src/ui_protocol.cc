@@ -58,6 +58,7 @@ bool valid_command_type(UiCommandType type) {
     case UiCommandType::kOpenDictionary:
     case UiCommandType::kOpenAbout:
     case UiCommandType::kRefreshInputIndicator:
+    case UiCommandType::kRefreshCandidates:
         return true;
     default:
         return false;  // also the removed status window commands (4 - 8, 14)
@@ -247,7 +248,7 @@ UiPacketParseResult decode_ui_command_packet(const void* data, std::size_t size,
     if (result != UiPacketParseResult::kAccepted) {
         return result;
     }
-    if (parsed.type > UiCommandType::kRefreshInputIndicator) {
+    if (parsed.type > UiCommandType::kRefreshCandidates) {
         return UiPacketParseResult::kIgnored;
     }
     if (!is_valid_ui_command(parsed)) {
@@ -334,6 +335,10 @@ bool is_valid_ui_command(const UiCommand& command) {
     }
     if (command.type == UiCommandType::kSelectCandidate &&
         command.candidate_index >= static_cast<std::uint32_t>(kCandidateCapacity)) {
+        return false;
+    }
+    if (command.type == UiCommandType::kRefreshCandidates &&
+        (command.candidate_index != 0 || command.value != 0)) {
         return false;
     }
     if (command.type == UiCommandType::kSwitchInputMode &&

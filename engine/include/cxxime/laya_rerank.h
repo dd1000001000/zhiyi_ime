@@ -19,13 +19,16 @@ struct Config;
 struct TranslationResult;
 struct EnglishWord;
 class SpanScorer;
+// What a translation's continuation scorer still needs from the model (laya_rerank.cc).
+struct ContinuationWork;
 
 struct LayaApplyOptions {
     // The typed pinyin goes to the model as slots (a unified model reads it); off for Wubi
     // candidates, which the model judges by the context alone.
     bool slots = true;
-    // The composed sentences came from the model's own lattice (span_scorer): they keep that
-    // order unless config.laya.continuation_rerank, and the first is recommended.
+    // The composed sentences came from the model's own lattice (span_scorer): its first sentence
+    // goes first and is recommended, and the page is not reranked, unless
+    // config.laya.continuation_rerank.
     bool lattice_scored = false;
 };
 
@@ -65,6 +68,18 @@ public:
     // for one translation. nullptr when config.laya.continuation is off, the model is not
     // loaded, or it has no continuation head.
     std::unique_ptr<SpanScorer> span_scorer(const Config& config, const std::string& context);
+
+    // In the background (the server): a key never waits for the continuation model. The
+    // scorer reads its scores from a cache only and notes the syllable paths it lacks; the
+    // caller takes them (take_continuation_work), computes them on another thread
+    // (compute_continuation) and translates again, now with the model's sentences. Off (tools,
+    // tests), the scorer asks the model itself, within the translation.
+    void set_continuation_in_background(bool on);
+    // What `scorer` (from span_scorer) still needs; nullptr when nothing.
+    std::shared_ptr<const ContinuationWork> take_continuation_work(SpanScorer& scorer);
+    // Computes `work` into the cache (blocks for the model calls). False when the model is not
+    // ready or has no continuation head.
+    bool compute_continuation(const Config& config, const ContinuationWork& work);
 
     // English word mode: moves the model's pick among the completions of `typed` (dictionary
     // order: exact match first, then by frequency) to the front; the pick maximizes

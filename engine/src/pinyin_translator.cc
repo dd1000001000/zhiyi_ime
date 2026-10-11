@@ -341,6 +341,10 @@ constexpr size_t kMaxTypedSpanSentences = 12;
 // within a tenth of the most common (bench eval_long.py: the right phrase of 4-16 characters is
 // among the first 8 for 63% of full-pinyin inputs, first for 42%).
 constexpr size_t kWideSentenceSyllables = 4;
+// The composition without the model when the model's composed too little (a key's budget).
+constexpr uint32_t kFallbackCompositionMs = 30;
+// Fewer sentences from the model than this: the composer's own follow them.
+constexpr size_t kMinScoredSentences = 5;
 
 struct CompositionPathSpec {
     size_t id_sequence_index = 0;
@@ -1292,34 +1296,72 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         // eight most common.
         SpanScorer* scorer = span_scorer_ && longest_path >= span_scorer_->min_syllables()
                                  ? span_scorer_ : nullptr;
-        if ((!input_covered || scorer) && longest_path >= kWideSentenceSyllables) {
-            composition_limits.max_candidates_per_range = 8;
-            composition_limits.homophone_ratio = 0;
-            composition_limits.max_sentences = 8;
-            composition_limits.sentence_cutoff = 1e9;  // the first 8, however far apart
-            composition_limits.max_range_queries = 512;
-            composition_limits.max_entry_scans = 16384;
-            composition_limits.max_span_candidates = 2048;
-            composition_limits.max_beam_width = 64;
-            composition_limits.max_nodes = 4096;
-            composition_limits.max_final_candidates = 64;
-        }
-        if (scorer) {
-            composition_limits.max_normal_paths = kScoredCompositionPaths;
-            composition_limits.max_candidates_per_range = 64;
-            composition_limits.homophone_ratio = 0;
-            composition_limits.max_range_queries = 1024;
-            composition_limits.max_entry_scans = 65536;
-            composition_limits.max_span_candidates = 8192;
-            composition_limits.max_beam_width = 64;
-            composition_limits.max_nodes = 16384;
-        }
+        const auto limits_for = [&](bool scored) {
+            CompositionLimits limits;
+            if ((!input_covered || scored) && longest_path >= kWideSentenceSyllables) {
+                limits.max_candidates_per_range = 8;
+                limits.homophone_ratio = 0;
+                limits.max_sentences = 8;
+                limits.sentence_cutoff = 1e9;  // the first 8, however far apart
+                limits.max_range_queries = 512;
+                limits.max_entry_scans = 16384;
+                limits.max_span_candidates = 2048;
+                limits.max_beam_width = 64;
+                limits.max_nodes = 4096;
+                limits.max_final_candidates = 64;
+            }
+            if (scored) {
+                limits.max_normal_paths = kScoredCompositionPaths;
+                limits.max_candidates_per_range = 64;
+                limits.homophone_ratio = 0;
+                limits.max_range_queries = 1024;
+                limits.max_entry_scans = 65536;
+                limits.max_span_candidates = 8192;
+                limits.max_beam_width = 64;
+                limits.max_nodes = 16384;
+            }
+            return limits;
+        };
+        composition_limits = limits_for(scorer != nullptr);
         CompositionStats composition_stats;
         const QueryDeadline no_deadline;
         const QueryDeadline& composition_deadline = budget ? budget->deadline : no_deadline;
         auto composed = composer.compose(
             pinyin, composition_paths, static_cast<size_t>(need) - sorted.size(),
             composition_deadline, composition_limits, composition_stats, scorer);
+        if (scorer && composed.size() < kMinScoredSentences) {
+            // The composer's own sentences, on a deadline of their own: instead of the model's
+            // when it composed nothing (the readings it scores lead nowhere, a shorter one it
+            // leaves out was the right split, or the model is still to run in the background),
+            // so a long input never shows an empty page; after them when it composed only a
+            // few, so the page still offers the other readings.
+            const QueryDeadline fallback_deadline =
+                budget && budget->deadline.enabled ? QueryDeadline::from_now(kFallbackCompositionMs)
+                                                   : no_deadline;
+            CompositionStats plain_stats;
+            auto plain = composer.compose(pinyin, composition_paths,
+                                          static_cast<size_t>(need) - sorted.size(),
+                                          fallback_deadline, limits_for(false), plain_stats);
+            if (composed.empty()) {
+                scorer->discard();
+                composition_limits = limits_for(false);
+                composition_stats = plain_stats;
+                composed = std::move(plain);
+            } else {
+                // Their scores are on another scale (no model term): below the model's last.
+                auto floor = composed.front().frequency;
+                for (const auto& sentence : composed) floor = (std::min)(floor, sentence.frequency);
+                for (auto& sentence : plain) {
+                    if (contains_text(composed, sentence.text)) continue;
+                    sentence.frequency = --floor;
+                    composed.push_back(std::move(sentence));
+                }
+            }
+            if (std::getenv("LAYA_TRACE")) {
+                std::fprintf(stderr, "[trace] compose %s without the model: %zu sentences\n",
+                             pinyin.c_str(), plain_stats.normal_path_count ? composed.size() : 0);
+            }
+        }
         if (std::getenv("LAYA_TRACE")) {
             std::fprintf(stderr, "[trace] compose %s: %zu paths offered, %u composed, %u edges, %u nodes, "
                          "%zu sentences, truncated %d deadline %d scorer %d\n", pinyin.c_str(),
@@ -1410,6 +1452,22 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         }
         auto sentences = compose_typed_spans(pinyin, kMaxTypedSpanSentences, budget, typed_scorer,
                                              typed_scorer ? &slot_offsets : nullptr);
+        if (typed_scorer && sentences.size() < kMinScoredSentences) {
+            // As for the syllable paths above: the plain sentences instead of none, after a few.
+            auto plain = compose_typed_spans(pinyin, kMaxTypedSpanSentences, budget, nullptr, nullptr);
+            if (sentences.empty()) {
+                typed_scorer->discard();
+                sentences = std::move(plain);
+            } else {
+                auto floor = sentences.front().frequency;
+                for (const auto& sentence : sentences) floor = (std::min)(floor, sentence.frequency);
+                for (auto& sentence : plain) {
+                    if (contains_text(sentences, sentence.text)) continue;
+                    sentence.frequency = --floor;
+                    sentences.push_back(std::move(sentence));
+                }
+            }
+        }
         if (std::getenv("LAYA_TRACE")) {
             std::fprintf(stderr, "[trace] typed spans %s: scorer %d, %zu sentences\n", pinyin.c_str(),
                          typed_scorer ? 1 : 0, sentences.size());

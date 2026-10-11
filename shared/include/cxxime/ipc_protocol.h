@@ -200,6 +200,10 @@ enum class IPCCommand : uint32_t {
     SET_CONTEXT = 30,
     // Exit from the taskbar menu: the server closes (like at sign-out) after answering.
     EXIT_SERVER = 31,
+    // The session's composition and candidates as they are now, no key: the client asks after
+    // the server's UiCommandType::kRefreshCandidates (the continuation model's sentences came in
+    // after the key). ERR_ENGINE_PROCESS_FAILED when nothing is being composed.
+    REFRESH_CANDIDATES = 32,
 };
 
 constexpr uint32_t kContextTextRead = 1u << 0;
@@ -216,6 +220,9 @@ enum class IPCStatus : uint32_t {
 
 constexpr uint64_t kClientCapabilitySegmentedSelection = 1ULL << 0;
 constexpr uint64_t kClientCapabilitySegmentedPreeditPresentation = 1ULL << 1;
+// The client fetches the candidates again on UiCommandType::kRefreshCandidates
+// (REFRESH_CANDIDATES): only its sessions get the continuation model's sentences after the key.
+constexpr uint64_t kClientCapabilityCandidateRefresh = 1ULL << 2;
 
 enum class PreeditPresentationFlag : uint32_t {
     SyllableBoundaries = 1u << 0,

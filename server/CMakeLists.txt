@@ -3,6 +3,7 @@ project(cxxime-server CXX)
 add_executable(cxxime-server WIN32
     src/config_store.cc
     src/config_write_coordinator.cc
+    src/continuation_worker.cc
     src/candidate_preference_save_worker.cc
     src/diagnostic_log_maintenance_worker.cc
     src/input_method_hotkey.cc

@@ -390,6 +390,8 @@ bool Reranker::run(Sequence seq, std::vector<float>* logits, std::vector<float>*
   }
   std::vector<const char*> out_names{"logits"};
   if (char_logits && slots_input_) out_names.push_back("char_logits");
+  std::unique_lock<std::mutex> gpu_lock;
+  if (gpu_) gpu_lock = std::unique_lock<std::mutex>(gpu_run_mutex_);
   auto out = session_->Run(Ort::RunOptions{nullptr}, in_names.data(), in.data(), in.size(), out_names.data(),
                            out_names.size());
   if (logits) {

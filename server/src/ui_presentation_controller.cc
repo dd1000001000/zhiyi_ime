@@ -243,6 +243,26 @@ public:
         }
     }
 
+    bool make_command(std::uint32_t session_id, cxxime::UiCommandType type,
+                      cxxime::UiEndpointId* endpoint, cxxime::UiCommand* command) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!running_ || !pending_snapshot_ || !endpoint || !command ||
+            pending_snapshot_->snapshot.session_id != session_id) {
+            return false;
+        }
+        const cxxime::UiPresentationSnapshot& snapshot = pending_snapshot_->snapshot;
+        *endpoint = pending_snapshot_->endpoint;
+        *command = cxxime::UiCommand{};
+        command->session_id = snapshot.session_id;
+        command->session_generation = snapshot.session_generation;
+        command->target_generation = snapshot.target_generation;
+        command->composition_generation = snapshot.composition_generation;
+        command->presentation_generation = snapshot.presentation_generation;
+        command->candidate_revision = snapshot.candidate_revision;
+        command->type = type;
+        return true;
+    }
+
     void update_config(const std::shared_ptr<const cxxime::Config>& config) {
         if (!config) {
             return;
@@ -643,6 +663,12 @@ void UiPresentationController::present(cxxime::UiEndpointId endpoint,
 
 void UiPresentationController::update_config(const std::shared_ptr<const cxxime::Config>& config) {
     impl_->update_config(config);
+}
+
+bool UiPresentationController::make_command(std::uint32_t session_id, cxxime::UiCommandType type,
+                                            cxxime::UiEndpointId* endpoint,
+                                            cxxime::UiCommand* command) const {
+    return impl_->make_command(session_id, type, endpoint, command);
 }
 
 void UiPresentationController::add_glosses(

@@ -17,6 +17,7 @@
 #include <cxxime/english_learning.h>
 #include <cxxime/english_lexicon.h>
 #include <cxxime/laya_rerank.h>
+#include <cxxime/pinyin_composer.h>
 #include <cxxime/logging.h>
 #include <cxxime/output_composer.h>
 #include <cxxime/pinyin_resource.h>
@@ -1251,9 +1252,15 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     // pinyin page fetches that many and keeps page_size after reranking. (Later pages re-query from the start with a longer limit,
     // rerank the same way and skip the candidates already shown.)
     const int page_size = runtime_->config().page_size;
-    const bool laya_first_page = request.scheme == CompositionScheme::kPinyin &&
-                                 page_index == 0 && page_offset == 0 && candidate_limit <= 0 &&
-                                 runtime_->config().laya.enable;
+    // The first page of pinyin and of Wubi candidates goes through the model (Wubi: the
+    // candidates of a code judged by the context, no pinyin for the model to read).
+    const bool laya_page = (request.scheme == CompositionScheme::kPinyin ||
+                            request.scheme == CompositionScheme::kWubi) &&
+                           page_index == 0 && page_offset == 0;
+    // Pinyin fetches 2 * page_size candidates for the model to compare; Wubi keeps its page
+    // (a longer fetch changes what a code shows: auto-commit of a unique four-key code).
+    const bool laya_first_page = laya_page && request.scheme == CompositionScheme::kPinyin &&
+                                 candidate_limit <= 0 && runtime_->config().laya.enable;
     if (laya_first_page) {
         request.page_size = (std::max)(page_size, runtime_->config().laya_candidate_count());
     }
@@ -1261,16 +1268,26 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     request.trace = trace_enabled_ ? &trace_ : nullptr;
     request.budget = &effective_budget;
     request.scratch = &scratch_;
+    // Long pinyin: the model's continuation head scores the composer's lattice (laya.continuation).
+    std::unique_ptr<SpanScorer> span_scorer;
+    if (laya_first_page && request.scheme == CompositionScheme::kPinyin) {
+        span_scorer = LayaRerank::instance().span_scorer(runtime_->config(), laya_context(state));
+        request.span_scorer = span_scorer.get();
+    }
     TranslationResult result = translator_->translate(request);
+    request.span_scorer = nullptr;
     if (runtime_->config().wubi_code_hint) {
         add_wubi_code_hints(state.active().input, result);
     }
-    // Laya: reorder the first pinyin page by context. Later pages keep the translator's order,
+    // Laya: reorder the first page by context. Later pages keep the translator's order,
     // so page 1 stays a permutation of the original first page.
-    if (request.scheme == CompositionScheme::kPinyin && page_index == 0 && page_offset == 0) {
+    if (laya_page) {
+        LayaApplyOptions options;
+        options.slots = request.scheme == CompositionScheme::kPinyin;
+        options.lattice_scored = span_scorer && span_scorer->scored();
         LayaRerank::instance().apply(
             runtime_->config(), laya_context(state), request.input, result,
-            shuangpin_model_pinyin(request.input, result, shuangpin_input()));
+            shuangpin_model_pinyin(request.input, result, shuangpin_input()), options);
         move_extra_sentences_back(request.input, result);
         if (laya_first_page && static_cast<int>(result.entries.size()) > page_size) {
             result.entries.resize(page_size);
@@ -1278,6 +1295,8 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
             result.extent = make_candidate_extent(result.extent.known_count, page_size,
                                                   !result.extent.complete);
         }
+    }
+    if (request.scheme == CompositionScheme::kPinyin && page_index == 0 && page_offset == 0) {
         add_english_candidates(request.input, page_size, result);
         // Nothing matched (neither pinyin nor an English word): offer the typed text itself.
         const std::string& input = request.input;

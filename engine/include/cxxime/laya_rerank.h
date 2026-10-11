@@ -9,6 +9,7 @@
 #define CXXIME_LAYA_RERANK_H_
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,16 @@ namespace cxxime {
 struct Config;
 struct TranslationResult;
 struct EnglishWord;
+class SpanScorer;
+
+struct LayaApplyOptions {
+    // The typed pinyin goes to the model as slots (a unified model reads it); off for Wubi
+    // candidates, which the model judges by the context alone.
+    bool slots = true;
+    // The composed sentences came from the model's own lattice (span_scorer): they keep that
+    // order unless config.laya.continuation_rerank, and the first is recommended.
+    bool lattice_scored = false;
+};
 
 struct LayaRerankStats {
     bool model_ready = false;
@@ -47,7 +58,13 @@ public:
     // is what the model reads instead (shuangpin keys as full pinyin, "ni'hao"). Returns true
     // if the order changed.
     bool apply(const Config& config, const std::string& context, const std::string& input,
-               TranslationResult& result, const std::string& model_pinyin = {});
+               TranslationResult& result, const std::string& model_pinyin = {},
+               const LayaApplyOptions& options = {});
+
+    // Long pinyin: a scorer for the composer's lattice (pinyin_composer.h) reading `context`,
+    // for one translation. nullptr when config.laya.continuation is off, the model is not
+    // loaded, or it has no continuation head.
+    std::unique_ptr<SpanScorer> span_scorer(const Config& config, const std::string& context);
 
     // English word mode: moves the model's pick among the completions of `typed` (dictionary
     // order: exact match first, then by frequency) to the front; the pick maximizes

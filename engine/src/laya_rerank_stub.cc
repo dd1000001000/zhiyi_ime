@@ -13,8 +13,12 @@ LayaRerank& LayaRerank::instance() {
 }
 
 bool LayaRerank::apply(const Config&, const std::string&, const std::string&, TranslationResult&,
-                       const std::string&) {
+                       const std::string&, const LayaApplyOptions&) {
     return false;
+}
+
+std::unique_ptr<SpanScorer> LayaRerank::span_scorer(const Config&, const std::string&) {
+    return nullptr;
 }
 
 bool LayaRerank::apply_english(const Config&, const std::string&, const std::string&,

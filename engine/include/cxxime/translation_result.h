@@ -19,6 +19,7 @@ namespace cxxime {
 struct QueryBudget;
 struct QueryScratch;
 struct QueryTrace;
+class SpanScorer;
 
 enum class TranslationStatus {
     kSuccess,
@@ -37,6 +38,9 @@ struct TranslationRequest {
     QueryTrace* trace = nullptr;
     const QueryBudget* budget = nullptr;
     QueryScratch* scratch = nullptr;
+    // Pinyin: a model scoring the words of the composed sentences (pinyin_composer.h); the
+    // composer then offers the model's sentences. Owned by the caller for the call.
+    SpanScorer* span_scorer = nullptr;
 };
 
 struct CandidateEntry {

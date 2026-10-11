@@ -188,6 +188,21 @@ struct Config {
         // costs a factor of 10), so the model does not prefer a correction over a completion
         // of what was typed without a reason.
         double english_correction_weight = 1.0;
+        // Long pinyin (the unified model's continuation head, bench unified_common.py): from
+        // continuation_min_syllables syllables on, the model reads the typed syllables and
+        // scores every character of every dictionary word in the composer's lattice, so the
+        // composed sentences are the model's (bench eval_p2c_decode.py: 59.7% of 4-16 character
+        // phrases typed in full right, the plain composer 45.9%). Off, or with a model without
+        // that head, the composer scores words by frequency alone.
+        bool continuation = true;
+        double continuation_weight = 0.5;  // the composer's word score next to the model's ln P
+        int continuation_min_syllables = 4;
+        // Typed segmentations (xian / xi'an) the model reads per key: one model call each; the
+        // readings of an abbreviation ("g" as guo, gong, ge...) share a call.
+        int continuation_paths = 4;
+        // The model's sentences then also go through the word choice (as sentences did before):
+        // off, the lattice order stands and its first sentence is recommended.
+        bool continuation_rerank = false;
     };
     LayaConfig laya;
     int laya_candidate_count() const {

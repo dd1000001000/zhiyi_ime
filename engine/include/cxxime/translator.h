@@ -16,6 +16,7 @@
 namespace cxxime {
 
 class ShortCodeCache;
+class SpanScorer;
 struct QueryTrace;
 struct QueryBudget;
 struct QueryScratch;
@@ -41,6 +42,9 @@ public:
     void clear_query_cache() override { query_cache_.clear(); }
     void set_sentence_composition_enabled(bool enabled) override;
     void set_candidate_learning_enabled(bool enabled) override;
+    // The composer's model (pinyin_composer.h) for the following translate_page calls; translate()
+    // takes it from the request. Not owned; the caller keeps it alive.
+    void set_span_scorer(SpanScorer* scorer) { span_scorer_ = scorer; }
 
     TranslationResult translate(const TranslationRequest& request) override;
     CandidatePage translate_page(const std::string& pinyin, int page_index = 0,
@@ -79,8 +83,13 @@ private:
                                           QueryTrace* trace) const;
     // Sentences for an input typed partly by initials ("rangwolaibsmoxing"): the Top-N index
     // looked up span by span over the typed letters. See compose_typed_spans in the source.
+    // With `scorer` (prepared on the typed syllables) and `slot_offsets` (the letter offset of
+    // each typed syllable, then the input's length), the context model scores every word as
+    // in PinyinComposer::compose, and sees every word of a span, not the few most common.
     std::vector<Candidate> compose_typed_spans(const std::string& input, size_t max_results,
-                                               const QueryBudget* budget) const;
+                                               const QueryBudget* budget,
+                                               SpanScorer* scorer = nullptr,
+                                               const std::vector<size_t>* slot_offsets = nullptr) const;
     QueryCacheVersions query_cache_versions() const;
     bool lookup_query_cache(const std::string& input, int page_index, int candidate_offset,
                             int page_size, const QueryCacheVersions& versions,
@@ -106,6 +115,7 @@ private:
     std::vector<QueryCacheEntry> query_cache_;
     uint64_t query_cache_sequence_ = 0;
     bool sentence_composition_enabled_ = true;
+    SpanScorer* span_scorer_ = nullptr;
     bool candidate_learning_enabled_ = false;
     static constexpr size_t kMaxQueryCacheEntries = 64;
 };

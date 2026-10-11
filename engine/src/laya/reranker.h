@@ -1,5 +1,12 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 // Laya 候选重排: 构造与训练时完全一致的输入序列, 用 ONNX Runtime 推理 (CPU, 或 DirectML 显卡)。
+//
+// Two generations of model file share this class. The deployed choice model reads
+// input_ids / attention_mask / marker_pos / marker_mask / qtype and answers "logits". The
+// unified model (bench export_unified.py) also reads unit_ids and slot_pos: the typed input as
+// slots ([MASK] + a unit vector per syllable or letter) after the choice sequence, and a second
+// output, "char_logits", the continuation head's score of every character at every slot. The
+// graph's input names say which one was loaded (has_slots()).
 #pragma once
 
 #include <cstdint>
@@ -7,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "slots.h"
 #include "tokenizer.h"
 
 namespace Ort {
@@ -24,6 +32,8 @@ extern const char* const kInstructionsGuess;
 struct Sequence {
   std::vector<int64_t> ids;
   std::vector<int64_t> markers;  // 每个候选的 [MASK] 位置
+  std::vector<int64_t> units;    // the unit vector row of each token (0 = none); empty = no slots
+  std::vector<int64_t> slots;    // the slot positions (continuation: where the head is read)
 };
 
 struct RerankerOptions {
@@ -41,6 +51,7 @@ struct RerankerOptions {
 
 constexpr int kGpuSequenceLength = 256;
 constexpr int kGpuMarkers = 32;
+constexpr int kGpuSlots = 24;
 
 // The model with every Reshape's allowzero cleared (DirectML fails on allowzero = 1; no shape in
 // this model has a zero, so the result is the same). Patched in the serialized model: the
@@ -53,29 +64,51 @@ class Reranker {
   ~Reranker();
 
   // laya.common.build_sequence 的移植 (choice 题, criteria = {候选: 候选})。pinyin 和 task 不进
-  // 提示词 (猜词提示词只有上文)。
+  // 提示词 (猜词提示词只有上文)。With a unified model, task == kEnglish adds `pinyin`'s letters
+  // as slots; kPinyin adds none (the overload below takes the pinyin units).
   Sequence build(const std::string& context, const std::string& pinyin,
                  const std::vector<std::string>& candidates, Task task = Task::kPinyin) const;
+  // The choice sequence followed by the typed input as slots (ignored by a model without them).
+  Sequence build(const std::string& context, const std::vector<std::string>& candidates,
+                 const std::vector<Unit>& units) const;
 
   // 返回每个候选的概率 (softmax(logits), 温度为 1)。线程安全。
   std::vector<float> score(const std::string& context, const std::string& pinyin,
                            const std::vector<std::string>& candidates, Task task = Task::kPinyin) const;
+  std::vector<float> score(const std::string& context, const std::vector<std::string>& candidates,
+                           const std::vector<Unit>& units) const;
   std::vector<float> score(const Sequence& seq) const;
 
+  // The continuation head (unified model only): for each slot, ln P over the vocabulary's
+  // characters (-1e4 for the characters the slot's unit cannot spell), the sequence being
+  // [CLS] 已输入的上文: context [SEP] [MASK] x slots [SEP] (p2c_common.encode). Empty when the
+  // model has no continuation head, there are no units, or more than the model's maximum.
+  std::vector<std::vector<float>> continuation(const std::string& context,
+                                               const std::vector<Unit>& units) const;
+
+  bool has_slots() const { return vocab_ != nullptr; }  // a unified model
+  const UnifiedVocab* vocab() const { return vocab_.get(); }
   const BpeTokenizer& tokenizer() const { return *tok_; }
   const std::string& load_note() const { return load_note_; }  // how the model was loaded (log)
   bool on_gpu() const { return gpu_; }
 
  private:
+  void append_slots(Sequence& seq, const std::vector<Unit>& units) const;
+  bool run(Sequence seq, std::vector<float>* logits, std::vector<float>* char_logits,
+           size_t* chars) const;
+
   std::unique_ptr<BpeTokenizer> tok_;
+  std::unique_ptr<UnifiedVocab> vocab_;
   std::unique_ptr<Ort::Env> env_;
   std::unique_ptr<Ort::Session> session_;
   std::string load_note_;
   std::unique_ptr<Ort::MemoryInfo> mem_;
   std::vector<int64_t> head_ids_;  // "choice question: <instructions>" 只编码一次
+  std::vector<int64_t> context_prefix_ids_;  // the continuation sequence's "已输入的上文: "
   int max_len_ = 1024;
   int head_max_len_ = 256;
   bool gpu_ = false;
+  bool slots_input_ = false;  // the graph reads unit_ids / slot_pos
 };
 
 }  // namespace laya

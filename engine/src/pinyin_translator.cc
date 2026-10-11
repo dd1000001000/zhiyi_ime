@@ -6,6 +6,8 @@
 #include <chrono>
 #include <climits>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include <iterator>
 #include <numeric>
@@ -596,7 +598,7 @@ void PinyinTranslator::store_query_cache(const std::string& input, int page_inde
                                          int candidate_offset, int page_size,
                                          const QueryCacheVersions& versions,
                                          const CandidatePage& page) {
-    if (!dict_)
+    if (!dict_ || span_scorer_)  // a page composed with the context model is for this context only
         return;
 
     const QueryCacheVersions current_versions = query_cache_versions();
@@ -709,9 +711,13 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     const int need = offset + fetch_limit + 1;
     const QueryCacheVersions cache_versions = query_cache_versions();
 
-    if (!require_runtime_paths &&
-        lookup_query_cache(pinyin, page_index, offset, page_size, cache_versions, page, trace))
+    // With the context model in the composer (span_scorer_) the page depends on the context:
+    // neither served from the cache nor stored.
+    if (!require_runtime_paths && !span_scorer_ &&
+        lookup_query_cache(pinyin, page_index, offset, page_size, cache_versions, page, trace)) {
+        if (std::getenv("LAYA_TRACE")) std::fprintf(stderr, "[trace] %s: query cache, %zu candidates\n", pinyin.c_str(), page.candidates.size());
         return page;
+    }
 
     IndexedFastResult fast;
     auto finish_complete_fast_path = [&]() {
@@ -759,6 +765,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         remove_oversized_candidates(fast.candidates);
         keep_initials_matches(pinyin, fast.candidates);
         if (finish_complete_fast_path()) {
+            if (std::getenv("LAYA_TRACE")) std::fprintf(stderr, "[trace] %s: fast path, %zu candidates\n", pinyin.c_str(), page.candidates.size());
             return page;
         }
     }
@@ -824,7 +831,10 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     // ("womenjd": j, d) have a few hundred readings, and the wanted one (jue:de) is not
     // always among the first 64.
     static constexpr size_t kMaxPaths = 128;
-    static constexpr size_t kMaxCompositionPaths = 8;
+    // With the context model scoring the lattice (span_scorer_), the readings of an
+    // abbreviation are the model's to choose among: many more paths are composed.
+    static constexpr size_t kScoredCompositionPaths = 64;
+    const size_t kMaxCompositionPaths = span_scorer_ ? kScoredCompositionPaths : 8;
     static constexpr size_t kMaxIndexedShuangpinPaths = 8;
     auto rank_shuangpin_path = [&](const std::string& query_key,
                                    std::vector<Candidate>& candidates) {
@@ -1246,6 +1256,9 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
             return spelled == pinyin;
         });
 
+    if (std::getenv("LAYA_TRACE"))
+        std::fprintf(stderr, "[trace] %s: composition specs %zu, sorted %zu need %d, deadline expired %d\n", pinyin.c_str(),
+                     composition_specs.size(), sorted.size(), need, budget && budget->deadline.expired() ? 1 : 0);
     if (sentence_composition_enabled_ && !composition_specs.empty() &&
         sorted.size() < static_cast<size_t>(need) &&
         !(budget && budget->deadline.expired())) {
@@ -1274,7 +1287,12 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         for (const auto& path : composition_paths) {
             longest_path = (std::max)(longest_path, path.syllables->size());
         }
-        if (!input_covered && longest_path >= kWideSentenceSyllables) {
+        // The context model's lattice (laya.continuation): the model reads the typed syllables
+        // and scores the characters, so every homophone of a span is offered to it, not the
+        // eight most common.
+        SpanScorer* scorer = span_scorer_ && longest_path >= span_scorer_->min_syllables()
+                                 ? span_scorer_ : nullptr;
+        if ((!input_covered || scorer) && longest_path >= kWideSentenceSyllables) {
             composition_limits.max_candidates_per_range = 8;
             composition_limits.homophone_ratio = 0;
             composition_limits.max_sentences = 8;
@@ -1286,12 +1304,33 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
             composition_limits.max_nodes = 4096;
             composition_limits.max_final_candidates = 64;
         }
+        if (scorer) {
+            composition_limits.max_normal_paths = kScoredCompositionPaths;
+            composition_limits.max_candidates_per_range = 64;
+            composition_limits.homophone_ratio = 0;
+            composition_limits.max_range_queries = 1024;
+            composition_limits.max_entry_scans = 65536;
+            composition_limits.max_span_candidates = 8192;
+            composition_limits.max_beam_width = 64;
+            composition_limits.max_nodes = 16384;
+        }
         CompositionStats composition_stats;
         const QueryDeadline no_deadline;
         const QueryDeadline& composition_deadline = budget ? budget->deadline : no_deadline;
         auto composed = composer.compose(
             pinyin, composition_paths, static_cast<size_t>(need) - sorted.size(),
-            composition_deadline, composition_limits, composition_stats);
+            composition_deadline, composition_limits, composition_stats, scorer);
+        if (std::getenv("LAYA_TRACE")) {
+            std::fprintf(stderr, "[trace] compose %s: %zu paths offered, %u composed, %u edges, %u nodes, "
+                         "%zu sentences, truncated %d deadline %d scorer %d\n", pinyin.c_str(),
+                         composition_paths.size(), composition_stats.normal_path_count,
+                         composition_stats.span_candidate_count, composition_stats.state_count,
+                         composed.size(), composition_stats.truncated ? 1 : 0,
+                         composition_stats.deadline_exceeded ? 1 : 0, scorer ? 1 : 0);
+            for (size_t i = 0; i < composed.size() && i < 5; ++i)
+                std::fprintf(stderr, "[trace]   %s %lld\n", composed[i].text.c_str(),
+                             static_cast<long long>(composed[i].composed_score));
+        }
         dict_->filter_disabled_system_candidates(composed);
         if (composition_stats.repeated_short_path_count > 0) {
             // Repeated-short composition consumes every key, so a legacy candidate that extends
@@ -1349,7 +1388,35 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         !repeated_trailing_letter && !input_covered_in_full && pinyin.size() >= 2 &&
         is_indexable_key(pinyin)) {
         const auto span_start = std::chrono::steady_clock::now();
-        auto sentences = compose_typed_spans(pinyin, kMaxTypedSpanSentences, budget);
+        // The context model reads the letters as the most plausible segmentation types them
+        // (f:chang ... p:b); a word then spans whole typed syllables.
+        SpanScorer* typed_scorer = nullptr;
+        std::vector<size_t> slot_offsets;
+        if (span_scorer_ && !segment_result.paths.empty()) {
+            const SegmentedPath& typed = segment_result.paths.front();
+            CompositionPath typed_path;
+            typed_path.syllables = &typed.syllables;
+            if (typed.input_lengths.size() == typed.syllables.size() &&
+                typed.syllables.size() >= span_scorer_->min_syllables() &&
+                span_scorer_->prepare(typed_path, pinyin)) {
+                size_t offset = 0;
+                for (uint16_t length : typed.input_lengths) {
+                    slot_offsets.push_back(offset);
+                    offset += length;
+                }
+                slot_offsets.push_back(offset);
+                if (offset == pinyin.size()) typed_scorer = span_scorer_;
+            }
+        }
+        auto sentences = compose_typed_spans(pinyin, kMaxTypedSpanSentences, budget, typed_scorer,
+                                             typed_scorer ? &slot_offsets : nullptr);
+        if (std::getenv("LAYA_TRACE")) {
+            std::fprintf(stderr, "[trace] typed spans %s: scorer %d, %zu sentences\n", pinyin.c_str(),
+                         typed_scorer ? 1 : 0, sentences.size());
+            for (size_t i = 0; i < sentences.size() && i < 5; ++i)
+                std::fprintf(stderr, "[trace]   %s %lld\n", sentences[i].text.c_str(),
+                             static_cast<long long>(sentences[i].composed_score));
+        }
         dict_->filter_disabled_system_candidates(sentences);
         for (auto& candidate : sentences) {
             if (!contains_text(sorted, candidate.text)) {
@@ -1435,7 +1502,9 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
 // sentences of two or more words; one word covering everything is a dictionary match already.
 std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& input,
                                                              size_t max_results,
-                                                             const QueryBudget* budget) const {
+                                                             const QueryBudget* budget,
+                                                             SpanScorer* scorer,
+                                                             const std::vector<size_t>* slot_offsets) const {
     struct Edge {
         size_t end = 0;
         int64_t score = 0;
@@ -1450,24 +1519,34 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
         uint32_t parent = UINT32_MAX;  // the state before it, in `states`
     };
     static constexpr size_t kMaxSpanLetters = 14;
-    static constexpr int kSpanFetch = 32;
     // Words kept per span: the initials of a span ("bs") fit many words, and the context model
-    // chooses among the sentences, so it sees more than the Poet's few homophones.
-    static constexpr size_t kMaxWordsPerSpan = 12;
-    static constexpr int kMaxSingleCharacterTails = 2;
-    static constexpr size_t kBeamWidth = 16;
-    static constexpr size_t kMaxWords = 6;
+    // chooses among the sentences, so it sees more than the Poet's few homophones. With the
+    // model scoring the words themselves (scorer), it sees every word the index has.
+    const int span_fetch = scorer ? 64 : 32;
+    const size_t max_words_per_span = scorer ? 64 : 12;
+    const int max_single_character_tails = scorer ? 8 : 2;
+    const size_t beam_width = scorer ? 32 : 16;
+    const size_t max_words = scorer ? 24 : 6;
     static constexpr int64_t kSentenceWindow = 4605;  // ln(100): sentences this far behind the best
 
     const size_t n = input.size();
+    // With the model: the slot a letter offset starts (SIZE_MAX between syllables).
+    std::vector<size_t> slot_at(n + 1, SIZE_MAX);
+    if (scorer && slot_offsets) {
+        for (size_t i = 0; i < slot_offsets->size(); ++i) {
+            if ((*slot_offsets)[i] <= n) slot_at[(*slot_offsets)[i]] = i;
+        }
+    }
     std::vector<std::vector<Candidate>> words_by_span;  // owns the words the edges point to
     std::vector<std::vector<Edge>> edges_from(n);
     for (size_t start = 0; start < n; ++start) {
+        if (scorer && slot_at[start] == SIZE_MAX) continue;  // a word starts on a typed syllable
         for (size_t end = start + 1; end <= n && end - start <= kMaxSpanLetters; ++end) {
             if (start == 0 && end == n) continue;  // a single word: the dictionary's own match
+            if (scorer && slot_at[end] == SIZE_MAX) continue;
             if (budget && budget->deadline.expired()) break;
             const std::string key = input.substr(start, end - start);
-            IndexedFastResult found = lookup_indexed_fast(key, kSpanFetch, nullptr);
+            IndexedFastResult found = lookup_indexed_fast(key, span_fetch, nullptr);
             if (found.candidates.empty()) continue;
             std::vector<Candidate> words;
             std::vector<Edge> span_edges;
@@ -1486,6 +1565,14 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
                 edge.end = end;
                 edge.frequency = candidate.source_frequency;
                 edge.score = composed_word_score(candidate.source_frequency) + credibility;
+                if (scorer) {
+                    double ln_p = 0.0;
+                    if (!scorer->score(candidate.text, slot_at[start], slot_at[end], ln_p)) {
+                        continue;
+                    }
+                    edge.score = static_cast<int64_t>(std::llround(
+                        ln_p * kComposedScoreScale + scorer->word_weight() * static_cast<double>(edge.score)));
+                }
                 words.push_back(std::move(candidate));
                 span_edges.push_back(edge);
             }
@@ -1496,7 +1583,7 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
                 return span_edges[a].score > span_edges[b].score;
             });
             words_by_span.push_back(std::move(words));
-            for (size_t i = 0; i < order.size() && i < kMaxWordsPerSpan; ++i) {
+            for (size_t i = 0; i < order.size() && i < max_words_per_span; ++i) {
                 Edge edge = span_edges[order[i]];
                 edge.word = &words_by_span.back()[order[i]];
                 edges_from[start].push_back(edge);
@@ -1513,7 +1600,7 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
         if (beam[pos].empty()) continue;
         for (uint32_t state_index : beam[pos]) {
             const State from = states[state_index];
-            if (from.words >= kMaxWords) continue;
+            if (from.words >= max_words) continue;
             for (const Edge& edge : edges_from[pos]) {
                 State next;
                 next.score = from.score + edge.score;
@@ -1533,7 +1620,7 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
         // input (我们+觉得) stay within the beam.
         for (size_t later = pos + 1; later <= n; ++later) {
             auto& bucket = beam[later];
-            if (bucket.size() <= kBeamWidth) continue;
+            if (bucket.size() <= beam_width) continue;
             std::stable_sort(bucket.begin(), bucket.end(), [&](uint32_t a, uint32_t b) {
                 if (states[a].score != states[b].score) return states[a].score > states[b].score;
                 return states[a].words < states[b].words;
@@ -1545,7 +1632,7 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
             };
             std::vector<Tails> tails_by_parent;
             for (uint32_t state_index : bucket) {
-                if (kept.size() >= kBeamWidth) break;
+                if (kept.size() >= beam_width) break;
                 const State& state = states[state_index];
                 auto tails = std::find_if(tails_by_parent.begin(), tails_by_parent.end(),
                                           [&](const Tails& t) { return t.parent == state.parent; });
@@ -1554,7 +1641,7 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
                     tails = tails_by_parent.end() - 1;
                 }
                 if (all_edges[state.edge].word->text.size() <= 4) {  // one UTF-8 character
-                    if (tails->single_characters >= kMaxSingleCharacterTails) continue;
+                    if (tails->single_characters >= max_single_character_tails) continue;
                     ++tails->single_characters;
                 }
                 kept.push_back(state_index);
@@ -1613,6 +1700,15 @@ TranslationResult PinyinTranslator::translate(const TranslationRequest& request)
                                                   : TranslationStatus::kFailed;
         return result;
     }
+    struct ScorerForCall {  // the request's model, for this call only
+        SpanScorer*& slot;
+        ~ScorerForCall() { slot = nullptr; }
+    } scorer_for_call{span_scorer_};
+    span_scorer_ = request.span_scorer;
+    if (std::getenv("LAYA_TRACE"))
+        std::fprintf(stderr, "[trace] translate(%s) partial %d scorer %d page %d/%d\n", request.input.c_str(),
+                     request.policy.allow_partial_selection ? 1 : 0, span_scorer_ ? 1 : 0, request.page_index,
+                     request.page_size);
 
     if (!request.policy.allow_partial_selection) {
         const bool fuzzy_paths = pinyin_resources_ && pinyin_query_policy_.enable_fuzzy &&
@@ -1657,6 +1753,15 @@ TranslationResult PinyinTranslator::translate(const TranslationRequest& request)
     CandidatePage full = translate_page(request.input, 0, fetch_count, effective_request.trace,
                                         request.budget, request.scratch, 0,
                                         require_runtime_paths);
+    if (std::getenv("LAYA_TRACE")) {
+        std::fprintf(stderr, "[trace] translate %s: %zu full candidates\n", request.input.c_str(), full.candidates.size());
+        for (size_t i = 0; i < full.candidates.size() && i < 5; ++i) {
+            const Candidate& c = full.candidates[i];
+            std::fprintf(stderr, "[trace]   %s origin %d source %d syllables %s code %s freq %d composed %lld\n", c.text.c_str(),
+                         static_cast<int>(c.origin), static_cast<int>(c.source), c.syllables.c_str(), c.code.c_str(),
+                         c.frequency, static_cast<long long>(c.composed_score));
+        }
+    }
     std::vector<CandidateEntry> merged;
     merged.reserve(full.candidates.size() + request.page_size);
     for (auto& candidate : full.candidates) {

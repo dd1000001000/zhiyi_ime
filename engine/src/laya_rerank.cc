@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -27,6 +28,7 @@
 #include <cxxime/translation_result.h>
 
 #include "laya/reranker.h"
+#include "laya/slots.h"
 #include "laya/text_util.h"
 
 namespace cxxime {
@@ -315,10 +317,120 @@ size_t utf8_length(const std::string& s) {
 // (head_max_len 256 tokens), which then cuts every option short.
 constexpr size_t kMaxSentenceOptions = 8;
 
+std::string letters_only(const std::string& code) {
+    std::string out;
+    for (char c : code)
+        if (c >= 'a' && c <= 'z') out += c;
+    return out;
+}
+
+// The typed pinyin as the unified model's slots: the syllables of the leading candidate's
+// reading ("zhong:guo") aligned with the code as typed (slot_units); none when they do not
+// align (the model then judges by the context alone, as the plain choice model does).
+std::vector<laya::Unit> pinyin_units(const laya::Reranker& model, const std::string& syllables,
+                                     const std::string& code) {
+    if (!model.has_slots() || syllables.empty()) return {};
+    std::vector<laya::Unit> units = laya::slot_units(laya::split_syllables(syllables), letters_only(code));
+    if (units.size() > static_cast<size_t>(model.vocab()->max_slots())) units.clear();
+    return units;
+}
+
+// The composer's lattice scorer (pinyin_composer.h): one continuation call per syllable path,
+// at most laya.continuation_paths of them per translation, the slot scores kept per path.
+class ContinuationScorer : public SpanScorer {
+public:
+    ContinuationScorer(std::shared_ptr<laya::Reranker> model, std::string context,
+                       const Config::LayaConfig& lc)
+        : model_(std::move(model)),
+          context_(std::move(context)),
+          weight_(lc.continuation_weight),
+          min_syllables_(static_cast<size_t>((std::max)(1, lc.continuation_min_syllables))),
+          max_calls_(static_cast<size_t>((std::max)(1, lc.continuation_paths))) {}
+
+    bool prepare(const CompositionPath& path, const std::string& input) override {
+        current_ = nullptr;
+        if (!path.syllables || path.syllables->size() < min_syllables_ ||
+            path.syllables->size() > static_cast<size_t>(model_->vocab()->max_slots())) {
+            return false;
+        }
+        // The slots are the code as typed (f:zhong p:g), not the path's reading of it: every
+        // expansion of an initial ("g" as guo, gong, ge...) shares one model call, the unit's
+        // characters being all those an expansion can start with.
+        const std::string code = letters_only(path.input_code ? *path.input_code : input);
+        std::vector<laya::Unit> units = laya::slot_units(*path.syllables, code);
+        if (units.empty()) {  // shuangpin keys, a fuzzy reading: every syllable as typed in full
+            for (const auto& s : *path.syllables) units.push_back({'f', s});
+        }
+        std::string key;
+        for (const auto& u : units) key += u.kind + u.text + ':';
+        auto it = cache_.find(key);
+        if (std::getenv("LAYA_TRACE")) {
+            std::string syl;
+            for (const auto& s : *path.syllables) syl += s + ':';
+            std::fprintf(stderr, "[trace] prepare path %s code %s units %s %s\n", syl.c_str(), code.c_str(), key.c_str(),
+                         it != cache_.end() ? "(cached)" : calls_ >= max_calls_ ? "(no calls left)" : "(model call)");
+        }
+        if (it == cache_.end()) {
+            if (calls_ >= max_calls_) return false;
+            ++calls_;
+            std::vector<std::vector<float>> scores;
+            try {
+                scores = model_->continuation(context_, units);
+            } catch (const std::exception& e) {
+                laya_log(L"continuation failed: " + laya::utf8_to_wide(e.what()));
+                scores.clear();
+            }
+            it = cache_.emplace(std::move(key), std::move(scores)).first;
+        }
+        if (it->second.size() != path.syllables->size()) return false;
+        current_ = &it->second;
+        scored_ = true;
+        return true;
+    }
+
+    bool score(const std::string& text, size_t start, size_t end, double& ln_p) const override {
+        if (!current_ || end > current_->size() || start >= end) return false;
+        const std::vector<std::string> chars = laya::utf8_chars(text);
+        if (chars.size() != end - start) return false;
+        const laya::UnifiedVocab& vocab = *model_->vocab();
+        ln_p = 0.0;
+        for (size_t i = 0; i < chars.size(); ++i) {
+            const int k = vocab.char_index(chars[i]);
+            ln_p += k < 0 ? -20.0 : static_cast<double>((*current_)[start + i][static_cast<size_t>(k)]);
+        }
+        return true;
+    }
+
+    double word_weight() const override { return weight_; }
+    size_t min_syllables() const override { return min_syllables_; }
+    bool scored() const override { return scored_; }
+
+private:
+    std::shared_ptr<laya::Reranker> model_;
+    std::string context_;
+    double weight_;
+    size_t min_syllables_;
+    size_t max_calls_;
+    size_t calls_ = 0;
+    bool scored_ = false;
+    std::unordered_map<std::string, std::vector<std::vector<float>>> cache_;  // path -> slot scores
+    const std::vector<std::vector<float>>* current_ = nullptr;
+};
+
 }  // namespace
 
+std::unique_ptr<SpanScorer> LayaRerank::span_scorer(const Config& config, const std::string& context) {
+    const auto& lc = config.laya;
+    if (!lc.enable || !lc.continuation || !has_context(context)) return nullptr;
+    std::shared_ptr<laya::Reranker> model = get_model(config);
+    if (!model || !model->has_slots()) return nullptr;
+    const std::string ctx = laya::utf8_tail(context, static_cast<size_t>((std::max)(0, lc.context_chars)));
+    return std::make_unique<ContinuationScorer>(std::move(model), ctx, lc);
+}
+
 bool LayaRerank::apply(const Config& config, const std::string& context, const std::string& input,
-                       TranslationResult& result, const std::string& model_pinyin) {
+                       TranslationResult& result, const std::string& model_pinyin,
+                       const LayaApplyOptions& options) {
     const auto& lc = config.laya;
     if (!lc.enable || result.entries.size() < 2 || !has_context(context)) return false;
 
@@ -346,9 +458,16 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
                            lead.composed_score < 0 &&
                            utf8_length(lead.text) >= static_cast<size_t>((std::max)(1, lc.sentence_min_chars));
     if (sentences && idx.size() > kMaxSentenceOptions) idx.resize(kMaxSentenceOptions);
+    // Sentences the model's own lattice composed (laya.continuation): their order stands, the
+    // first one recommended, unless laya.continuation_rerank sends them through the word choice.
+    if (sentences && options.lattice_scored && !lc.continuation_rerank) {
+        result.entries[idx[0]].candidate.recommended = true;
+        return false;
+    }
 
     // 2. Score with the model (cached).
-    const std::string pinyin = pinyin_for_model(model_pinyin.empty() ? input : model_pinyin);
+    const std::string pinyin = options.slots ? pinyin_for_model(model_pinyin.empty() ? input : model_pinyin)
+                                             : std::string();
     const std::string ctx = laya::utf8_tail(context, static_cast<size_t>((std::max)(0, lc.context_chars)));
     std::vector<std::string> texts;
     std::string key = ctx + '\x1f' + pinyin + '\x1f' + std::to_string(lc.rank_prior_weight) + '\x1f' +
@@ -401,7 +520,13 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     if (order.empty()) {
         try {
             auto t0 = std::chrono::steady_clock::now();
-            std::vector<float> p = model->score(ctx, pinyin, texts);
+            // The typed pinyin as slots (a unified model): the leading candidate's reading,
+            // as typed. Wubi candidates (options.slots off) go without.
+            const std::vector<laya::Unit> units =
+                options.slots ? pinyin_units(*model, result.entries[idx[0]].candidate.syllables,
+                                             model_pinyin.empty() ? input : model_pinyin)
+                              : std::vector<laya::Unit>();
+            std::vector<float> p = model->score(ctx, texts, units);
             if (p.size() != texts.size()) return false;
             std::vector<double> mixed(p.size());
             for (size_t i = 0; i < p.size(); ++i)
@@ -469,7 +594,7 @@ bool LayaRerank::apply_english(const Config& config, const std::string& context,
     if (order.empty()) {
         try {
             auto t0 = std::chrono::steady_clock::now();
-            std::vector<float> p = model->score(ctx, typed, texts, laya::Task::kEnglish);
+            std::vector<float> p = model->score(ctx, typed, texts, laya::Task::kEnglish);  // typed letters as slots
             if (p.size() != texts.size()) return false;
             // Frequency prior: score = 100 * Zipf, so P_freq is proportional to 10^(score/100).
             // Normalizing it over the candidates only shifts every log P_freq by the same amount,

@@ -103,6 +103,29 @@ inline int sentence_frequency(int64_t aggregate_score) {
     return kSentenceBase + static_cast<int>(scaled);
 }
 
+// A model's word scores for the lattice (laya_rerank.h: the unified model's continuation head
+// reads the typed syllables and gives ln P of every character at every syllable). A word
+// spanning syllables [start, end) of a prepared path then weighs
+//   ln P(its characters) + word_weight() * its composed_word_score (and joint penalties),
+// in thousandths like every edge; the beam search is otherwise the same. Paths the scorer
+// cannot prepare (a reading the typed code does not spell, more syllables than it reads, or
+// past its budget of model calls) are left out of the composition, and words it cannot score
+// are left out of the lattice.
+class SpanScorer {
+public:
+    virtual ~SpanScorer() = default;
+    // Called once per path before its spans; false = skip this path. `input` is the code typed.
+    virtual bool prepare(const CompositionPath& path, const std::string& input) = 0;
+    // ln P of `text` (one character per syllable) at syllables [start, end) of the prepared
+    // path; false when the word cannot be scored.
+    virtual bool score(const std::string& text, size_t start, size_t end, double& ln_p) const = 0;
+    virtual double word_weight() const = 0;
+    // Paths with fewer syllables are not the model's business (the translator keeps its limits).
+    virtual size_t min_syllables() const { return 1; }
+    // Whether the model scored anything (then the composed sentences are its).
+    virtual bool scored() const = 0;
+};
+
 class PinyinComposer {
 public:
     explicit PinyinComposer(const Dict& dict)
@@ -111,7 +134,8 @@ public:
     std::vector<Candidate> compose(const std::string& input,
                                    const std::vector<CompositionPath>& paths,
                                    size_t requested_candidates, const QueryDeadline& deadline,
-                                   const CompositionLimits& limits, CompositionStats& stats) const;
+                                   const CompositionLimits& limits, CompositionStats& stats,
+                                   SpanScorer* scorer = nullptr) const;
 
 private:
     const Dict& dict_;

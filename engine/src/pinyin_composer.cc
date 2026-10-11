@@ -192,7 +192,8 @@ void offer_result(std::vector<ComposedResult>& results, ComposedResult result, s
 std::vector<Candidate>
 PinyinComposer::compose(const std::string& input, const std::vector<CompositionPath>& paths,
                         size_t requested_candidates, const QueryDeadline& deadline,
-                        const CompositionLimits& limits, CompositionStats& stats) const {
+                        const CompositionLimits& limits, CompositionStats& stats,
+                        SpanScorer* scorer) const {
     stats = CompositionStats{};
     // Rank every path's sentences before choosing: the requested few would otherwise all be
     // homophones of the best path.
@@ -242,6 +243,9 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
         if (ids.size() > UINT16_MAX) {
             stats.truncated = true;
             continue;
+        }
+        if (scorer && !scorer->prepare(path, input)) {
+            continue;  // the model cannot read this path: not composed at all
         }
 
         const uint32_t span_capacity = limits.max_span_candidates > stats.span_candidate_count
@@ -311,6 +315,15 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
                         if (ambiguous_joint[joint]) {
                             edge.score += kAmbiguousJointPenalty;
                         }
+                    }
+                    if (scorer) {
+                        double ln_p = 0.0;
+                        if (!scorer->score(candidate.text, start, end, ln_p)) {
+                            continue;
+                        }
+                        edge.score = static_cast<int64_t>(std::llround(
+                            ln_p * kComposedScoreScale +
+                            scorer->word_weight() * static_cast<double>(edge.score)));
                     }
                     edge.candidate = candidate;
                     edges_by_start[start].push_back(static_cast<uint32_t>(edges.size()));

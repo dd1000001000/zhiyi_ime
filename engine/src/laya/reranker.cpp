@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -106,6 +107,7 @@ Ort::SessionOptions gpu_session_options(int device) {
   so.AddFreeDimensionOverrideByName("batch_size", 1);
   so.AddFreeDimensionOverrideByName("seq_len", kGpuSequenceLength);
   so.AddFreeDimensionOverrideByName("num_markers", kGpuMarkers);
+  so.AddFreeDimensionOverrideByName("num_slots", kGpuSlots);
   const OrtDmlApi* dml = nullptr;
   Ort::ThrowOnError(Ort::GetApi().GetExecutionProviderApi("DML", ORT_API_VERSION,
                                                           reinterpret_cast<const void**>(&dml)));
@@ -128,6 +130,14 @@ void remove_stale_caches(const std::filesystem::path& root, const std::string& k
     if (entry.path().filename().wstring() == utf8_to_wide(keep)) continue;
     std::filesystem::remove_all(entry.path(), ec);
   }
+}
+
+bool has_input(const Ort::Session& session, const char* name) {
+  Ort::AllocatorWithDefaultOptions alloc;
+  for (size_t i = 0, n = session.GetInputCount(); i < n; ++i) {
+    if (std::string(session.GetInputNameAllocated(i, alloc).get()) == name) return true;
+  }
+  return false;
 }
 
 }  // namespace
@@ -171,6 +181,13 @@ Reranker::Reranker(const RerankerOptions& opt) {
 
   env_ = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "laya");
   env_->DisableTelemetryEvents();
+  // A unified model (unified_vocab.json beside it) is not served from the prepacked cache:
+  // ONNX Runtime (1.23 / 1.24) saves its prepacked weights but the saved graph then crashes on
+  // its first run (bench export_unified.py: the continuation head's layers with an int8
+  // embedding Gather). Its weights are packed on the heap instead (~100 MB of private memory).
+  std::error_code vocab_ec;
+  const bool unified_files = std::filesystem::exists(
+      std::filesystem::path(utf8_to_wide(opt.model_dir)) / L"unified_vocab.json", vocab_ec);
   if (opt.gpu_device >= 0) {
     // The prepacked cache is a CPU layout; the card gets the model as it is, patched in memory.
     std::vector<char> model = read_file(model_path);
@@ -180,6 +197,8 @@ Reranker::Reranker(const RerankerOptions& opt) {
     gpu_ = true;
     max_len_ = (std::min)(max_len_, kGpuSequenceLength);
     load_note_ += "DirectML device " + std::to_string(opt.gpu_device);
+  } else if (!dir.empty() && unified_files) {
+    load_note_ += "prepacked cache not used (unified model); ";
   } else if (!dir.empty()) {
     const std::filesystem::path cached = dir / L"laya.onnx";
     std::error_code ec;
@@ -209,6 +228,15 @@ Reranker::Reranker(const RerankerOptions& opt) {
   }
   mem_ = std::make_unique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault));
 
+  // A unified model reads the typed input as slots; its vocabulary (units, characters) comes
+  // with it. A model without that input is the plain choice model.
+  slots_input_ = has_input(*session_, "unit_ids");
+  if (slots_input_) {
+    vocab_ = std::make_unique<UnifiedVocab>(opt.model_dir + "/unified_vocab.json");
+    context_prefix_ids_ = tok_->encode(vocab_->context_prefix());
+    load_note_ += "; unified model (" + std::to_string(vocab_->char_count()) + " characters)";
+  }
+
   head_ids_ = tok_->encode(std::string("choice question: ") +
                            replace_all(kInstructionsGuess, tok_->mask_token(), " "));
   // A card that loads the model can still fail to run it (driver, unsupported operator): find
@@ -218,8 +246,15 @@ Reranker::Reranker(const RerankerOptions& opt) {
 
 Reranker::~Reranker() = default;
 
-Sequence Reranker::build(const std::string& context, const std::string& /*pinyin*/,
-                         const std::vector<std::string>& candidates, Task /*task*/) const {
+Sequence Reranker::build(const std::string& context, const std::string& pinyin,
+                         const std::vector<std::string>& candidates, Task task) const {
+  std::vector<Unit> units;
+  if (task == Task::kEnglish && vocab_) units = letter_units(pinyin, static_cast<size_t>(vocab_->max_slots()));
+  return build(context, candidates, units);
+}
+
+Sequence Reranker::build(const std::string& context, const std::vector<std::string>& candidates,
+                         const std::vector<Unit>& units) const {
   const std::vector<int64_t>& head_ids = head_ids_;
   const auto& tok = *tok_;
   const std::string& mask = tok.mask_token();
@@ -258,9 +293,14 @@ Sequence Reranker::build(const std::string& context, const std::string& /*pinyin
   }
   seq.ids.push_back(tok.sep_id());
 
-  // build_sequence: 状态放在选项之后, 按剩余空间截断, 最后补 [SEP]。
+  // build_sequence: 状态放在选项之后, 按剩余空间截断, 最后补 [SEP]。The slots that follow
+  // (unified_common.Encoder.choice) take their own room: the state is cut to leave it.
+  const size_t slot_room = vocab_ && !units.empty()
+                               ? std::min(units.size(), static_cast<size_t>(vocab_->max_slots())) + 1
+                               : 0;
   auto state_ids = tok.encode(replace_all(guess_state(context), mask, " "));
-  long room = std::max<long>(0, static_cast<long>(max_len_) - static_cast<long>(seq.ids.size()) - 1);
+  long room = std::max<long>(0, static_cast<long>(max_len_) - static_cast<long>(seq.ids.size()) - 1 -
+                                    static_cast<long>(slot_room));
   if (static_cast<long>(state_ids.size()) > room) state_ids.resize(static_cast<size_t>(room));
   seq.ids.insert(seq.ids.end(), state_ids.begin(), state_ids.end());
   seq.ids.push_back(tok.sep_id());
@@ -268,57 +308,157 @@ Sequence Reranker::build(const std::string& context, const std::string& /*pinyin
   seq.markers.erase(std::remove_if(seq.markers.begin(), seq.markers.end(),
                                    [&](int64_t m) { return m >= max_len_; }),
                     seq.markers.end());
+  if (slot_room) append_slots(seq, units);
   return seq;
+}
+
+void Reranker::append_slots(Sequence& seq, const std::vector<Unit>& units) const {
+  seq.units.assign(seq.ids.size(), 0);
+  const size_t n = std::min(units.size(), static_cast<size_t>(vocab_->max_slots()));
+  for (size_t i = 0; i < n; ++i) {
+    seq.slots.push_back(static_cast<int64_t>(seq.ids.size()));
+    seq.ids.push_back(tok_->mask_id());
+    seq.units.push_back(vocab_->unit_id(units[i]));
+  }
+  seq.ids.push_back(tok_->sep_id());
+  seq.units.push_back(0);
 }
 
 std::vector<float> Reranker::score(const std::string& context, const std::string& pinyin,
                                    const std::vector<std::string>& candidates, Task task) const {
+  std::vector<Unit> units;
+  if (task == Task::kEnglish && vocab_) units = letter_units(pinyin, static_cast<size_t>(vocab_->max_slots()));
+  return score(context, candidates, units);
+}
+
+std::vector<float> Reranker::score(const std::string& context, const std::vector<std::string>& candidates,
+                                   const std::vector<Unit>& units) const {
   if (candidates.empty()) return {};
-  Sequence seq = build(context, pinyin, candidates, task);
+  Sequence seq = build(context, candidates, units);
   // The card's fixed length: drop the oldest context until the sequence fits (build() would cut
   // the newest text, right before the caret, instead).
   for (size_t chars = utf8_length(context); gpu_ && seq.ids.size() >= static_cast<size_t>(max_len_) && chars > 0;) {
     chars -= (std::min)(chars, (std::max)(size_t{8}, chars / 4));
-    seq = build(utf8_tail(context, chars), pinyin, candidates, task);
+    seq = build(utf8_tail(context, chars), candidates, units);
   }
   return score(seq);
 }
 
-std::vector<float> Reranker::score(const Sequence& seq) const {
+bool Reranker::run(Sequence seq, std::vector<float>* logits, std::vector<float>* char_logits,
+                   size_t* chars) const {
   const int64_t used = static_cast<int64_t>(seq.ids.size());
   const int64_t K = static_cast<int64_t>(seq.markers.size());
-  if (K == 0) return {};
-  if (gpu_ && (used > kGpuSequenceLength || K > kGpuMarkers)) return {};
+  const int64_t S = static_cast<int64_t>(seq.slots.size());
+  if (gpu_ && (used > kGpuSequenceLength || K > kGpuMarkers || S > kGpuSlots)) return false;
   // The card's fixed shape: tokens padded with id 0 and attention 0, extra candidates masked
-  // (their logits are not read).
+  // (their logits are not read), extra slots at position 0 (not read either).
   const int64_t L = gpu_ ? kGpuSequenceLength : used;
-  const int64_t slots = gpu_ ? kGpuMarkers : K;
+  const int64_t markers = gpu_ ? kGpuMarkers : (std::max)(K, int64_t{1});
+  const int64_t slots = gpu_ ? kGpuSlots : (std::max)(S, int64_t{1});
   std::vector<int64_t> ids = seq.ids, att(used, 1), pos = seq.markers, qtype{0};  // 0 = choice
+  std::vector<int64_t> units = seq.units, slot_pos = seq.slots;
   ids.resize(L, 0);
   att.resize(L, 0);
-  pos.resize(slots, 0);
-  std::unique_ptr<bool[]> mmask(new bool[slots]);
-  std::fill(mmask.get(), mmask.get() + slots, false);
+  units.resize(L, 0);
+  pos.resize(markers, 0);
+  slot_pos.resize(slots, 0);
+  std::unique_ptr<bool[]> mmask(new bool[markers]);
+  std::fill(mmask.get(), mmask.get() + markers, false);
   std::fill(mmask.get(), mmask.get() + K, true);
 
-  const int64_t s_ids[2] = {1, L}, s_mark[2] = {1, slots}, s_q[1] = {1};
+  const int64_t s_ids[2] = {1, L}, s_mark[2] = {1, markers}, s_slot[2] = {1, slots}, s_q[1] = {1};
   std::vector<Ort::Value> in;
+  std::vector<const char*> in_names;
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, ids.data(), ids.size(), s_ids, 2));
+  in_names.push_back("input_ids");
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, att.data(), att.size(), s_ids, 2));
+  in_names.push_back("attention_mask");
+  if (slots_input_) {
+    in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, units.data(), units.size(), s_ids, 2));
+    in_names.push_back("unit_ids");
+  }
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, pos.data(), pos.size(), s_mark, 2));
-  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, mmask.get(), slots, s_mark, 2));
-  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, qtype.data(), 1, s_q, 1));
-  const char* in_names[] = {"input_ids", "attention_mask", "marker_pos", "marker_mask", "qtype"};
-  const char* out_names[] = {"logits"};
-  auto out = session_->Run(Ort::RunOptions{nullptr}, in_names, in.data(), in.size(), out_names, 1);
+  in_names.push_back("marker_pos");
+  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, mmask.get(), markers, s_mark, 2));
+  in_names.push_back("marker_mask");
+  if (slots_input_) {
+    in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, slot_pos.data(), slot_pos.size(), s_slot, 2));
+    in_names.push_back("slot_pos");
+  } else {
+    in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, qtype.data(), 1, s_q, 1));
+    in_names.push_back("qtype");
+  }
+  std::vector<const char*> out_names{"logits"};
+  if (char_logits && slots_input_) out_names.push_back("char_logits");
+  auto out = session_->Run(Ort::RunOptions{nullptr}, in_names.data(), in.data(), in.size(), out_names.data(),
+                           out_names.size());
+  if (logits) {
+    const float* l = out[0].GetTensorData<float>();
+    logits->assign(l, l + K);
+  }
+  if (char_logits && slots_input_) {
+    const auto shape = out[1].GetTensorTypeAndShapeInfo().GetShape();  // (1, slots, chars)
+    const size_t C = shape.size() == 3 ? static_cast<size_t>(shape[2]) : 0;
+    const float* c = out[1].GetTensorData<float>();
+    char_logits->assign(c, c + static_cast<size_t>(S) * C);
+    if (chars) *chars = C;
+  }
+  return true;
+}
 
-  const float* logits = out[0].GetTensorData<float>();
-  std::vector<float> p(logits, logits + K);
+std::vector<float> Reranker::score(const Sequence& seq) const {
+  const size_t K = seq.markers.size();
+  if (K == 0) return {};
+  std::vector<float> p;
+  if (!run(seq, &p, nullptr, nullptr) || p.size() != K) return {};
   float mx = *std::max_element(p.begin(), p.end());
   float sum = 0;
   for (auto& v : p) sum += (v = std::exp(v - mx));
   for (auto& v : p) v /= sum;
   return p;
+}
+
+std::vector<std::vector<float>> Reranker::continuation(const std::string& context,
+                                                       const std::vector<Unit>& units) const {
+  if (!vocab_ || units.empty() || units.size() > static_cast<size_t>(vocab_->max_slots())) return {};
+  const auto& tok = *tok_;
+  // p2c_common.encode: [CLS] 已输入的上文: context [SEP] [MASK] x slots [SEP]; a long context
+  // keeps the prefix and the text nearest the caret.
+  Sequence seq;
+  auto ctx = tok.encode(vocab_->context_prefix() + context);
+  const size_t max_ctx = static_cast<size_t>(vocab_->max_context_tokens());
+  if (ctx.size() > max_ctx) {
+    const size_t keep = max_ctx - std::min(max_ctx, context_prefix_ids_.size());
+    std::vector<int64_t> cut(context_prefix_ids_);
+    cut.insert(cut.end(), ctx.end() - static_cast<std::ptrdiff_t>(keep), ctx.end());
+    ctx = std::move(cut);
+  }
+  seq.ids.push_back(tok.cls_id());
+  seq.ids.insert(seq.ids.end(), ctx.begin(), ctx.end());
+  seq.ids.push_back(tok.sep_id());
+  append_slots(seq, units);
+
+  std::vector<float> raw;
+  size_t C = 0;
+  if (!run(seq, nullptr, &raw, &C) || C == 0) return {};
+  std::vector<std::vector<float>> out(seq.slots.size());
+  for (size_t j = 0; j < seq.slots.size(); ++j) {
+    const float* x = raw.data() + j * C;
+    const std::vector<uint8_t>& ok = vocab_->allowed(seq.units[static_cast<size_t>(seq.slots[j])]);
+    // ln softmax over the characters the unit can spell (the others are never predicted).
+    float mx = -1e30f;
+    for (size_t k = 0; k < C; ++k)
+      if (ok[k] && x[k] > mx) mx = x[k];
+    double sum = 0.0;
+    for (size_t k = 0; k < C; ++k)
+      if (ok[k]) sum += std::exp(static_cast<double>(x[k] - mx));
+    const float lse = mx + static_cast<float>(std::log((std::max)(sum, 1e-30)));
+    std::vector<float>& lp = out[j];
+    lp.assign(C, -1e4f);
+    for (size_t k = 0; k < C; ++k)
+      if (ok[k]) lp[k] = x[k] - lse;
+  }
+  return out;
 }
 
 }  // namespace laya

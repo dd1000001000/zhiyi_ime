@@ -72,6 +72,7 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         src/laya_rerank.cc
         src/laya/text_util.cpp
         src/laya/tokenizer.cpp
+        src/laya/slots.cpp
         src/laya/reranker.cpp
         src/machine_translation.cc
     )

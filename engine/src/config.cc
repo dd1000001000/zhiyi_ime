@@ -296,6 +296,11 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_bool(l, "cache", config.laya.cache);
         load_bool(l, "english", config.laya.english);
         load_int(l, "english_context_chars", config.laya.english_context_chars);
+        load_bool(l, "continuation", config.laya.continuation);
+        load_double(l, "continuation_weight", config.laya.continuation_weight);
+        load_int(l, "continuation_min_syllables", config.laya.continuation_min_syllables);
+        load_int(l, "continuation_paths", config.laya.continuation_paths);
+        load_bool(l, "continuation_rerank", config.laya.continuation_rerank);
         // The same for the rank prior: 0.4 was the default until schema 1.1, which turned it off.
         // Applied once: a file saved since then (schema 1.1) keeps what it says.
         const bool before_rank_prior_off =
@@ -643,6 +648,11 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["cache"] = config.laya.cache;
     j["laya"]["english"] = config.laya.english;
     j["laya"]["english_context_chars"] = config.laya.english_context_chars;
+    j["laya"]["continuation"] = config.laya.continuation;
+    j["laya"]["continuation_weight"] = config.laya.continuation_weight;
+    j["laya"]["continuation_min_syllables"] = config.laya.continuation_min_syllables;
+    j["laya"]["continuation_paths"] = config.laya.continuation_paths;
+    j["laya"]["continuation_rerank"] = config.laya.continuation_rerank;
     j["laya"]["english_freq_weight"] = config.laya.english_freq_weight;
     j["laya"]["english_correction_weight"] = config.laya.english_correction_weight;
 

@@ -376,6 +376,15 @@ bool IpcClient::set_input_style(uint32_t session_id, bool english_style, bool va
     return send_request(req, response);
 }
 
+bool IpcClient::set_pinyin_style(uint32_t session_id, PinyinStyle style, IPCResponse& response) {
+    IPCRequest req = {};
+    req.command = IPCCommand::SET_INPUT_STYLE;
+    req.session_id = session_id;
+    req.candidate_index = (style == PinyinStyle::kInitials ? 2u : 0u) |
+                          (style == PinyinStyle::kShuangpin ? 4u : 0u);
+    return send_request(req, response);
+}
+
 bool IpcClient::toggle_shape(uint32_t session_id, IPCResponse& response) {
     IPCRequest req = {};
     req.command = IPCCommand::TOGGLE_SHAPE;

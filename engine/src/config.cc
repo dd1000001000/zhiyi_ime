@@ -229,6 +229,14 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
                        config.pinyin_scheme.c_str());
         }
         config.pinyin_scheme = normalize_pinyin_scheme_id(config.pinyin_scheme);
+        // Shuangpin is a pinyin style on top of full pinyin: an old shuangpin pinyin_scheme
+        // names the shuangpin scheme.
+        if (resolve_pinyin_scheme(config.pinyin_scheme).kind == PinyinSchemeKind::kShuangpin) {
+            config.shuangpin_scheme = config.pinyin_scheme;
+            config.pinyin_scheme = default_pinyin_scheme().id;
+        }
+        load_string(e, "shuangpin_scheme", config.shuangpin_scheme);
+        config.shuangpin_scheme = resolve_shuangpin_scheme(config.shuangpin_scheme).id;
         load_bool(e, "wubi_auto_commit", config.wubi_auto_commit);
         load_bool(e, "wubi_commit_first_on_fifth_key",
                   config.wubi_commit_first_on_fifth_key);
@@ -236,7 +244,22 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
                   config.wubi_restart_on_fifth_after_miss);
         load_bool(e, "wubi_code_hint", config.wubi_code_hint);
         load_bool(e, "candidate_learning", config.candidate_learning);
-        load_bool(e, "pinyin_initials", config.pinyin_initials);
+        // Older configs: engine.input_mode (read above) and engine.pinyin_initials.
+        bool initials = config.pinyin_style == PinyinStyle::kInitials;
+        load_bool(e, "pinyin_initials", initials);
+        if (e.contains("pinyin_initials")) {
+            config.pinyin_style = initials ? PinyinStyle::kInitials : PinyinStyle::kFull;
+        }
+        std::string style;
+        load_string(e, "input_style", style);
+        if (style == "wubi") {
+            config.input_mode = 1;
+        } else if (style == "full" || style == "initials" || style == "shuangpin") {
+            config.input_mode = 0;
+            config.pinyin_style = style == "initials"    ? PinyinStyle::kInitials
+                                  : style == "shuangpin" ? PinyinStyle::kShuangpin
+                                                         : PinyinStyle::kFull;
+        }
         load_bool(e, "fuzzy_pinyin", config.fuzzy_pinyin);
         if (e.contains("fuzzy_groups") && e["fuzzy_groups"].is_array()) {
             config.fuzzy_groups = 0;
@@ -586,7 +609,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["schema"]["description"] = "Zhiyi IME default configuration";
 
     j["engine"]["page_size"] = config.page_size;
-    j["engine"]["input_mode"] = config.input_mode;
+    j["engine"]["input_style"] = input_style_name(config.input_mode, config.pinyin_style);
     j["engine"]["pinyin_scheme"] = normalize_pinyin_scheme_id(config.pinyin_scheme);
     j["engine"]["wubi_auto_commit"] = config.wubi_auto_commit;
     j["engine"]["wubi_commit_first_on_fifth_key"] =
@@ -595,7 +618,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
         config.wubi_restart_on_fifth_after_miss;
     j["engine"]["wubi_code_hint"] = config.wubi_code_hint;
     j["engine"]["candidate_learning"] = config.candidate_learning;
-    j["engine"]["pinyin_initials"] = config.pinyin_initials;
+    j["engine"]["shuangpin_scheme"] = resolve_shuangpin_scheme(config.shuangpin_scheme).id;
     j["engine"]["fuzzy_pinyin"] = config.fuzzy_pinyin;
     nlohmann::json groups = nlohmann::json::array();
     for (const auto& [bit, name] : kFuzzyGroupNames) {

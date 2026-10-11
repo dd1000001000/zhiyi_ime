@@ -37,6 +37,14 @@ enum class InputMode : uint32_t {
     MIXED = 2,
 };
 
+// Chinese pinyin input style (InputMode::PINYIN): full pinyin, initials only (首字母) or
+// shuangpin in the scheme chosen in settings (engine.shuangpin_scheme).
+enum class PinyinStyle : uint32_t {
+    kFull = 0,
+    kInitials = 1,
+    kShuangpin = 2,
+};
+
 enum class ImeStatusFlag : uint32_t {
     CHINESE_MODE = 1u << 0,
     CAPS_LOCK = 1u << 1,
@@ -46,6 +54,11 @@ enum class ImeStatusFlag : uint32_t {
     ENGLISH_WORDS = 1u << 4,
     // Chinese pinyin style: initials only (set) or full pinyin (clear).
     PINYIN_INITIALS = 1u << 5,
+    // Chinese pinyin style: shuangpin (PINYIN_INITIALS clear), in the scheme numbered by the
+    // two SHUANGPIN_SCHEME bits (0 Microsoft, 1 Xiaohe, 2 Ziranma, 3 Sogou).
+    SHUANGPIN = 1u << 6,
+    SHUANGPIN_SCHEME_LOW = 1u << 7,
+    SHUANGPIN_SCHEME_HIGH = 1u << 8,
 };
 
 constexpr uint32_t ime_status_flag(ImeStatusFlag flag) noexcept {
@@ -55,7 +68,8 @@ constexpr uint32_t ime_status_flag(ImeStatusFlag flag) noexcept {
 struct ImeStatus {
     uint32_t flags = ime_status_flag(ImeStatusFlag::CHINESE_MODE) |
                      ime_status_flag(ImeStatusFlag::CHINESE_PUNCT) |
-                     ime_status_flag(ImeStatusFlag::ENGLISH_WORDS);
+                     ime_status_flag(ImeStatusFlag::ENGLISH_WORDS) |
+                     ime_status_flag(ImeStatusFlag::SHUANGPIN_SCHEME_LOW);  // Xiaohe
     InputMode input_mode = InputMode::PINYIN;
     uint64_t revision = 0;
 
@@ -118,6 +132,28 @@ struct ImeStatus {
 
     void set_pinyin_initials(bool enabled) noexcept {
         set_flag(ImeStatusFlag::PINYIN_INITIALS, enabled);
+    }
+
+    PinyinStyle pinyin_style() const noexcept {
+        return has_flag(ImeStatusFlag::SHUANGPIN)         ? PinyinStyle::kShuangpin
+               : has_flag(ImeStatusFlag::PINYIN_INITIALS) ? PinyinStyle::kInitials
+                                                          : PinyinStyle::kFull;
+    }
+
+    void set_pinyin_style(PinyinStyle style) noexcept {
+        set_flag(ImeStatusFlag::PINYIN_INITIALS, style == PinyinStyle::kInitials);
+        set_flag(ImeStatusFlag::SHUANGPIN, style == PinyinStyle::kShuangpin);
+    }
+
+    // The shuangpin scheme (0-3, see SHUANGPIN), shown in the taskbar menu.
+    uint32_t shuangpin_scheme() const noexcept {
+        return (has_flag(ImeStatusFlag::SHUANGPIN_SCHEME_LOW) ? 1u : 0u) |
+               (has_flag(ImeStatusFlag::SHUANGPIN_SCHEME_HIGH) ? 2u : 0u);
+    }
+
+    void set_shuangpin_scheme(uint32_t index) noexcept {
+        set_flag(ImeStatusFlag::SHUANGPIN_SCHEME_LOW, (index & 1u) != 0);
+        set_flag(ImeStatusFlag::SHUANGPIN_SCHEME_HIGH, (index & 2u) != 0);
     }
 };
 

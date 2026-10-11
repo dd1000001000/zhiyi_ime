@@ -174,11 +174,14 @@ public:
     std::pair<cxxime::IPCStatus, cxxime::ImeStatus> toggle_shape(uint32_t id);
     std::pair<cxxime::IPCStatus, cxxime::ImeStatus> toggle_punct(uint32_t id);
     std::pair<cxxime::IPCStatus, cxxime::ImeStatus> switch_input_mode(uint32_t id, cxxime::InputMode mode);
-    // Pinyin style (english_style false: initials) or English style (true: word completion),
-    // shared by all sessions and saved like the style shortcut.
+    // Pinyin style (english_style false: initials or full pinyin) or English style (true: word
+    // completion), shared by all sessions and saved like the style shortcut.
     std::pair<cxxime::IPCStatus, cxxime::ImeStatus> set_input_style(uint32_t id,
                                                                    bool english_style,
                                                                    bool value);
+    // Pinyin style (full pinyin, initials or shuangpin), shared and saved as above.
+    std::pair<cxxime::IPCStatus, cxxime::ImeStatus> set_pinyin_style(uint32_t id,
+                                                                    cxxime::PinyinStyle style);
     cxxime::IPCStatus sync_ascii_mode(uint32_t id, bool ascii_mode);
     std::pair<cxxime::IPCStatus, cxxime::ImeStatus> sync_caps_lock(uint32_t id, bool caps_lock);
 
@@ -251,7 +254,8 @@ private:
         bool caps_lock = false;
         cxxime::InputMode input_mode = cxxime::InputMode::PINYIN;
         bool english_words = true;  // English mode style (config english.word_mode)
-        bool pinyin_initials = false;  // Pinyin style (config engine.pinyin_initials)
+        // Pinyin style (config engine.input_style with input_mode); kept while in Wubi mode.
+        cxxime::PinyinStyle pinyin_style = cxxime::PinyinStyle::kFull;
     };
 
     cxxime::Engine* get_engine(uint32_t id);
@@ -264,9 +268,14 @@ private:
     void commit_global_state(GlobalVisibleState next);
     void align_session_to_global(SessionEntry& entry);
 
-    void persist_input_mode(cxxime::InputMode mode);
+    // engine.input_style from the shared input mode and pinyin style (the older
+    // engine.input_mode and engine.pinyin_initials are removed).
+    void persist_input_style();
     void persist_english_word_mode(bool enabled);
-    void persist_pinyin_initials(bool enabled);
+    // The style key in Chinese mode: full pinyin -> initials -> Wubi -> shuangpin -> full pinyin,
+    // skipping Wubi without its dictionary and shuangpin without its spelling table.
+    static void cycle_input_style(const cxxime::EngineRuntimeState* runtime,
+                                  GlobalVisibleState& state);
 
     SharedResources shared_;
     std::unordered_map<uint32_t, std::shared_ptr<SessionEntry>> sessions_;

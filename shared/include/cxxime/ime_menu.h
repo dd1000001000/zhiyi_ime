@@ -1,9 +1,9 @@
 // Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 //
 // Modified by Zhiyi IME Contributors: the right-click menu of the taskbar 中/英 indicator
-// switches the input states (Chinese/English, input method, English style, punctuation,
-// full/half width) and can exit the background service; the floating status window was
-// removed.
+// switches the input states (Chinese/English, input style: full pinyin / initials / Wubi /
+// shuangpin, English style, punctuation, full/half width) and can exit the background service;
+// the floating status window was removed. The shuangpin scheme is chosen in settings.
 
 #ifndef CXXIME_IME_MENU_H_
 #define CXXIME_IME_MENU_H_
@@ -32,6 +32,7 @@ enum class ImeMenuCommand : uint32_t {
     kChinesePunct = 12,
     kFullShape = 13,
     kExit = 14,  // closes zhiyi-server; switching to the input method again starts it
+    kShuangpin = 15,  // in the scheme chosen in settings (engine.shuangpin_scheme)
 };
 
 struct ImeMenuItem {
@@ -47,6 +48,7 @@ inline constexpr ImeMenuItem kImeMenuItems[] = {
     {ImeMenuCommand::kPinyin, L"全拼", L"Full pinyin", true},
     {ImeMenuCommand::kPinyinInitials, L"首字母", L"Pinyin initials", false},
     {ImeMenuCommand::kWubi, L"五笔", L"Wubi", false},
+    {ImeMenuCommand::kShuangpin, L"双拼", L"Shuangpin", false},
     {ImeMenuCommand::kEnglishWords, L"英文单词联想", L"English word completion", true},
     {ImeMenuCommand::kChinesePunct, L"中文标点", L"Chinese punctuation", false},
     {ImeMenuCommand::kFullShape, L"全角", L"Full width", false},
@@ -63,8 +65,23 @@ inline bool ime_menu_uses_chinese(const std::string& ui_language) {
     return PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_CHINESE;
 }
 
-inline const wchar_t* ime_menu_item_label(const ImeMenuItem& item, bool chinese) {
-    return chinese ? item.label : item.label_en;
+// ImeStatus::shuangpin_scheme(): the scheme's name.
+inline const wchar_t* shuangpin_scheme_name(uint32_t index, bool chinese) {
+    static constexpr const wchar_t* kNames[][2] = {
+        {L"微软", L"Microsoft"}, {L"小鹤", L"Xiaohe"}, {L"自然码", L"Ziranma"}, {L"搜狗", L"Sogou"}};
+    return kNames[index & 3u][chinese ? 0 : 1];
+}
+
+// "双拼（小鹤）": the shuangpin item names the scheme.
+inline std::wstring ime_menu_item_label(const ImeMenuItem& item, bool chinese,
+                                        const ImeStatus& status) {
+    std::wstring label = chinese ? item.label : item.label_en;
+    if (item.command == ImeMenuCommand::kShuangpin) {
+        label += chinese ? L"（" : L" (";
+        label += shuangpin_scheme_name(status.shuangpin_scheme(), chinese);
+        label += chinese ? L"）" : L")";
+    }
+    return label;
 }
 
 inline bool ime_menu_command_checked(ImeMenuCommand command, const ImeStatus& status) {
@@ -72,8 +89,11 @@ inline bool ime_menu_command_checked(ImeMenuCommand command, const ImeStatus& st
     switch (command) {
     case ImeMenuCommand::kChinese: return status.chinese_mode();
     case ImeMenuCommand::kEnglish: return !status.chinese_mode();
-    case ImeMenuCommand::kPinyin: return pinyin && !status.pinyin_initials();
-    case ImeMenuCommand::kPinyinInitials: return pinyin && status.pinyin_initials();
+    case ImeMenuCommand::kPinyin: return pinyin && status.pinyin_style() == PinyinStyle::kFull;
+    case ImeMenuCommand::kPinyinInitials:
+        return pinyin && status.pinyin_style() == PinyinStyle::kInitials;
+    case ImeMenuCommand::kShuangpin:
+        return pinyin && status.pinyin_style() == PinyinStyle::kShuangpin;
     case ImeMenuCommand::kWubi: return status.input_mode == InputMode::WUBI;
     case ImeMenuCommand::kEnglishWords: return status.english_words();
     case ImeMenuCommand::kChinesePunct: return status.chinese_punct();
@@ -82,7 +102,8 @@ inline bool ime_menu_command_checked(ImeMenuCommand command, const ImeStatus& st
     }
 }
 
-// The tooltip of the indicator: every state at a glance, e.g. "中文 · 全拼 · 半角 · 中文标点".
+// The tooltip of the indicator: every state at a glance, e.g. "中文 · 全拼 · 半角 · 中文标点"
+// or "中文 · 双拼（小鹤） · ...".
 inline std::wstring ime_status_summary(const ImeStatus& status, bool chinese) {
     std::wstring text;
     if (status.caps_lock()) {
@@ -96,6 +117,10 @@ inline std::wstring ime_status_summary(const ImeStatus& status, bool chinese) {
     text += L" · ";
     if (status.input_mode == InputMode::WUBI) {
         text += chinese ? L"五笔" : L"Wubi";
+    } else if (status.pinyin_style() == PinyinStyle::kShuangpin) {
+        text += chinese ? L"双拼（" : L"Shuangpin (";
+        text += shuangpin_scheme_name(status.shuangpin_scheme(), chinese);
+        text += chinese ? L"）" : L")";
     } else {
         text += status.pinyin_initials() ? (chinese ? L"首字母" : L"Initials")
                                          : (chinese ? L"全拼" : L"Full pinyin");

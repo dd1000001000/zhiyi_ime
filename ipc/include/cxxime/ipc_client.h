@@ -55,6 +55,8 @@ public:
     bool switch_input_mode(uint32_t session_id, InputMode mode, IPCResponse& response);
     // The pinyin style (english_style false: initials on/off) or the English style
     // (english_style true: word completion on/off).
+    // Pinyin style: full pinyin, initials or shuangpin (SET_INPUT_STYLE bits 1 and 2).
+    bool set_pinyin_style(uint32_t session_id, PinyinStyle style, IPCResponse& response);
     bool set_input_style(uint32_t session_id, bool english_style, bool value,
                          IPCResponse& response);
     bool get_status(uint32_t session_id, IPCResponse& response);

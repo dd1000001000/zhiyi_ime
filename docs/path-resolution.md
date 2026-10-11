@@ -153,12 +153,12 @@ cxxime::set_data_dir("");             // 清除覆盖，恢复默认回退链
 
 ### 拼音方案的拼写表路径
 
-知意输入法只安装全拼拼写表（`pinyin.spellings.bin`），下面的双拼规则沿用自 CxxIME，仅在恢复双拼时有效。
-
-引擎按主词典路径推导拼写表：默认取同目录下的 `pinyin.spellings.bin`（全拼）；当配置的拼音方案是内置双拼方案
-（`microsoft_shuangpin`、`xiaohe_shuangpin`、`ziranma_shuangpin`、`sogou_shuangpin`）时，改取同目录下的
-`pinyin.<方案名>-shuangpin.spellings.bin`（即 `PinyinSchemeDescriptor.spelling_filename`）。五份拼写表共用同一个
-`pinyin.dict.bin`，切换方案只更换拼写表与该方案的音节切分，不重新加载主词典。
+服务端从词典清单（`dictionary_manifest.json`）取拼写表：全拼用角色 `pinyin_spellings`（`pinyin.spellings.bin`），
+设置中所选的双拼方案（`engine.shuangpin_scheme`：`microsoft_shuangpin`、`xiaohe_shuangpin`、`ziranma_shuangpin`、
+`sogou_shuangpin`）用角色 `pinyin_spellings_<方案名>_shuangpin`（`pinyin.<方案名>-shuangpin.spellings.bin`，即
+`PinyinSchemeDescriptor.spelling_filename`），两份同时载入，按拼音方式选用；双拼表缺失时双拼按全拼处理。自带资源的
+`Engine::initialize(dict_path)`（测试与工具）按主词典路径推导：同目录下的 `pinyin.spellings.bin`，以及存在时的所选双拼表。
+五份拼写表共用同一个 `pinyin.dict.bin`，换双拼方案只重新载入那份拼写表，不重新加载主词典。
 
 ## 配置加载顺序
 

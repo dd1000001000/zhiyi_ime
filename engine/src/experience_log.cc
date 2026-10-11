@@ -87,9 +87,9 @@ std::string windows_build() {
 // The settings that shape the IME's behavior.
 nlohmann::json settings_of(const Config& c) {
     nlohmann::json s;
-    s["input_mode"] = c.input_mode == 1 ? "wubi" : "pinyin";
+    s["input_style"] = input_style_name(c.input_mode, c.pinyin_style);
     s["pinyin_scheme"] = c.pinyin_scheme;
-    s["pinyin_initials"] = c.pinyin_initials;
+    s["shuangpin_scheme"] = c.shuangpin_scheme;
     s["fuzzy_pinyin"] = c.fuzzy_pinyin;
     s["fuzzy_groups"] = c.fuzzy_groups;
     s["candidate_learning"] = c.candidate_learning;

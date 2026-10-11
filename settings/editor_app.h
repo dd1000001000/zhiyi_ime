@@ -155,8 +155,8 @@ private:
     HWND hPanels_[kPanelCount] = {};
 
     // General
-    HWND hPinyin_ = nullptr, hWubi_ = nullptr;
-    HWND hFullPinyin_ = nullptr, hInitials_ = nullptr;
+    HWND hFullPinyin_ = nullptr, hInitials_ = nullptr, hWubi_ = nullptr, hShuangpin_ = nullptr;
+    HWND hShuangpinScheme_ = nullptr;
     HWND hLight_ = nullptr, hDark_ = nullptr;
     HWND hFontSmall_ = nullptr, hFontMedium_ = nullptr, hFontLarge_ = nullptr;
     HWND hVertical_ = nullptr, hHorizontal_ = nullptr;  // candidate layout

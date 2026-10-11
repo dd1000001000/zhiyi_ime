@@ -12,13 +12,15 @@ EngineRuntimeState::EngineRuntimeState(
     Config config, std::shared_ptr<Dict> pinyin_dict, std::shared_ptr<Dict> wubi_dict,
     std::shared_ptr<const PinyinResourceSet> pinyin_resources,
     std::shared_ptr<const SymbolTable> symbol_table,
-    std::shared_ptr<CompositionLearningService> composition_learning)
+    std::shared_ptr<CompositionLearningService> composition_learning,
+    std::shared_ptr<const PinyinResourceSet> shuangpin_resources)
     : config_(std::move(config))
     , pinyin_dict_(std::move(pinyin_dict))
     , wubi_dict_(std::move(wubi_dict))
     , pinyin_resources_(std::move(pinyin_resources))
     , symbol_table_(std::move(symbol_table))
     , composition_learning_(std::move(composition_learning))
+    , shuangpin_resources_(std::move(shuangpin_resources))
     , pinyin_query_policy_{config_.fuzzy_pinyin && config_.fuzzy_groups != 0,
                            config_.fuzzy_pinyin ? config_.fuzzy_groups : uint8_t{0}} {}
 
@@ -27,7 +29,8 @@ EngineRuntimeState::create(Config config, std::shared_ptr<Dict> pinyin_dict,
                            std::shared_ptr<Dict> wubi_dict,
                            std::shared_ptr<const PinyinResourceSet> pinyin_resources,
                            std::shared_ptr<const SymbolTable> symbol_table,
-                           std::shared_ptr<CompositionLearningService> composition_learning) {
+                           std::shared_ptr<CompositionLearningService> composition_learning,
+                           std::shared_ptr<const PinyinResourceSet> shuangpin_resources) {
     const PinyinSchemeDescriptor& scheme = resolve_pinyin_scheme(config.pinyin_scheme);
     config.pinyin_scheme = scheme.id;
     if (!pinyin_dict || !pinyin_dict->is_open() || pinyin_dict->kind() != UserDictKind::PINYIN ||
@@ -39,9 +42,14 @@ EngineRuntimeState::create(Config config, std::shared_ptr<Dict> pinyin_dict,
     if (wubi_dict && (!wubi_dict->is_open() || wubi_dict->kind() != UserDictKind::WUBI)) {
         return nullptr;
     }
+    if (shuangpin_resources && (shuangpin_resources->kind() != PinyinSchemeKind::kShuangpin ||
+                                !shuangpin_resources->has_spellings())) {
+        return nullptr;
+    }
     return std::shared_ptr<const EngineRuntimeState>(new EngineRuntimeState(
         std::move(config), std::move(pinyin_dict), std::move(wubi_dict),
-        std::move(pinyin_resources), std::move(symbol_table), std::move(composition_learning)));
+        std::move(pinyin_resources), std::move(symbol_table), std::move(composition_learning),
+        std::move(shuangpin_resources)));
 }
 
 } // namespace cxxime

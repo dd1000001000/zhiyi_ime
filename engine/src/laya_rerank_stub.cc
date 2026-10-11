@@ -12,7 +12,8 @@ LayaRerank& LayaRerank::instance() {
     return rerank;
 }
 
-bool LayaRerank::apply(const Config&, const std::string&, const std::string&, TranslationResult&) {
+bool LayaRerank::apply(const Config&, const std::string&, const std::string&, TranslationResult&,
+                       const std::string&) {
     return false;
 }
 

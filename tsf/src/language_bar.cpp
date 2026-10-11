@@ -162,7 +162,7 @@ STDMETHODIMP CLangBarItemButton::OnClick(TfLBIClick click, POINT pt, const RECT*
                 flags |= MF_CHECKED;
             }
             AppendMenuW(hMenu, flags, static_cast<UINT>(item.command),
-                        cxxime::ime_menu_item_label(item, _menu_chinese));
+                        cxxime::ime_menu_item_label(item, _menu_chinese, _status).c_str());
         }
 
         // Get foreground window for TrackPopupMenuEx
@@ -190,9 +190,9 @@ STDMETHODIMP CLangBarItemButton::InitMenu(ITfMenu* pMenu) {
         DWORD flags = cxxime::ime_menu_command_checked(item.command, _status)
                           ? TF_LBMENUF_CHECKED
                           : 0;
-        const wchar_t* label = cxxime::ime_menu_item_label(item, _menu_chinese);
+        const std::wstring label = cxxime::ime_menu_item_label(item, _menu_chinese, _status);
         pMenu->AddMenuItem(static_cast<UINT>(item.command), flags, nullptr, nullptr,
-                           label, static_cast<ULONG>(std::wcslen(label)), nullptr);
+                           label.c_str(), static_cast<ULONG>(label.size()), nullptr);
     }
 
     return S_OK;

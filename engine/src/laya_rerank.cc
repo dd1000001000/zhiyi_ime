@@ -318,7 +318,7 @@ constexpr size_t kMaxSentenceOptions = 8;
 }  // namespace
 
 bool LayaRerank::apply(const Config& config, const std::string& context, const std::string& input,
-                       TranslationResult& result) {
+                       TranslationResult& result, const std::string& model_pinyin) {
     const auto& lc = config.laya;
     if (!lc.enable || result.entries.size() < 2 || !has_context(context)) return false;
 
@@ -348,7 +348,7 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     if (sentences && idx.size() > kMaxSentenceOptions) idx.resize(kMaxSentenceOptions);
 
     // 2. Score with the model (cached).
-    const std::string pinyin = pinyin_for_model(input);
+    const std::string pinyin = pinyin_for_model(model_pinyin.empty() ? input : model_pinyin);
     const std::string ctx = laya::utf8_tail(context, static_cast<size_t>((std::max)(0, lc.context_chars)));
     std::vector<std::string> texts;
     std::string key = ctx + '\x1f' + pinyin + '\x1f' + std::to_string(lc.rank_prior_weight) + '\x1f' +

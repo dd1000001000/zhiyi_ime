@@ -39,8 +39,11 @@
   then Ctrl+1 types `now`; a candidate without a translation types nothing.
 - **Choose where data lives**: the user dictionary, learning records, language packs, model caches
   and downloaded models can move to another drive with one click on the General page.
-- **Pinyin or Wubi**: pinyin accepts full pinyin, initials and a mix of both (`wsyige` → 我是一个),
-  plus an initials mode where each letter is one character (`zgr` → 中国人).
+- **Full pinyin, initials, Wubi, shuangpin**: full pinyin also accepts initials and a mix of both
+  (`wsyige` → 我是一个); in initials mode each letter is one character (`zgr` → 中国人); shuangpin
+  comes in the Microsoft, Xiaohe, Ziranma and Sogou schemes and shares the dictionary and learning
+  records with full pinyin. While typing, the style switch key (Ctrl+Space by default) cycles the
+  four; the input box always shows the keys as typed.
 - **Fuzzy pinyin**: z=zh, c=ch, s=sh, n=l, an=ang, en=eng, in=ing, each pair on or off; words found
   through a fuzzy pair show their correct pinyin.
 - **English input**: word completion or letter by letter; misspelled words get their correct spelling
@@ -49,7 +52,7 @@
 - **Your own switch keys** for Chinese/English, input style, punctuation and full/half width, with
   warnings about conflicts with Windows or other programs.
 - **Taskbar menu**: right-click the 中/英 indicator to switch Chinese/English, full pinyin / initials /
-  Wubi, punctuation, full width and more, or to exit the background service (it starts again when you
+  Wubi / shuangpin, punctuation, full width and more, or to exit the background service (it starts again when you
   switch to Zhiyi IME).
 - **Candidate window**: vertical (default) or horizontal, light and dark themes, three font sizes;
   Chinese and English interface.

@@ -41,7 +41,7 @@ _SHUANGPIN_FIELDS = {
     "passthrough_syllables",
     "ignored_syllables",
     "expected_collisions",
-    "fuzzy_algebra",
+    "fuzzy_groups",
 }
 
 
@@ -369,19 +369,20 @@ def validate_schema(schema):
             isinstance(definition, str) for definition in definitions
         ):
             raise ValueError("speller.algebra must be a string array")
-        groups = speller["fuzzy_groups"]
-        bits = [group.get("bit") for group in groups if isinstance(group, dict)]
-        if (not isinstance(groups, list) or len(bits) != len(groups) or
-                any(not isinstance(bit, int) or bit <= 0 or bit > 0x80 or bit & (bit - 1)
-                    for bit in bits) or len(set(bits)) != len(bits) or
-                any(not isinstance(group.get("rules"), list) or not group["rules"]
-                    for group in groups)):
-            raise ValueError("speller.fuzzy_groups must list {name, bit, rules} with "
-                             "distinct single-bit values")
     elif speller_type == "shuangpin":
         _require_exact_fields(speller, _SHUANGPIN_FIELDS, "speller")
     else:
         raise ValueError(f"unsupported speller.type: {speller_type}")
+    # Fuzzy pinyin pairs (the same for every scheme, so one setting covers all of them).
+    groups = speller["fuzzy_groups"]
+    bits = [group.get("bit") for group in groups if isinstance(group, dict)]         if isinstance(groups, list) else []
+    if (not isinstance(groups, list) or len(bits) != len(groups) or
+            any(not isinstance(bit, int) or bit <= 0 or bit > 0x80 or bit & (bit - 1)
+                for bit in bits) or len(set(bits)) != len(bits) or
+            any(not isinstance(group.get("rules"), list) or not group["rules"]
+                for group in groups)):
+        raise ValueError("speller.fuzzy_groups must list {name, bit, rules} with "
+                         "distinct single-bit values")
     return schema
 
 
@@ -527,8 +528,14 @@ def _shuangpin_encoder(schema, usage=None):
     return encode
 
 
-def build_shuangpin_script(syllabary, schema):
-    """Build a spelling script from an explicit, build-time Shuangpin table."""
+def build_shuangpin_script(syllabary, schema, strict=True):
+    """Build a spelling script from an explicit, build-time Shuangpin table.
+
+    strict: every mapping must be used and the declared collisions must be exactly the actual
+    ones. The bundle build passes False: its dictionary lacks some syllables the schemes map
+    ("ue", passthrough letters), so unused mappings and collisions among missing syllables are
+    only reported; an undeclared collision is still an error.
+    """
     usage = {}
     encode = _shuangpin_encoder(schema, usage)
     speller = schema["speller"]
@@ -558,7 +565,10 @@ def build_shuangpin_script(syllabary, schema):
         if keys - usage.get(field, set())
     }
     if unreachable:
-        raise ValueError(f"unreachable shuangpin mappings: {unreachable}")
+        if strict:
+            raise ValueError(f"unreachable shuangpin mappings: {unreachable}")
+        print(f"  Note: shuangpin mappings unused by this dictionary: {unreachable}",
+              file=sys.stderr)
 
     declared_collisions = speller["expected_collisions"]
     if not isinstance(declared_collisions, dict):
@@ -575,32 +585,39 @@ def build_shuangpin_script(syllabary, schema):
         ):
             raise ValueError(f"speller.expected_collisions.{code} must be a string array")
         expected_collisions[code] = sorted(set(syllables))
+        if not strict:  # only the syllables this dictionary has
+            present = sorted(set(syllables) & set(syllabary))
+            if len(present) > 1:
+                expected_collisions[code] = present
+            else:
+                del expected_collisions[code]
     if actual_collisions != expected_collisions:
         raise ValueError(
             "shuangpin collisions differ from declaration: "
             f"actual={actual_collisions}, expected={expected_collisions}"
         )
 
-    fuzzy_definitions = speller.get("fuzzy_algebra", [])
-    if not isinstance(fuzzy_definitions, list):
-        raise ValueError("speller.fuzzy_algebra must be an array")
-    fuzzy_rules = parse_rules_simple(fuzzy_definitions)
-    if len(fuzzy_rules) != len(fuzzy_definitions) or any(
-        rule.rule_type() != K_FUZZY for rule in fuzzy_rules
-    ):
-        raise ValueError("speller.fuzzy_algebra may contain only fuzzy rules")
-    for syllable in sorted(syllabary):
-        for rule in fuzzy_rules:
-            alias, applied = rule.apply(syllable)
-            if not applied or not alias:
-                continue
-            for code in encode(alias):
-                script.merge(
-                    code,
-                    K_FUZZY,
-                    rule.credibility_delta(),
-                    [Spelling(syllable)],
-                )
+    # Fuzzy pinyin pairs: a syllable's fuzzy alias ("li" for "ni") typed as shuangpin also
+    # reaches the syllable, tagged with the pair's bit as in full pinyin.
+    for group in speller["fuzzy_groups"]:
+        rules = parse_rules_simple(group["rules"])
+        if len(rules) != len(group["rules"]) or any(
+            rule.rule_type() != K_FUZZY for rule in rules
+        ):
+            raise ValueError(f"fuzzy group rules must be fuzz rules: {group['rules']}")
+        for syllable in sorted(syllabary):
+            for rule in rules:
+                alias, applied = rule.apply(syllable)
+                if not applied or not alias or alias == syllable:
+                    continue
+                for code in encode(alias):
+                    script.merge(
+                        code,
+                        K_FUZZY,
+                        rule.credibility_delta(),
+                        [Spelling(syllable)],
+                        group["bit"],
+                    )
     return script
 
 
@@ -640,7 +657,7 @@ if __name__ == "__main__":
 
         schema = load_schema(schema_path)
         if schema["speller"]["type"] == "shuangpin":
-            script = build_shuangpin_script(syllabary, schema)
+            script = build_shuangpin_script(syllabary, schema, strict=False)
             normal_codes = {
                 input_code
                 for input_code, spellings in script.items()

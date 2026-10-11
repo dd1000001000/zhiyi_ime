@@ -137,10 +137,8 @@ Engine
 
 将输入字符串映射到音节解释。例如 `"d"` → `["da"(缩写), "di"(缩写), "de"(缩写)]`。
 
-> 知意输入法只提供全拼（含简拼与混合输入）：`scripts/dictionary_bundle_layout.py` 的 `SHUANGPIN_SCHEME_NAMES`
-> 为空，不生成、也不安装下面提到的双拼拼写表。双拼相关说明沿用自 CxxIME，引擎代码仍支持，供以后恢复时参考。
-
-运行时按拼音方案载入对应的拼写表：全拼用 `pinyin.spellings.bin`（`pinyin.full-pinyin.schema.json`）；微软双拼、小鹤双拼、
+运行时同时载入全拼拼写表和设置中所选双拼方案（`engine.shuangpin_scheme`）的拼写表，按拼音方式（全拼 / 首字母 / 双拼）
+选用其中一份：全拼用 `pinyin.spellings.bin`（`pinyin.full-pinyin.schema.json`）；微软双拼、小鹤双拼、
 自然码双拼、搜狗双拼分别用 `pinyin.<方案名>-shuangpin.spellings.bin`（同名 `pinyin.<方案名>-shuangpin.schema.json`，
 方案名见 `scripts/dictionary_bundle_layout.py` 的 `SHUANGPIN_SCHEME_NAMES`）。五份拼写表共用同一份 `pinyin.dict.bin`，
 清单角色分别是 `pinyin_spellings` 与 `pinyin_spellings_<方案名>_shuangpin`，文件格式同为下面的 Patricia trie。
@@ -596,8 +594,8 @@ RUN_ALL_TESTS()                            // main 入口，自动发现并运�
 | `wubi_engine_test` | 五笔引擎集成（词典查询路径） |
 | `engine_source_test` | 引擎源码级测试（词典加载/查询） |
 | `engine_test` | 引擎集成翻译路径（词典为数据源） |
-| `shuangpin_test` | 双拼方案描述表、候选规范输入键、分段选词与学习、方案热切换 |
-| `shuangpin_schema_runtime_test` | 合成双拼 schema 生成的 trie 由运行时索引加载与切分 |
+| `shuangpin_test` | 双拼方案描述表、候选规范输入键、分段选词与学习；拼音方式切换时按新方式重读已打的键、缺拼写表时按全拼处理 |
+| `shuangpin_schema_runtime_test` | 合成与四种内置双拼 schema 生成的 trie 由运行时索引加载与切分；模糊音拼写带全拼相同的组合位 |
 | `pinyin_spelling_schema_test` | 双拼 schema 契约、黄金映射与冲突声明校验（Python） |
 | `ordinary_candidate_test` | 语义策略：混合文本保留、纯符号/emoji 剔除，个人词/偏好/排序/学习的加载、导入与修改路径 |
 | `dictionary_symbol_policy_test` | 词典符号过滤、分类与构建期共享策略验证（Python） |

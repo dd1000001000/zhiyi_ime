@@ -3,9 +3,9 @@
 拼音方案由 `data/schemas/` 下的 schema 文件描述，加载与校验见 `data/tools/generate_pinyin_spellings.py`：
 
 - `pinyin.full-pinyin.schema.json`：全拼方案的拼写代数（spelling algebra）规则，规则语法与 librime schema 兼容；本 README 自「文件结构」起的逐条说明即针对该文件。
-- `pinyin.microsoft-shuangpin.schema.json`：微软双拼方案，用 `initials` / `finals` / `zero_initials` / `final_aliases_by_initial` 等映射表描述，并声明 `passthrough_syllables`、`ignored_syllables`、`expected_collisions` 与 `fuzzy_algebra`。
+- `pinyin.<方案名>-shuangpin.schema.json`：微软（`microsoft`）、小鹤（`xiaohe`）、自然码（`ziranma`）、搜狗（`sogou`）四种双拼方案，各用 `initials` / `finals` / `zero_initials` / `final_aliases_by_initial` 等映射表描述，并声明 `passthrough_syllables`、`ignored_syllables`、`expected_collisions` 与 `fuzzy_groups`（模糊音组合，与全拼相同的名称和位）。
 
-两份 schema 都带 `scheme_id` 与 `speller.type`，字段集必须与实现完全一致（多一个少一个字段都会被拒绝）。JSON 不支持注释，因此每条规则的语义统一在此文档中描述。
+每份 schema 都带 `scheme_id` 与 `speller.type`，字段集必须与实现完全一致（多一个少一个字段都会被拒绝）。JSON 不支持注释，因此每条规则的语义统一在此文档中描述。
 
 ## 文件结构
 
@@ -19,7 +19,7 @@
 }
 ```
 
-- `scheme_id`：方案标识（`full_pinyin` / `microsoft_shuangpin`），必须是稳定的 snake_case。
+- `scheme_id`：方案标识（`full_pinyin` / `microsoft_shuangpin` 等），必须是稳定的 snake_case。
 - `speller.type`：`full_pinyin` 表示用 `speller.algebra` 逐条展开拼写，`shuangpin` 表示按映射表编码。
 - `speller.algebra`：拼写代数（spelling algebra）规则数组，按**顺序**逐条应用于音节表。
 - 每一条规则都是一个字符串，采用 librime 兼容的 `token/pattern/replacement/` 写法，以规则类型（token）开头，用第一个非小写字母字符（此处为 `/`）作为分隔符。

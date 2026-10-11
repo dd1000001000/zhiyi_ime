@@ -42,6 +42,7 @@ struct DictionaryResources {
     std::shared_ptr<cxxime::Dict> dict;
     std::shared_ptr<cxxime::Dict> wubi_dict;
     std::shared_ptr<const cxxime::PinyinResourceSet> pinyin_resources;
+    std::shared_ptr<const cxxime::PinyinResourceSet> shuangpin_resources;  // may be null
     std::string dict_path;
     std::string wubi_dict_path;
     std::string manifest_path;
@@ -363,12 +364,11 @@ void fill_session_presentation(const SessionEntry& entry, ProcessKeyResult& resu
                 highlighted->candidate.source == cxxime::CandidateSource::kPinyin;
         }
     }
+    const cxxime::PinyinResourceSet* pinyin_resources = entry.engine->active_pinyin_resources();
     const cxxime::CompositionPresentation composition = cxxime::derive_composition_presentation(
-        context.composition(),
-        entry.resources.runtime ? &entry.resources.runtime->pinyin_resources() : nullptr,
-        focused_input_bytes, decorate_pinyin_preedit, preferred_syllables,
-        entry.resources.runtime && entry.resources.runtime->pinyin_resources().kind() ==
-                                       cxxime::PinyinSchemeKind::kShuangpin,
+        context.composition(), pinyin_resources, focused_input_bytes, decorate_pinyin_preedit,
+        preferred_syllables,
+        pinyin_resources && pinyin_resources->kind() == cxxime::PinyinSchemeKind::kShuangpin,
         !entry.resources.runtime || entry.resources.runtime->pinyin_query_policy().enable_fuzzy,
         entry.engine->pinyin_initials() && entry.engine->mode() == cxxime::InputMode::PINYIN,
         entry.resources.runtime ? entry.resources.runtime->pinyin_query_policy().fuzzy_groups
@@ -414,8 +414,23 @@ bool load_spelling_resources(const cxxime::DictionaryManifest& manifest,
     return true;
 }
 
+// The spelling table of shuangpin scheme `scheme_id`; null (shuangpin then reads as full pinyin)
+// when the bundle lacks it.
+std::shared_ptr<const cxxime::PinyinResourceSet>
+load_shuangpin_resources(const cxxime::DictionaryManifest& manifest, const std::string& scheme_id) {
+    const auto& scheme = cxxime::resolve_shuangpin_scheme(scheme_id);
+    std::string error;
+    std::shared_ptr<const cxxime::PinyinResourceSet> resources;
+    if (!cxxime::validate_dictionary_manifest_files(manifest, {scheme.manifest_role}, &error) ||
+        !load_spelling_resources(manifest, scheme, resources)) {
+        CXXIME_LOG(L"SharedResources: %S spellings unavailable: %S", scheme.id, error.c_str());
+        return nullptr;
+    }
+    return resources;
+}
+
 bool load_dictionary_resources(const std::string& manifest_path, const std::string& pinyin_scheme,
-                               DictionaryResources& out) {
+                               const std::string& shuangpin_scheme, DictionaryResources& out) {
     const auto& scheme = cxxime::resolve_pinyin_scheme(pinyin_scheme);
     const std::vector<std::string> runtime_dictionary_roles = {
         "pinyin_dict",
@@ -498,6 +513,7 @@ bool load_dictionary_resources(const std::string& manifest_path, const std::stri
     out.dict = std::move(loaded_dict);
     out.wubi_dict = std::move(loaded_wubi_dict);
     out.pinyin_resources = std::move(loaded_pinyin_resources);
+    out.shuangpin_resources = load_shuangpin_resources(manifest, shuangpin_scheme);
     out.dict_path = dict_path;
     out.wubi_dict_path = std::move(wubi_dict_path);
     out.manifest_path = manifest_path;
@@ -547,7 +563,8 @@ bool SharedResources::load(const std::string& dict_path,
     }
     std::string manifest_path = cxxime::dictionary_manifest_path_for_dict(dict_path);
     DictionaryResources dictionaries;
-    if (!load_dictionary_resources(manifest_path, loaded_config->pinyin_scheme, dictionaries))
+    if (!load_dictionary_resources(manifest_path, loaded_config->pinyin_scheme,
+                                   loaded_config->shuangpin_scheme, dictionaries))
         return false;
 
     // Load punctuation mapping (non-fatal)
@@ -570,7 +587,8 @@ bool SharedResources::load(const std::string& dict_path,
     }
     auto loaded_runtime = cxxime::EngineRuntimeState::create(
         *loaded_config, dictionaries.dict, dictionaries.wubi_dict,
-        dictionaries.pinyin_resources, loaded_symbol_table, loaded_composition_learning);
+        dictionaries.pinyin_resources, loaded_symbol_table, loaded_composition_learning,
+        dictionaries.shuangpin_resources);
     if (!loaded_runtime) {
         return false;
     }
@@ -658,12 +676,13 @@ bool SharedResources::reload_dictionaries() {
 
     DictionaryResources dictionaries;
     if (!load_dictionary_resources(current_manifest_path,
-                                   current_runtime->config().pinyin_scheme, dictionaries))
+                                   current_runtime->config().pinyin_scheme,
+                                   current_runtime->config().shuangpin_scheme, dictionaries))
         return false;
     auto next_runtime = cxxime::EngineRuntimeState::create(
         current_runtime->config(), dictionaries.dict, dictionaries.wubi_dict,
         dictionaries.pinyin_resources, current_runtime->symbol_table_ptr(),
-        current_runtime->composition_learning_ptr());
+        current_runtime->composition_learning_ptr(), dictionaries.shuangpin_resources);
     if (!next_runtime) {
         return false;
     }
@@ -704,7 +723,7 @@ void SessionManager::reset_global_state(const SharedResourceSnapshot& resources)
         state.input_mode =
             static_cast<cxxime::InputMode>(resources.runtime->config().input_mode);
         state.english_words = resources.runtime->config().english.word_mode;
-        state.pinyin_initials = resources.runtime->config().pinyin_initials;
+        state.pinyin_style = resources.runtime->config().pinyin_style;
     }
     std::lock_guard<std::mutex> lock(state_mutex_);
     global_state_ = state;
@@ -724,6 +743,8 @@ void SessionManager::align_session_to_global(SessionEntry& entry) {
     GlobalVisibleState state = snapshot_global_state();
     const cxxime::ImeStatus previous = entry.ime_status;
 
+    // The style first: entering pinyin mode then builds the pinyin pipeline once.
+    entry.engine->set_pinyin_style(state.pinyin_style);
     if (entry.ime_status.input_mode != state.input_mode) {
         entry.engine->switch_mode(state.input_mode);
     }
@@ -735,8 +756,10 @@ void SessionManager::align_session_to_global(SessionEntry& entry) {
                                                   entry.engine->context());
     entry.engine->set_english_word_mode(state.english_words);
     entry.ime_status.set_english_words(state.english_words);
-    entry.engine->set_pinyin_initials(state.pinyin_initials);
-    entry.ime_status.set_pinyin_initials(state.pinyin_initials);
+    entry.ime_status.set_pinyin_style(state.pinyin_style);
+    entry.ime_status.set_shuangpin_scheme(cxxime::shuangpin_scheme_index(
+        entry.resources.runtime ? entry.resources.runtime->config().shuangpin_scheme
+                                : cxxime::kDefaultShuangpinScheme));
     entry.ime_status.set_chinese_mode(state.caps_lock ? false : entry.base_chinese_mode);
     entry.ime_status.set_caps_lock(state.caps_lock);
     entry.ime_status.set_full_shape(entry.full_shape);
@@ -874,11 +897,23 @@ bool SharedResources::prepare_config(const std::shared_ptr<const cxxime::Config>
             return false;
         }
     }
+    // Another shuangpin scheme: its spelling table (none when the bundle lacks it).
+    const auto& shuangpin = cxxime::resolve_shuangpin_scheme(next_config->shuangpin_scheme);
+    std::shared_ptr<const cxxime::PinyinResourceSet> next_shuangpin_resources =
+        current_runtime->shuangpin_resources_ptr();
+    if (!next_shuangpin_resources || next_shuangpin_resources->scheme_id() != shuangpin.id) {
+        cxxime::DictionaryManifest manifest;
+        std::string error;
+        next_shuangpin_resources =
+            cxxime::load_dictionary_manifest(current_manifest_path, manifest, &error)
+                ? load_shuangpin_resources(manifest, shuangpin.id)
+                : nullptr;
+    }
 
     auto next_runtime = cxxime::EngineRuntimeState::create(
         *next_config, current_runtime->pinyin_dict_ptr(), current_runtime->wubi_dict_ptr(),
         std::move(next_pinyin_resources), current_runtime->symbol_table_ptr(),
-        current_runtime->composition_learning_ptr());
+        current_runtime->composition_learning_ptr(), std::move(next_shuangpin_resources));
     if (!next_runtime) {
         return false;
     }
@@ -1313,6 +1348,9 @@ bool SessionManager::apply_config(const std::shared_ptr<const cxxime::Config>& c
     bool input_mode_changed = !previous_resources.runtime ||
                               previous_resources.runtime->config().input_mode !=
                                   config->input_mode;
+    const bool pinyin_style_changed = !previous_resources.runtime ||
+                                      previous_resources.runtime->config().pinyin_style !=
+                                          config->pinyin_style;
     if (!shared_.commit_prepared_config(config) &&
         (!shared_.prepare_config(config) || !shared_.commit_prepared_config(config))) {
         CXXIME_LOG(L"%s", L"SessionManager: config apply rejected because scheme load failed");
@@ -1335,10 +1373,15 @@ bool SessionManager::apply_config(const std::shared_ptr<const cxxime::Config>& c
 
     // Sync input_mode from config to all active sessions
     if (resources.runtime) {
-        if (input_mode_changed) {
+        if (input_mode_changed || pinyin_style_changed) {
             GlobalVisibleState state = snapshot_global_state();
-            state.input_mode =
-                static_cast<cxxime::InputMode>(resources.runtime->config().input_mode);
+            if (input_mode_changed) {
+                state.input_mode =
+                    static_cast<cxxime::InputMode>(resources.runtime->config().input_mode);
+            }
+            if (pinyin_style_changed) {
+                state.pinyin_style = resources.runtime->config().pinyin_style;
+            }
             commit_global_state(state);
         }
         for (auto& entry : entries) {
@@ -1479,35 +1522,71 @@ SessionManager::switch_input_mode(uint32_t id, cxxime::InputMode mode) {
     commit_global_state(state);
     align_session_to_global(*entry);
     advance_candidate_revision(*entry, candidate_state_before);
-    persist_input_mode(entry->ime_status.input_mode);
+    persist_input_style();
     return {cxxime::IPCStatus::OK, entry->ime_status};
 }
 
 std::pair<cxxime::IPCStatus, cxxime::ImeStatus>
 SessionManager::set_input_style(uint32_t id, bool english_style, bool value) {
+    if (!english_style) {
+        return set_pinyin_style(id, value ? cxxime::PinyinStyle::kInitials
+                                          : cxxime::PinyinStyle::kFull);
+    }
     auto entry = lookup_session(id);
     if (!entry) return {cxxime::IPCStatus::ERR_INVALID_SESSION, {}};
     std::lock_guard<std::mutex> lock(entry->mutex);
     const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
     GlobalVisibleState state = snapshot_global_state();
-    const bool changed = english_style ? state.english_words != value
-                                       : state.pinyin_initials != value;
-    if (english_style) {
-        state.english_words = value;
-    } else {
-        state.pinyin_initials = value;
-    }
+    const bool changed = state.english_words != value;
+    state.english_words = value;
     commit_global_state(state);
     align_session_to_global(*entry);
     advance_candidate_revision(*entry, candidate_state_before);
     if (changed) {
-        if (english_style) {
-            persist_english_word_mode(value);
-        } else {
-            persist_pinyin_initials(value);
-        }
+        persist_english_word_mode(value);
     }
     return {cxxime::IPCStatus::OK, entry->ime_status};
+}
+
+std::pair<cxxime::IPCStatus, cxxime::ImeStatus>
+SessionManager::set_pinyin_style(uint32_t id, cxxime::PinyinStyle style) {
+    auto entry = lookup_session(id);
+    if (!entry) return {cxxime::IPCStatus::ERR_INVALID_SESSION, {}};
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
+    GlobalVisibleState state = snapshot_global_state();
+    const bool changed = state.pinyin_style != style;
+    state.pinyin_style = style;
+    commit_global_state(state);
+    align_session_to_global(*entry);
+    advance_candidate_revision(*entry, candidate_state_before);
+    if (changed) {
+        persist_input_style();
+    }
+    return {cxxime::IPCStatus::OK, entry->ime_status};
+}
+
+void SessionManager::cycle_input_style(const cxxime::EngineRuntimeState* runtime,
+                                       GlobalVisibleState& state) {
+    enum Step { kFull, kInitials, kWubi, kShuangpin, kSteps };
+    int step = state.input_mode == cxxime::InputMode::WUBI         ? kWubi
+               : state.pinyin_style == cxxime::PinyinStyle::kInitials  ? kInitials
+               : state.pinyin_style == cxxime::PinyinStyle::kShuangpin ? kShuangpin
+                                                                      : kFull;
+    for (int tries = 0; tries < kSteps; ++tries) {
+        step = (step + 1) % kSteps;
+        if (step == kWubi && !(runtime && runtime->wubi_dict())) continue;
+        if (step == kShuangpin && !(runtime && runtime->shuangpin_resources_ptr())) continue;
+        break;
+    }
+    if (step == kWubi) {
+        state.input_mode = cxxime::InputMode::WUBI;  // the pinyin style stays for later
+        return;
+    }
+    state.input_mode = cxxime::InputMode::PINYIN;
+    state.pinyin_style = step == kInitials    ? cxxime::PinyinStyle::kInitials
+                         : step == kShuangpin ? cxxime::PinyinStyle::kShuangpin
+                                              : cxxime::PinyinStyle::kFull;
 }
 
 cxxime::IPCStatus SessionManager::sync_ascii_mode(uint32_t id, bool ascii_mode) {
@@ -1787,8 +1866,8 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     } else if (result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE) {
         state.english_words = !state.english_words;
         shared_state_changed = true;
-    } else if (result == cxxime::ProcessResult::TOGGLE_PINYIN_STYLE) {
-        state.pinyin_initials = !state.pinyin_initials;
+    } else if (result == cxxime::ProcessResult::CYCLE_INPUT_STYLE) {
+        cycle_input_style(resources.runtime.get(), state);
         shared_state_changed = true;
     }
 
@@ -1797,12 +1876,11 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     }
     align_session_to_global(s);
     ret.ime_status = s.ime_status;
-    if (result == cxxime::ProcessResult::SWITCH_INPUT_MODE) {
-        persist_input_mode(ret.ime_status.input_mode);
+    if (result == cxxime::ProcessResult::SWITCH_INPUT_MODE ||
+        result == cxxime::ProcessResult::CYCLE_INPUT_STYLE) {
+        persist_input_style();
     } else if (result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE) {
         persist_english_word_mode(ret.ime_status.english_words());
-    } else if (result == cxxime::ProcessResult::TOGGLE_PINYIN_STYLE) {
-        persist_pinyin_initials(ret.ime_status.pinyin_initials());
     }
 
     if (result == cxxime::ProcessResult::COMMITTED) {
@@ -1812,7 +1890,7 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     } else if (result == cxxime::ProcessResult::TOGGLE_PUNCT
             || result == cxxime::ProcessResult::TOGGLE_SHAPE
             || result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE
-            || result == cxxime::ProcessResult::TOGGLE_PINYIN_STYLE) {
+            || result == cxxime::ProcessResult::CYCLE_INPUT_STYLE) {
         ret.composing = engine.context().is_composing();
     } else if (result == cxxime::ProcessResult::SWITCH_INPUT_MODE) {
         ret.composing = false;
@@ -1849,6 +1927,7 @@ cxxime::CandidatePage SessionManager::search_candidates(const std::string& input
     if (!search_engine.initialize(resources.runtime)) {
         return {};
     }
+    search_engine.set_pinyin_style(cxxime::PinyinStyle::kFull);  // the search box takes full pinyin
     search_engine.switch_mode(visible_state.input_mode);
     cxxime::CandidatePage page = search_engine.translate_for_search(input, 10);
     std::vector<cxxime::Candidate> filtered;
@@ -2329,18 +2408,15 @@ void SessionManager::persist_english_word_mode(bool enabled) {
     }
 }
 
-void SessionManager::persist_pinyin_initials(bool enabled) {
+void SessionManager::persist_input_style() {
     if (config_patch_handler_) {
+        const GlobalVisibleState state = snapshot_global_state();
         nlohmann::json patch;
-        patch["engine"]["pinyin_initials"] = enabled;
-        config_patch_handler_(patch.dump());
-    }
-}
-
-void SessionManager::persist_input_mode(cxxime::InputMode mode) {
-    if (config_patch_handler_) {
-        nlohmann::json patch;
-        patch["engine"]["input_mode"] = static_cast<int>(mode);
+        patch["engine"]["input_style"] = cxxime::input_style_name(
+            state.input_mode == cxxime::InputMode::WUBI ? 1 : 0, state.pinyin_style);
+        // A merge patch removes the keys older versions wrote.
+        patch["engine"]["input_mode"] = nullptr;
+        patch["engine"]["pinyin_initials"] = nullptr;
         config_patch_handler_(patch.dump());
     }
 }

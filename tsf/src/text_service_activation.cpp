@@ -46,6 +46,11 @@ void TextService::_handle_ime_menu_command(cxxime::ImeMenuCommand command) {
         apply_status(_ensure_ipc_session() &&
                      _client.set_input_style(_sessionId, english_style, value, response));
     };
+    auto set_pinyin_style = [&](cxxime::PinyinStyle style) {
+        response = {};
+        apply_status(_ensure_ipc_session() &&
+                     _client.set_pinyin_style(_sessionId, style, response));
+    };
 
     switch (command) {
     case cxxime::ImeMenuCommand::kChinese:
@@ -64,8 +69,13 @@ void TextService::_handle_ime_menu_command(cxxime::ImeMenuCommand command) {
     }
     case cxxime::ImeMenuCommand::kPinyin:
     case cxxime::ImeMenuCommand::kPinyinInitials:
+    case cxxime::ImeMenuCommand::kShuangpin:
         if (switch_mode(cxxime::InputMode::PINYIN)) {
-            set_style(false, command == cxxime::ImeMenuCommand::kPinyinInitials);
+            set_pinyin_style(command == cxxime::ImeMenuCommand::kPinyin
+                                 ? cxxime::PinyinStyle::kFull
+                             : command == cxxime::ImeMenuCommand::kPinyinInitials
+                                 ? cxxime::PinyinStyle::kInitials
+                                 : cxxime::PinyinStyle::kShuangpin);
         }
         break;
     case cxxime::ImeMenuCommand::kWubi:

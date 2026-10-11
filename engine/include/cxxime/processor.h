@@ -21,8 +21,9 @@ enum class ProcessResult {
     // English mode style shortcut (word completion <-> letter by letter); same KeyDown/KeyUp
     // handling as SWITCH_INPUT_MODE.
     TOGGLE_ENGLISH_STYLE,
-    // The same shortcut in Chinese pinyin mode: full pinyin <-> initials (首字母).
-    TOGGLE_PINYIN_STYLE,
+    // The same shortcut in Chinese mode: the next input style, full pinyin -> initials (首字母)
+    // -> Wubi -> shuangpin -> full pinyin (the server picks it, skipping what is missing).
+    CYCLE_INPUT_STYLE,
     // Learning mode: Ctrl+1..9 asks for that candidate's translation (docs/learning-mode.md).
     // The server looks it up and calls Engine::commit_translation; never sent to the client.
     COMMIT_TRANSLATION,

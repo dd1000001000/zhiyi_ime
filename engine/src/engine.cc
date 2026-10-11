@@ -141,8 +141,20 @@ bool Engine::initialize(const std::string& dict_path, const std::string& config_
             : PinyinSpellingRequirement::kRequired;
     auto pinyin_resources =
         PinyinResourceSet::create(scheme.id, scheme.kind, sp_path, requirement);
+    // The shuangpin scheme's spellings, when they are next to the dictionary.
+    std::shared_ptr<const PinyinResourceSet> shuangpin_resources;
+    if (scheme.kind == PinyinSchemeKind::kFullPinyin) {
+        const auto& shuangpin = resolve_shuangpin_scheme(config.shuangpin_scheme);
+        const std::size_t separator = sp_path.find_last_of("\\/");
+        shuangpin_resources = PinyinResourceSet::create(
+            shuangpin.id, shuangpin.kind,
+            separator == std::string::npos
+                ? std::string(shuangpin.spelling_filename)
+                : sp_path.substr(0, separator + 1) + shuangpin.spelling_filename);
+    }
     return initialize(EngineRuntimeState::create(
-        std::move(config), std::move(dict), nullptr, std::move(pinyin_resources)));
+        std::move(config), std::move(dict), nullptr, std::move(pinyin_resources), nullptr,
+        nullptr, std::move(shuangpin_resources)));
 }
 
 bool Engine::initialize(std::shared_ptr<const EngineRuntimeState> runtime) {
@@ -174,7 +186,7 @@ void Engine::init_per_session(const Config& config) {
     punct_toggle_shortcut_ = config.punct_toggle_shortcut;
     shape_toggle_shortcut_ = config.shape_toggle_shortcut;
     english_word_mode_ = config.english.word_mode;
-    pinyin_initials_ = config.pinyin_initials;
+    pinyin_style_ = config.pinyin_style;
     // Start loading the Laya model in the background so it is ready by the first keystroke.
     LayaRerank::instance().preload(config);
 }
@@ -231,6 +243,25 @@ void append_bounded(std::string& history, const std::string& text) {
         }
         history.erase(0, cut);
     }
+}
+
+// Shuangpin: what the Laya model reads for `input`, the full pinyin of the first candidate
+// covering it ("ni'hao" for "nihk"); empty otherwise (the model reads the input).
+std::string shuangpin_model_pinyin(const std::string& input, const TranslationResult& result,
+                                   bool shuangpin) {
+    if (!shuangpin) return {};
+    for (const auto& entry : result.entries) {
+        const auto* action = std::get_if<TextSelectionAction>(&entry.selection);
+        if (!action || action->consumed_input_bytes != input.size() ||
+            action->primary_variant >= action->variants.size()) {
+            continue;
+        }
+        std::string pinyin = action->variants[action->primary_variant].syllables;
+        if (pinyin.empty()) continue;
+        std::replace(pinyin.begin(), pinyin.end(), ':', '\'');
+        return pinyin;
+    }
+    return {};
 }
 
 // For a long input the composer offers the context model up to 8 sentences to choose among
@@ -382,13 +413,10 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         record_total_us(trace_, total_start, trace_enabled_);
         return ProcessResult::TOGGLE_SHAPE;
     case AsciiModeSwitchStyle::TOGGLE_STYLE:
-        // As the style shortcut below: not used in Wubi mode.
-        if (!opts.chinese_mode || mode_ == InputMode::PINYIN) {
-            record_total_us(trace_, total_start, trace_enabled_);
-            return opts.chinese_mode ? ProcessResult::TOGGLE_PINYIN_STYLE
-                                     : ProcessResult::TOGGLE_ENGLISH_STYLE;
-        }
-        break;
+        // As the style shortcut below.
+        record_total_us(trace_, total_start, trace_enabled_);
+        return opts.chinese_mode ? ProcessResult::CYCLE_INPUT_STYLE
+                                 : ProcessResult::TOGGLE_ENGLISH_STYLE;
     default:
         break;
     }
@@ -449,16 +477,14 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
     }
 
     // Style shortcut: in English mode word completion <-> letter by letter (a word being typed
-    // stays open; the new style applies from the next word); in Chinese pinyin mode full
-    // pinyin <-> initials. Not used in Wubi mode.
-    const bool pinyin_style_key = opts.chinese_mode && mode_ == InputMode::PINYIN;
-    if (!event.is_key_up && english_style_shortcut_.matches(event) &&
-        (!opts.chinese_mode || pinyin_style_key)) {
+    // stays open; the new style applies from the next word); in Chinese mode the next input
+    // style (full pinyin, initials, Wubi, shuangpin; the server applies it).
+    if (!event.is_key_up && english_style_shortcut_.matches(event)) {
         record_total_us(trace_, total_start, trace_enabled_);
         if (handled_shortcut_key_ == 0) {
             handled_shortcut_key_ = event.keycode;
-            return pinyin_style_key ? ProcessResult::TOGGLE_PINYIN_STYLE
-                                    : ProcessResult::TOGGLE_ENGLISH_STYLE;
+            return opts.chinese_mode ? ProcessResult::CYCLE_INPUT_STYLE
+                                     : ProcessResult::TOGGLE_ENGLISH_STYLE;
         }
         return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
     }
@@ -1242,7 +1268,9 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     // Laya: reorder the first pinyin page by context. Later pages keep the translator's order,
     // so page 1 stays a permutation of the original first page.
     if (request.scheme == CompositionScheme::kPinyin && page_index == 0 && page_offset == 0) {
-        LayaRerank::instance().apply(runtime_->config(), laya_context(state), request.input, result);
+        LayaRerank::instance().apply(
+            runtime_->config(), laya_context(state), request.input, result,
+            shuangpin_model_pinyin(request.input, result, shuangpin_input()));
         move_extra_sentences_back(request.input, result);
         if (laya_first_page && static_cast<int>(result.entries.size()) > page_size) {
             result.entries.resize(page_size);
@@ -1292,6 +1320,8 @@ void Engine::add_english_candidates(const std::string& input, int page_size,
         if (const auto* head = std::get_if<TextSelectionAction>(&result.entries[0].selection))
             valid_pinyin = head->consumed_input_bytes == input.size();
     }
+    // Shuangpin reads nearly any letters as syllables: a word only where it does not.
+    if (valid_pinyin && shuangpin_input()) return;
     Candidate c;
     c.text = words[0].text;
     c.source = CandidateSource::kEnglish;
@@ -1747,14 +1777,47 @@ void Engine::switch_mode(InputMode mode) {
     rebuild_pipeline(mode);
 }
 
-void Engine::set_pinyin_initials(bool enabled) {
-    if (pinyin_initials_ == enabled) {
+void Engine::set_pinyin_style(PinyinStyle style) {
+    if (pinyin_style_ == style) {
         return;
     }
-    pinyin_initials_ = enabled;
-    if (mode_ == InputMode::PINYIN) {
-        rebuild_pipeline(mode_, true);
+    pinyin_style_ = style;
+    if (mode_ != InputMode::PINYIN) {
+        return;
     }
+    // The keys typed so far, confirmed parts included, are read again in the new style: the
+    // composition shows them as typed, so nothing visible is lost.
+    std::string typed;
+    const CompositionState& state = context_.composition();
+    if (context_.is_composing() && !english_composing_ &&
+        state.active().scheme == CompositionScheme::kPinyin) {
+        for (const auto& segment : state.converted_segments()) typed += segment.raw_input;
+        typed += state.active().input;
+    }
+    rebuild_pipeline(mode_, true);
+    // ';' is a key only in shuangpin.
+    const PinyinResourceSet* resources = active_pinyin_resources();
+    if (!resources || resources->kind() != PinyinSchemeKind::kShuangpin) {
+        typed.erase(std::remove(typed.begin(), typed.end(), ';'), typed.end());
+    }
+    if (!typed.empty() &&
+        context_.start_composition(CompositionScheme::kPinyin, typed, typed.size())) {
+        TranslationResult translated =
+            translate_current_composition(QueryDeadline::from_now(query_deadline_ms_));
+        if (translated.usable()) context_.update_translation(std::move(translated));
+    }
+}
+
+std::shared_ptr<const PinyinResourceSet> Engine::active_pinyin_resources_ptr() const {
+    if (!runtime_) return nullptr;
+    if (pinyin_style_ == PinyinStyle::kShuangpin && runtime_->shuangpin_resources_ptr()) {
+        return runtime_->shuangpin_resources_ptr();
+    }
+    return runtime_->pinyin_resources_ptr();
+}
+
+const PinyinResourceSet* Engine::active_pinyin_resources() const {
+    return active_pinyin_resources_ptr().get();
 }
 
 void Engine::rebuild_pipeline(InputMode mode, bool force) {
@@ -1782,12 +1845,18 @@ void Engine::rebuild_pipeline(InputMode mode, bool force) {
         wubi_trans->set_dict(wubi_dict);
         translator_ = std::move(wubi_trans);
     } else {
-        processor_ = std::make_unique<PinyinProcessor>();
+        // Full pinyin, initials (full pinyin's spellings, one letter a syllable) or shuangpin
+        // (its scheme's spellings; ';' is a key once typing has started).
+        const auto resources = active_pinyin_resources_ptr();
+        const bool shuangpin = resources && resources->kind() == PinyinSchemeKind::kShuangpin;
+        auto pinyin_processor = std::make_unique<PinyinProcessor>();
+        pinyin_processor->set_shuangpin_enabled(shuangpin);
+        processor_ = std::move(pinyin_processor);
         auto pinyin_trans = std::make_unique<PinyinTranslator>();
         pinyin_trans->set_dict(&pinyin_dict);
         PinyinQueryPolicy policy = runtime_->pinyin_query_policy();
-        policy.initials_only = pinyin_initials_;
-        pinyin_trans->bind_pinyin(runtime_->pinyin_resources_ptr(), policy);
+        policy.initials_only = pinyin_style_ == PinyinStyle::kInitials && !shuangpin;
+        pinyin_trans->bind_pinyin(resources, policy);
         if (pinyin_dict.has_short_cache()) {
             pinyin_trans->set_short_cache(&pinyin_dict.short_cache());
         }

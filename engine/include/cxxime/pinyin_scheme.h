@@ -3,6 +3,7 @@
 #ifndef CXXIME_PINYIN_SCHEME_H_
 #define CXXIME_PINYIN_SCHEME_H_
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -28,6 +29,12 @@ const PinyinSchemeDescriptor* find_pinyin_scheme(std::string_view id);
 const PinyinSchemeDescriptor& default_pinyin_scheme();
 const PinyinSchemeDescriptor& resolve_pinyin_scheme(std::string_view id);
 std::string normalize_pinyin_scheme_id(std::string_view id);
+
+// Shuangpin (engine.shuangpin_scheme): the scheme `id` names, or the default one.
+inline constexpr const char* kDefaultShuangpinScheme = "xiaohe_shuangpin";
+const PinyinSchemeDescriptor& resolve_shuangpin_scheme(std::string_view id);
+// 0 Microsoft, 1 Xiaohe, 2 Ziranma, 3 Sogou (ImeStatus::shuangpin_scheme()).
+uint32_t shuangpin_scheme_index(std::string_view id);
 
 } // namespace cxxime
 

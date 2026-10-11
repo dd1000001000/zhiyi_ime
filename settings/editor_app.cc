@@ -270,7 +270,8 @@ void EditorApp::refresh_config() {
 #define KEEP_PAGE_EDIT(member) \
     if (!(ui.member == before.member)) merged.member = ui.member
     KEEP_PAGE_EDIT(input_mode);
-    KEEP_PAGE_EDIT(pinyin_initials);
+    KEEP_PAGE_EDIT(pinyin_style);
+    KEEP_PAGE_EDIT(shuangpin_scheme);
     KEEP_PAGE_EDIT(theme);
     KEEP_PAGE_EDIT(font_size);
     KEEP_PAGE_EDIT(layout);

@@ -135,7 +135,7 @@ zhiyi-server.exe --config "D:\config.json"          # 指定配置文件
 
 ### 服务端启动后立即退出
 
-通常是词典文件缺失。检查 `C:\Program Files\ZhiyiIME\<版本号>.<8位十六进制>\data\pinyin.dict.bin` 是否存在。若缺失，重新安装。配置文件里不要把 `engine.pinyin_scheme` 改成双拼方案：知意输入法不带双拼拼写表，服务端会启动失败。
+通常是词典文件缺失。检查 `C:\Program Files\ZhiyiIME\<版本号>.<8位十六进制>\data\pinyin.dict.bin` 是否存在。若缺失，重新安装。双拼方案用 `engine.shuangpin_scheme` 选（`engine.pinyin_scheme` 始终是全拼，旧配置里写成双拼方案的会自动改为 `engine.shuangpin_scheme`）。
 
 ### 切换输入法后打字无反应
 

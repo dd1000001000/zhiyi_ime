@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <cxxime/diagnostics_config.h>
+#include <cxxime/ipc_protocol.h>
 #include <cxxime/keyboard_shortcut.h>
 
 namespace cxxime {
@@ -36,6 +37,14 @@ struct LayoutConfig {
     int preedit_highlight_border_width = 1; // focused input border
 };
 
+// engine.input_style: the Chinese input style, Wubi (input_mode 1) or a pinyin style.
+inline const char* input_style_name(int input_mode, PinyinStyle style) {
+    return input_mode == 1                    ? "wubi"
+           : style == PinyinStyle::kInitials  ? "initials"
+           : style == PinyinStyle::kShuangpin ? "shuangpin"
+                                              : "full";
+}
+
 struct Config {
     bool load(const std::string& path);
     bool load_user(const std::string& path);
@@ -49,8 +58,16 @@ struct Config {
     // engine
     // Candidates per page (settings: 3-10). Laya compares the first 2 * page_size candidates.
     int page_size = 7;
-    int input_mode = 0;  // Chinese input: 0=pinyin, 1=wubi (chosen in settings)
-    std::string pinyin_scheme = "full_pinyin";  // full pinyin is the only scheme
+    // engine.input_style (full | initials | wubi | shuangpin) is read into these two: Chinese
+    // input 0=pinyin, 1=wubi, and the pinyin style. The style key cycles full pinyin, initials,
+    // Wubi and shuangpin. Older configs: engine.input_mode and engine.pinyin_initials.
+    int input_mode = 0;
+    PinyinStyle pinyin_style = PinyinStyle::kFull;
+    // The base spelling table: full pinyin (a shuangpin id here is read as shuangpin_scheme).
+    std::string pinyin_scheme = "full_pinyin";
+    // engine.shuangpin_scheme: microsoft_shuangpin | xiaohe_shuangpin | ziranma_shuangpin |
+    // sogou_shuangpin.
+    std::string shuangpin_scheme = "xiaohe_shuangpin";
     bool wubi_auto_commit = true;  // Auto-commit the only candidate at four codes.
     bool wubi_commit_first_on_fifth_key = true;  // Commit the first choice before code 5.
     bool wubi_restart_on_fifth_after_miss = true;
@@ -85,7 +102,6 @@ struct Config {
     // "horizontal" without the user having chosen it (there was no setting), so load_user keeps
     // the default (vertical) for them.
     bool learning_section_loaded = false;
-    bool pinyin_initials = false;     // pinyin style: full pinyin (false) or initials (true)
     // Fuzzy pinyin: master switch and the enabled pairs (FuzzyGroup bits, spellings_index.h).
     bool fuzzy_pinyin = false;
     uint8_t fuzzy_groups = 0x7F;

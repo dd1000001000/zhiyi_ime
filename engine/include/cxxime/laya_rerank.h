@@ -43,10 +43,11 @@ public:
     // moves the model's pick among those to the first of their slots and marks it
     // `recommended`; every other entry keeps its order, and candidates for part of the input
     // (飘 for "piaol") keep their places.
-    // `input` is the raw pinyin the translator was queried with. Returns true if the order
-    // changed.
+    // `input` is the raw pinyin the translator was queried with; `model_pinyin`, when given,
+    // is what the model reads instead (shuangpin keys as full pinyin, "ni'hao"). Returns true
+    // if the order changed.
     bool apply(const Config& config, const std::string& context, const std::string& input,
-               TranslationResult& result);
+               TranslationResult& result, const std::string& model_pinyin = {});
 
     // English word mode: moves the model's pick among the completions of `typed` (dictionary
     // order: exact match first, then by frequency) to the front; the pick maximizes

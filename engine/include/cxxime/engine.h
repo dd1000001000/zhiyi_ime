@@ -122,9 +122,17 @@ public:
     // English mode style: word completion (true) or letter-by-letter input (false).
     void set_english_word_mode(bool enabled) { english_word_mode_ = enabled; }
     bool english_word_mode() const { return english_word_mode_; }
-    // Pinyin style: full pinyin (false) or initials only (true). Rebuilds the pinyin pipeline.
-    void set_pinyin_initials(bool enabled);
-    bool pinyin_initials() const { return pinyin_initials_; }
+    // Pinyin style: full pinyin, initials only or shuangpin. In pinyin mode the keys typed so
+    // far are read again in the new style (the composition shows them as typed).
+    void set_pinyin_style(PinyinStyle style);
+    PinyinStyle pinyin_style() const { return pinyin_style_; }
+    void set_pinyin_initials(bool enabled) {
+        set_pinyin_style(enabled ? PinyinStyle::kInitials : PinyinStyle::kFull);
+    }
+    bool pinyin_initials() const { return pinyin_style_ == PinyinStyle::kInitials; }
+    // The spellings the pinyin translator reads the keys with: the shuangpin scheme's in
+    // shuangpin style (when installed), else full pinyin's. Null before initialize().
+    const PinyinResourceSet* active_pinyin_resources() const;
 
     static std::string derive_spellings_path(const std::string& dict_path);
 
@@ -132,6 +140,13 @@ private:
     void init_per_session(const Config& config);
     void reset_composition_state();
     void rebuild_pipeline(InputMode mode, bool force = false);
+    std::shared_ptr<const PinyinResourceSet> active_pinyin_resources_ptr() const;
+    // Pinyin mode reading the keys as shuangpin.
+    bool shuangpin_input() const {
+        const PinyinResourceSet* resources = active_pinyin_resources();
+        return mode_ == InputMode::PINYIN && resources &&
+               resources->kind() == PinyinSchemeKind::kShuangpin;
+    }
     bool symbol_input_enabled(const OutputOptions& opts) const;
     TranslationResult translate_current_composition(const QueryDeadline& deadline);
     TranslationResult translate_composition(const CompositionState& state,
@@ -183,7 +198,7 @@ private:
     std::vector<std::string> english_corrections_shown_;  // corrections on the current page
     bool english_composing_ = false;
     bool english_word_mode_ = true;
-    bool pinyin_initials_ = false;
+    PinyinStyle pinyin_style_ = PinyinStyle::kFull;
     KeyboardShortcut english_style_shortcut_;
     KeyboardShortcut ascii_toggle_shortcut_;
     KeyboardShortcut punct_toggle_shortcut_;

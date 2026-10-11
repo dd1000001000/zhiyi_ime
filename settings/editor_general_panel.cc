@@ -18,6 +18,7 @@
 #include <cxxime/experience_log.h>
 #include <cxxime/keyboard_shortcut.h>
 #include <cxxime/lexicon_control.h>
+#include <cxxime/pinyin_scheme.h>
 #include <cxxime/user_dict.h>
 
 #include "editor_app_internal.h"
@@ -29,10 +30,11 @@ namespace settings {
 namespace {
 
 enum ControlId {
-    kPinyinId = 1001,
-    kWubiId,
-    kFullPinyinId,
+    kFullPinyinId = 1001,
     kInitialsId,
+    kWubiId,
+    kShuangpinId,
+    kShuangpinSchemeId,
     kLightId,
     kDarkId,
     kFontSmallId,
@@ -70,6 +72,13 @@ const wchar_t* const kFuzzyGroupLabels[] = {
 };
 constexpr int kFuzzyGroupCount = 7;
 constexpr int kFuzzyInitialCount = 4;
+
+// Shuangpin schemes in the order of cxxime::shuangpin_scheme_index (built_in_pinyin_schemes()
+// after full pinyin).
+const char* const kShuangpinSchemeLabels[] = {
+    "general.shuangpin_microsoft", "general.shuangpin_xiaohe", "general.shuangpin_ziranma",
+    "general.shuangpin_sogou",
+};
 
 constexpr char kLightTheme[] = "moon_light";
 constexpr char kDarkTheme[] = "moon_dark";
@@ -169,7 +178,7 @@ HWND EditorApp::make_hint(const wchar_t* text, int x, int y, int width, HWND par
 
 void EditorApp::create_general_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
-    const int labels = label_width({"general.chinese_input", "general.pinyin_style",
+    const int labels = label_width({"general.chinese_input", "general.shuangpin_scheme",
                                     "general.theme", "general.font_size", "general.layout",
                                     "general.page_size", "general.language", "general.english",
                                     "general.laya", "general.device", "general.startup"});
@@ -190,13 +199,21 @@ void EditorApp::create_general_panel(HWND panel) {
         return x;
     };
 
-    radios("general.chinese_input", {{kPinyinId, "general.pinyin"}, {kWubiId, "general.wubi"}},
-           {&hPinyin_, &hWubi_});
-    const int x = radios("general.pinyin_style",
-                         {{kFullPinyinId, "general.full_pinyin"}, {kInitialsId, "general.initials"}},
-                         {&hFullPinyin_, &hInitials_});
-    make_hint(tr("general.pinyin_style_hint"), x, y - S(6), S(400), panel);
+    // The input style at start; the style key cycles them in this order.
+    const int x = radios("general.chinese_input",
+                         {{kFullPinyinId, "general.full_pinyin"},
+                          {kInitialsId, "general.initials"},
+                          {kWubiId, "general.wubi"},
+                          {kShuangpinId, "general.shuangpin"}},
+                         {&hFullPinyin_, &hInitials_, &hWubi_, &hShuangpin_});
+    make_hint(tr("general.input_style_hint"), x, y - S(6), S(480), panel);
     y += S(40);
+    const int scheme_x = make_aligned_label(tr("general.shuangpin_scheme"), x0, labels, y, panel);
+    hShuangpinScheme_ = make_combo(kShuangpinSchemeId, scheme_x, y, S(160), panel);
+    for (const char* key : kShuangpinSchemeLabels) {
+        combo_add(hShuangpinScheme_, tr(key));
+    }
+    y += kRowH;
     const int english_x = make_aligned_label(tr("general.english"), x0, labels, y, panel);
     hEnglishCorrection_ = make_check(kEnglishCorrectionId, tr("general.english_correction"),
                                      english_x, y, S(300), panel);
@@ -408,10 +425,13 @@ void EditorApp::delete_experience_log() {
 }
 
 void EditorApp::populate_controls() {
-    set_check(hPinyin_, config_.input_mode != 1);
-    set_check(hWubi_, config_.input_mode == 1);
-    set_check(hFullPinyin_, !config_.pinyin_initials);
-    set_check(hInitials_, config_.pinyin_initials);
+    const bool wubi = config_.input_mode == 1;
+    set_check(hFullPinyin_, !wubi && config_.pinyin_style == PinyinStyle::kFull);
+    set_check(hInitials_, !wubi && config_.pinyin_style == PinyinStyle::kInitials);
+    set_check(hWubi_, wubi);
+    set_check(hShuangpin_, !wubi && config_.pinyin_style == PinyinStyle::kShuangpin);
+    combo_set_index(hShuangpinScheme_,
+                    static_cast<int>(shuangpin_scheme_index(config_.shuangpin_scheme)));
     const bool dark = config_.theme == kDarkTheme;
     set_check(hLight_, !dark);
     set_check(hDark_, dark);
@@ -456,7 +476,11 @@ void EditorApp::populate_controls() {
 bool EditorApp::read_controls(bool report_errors) {
     auto& c = config_;
     c.input_mode = get_check(hWubi_) ? 1 : 0;
-    c.pinyin_initials = get_check(hInitials_);
+    c.pinyin_style = get_check(hInitials_)     ? PinyinStyle::kInitials
+                     : get_check(hShuangpin_) ? PinyinStyle::kShuangpin
+                                              : PinyinStyle::kFull;
+    const int scheme = std::clamp(combo_index(hShuangpinScheme_), 0, 3);
+    c.shuangpin_scheme = built_in_pinyin_schemes()[1 + static_cast<std::size_t>(scheme)].id;
     c.theme = get_check(hDark_) ? kDarkTheme : kLightTheme;
     c.font_size = get_check(hFontSmall_) ? kFontSmall
                   : get_check(hFontLarge_) ? kFontLarge
@@ -563,9 +587,6 @@ void EditorApp::restore_default_keys() {
 }
 
 void EditorApp::update_enabled_controls() {
-    const bool pinyin = get_check(hPinyin_);
-    EnableWindow(hFullPinyin_, pinyin);
-    EnableWindow(hInitials_, pinyin);
     // The pairs keep their check marks but are grayed out while fuzzy pinyin is off.
     const bool fuzzy = get_check(hFuzzyEnabled_);
     for (HWND group : hFuzzyGroups_) {
@@ -584,8 +605,6 @@ bool EditorApp::handle_command(int control_id, int notification) {
             apply_ui_theme(get_check(hDark_));  // shown at once; saved with the others
         }
         return true;
-    case kPinyinId:
-    case kWubiId:
     case kFuzzyEnabledId:
     case kLayaId:
         if (notification == BN_CLICKED) {

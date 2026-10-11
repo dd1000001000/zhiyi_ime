@@ -1,7 +1,12 @@
 # Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 
-# Zhiyi IME supports full pinyin only (initials included); no shuangpin spelling tables.
-SHUANGPIN_SCHEME_NAMES = ()
+# Shuangpin schemes (engine.shuangpin_scheme): one spelling table each, sharing pinyin.dict.bin.
+SHUANGPIN_SCHEME_NAMES = (
+    "microsoft",
+    "xiaohe",
+    "ziranma",
+    "sogou",
+)
 
 SHUANGPIN_MANIFEST_FILES = tuple(
     (

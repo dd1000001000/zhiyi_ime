@@ -441,7 +441,7 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
             r.result == cxxime::ProcessResult::SWITCH_INPUT_MODE ||
             r.result == cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED ||
             r.result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE ||
-            r.result == cxxime::ProcessResult::TOGGLE_PINYIN_STYLE;
+            r.result == cxxime::ProcessResult::CYCLE_INPUT_STYLE;
 
         if (r.status == cxxime::IPCStatus::OK &&
             r.result == cxxime::ProcessResult::REJECTED) {
@@ -556,9 +556,16 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
     }
 
     case cxxime::IPCCommand::SET_INPUT_STYLE: {
-        auto [status, ime_status] = session_mgr_.set_input_style(
-            request.session_id, (request.candidate_index & 1u) != 0,
-            (request.candidate_index & 2u) != 0);
+        // Bit 0: English style (bit 1 word completion); else the pinyin style, bit 1 initials,
+        // bit 2 shuangpin.
+        const uint32_t bits = request.candidate_index;
+        auto [status, ime_status] =
+            (bits & 1u) != 0
+                ? session_mgr_.set_input_style(request.session_id, true, (bits & 2u) != 0)
+                : session_mgr_.set_pinyin_style(request.session_id,
+                                                (bits & 4u) != 0 ? cxxime::PinyinStyle::kShuangpin
+                                                : (bits & 2u) != 0 ? cxxime::PinyinStyle::kInitials
+                                                                   : cxxime::PinyinStyle::kFull);
         if (status != cxxime::IPCStatus::OK) {
             response.status = status;
             break;

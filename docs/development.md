@@ -20,7 +20,7 @@ IMM 兼容模块）、构建脚本，以及生成运行时词典的工具（`dat
 
 ```cmd
 python scripts\fetch_onnxruntime.py   :: ONNX Runtime 1.24.4（DirectML 版）+ DirectML.dll -> third_party\onnxruntime\
-python scripts\fetch_model.py         :: Laya 模型（GitHub Release model-zhen-small-distill）-> models\laya\
+python scripts\fetch_model.py         :: Laya 模型（GitHub Release model-zhen-unified-s）-> models\laya\
 build_laya.bat                        :: Ninja Release 构建，产物在 build\
 ```
 
@@ -43,10 +43,11 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 ## 上文推荐模型（Laya）
 
 - [Laya](https://huggingface.co/convaiinnovations/laya) 结构的决策模型，编码器是 mmBERT-small（22 层、宽 384）。1.2.0 起由 1.1 的模型（mmBERT-base 上中英联合训练的 LoRA r64）蒸馏而来，训练样本 111 万条（原有的输入法实际候选样本，加上从 LCCC 和 C4 中文抽取、由输入法生成候选的样本）。导出为 int8 ONNX，在 CPU 上推理（默认 4 线程），每次约 10–20 ms；显卡上约 6 ms。
+- 1.4.0 起是“统一模型”：在 1.2 的模型上加第二个头（2 层），两个头一起训练、从更大的统一教师模型蒸馏。第一个头照旧在候选里选词；第二个头读已打的拼音（每个音节一个槽位，`unit_ids` / `slot_pos`，单位和字表在模型目录的 `unified_vocab.json`），给每个音节位置上的每个字打分，用于长拼音组句（见下文“长拼音组句”）。没有 `unified_vocab.json` 或模型没有第二个头时只选词。
 - 模型只看上文和候选词，不看拼音或已打的字母（“猜词”提示词，模型目录的 `rl_agent_config.json` 中
   `"zhiyi_prompt": "guess"`）。训练时中文上文是上一句加本句，
   英文是最后 192 个字符；中文候选是输入法实际给出的第一页（全拼、末音节不完整、简拼和混打）。
-- 模型权重随 [Release model-zhen-small-distill](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-small-distill)
+- 模型权重随 [Release model-zhen-unified-s](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-unified-s)
   发布（`scripts/fetch_model.py`）；训练代码与训练、评测数据涉及第三方语料版权，不公开。
 - 上文：开始输入时，TSF 模块读取输入框里光标前（有选中文字时为选区之前）最多 256 个字（`SET_CONTEXT`），
   模型取其中最后 128 个字 / 192 个英文字符。程序不允许读取时，改用之前上屏的文字，换到另一个输入框时清空；
@@ -58,8 +59,9 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
   引擎的排序可以通过排位先验加回来：
   得分 = log P(模型) + `laya.rank_prior_weight`（默认 0，英文 0.2）× log P(正确词排在第 r 位)，
   先验按训练数据统计。中文默认不加先验：加 0.4 时总体首选准确率高约 1.4 个点，但正确词排在后面时
-  更容易被第一个候选压住；旧版本配置里保存的 0.4 读取时按 0 处理（只在配置格式 1.1 之前的文件上做一次）。模型词向量表只保留中英文用到的 8.2 万个 token（模型文件 85 MB；1.1 的 mmBERT-base 模型为 194 MB）。
-  长句（4 个音节以上、没有词典词覆盖全部输入）：引擎组句时每段音节多留同音词（最多 8 个，不再限于最常见词的十分之一以内），
+  更容易被第一个候选压住；旧版本配置里保存的 0.4 读取时按 0 处理（只在配置格式 1.1 之前的文件上做一次）。模型词向量表只保留中英文用到的 8.2 万个 token（1.2 的模型文件 85 MB，加上组句头的统一模型 92 MB；1.1 的 mmBERT-base 模型为 194 MB）。
+  长拼音组句（统一模型，`laya.continuation`，默认开）：从 `laya.continuation_min_syllables`（4）个音节起，每次按键对每种切分（如 xian / xi'an，最多 `laya.continuation_paths` 种）调用一次模型，引擎组句时每个词的分数 = ln P(模型给这几个字) + `laya.continuation_weight`（0.5）× 引擎的词分数；简拼的各种读法共用一次调用。组出的整句按这个顺序排，第一个整句加星标，不再交给选词头重排（`laya.continuation_rerank` 默认关）。端到端（首选）：全拼 4–16 字 46.6% → 60.2%，末音节不完整 16.3% → 30.7%，混打简拼 8.4% → 15.8%，单词 77.6% → 78.2%。
+  长句（关掉 `laya.continuation` 或模型没有组句头时；4 个音节以上、没有词典词覆盖全部输入）：引擎组句时每段音节多留同音词（最多 8 个，不再限于最常见词的十分之一以内），
   给模型最多 8 个整句；模型是按“猜下一个词”训练的，单独挑整句不如引擎自己的顺序，所以得分 = log P(模型) +
   `laya.sentence_score_weight`（默认 1）× 引擎整句分数（各词 ln 频率之和，`Candidate::composed_score`）。
   第一页只显示排序后的前 5 个整句，其余排到后面，只对应部分拼音的词（如 这个输入法）仍留在第一页。

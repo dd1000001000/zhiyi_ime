@@ -20,7 +20,7 @@ C:\Program Files\ZhiyiIME\             安装基目录（首次安装时选择�
 │   ├── vcruntime140*.dll / msvcp140*.dll                    VC++ 运行时（随程序放置）
 │   ├── collect_diagnostics.ps1
 │   ├── uninstall.exe
-│   ├── laya\                       Laya 模型（laya.int8g.onnx、tokenizer、配置）
+│   ├── laya\                       Laya 模型（laya.int8g.onnx、tokenizer、配置、unified_vocab.json）
 │   └── data\
 │       ├── default.json            默认配置
 │       ├── themes.json             颜色主题（12 套）

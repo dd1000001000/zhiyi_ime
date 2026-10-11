@@ -3,7 +3,7 @@
   python scripts/fetch_model.py            # download the release asset and verify it
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ for a release upload
 
-The model (laya.int8g.onnx, ~85 MB) is too large for git; it is published as a GitHub release
+The model (laya.int8g.onnx, ~92 MB) is too large for git; it is published as a GitHub release
 asset. The training code and data are not published.
 """
 import argparse
@@ -16,17 +16,18 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEST = os.path.join(ROOT, "models", "laya")
-FILES = ["laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json"]
-ASSET = "laya-zhen-small-distill-int8g.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-small-distill/{ASSET}"
-# SHA-256 of laya.int8g.onnx: mmBERT-small (22 layers, width 384) with the Laya decision head,
-# distilled from the previous model (the multilingual Laya checkpoint fine-tuned with a joint
-# Chinese + English LoRA r64) on 1.1M samples: the earlier engine-candidate sets plus samples drawn
-# from LCCC and C4 Chinese, each with the IME engine's real candidates. Guess prompt (context and
-# candidates only; rl_agent_config.json says "zhiyi_prompt": "guess"), candidates shuffled during
-# training (no position preference), int8 with quantized embeddings, the embedding table pruned to
-# the 82,006 tokens Chinese and English use (85 MB; a remap Gather keeps the tokenizer unchanged)
-ONNX_SHA256 = "9c7487ee983db329d866470ecd035c406d67c2548d61ec9fc7fcbe51882be167"
+FILES = ["laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json", "unified_vocab.json"]
+ASSET = "laya-zhen-unified-s-int8g.zip"
+URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-unified-s/{ASSET}"
+# SHA-256 of laya.int8g.onnx: the unified model. The 1.2 model (mmBERT-small, 22 layers, width
+# 384, distilled from the joint Chinese + English LoRA r64 model on 1.1M samples with the IME
+# engine's real candidates) with a second head: besides choosing among the candidates it reads the
+# typed pinyin as slots (unit_ids, slot_pos) and scores every character at every syllable, which
+# the composer uses for long input. Both heads trained together on the same choice samples plus
+# 945K long-pinyin rows, distilled from a larger unified teacher. int8 with quantized embeddings
+# and the same pruned vocabulary as the 1.2 model (92 MB); unified_vocab.json lists the units and
+# characters of the second head. Guess prompt with slots ("zhiyi_prompt": "guess+slots").
+ONNX_SHA256 = "b48ebce5932cd9bffebe4cbf179af06c3c5eb5aa46bb9a07680ba52c3a7ba6eb"
 
 
 def sha256(path):

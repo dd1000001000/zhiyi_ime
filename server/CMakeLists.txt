@@ -41,11 +41,16 @@ if(LAYA_ORT_RUNTIME_FILES)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LAYA_ORT_RUNTIME_FILES} $<TARGET_FILE_DIR:cxxime-server>
     )
 endif()
-set(LAYA_MODEL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/models/laya CACHE PATH "Laya model directory (laya.int8g.onnx, tokenizer.json, rl_agent_config.json)")
+set(LAYA_MODEL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/models/laya CACHE PATH "Laya model directory (laya.int8g.onnx, tokenizer.json, rl_agent_config.json, unified_vocab.json)")
 if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/laya.int8g.onnx)
     # Copied by a file-level rule (not POST_BUILD), so replacing the model updates the copy
     # without relinking the server.
     set(LAYA_MODEL_FILES laya.int8g.onnx tokenizer.json rl_agent_config.json)
+    # The unified model (choice + long-pinyin continuation) reads its units and characters
+    # from unified_vocab.json; without it the server keeps to the word choice.
+    if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/unified_vocab.json)
+        list(APPEND LAYA_MODEL_FILES unified_vocab.json)
+    endif()
     set(LAYA_MODEL_OUTPUTS)
     foreach(file ${LAYA_MODEL_FILES})
         set(out ${CMAKE_CURRENT_BINARY_DIR}/laya/${file})

@@ -179,6 +179,11 @@
 | `laya.max_candidates` | 0 | 模型查看的前几个候选（其中覆盖全部输入的参与比较）；0 = 每页候选数的 2 倍 |
 | `laya.rank_prior_weight` / `laya.english_rank_prior_weight` | 0 / 0.2 | 引擎排位先验的权重（模型分数加上 权重 × log P(正确词排第 r 位)）；0 = 只看模型 |
 | `laya.sentence_score_weight` / `laya.sentence_min_chars` | 1.0 / 4 | 长句：没有词典词覆盖全部输入、引擎组出的整句至少这么多字时，模型分数加上 权重 × 引擎整句分数（ln）；0 = 只看模型 |
+| `laya.continuation` | true | 长拼音由统一模型参与组句（模型没有组句头时不起作用）；关掉时按上一行的方式排长句 |
+| `laya.continuation_weight` | 0.5 | 组句时每个词的分数 = ln P(模型) + 权重 × 引擎的词分数 |
+| `laya.continuation_min_syllables` | 4 | 从几个音节起由模型参与组句 |
+| `laya.continuation_paths` | 4 | 每次按键最多给模型几种拼音切分（每种一次模型调用） |
+| `laya.continuation_rerank` | false | 组出的整句再交给选词头重排；关时按组句顺序，第一个整句加星标 |
 | `privacy.experience_program` / `collect_input` | false / false | 用户体验改进计划两档 |
 | `update.notify` | true | 打开设置时检查更新 |
 | `startup.autostart` | true | 登录时启动后台服务；false = 第一次切换到知意输入法时再启动 |

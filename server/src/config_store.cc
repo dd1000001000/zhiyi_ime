@@ -10,6 +10,8 @@
 
 #include <json.hpp>
 
+#include <cxxime/problem_log.h>
+
 namespace {
 
 void set_failure(ConfigStoreFailure* failure, ConfigStoreFailure value) {
@@ -199,13 +201,15 @@ bool ConfigStore::prepare_update(const std::vector<ConfigMutation>& mutations,
                 user_config.merge_patch(payload);
             }
             if (!user_config.is_object()) {
+                cxxime::log_problem("config", "the new settings are not a JSON object");
                 if (error_code) {
                     *error_code = ERROR_INVALID_DATA;
                 }
                 return false;
             }
         }
-    } catch (const nlohmann::json::exception&) {
+    } catch (const nlohmann::json::exception& e) {
+        cxxime::log_problem("config", std::string("the new settings are not valid JSON: ") + e.what());
         if (error_code) {
             *error_code = ERROR_INVALID_DATA;
         }
@@ -214,7 +218,14 @@ bool ConfigStore::prepare_update(const std::vector<ConfigMutation>& mutations,
 
     std::string serialized = user_config.dump(4);
     PreparedConfigUpdate prepared;
-    if (!build_effective_config(serialized, &prepared.config, error_code)) {
+    ConfigStoreFailure failure = ConfigStoreFailure::kNone;
+    if (!build_effective_config(serialized, &prepared.config, error_code, &failure)) {
+        cxxime::log_problem("config",
+                            failure == ConfigStoreFailure::kBaseConfig
+                                ? "cannot read the package settings " + base_config_path_
+                            : failure == ConfigStoreFailure::kThemes
+                                ? "cannot read the themes " + themes_path_
+                                : std::string("the new settings were not accepted"));
         return false;
     }
 
@@ -237,12 +248,19 @@ bool ConfigStore::commit_update(const PreparedConfigUpdate& update, unsigned lon
     if (update.user_config_json != user_config_json_) {
         std::wstring user_path = utf8_to_wide(user_config_path_);
         if (user_path.empty()) {
+            cxxime::log_problem("config", "the settings file path is not valid UTF-8");
             if (error_code) {
                 *error_code = ERROR_NO_UNICODE_TRANSLATION;
             }
             return false;
         }
-        if (!atomic_write_file(user_path, update.user_config_json + "\n", error_code)) {
+        unsigned long write_error = ERROR_SUCCESS;
+        if (!atomic_write_file(user_path, update.user_config_json + "\n", &write_error)) {
+            cxxime::log_problem("config", "cannot write " + user_config_path_ + ": " +
+                                              cxxime::windows_error_text(write_error));
+            if (error_code) {
+                *error_code = write_error;
+            }
             return false;
         }
         user_config_json_ = update.user_config_json;

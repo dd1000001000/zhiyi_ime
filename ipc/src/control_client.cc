@@ -93,6 +93,8 @@ bool write_packet(HANDLE pipe, HANDLE stop_event, const std::vector<std::uint8_t
         } else {
             CancelIoEx(pipe, &overlapped);
             GetOverlappedResult(pipe, &overlapped, &transferred, TRUE);
+            // The cancelled I/O reports "aborted": say it was the wait that ran out.
+            if (wait == WAIT_TIMEOUT) SetLastError(ERROR_TIMEOUT);
         }
     }
 
@@ -129,6 +131,8 @@ bool read_packet(HANDLE pipe, HANDLE stop_event, std::vector<std::uint8_t>* pack
         } else {
             CancelIoEx(pipe, &overlapped);
             GetOverlappedResult(pipe, &overlapped, &transferred, TRUE);
+            // The cancelled I/O reports "aborted": say it was the wait that ran out.
+            if (wait == WAIT_TIMEOUT) SetLastError(ERROR_TIMEOUT);
         }
     }
 
@@ -456,7 +460,8 @@ bool send_control_request(ControlMessageType request_type, const std::string& re
 }
 
 bool replace_user_config(const std::string& config_json, ConfigGeneration* generation,
-                         unsigned long* error_code, int timeout_ms, const std::wstring& pipe_name) {
+                         unsigned long* error_code, int timeout_ms, const std::wstring& pipe_name,
+                         int response_timeout_ms) {
     if (config_json.empty()) {
         if (error_code) {
             *error_code = ERROR_INVALID_DATA;
@@ -467,7 +472,8 @@ bool replace_user_config(const std::string& config_json, ConfigGeneration* gener
     ControlMessage message;
     bool transaction_ok = send_control_request(
         ControlMessageType::kReplaceUserConfig, config_json,
-        ControlMessageType::kMutationResult, &message, error_code, timeout_ms, pipe_name);
+        ControlMessageType::kMutationResult, &message, error_code, timeout_ms, pipe_name,
+        response_timeout_ms);
     ControlMutationResult result = {};
     bool ok = transaction_ok && decode_control_mutation_result(message.payload, &result);
     if (transaction_ok && !ok && error_code) {

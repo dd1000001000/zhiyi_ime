@@ -121,6 +121,16 @@ std::string edit_text_utf8(HWND edit);
 std::wstring path_for_display(const std::string& path);
 bool copy_text_to_clipboard(HWND owner, const wchar_t* text);
 
+// The hourglass while a call to the server runs on the window thread.
+class WaitCursor {
+public:
+    WaitCursor() : previous_(SetCursor(LoadCursorW(nullptr, IDC_WAIT))) {}
+    ~WaitCursor() { SetCursor(previous_); }
+
+private:
+    HCURSOR previous_;
+};
+
 void set_edit_int(HWND edit, int value);
 int get_edit_int(HWND edit);
 bool get_check(HWND control);

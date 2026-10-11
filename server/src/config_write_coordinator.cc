@@ -15,6 +15,7 @@
 #include <windows.h>
 
 #include <cxxime/logging.h>
+#include <cxxime/problem_log.h>
 
 #include "config_store.h"
 
@@ -250,6 +251,10 @@ private:
                 error_code = ERROR_SUCCESS;
             }
 
+            if (!succeeded) {
+                cxxime::log_problem("config", "saving the settings failed: " +
+                                                  cxxime::windows_error_text(error_code));
+            }
             CXXIME_LOG(L"config_write event=batch kind=%u requests=%zu result=%u error=%lu",
                        static_cast<unsigned int>(requests.front()->kind), requests.size(),
                        succeeded ? 1U : 0U, error_code);

@@ -251,5 +251,9 @@
 
     "error.load": "Could not load the configuration: ",
     "error.save": "The IME service could not save and apply the configuration.",
+    "error.save_timeout": "The IME service is busy and did not answer in time. The settings may have been saved; reopen Settings in a moment to check.",
+    "error.save_rejected": "The IME service did not take these settings. Save again; if it keeps failing, installation files may be missing or damaged, and reinstalling Zhiyi IME repairs them.",
+    "error.save_file": "The IME service could not write the settings file:\n{0}\nCheck that the file is not read-only, not open in another program and not blocked by security software.",
+    "error.save_details": "The reason is in the log problems.log (Collect Diagnostics includes it):",
     "error.hotkey_taken": "The global shortcut is used by another program. The configuration was not saved."
 }

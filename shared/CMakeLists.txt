@@ -21,6 +21,7 @@ add_library(cxxime-shared STATIC
     src/diagnostics_config.cc
     src/mpscq.cc
     src/ordinary_candidate.cc
+    src/problem_log.cc
     src/query_trace_log.cc
     src/server_launcher.cc
     src/settings_launcher.cc

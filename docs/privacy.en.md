@@ -120,6 +120,15 @@ learning records, so it holds words you typed; it is written only to the folder 
 never uploaded. The two privacy choices are not in it: importing a backup from another computer
 does not change this computer's choices.
 
+## Problem log (not part of this program)
+
+A failure such as settings that could not be saved adds one line to `problems.log` in the `logs`
+folder: the time, which program, the step that failed and Windows' description of the error (for
+example the path of a settings file that could not be written). No typed text is recorded. It stays
+on this computer; past 256 KB the older lines move to `problems.log.1`, and a file not written for
+7 days is removed. The diagnostics package from "Collect Diagnostics" in the Start menu includes it
+for problem reports; the package is never uploaded by itself.
+
 ## Developer diagnostics (not part of this program)
 
 `diagnostics.trace_mode` (default `off`) is a detailed developer trace that records typed codes,

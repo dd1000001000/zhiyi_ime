@@ -30,6 +30,7 @@
 #include <cxxime/manual_candidate_order.h>
 #include <cxxime/pinyin_resource.h>
 #include <cxxime/pinyin_scheme.h>
+#include <cxxime/problem_log.h>
 #include <cxxime/query_trace.h>
 #include <cxxime/translator.h>
 #include <cxxime/user_data_merge.h>
@@ -862,6 +863,7 @@ bool SharedResources::prepare_config(const std::shared_ptr<const cxxime::Config>
         current_manifest_path = manifest_path;
     }
     if (!current_runtime) {
+        cxxime::log_problem("config", "no dictionaries are loaded");
         return false;
     }
 
@@ -876,9 +878,12 @@ bool SharedResources::prepare_config(const std::shared_ptr<const cxxime::Config>
                                                         &error)) {
             CXXIME_LOG(L"SharedResources: scheme switch manifest validation FAILED: %S",
                        error.c_str());
+            cxxime::log_problem("config", std::string("dictionary files for ") + scheme.id +
+                                              " are missing or damaged: " + error);
             return false;
         }
         if (!load_spelling_resources(manifest, scheme, next_pinyin_resources)) {
+            cxxime::log_problem("config", std::string("cannot load the spellings of ") + scheme.id);
             return false;
         }
     }
@@ -900,11 +905,13 @@ bool SharedResources::prepare_config(const std::shared_ptr<const cxxime::Config>
         std::move(next_pinyin_resources), current_runtime->symbol_table_ptr(),
         std::move(next_shuangpin_resources));
     if (!next_runtime) {
+        cxxime::log_problem("config", "the input engine cannot be set up with these settings");
         return false;
     }
 
     std::lock_guard<std::mutex> lock(mutex);
     if (generation != base_generation || runtime != current_runtime) {
+        cxxime::log_problem("config", "the dictionaries were reloaded meanwhile (saving again works)");
         return false;
     }
     pending_runtime = PendingRuntime{std::move(next_runtime), next_config, base_generation};
@@ -1318,6 +1325,7 @@ bool SessionManager::apply_config(const std::shared_ptr<const cxxime::Config>& c
     if (!shared_.commit_prepared_config(config) &&
         (!shared_.prepare_config(config) || !shared_.commit_prepared_config(config))) {
         CXXIME_LOG(L"%s", L"SessionManager: config apply rejected because scheme load failed");
+        cxxime::log_problem("config", "the prepared settings could not be applied");
         return false;
     }
     cxxime::set_diagnostics_config(config->diagnostics);

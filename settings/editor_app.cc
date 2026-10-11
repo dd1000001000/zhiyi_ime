@@ -10,6 +10,7 @@
 #include <cxxime/control_client.h>
 #include <cxxime/server_launcher.h>
 #include <cxxime/data_path.h>
+#include <cxxime/problem_log.h>
 
 #include "cxxime_resource_ids.h"
 #include "editor_app_internal.h"
@@ -54,6 +55,45 @@ int settings_panel_index(cxxime::SettingsPanel panel) {
         return 7;
     default:
         return 0;
+    }
+}
+
+// The server rebuilds the engine and registers the shortcuts before it answers a save: slow when
+// it is busy (a dictionary reload, a lexicon import), so the save waits longer than a request.
+constexpr int kSaveTimeoutMs = 10000;
+
+// Why a save failed, in the user's words (the code alone says little).
+std::wstring save_error_message(unsigned long error_code) {
+    switch (error_code) {
+    case ERROR_HOTKEY_ALREADY_REGISTERED:
+        return tr("error.hotkey_taken");
+    case ERROR_TIMEOUT:
+    case ERROR_SEM_TIMEOUT:
+    case ERROR_PIPE_BUSY:
+        return tr("error.save_timeout");
+    case ERROR_INVALID_DATA:
+    case ERROR_INVALID_PARAMETER:
+    case ERROR_BUFFER_OVERFLOW:
+        return tr("error.save_rejected");
+    case ERROR_ACCESS_DENIED:
+    case ERROR_SHARING_VIOLATION:
+    case ERROR_LOCK_VIOLATION:
+    case ERROR_WRITE_PROTECT:
+    case ERROR_DISK_FULL:
+    case ERROR_HANDLE_DISK_FULL:
+    case ERROR_PATH_NOT_FOUND:
+    case ERROR_USER_MAPPED_FILE:
+    case ERROR_VIRUS_INFECTED:
+    case ERROR_VIRUS_DELETED:
+    case ERROR_FILE_READ_ONLY: {
+        std::wstring message = tr("error.save_file");
+        const std::wstring path = path_for_display(cxxime::user_data_path("default.json"));
+        const size_t mark = message.find(L"{0}");
+        if (mark != std::wstring::npos) message.replace(mark, 3, path);
+        return message;
+    }
+    default:
+        return tr("error.save");
     }
 }
 
@@ -357,11 +397,22 @@ bool EditorApp::save_config() {
         return false;
     }
     unsigned long error_code = ERROR_SUCCESS;
-    if (!replace_user_config(config_.to_user_json(), nullptr, &error_code)) {
-        MessageBoxW(hwnd_,
-                    error_code == ERROR_HOTKEY_ALREADY_REGISTERED ? tr("error.hotkey_taken")
-                                                                  : tr("error.save"),
-                    tr("window.title"), MB_OK | MB_ICONERROR);
+    bool saved = false;
+    {
+        WaitCursor wait;
+        saved = replace_user_config(config_.to_user_json(), nullptr, &error_code, 1500, L"",
+                                    kSaveTimeoutMs);
+    }
+    if (!saved) {
+        log_problem("settings", "saving the settings failed: " + windows_error_text(error_code));
+        std::wstring message = save_error_message(error_code);
+        if (error_code != ERROR_HOTKEY_ALREADY_REGISTERED) {
+            message += L"\n\n";
+            message += tr("error.save_details");
+            message += L"\n";
+            message += utf8_to_wstr(windows_error_text(error_code));
+        }
+        MessageBoxW(hwnd_, message.c_str(), tr("window.title"), MB_OK | MB_ICONERROR);
         return false;
     }
     loaded_config_ = config_;

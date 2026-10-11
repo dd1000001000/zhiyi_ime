@@ -93,6 +93,7 @@ ONNX Runtime、VC++ 运行时与运行时词典。
 - 安装目录、出厂数据目录、用户目录、日志目录
 - 关键程序文件和数据文件的大小、时间戳、SHA256
 - 日志文件清单和 trace-summary.txt 近期错误/慢路径摘要
+- `logs\problems.log`（设置没能保存等失败的原因，不含输入内容，见[隐私说明](privacy.md)）
 - 知意输入法注册表卸载项、TIP 注册项、键盘预加载状态
 - `zhiyi-server.exe`、`zhiyi-settings.exe` 的运行状态，以及 `zhiyi_tsf_x64.dll` / `zhiyi_tsf_x86.dll` 与系统 `zhiyi.ime` 模块的文件信息
 

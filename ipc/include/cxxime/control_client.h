@@ -32,9 +32,11 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
+// The server applies the configuration before it answers: `response_timeout_ms` (0: timeout_ms)
+// gives it longer than the connection. A wait that runs out reports ERROR_TIMEOUT.
 bool replace_user_config(const std::string& config_json, ConfigGeneration* generation = nullptr,
                          unsigned long* error_code = nullptr, int timeout_ms = 1500,
-                         const std::wstring& pipe_name = L"");
+                         const std::wstring& pipe_name = L"", int response_timeout_ms = 0);
 
 bool send_control_request(ControlMessageType request_type, const std::string& request_payload,
                           ControlMessageType response_type, ControlMessage* response,

@@ -422,6 +422,7 @@ Included by default:
 - trace-summary.txt with log file metadata and recent error/slow-event counters.
 - registry query output for uninstall, CLSID, TIP, legacy HKL and keyboard preload state.
 - tasklist output for ZhiyiIME processes, TSF DLLs and zhiyi.ime module ownership.
+- logs\problems.log: why things failed (settings not saved, ...). It holds no typed text.
 
 Optional:
 - Use -IncludeLogs to copy %USERPROFILE%\zhiyi\logs. Trace logs may contain raw input codes.
@@ -433,6 +434,14 @@ Optional:
   These files reflect words hidden by the user.
 "@
 $readme | Out-File -Encoding UTF8 -FilePath (Join-Path $root "README.txt")
+
+# problems.log holds no typed text (docs\privacy.md): always included.
+$problemLogs = @(Get-ChildItem -LiteralPath $logsDir -File -Filter "problems.log*" -ErrorAction SilentlyContinue)
+if ($problemLogs.Count -gt 0) {
+    $dst = Join-Path $root "logs"
+    New-Item -ItemType Directory -Force -Path $dst | Out-Null
+    $problemLogs | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $dst -Force }
+}
 
 if ($IncludeLogs -and (Test-Path -LiteralPath $logsDir -PathType Container)) {
     $dst = Join-Path $root "logs"

@@ -151,7 +151,8 @@ bool is_diagnostic_log_filename(const std::wstring& filename) {
     std::transform(lower.begin(), lower.end(), lower.begin(),
                    [](wchar_t ch) { return static_cast<wchar_t>(std::towlower(ch)); });
 
-    if (has_numeric_rotation(lower, L"server-trace.jsonl")) {
+    if (has_numeric_rotation(lower, L"server-trace.jsonl") ||
+        has_numeric_rotation(lower, L"problems.log")) {
         return true;
     }
     constexpr wchar_t kTsfPrefix[] = L"tsf-";

@@ -172,15 +172,6 @@ std::wstring replace_all(std::wstring text, const wchar_t* key, const std::wstri
     return text;
 }
 
-class WaitCursor {
-public:
-    WaitCursor() : previous_(SetCursor(LoadCursorW(nullptr, IDC_WAIT))) {}
-    ~WaitCursor() { SetCursor(previous_); }
-
-private:
-    HCURSOR previous_;
-};
-
 } // namespace
 
 bool EditorApp::ensure_server_running() {

@@ -1275,7 +1275,7 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     request.page_offset = page_offset;
     request.page_size = candidate_limit > 0 ? candidate_limit : runtime_->config().page_size;
     // Laya looks at laya_candidate_count() candidates (2 * page_size by default): the first
-    // pinyin page fetches that many and keeps page_size after reranking. (Later pages re-query from the start with a longer limit,
+    // pinyin or Wubi page fetches that many and keeps page_size after reranking. (Later pages re-query from the start with a longer limit,
     // rerank the same way and skip the candidates already shown.)
     const int page_size = runtime_->config().page_size;
     // The first page of pinyin and of Wubi candidates goes through the model (Wubi: the
@@ -1283,10 +1283,10 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     const bool laya_page = (request.scheme == CompositionScheme::kPinyin ||
                             request.scheme == CompositionScheme::kWubi) &&
                            page_index == 0 && page_offset == 0;
-    // Pinyin fetches 2 * page_size candidates for the model to compare; Wubi keeps its page
-    // (a longer fetch changes what a code shows: auto-commit of a unique four-key code).
-    const bool laya_first_page = laya_page && request.scheme == CompositionScheme::kPinyin &&
-                                 candidate_limit <= 0 && runtime_->config().laya.enable;
+    // Both fetch 2 * page_size candidates for the model to compare, as the next page's query
+    // (translate_after_visible_anchor) does. Wubi's auto-commit is unchanged: a unique
+    // four-key code is one candidate however many are fetched.
+    const bool laya_first_page = laya_page && candidate_limit <= 0 && runtime_->config().laya.enable;
     if (laya_first_page) {
         request.page_size = (std::max)(page_size, runtime_->config().laya_candidate_count());
     }

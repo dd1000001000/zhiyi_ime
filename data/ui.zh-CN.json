@@ -248,6 +248,8 @@
     "learning.translator_installed": "翻译模型 · v{0}",
     "learning.translator_testing": "正在试翻译…",
     "learning.translator_hint": "可在显卡或 CPU 上运行（CPU 上一页约 0.3 秒，显卡更快），约占 1 GB 显存或内存；在本机翻译，不联网。先显示候选，翻译随后补上；1 分钟不用自动卸载",
+    "learning.translator_speed": "这块显卡翻译一页约 {0} ms，CPU 约 {1} ms",
+    "learning.translator_slower": "这块显卡翻译一页约 {0} ms，比 CPU（约 {1} ms）慢，建议改用 CPU",
     "learning.translator_needs_app": "这个翻译模型需要知意输入法 {0} 或更新的版本，请先更新输入法",
     "learning.translator_remove_confirm": "删除已下载的翻译模型吗？以后可以重新下载。",
     "learning.translator_remove_later": "部分文件正在使用，下次打开设置时会删除",

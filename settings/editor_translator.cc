@@ -2,14 +2,17 @@
 //
 // "Offline translation" on the Learning page (docs/learning-mode.md): download, update and
 // remove the translation model (update.h: the release tagged "translator"; translator_files.h:
-// where it goes), turn it on, and choose where it runs: a graphics card with more than 2 GB of
-// its own memory (gpu_adapters.h), or the CPU, offered last. Turning it on or choosing another
-// one first translates a word there, and a choice the model cannot run on is not kept.
+// where it goes), turn it on, and choose where it runs: a discrete graphics card Vulkan offers
+// with about 1 GB of its own memory (list_translator_gpus, gpu_adapters.h), or the CPU, offered
+// last. Turning it on or choosing another one first translates a word there, and a choice the
+// model cannot run on is not kept; on a card, a few pages are then timed there and on the CPU.
 
 #include "editor_app.h"
 
 #include <tlhelp32.h>
 
+#include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -46,6 +49,44 @@ struct MtInstalled {
     update::Status status = update::Status::kNetwork;
     std::wstring error;  // shown when not empty
 };
+
+struct MtTested {
+    bool works = false;
+    int device_ms = 0;  // median page on the chosen card; 0: not timed (the CPU was chosen)
+    int cpu_ms = 0;     // the same pages on the CPU; 0: not timed or it failed
+};
+
+// Three pages of seven common words, each page different so no answer comes from a cache.
+const std::vector<std::vector<mt::Item>>& timing_pages() {
+    static const std::vector<std::vector<mt::Item>> pages = [] {
+        const char* words[3][7] = {
+            {"现在", "朋友", "天气", "学习", "发展", "电脑", "工作"},
+            {"晚饭", "城市", "音乐", "医生", "周末", "问题", "照片"},
+            {"火车", "公司", "新闻", "时间", "颜色", "超市", "作业"},
+        };
+        std::vector<std::vector<mt::Item>> out(3);
+        for (int p = 0; p < 3; ++p) {
+            for (const char* word : words[p]) out[p].push_back({"en", word});
+        }
+        return out;
+    }();
+    return pages;
+}
+
+// The median time of a page on a started server, in ms; 0 when a page fails.
+int time_pages(mt::LlamaServer& server) {
+    std::vector<int> times;
+    for (const auto& page : timing_pages()) {
+        const auto start = std::chrono::steady_clock::now();
+        const auto out = server.translate(page, {});
+        if (out.empty() || out[0].empty()) return 0;
+        times.push_back(static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                             std::chrono::steady_clock::now() - start)
+                                             .count()));
+    }
+    std::sort(times.begin(), times.end());
+    return (std::max)(1, times[times.size() / 2]);
+}
 
 fs::path translator_root() { return fs::path(utf8_to_wstr(local_data_dir())) / kTranslatorDir; }
 
@@ -236,17 +277,7 @@ void EditorApp::create_translator_card(HWND panel, int y) {
     const int labels = label_width({"learning.translator_device"});
     const int device_x = make_aligned_label(tr("learning.translator_device"), x0 + S(20), labels, y, panel);
     hTranslatorDevice_ = make_combo(kTranslatorDeviceId, device_x, y, S(420), panel);
-    mt_choices_ = list_gpu_adapters();
-    const size_t cards = mt_choices_.size();
-    GpuAdapter cpu;
-    cpu.name = cpu_info().name;
-    cpu.key = mt::kCpuDevice;
-    mt_choices_.push_back(cpu);
-    for (size_t i = 0; i < mt_choices_.size(); ++i) {
-        std::wstring label = i == cards ? L"CPU" : cards > 1 ? L"GPU " + std::to_wstring(i + 1) : L"GPU";
-        if (!mt_choices_[i].name.empty()) label += L"（" + utf8_to_wstr(mt_choices_[i].name) + L"）";
-        combo_add(hTranslatorDevice_, label.c_str());
-    }
+    fill_translator_devices();
     y += kRowH;
     hTranslatorStatus_ = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_LEFT | SS_ENDELLIPSIS,
                                          x0, y + S(5), client.right - x0 - S(240), S(kFontPt + 8), panel,
@@ -260,6 +291,23 @@ void EditorApp::create_translator_card(HWND panel, int y) {
     y += S(40);
     card_end(panel, y);
     show_translator_state();
+}
+
+// The cards are asked from Vulkan (about 0.15 s) only once the model is here: before, the box
+// is disabled and lists the CPU alone.
+void EditorApp::fill_translator_devices() {
+    mt_choices_ = mt::find_installed(nullptr) ? list_translator_gpus() : std::vector<GpuAdapter>{};
+    const size_t cards = mt_choices_.size();
+    GpuAdapter cpu;
+    cpu.name = cpu_info().name;
+    cpu.key = mt::kCpuDevice;
+    mt_choices_.push_back(cpu);
+    SendMessageW(hTranslatorDevice_, CB_RESETCONTENT, 0, 0);
+    for (size_t i = 0; i < mt_choices_.size(); ++i) {
+        std::wstring label = i == cards ? L"CPU" : cards > 1 ? L"GPU " + std::to_wstring(i + 1) : L"GPU";
+        if (!mt_choices_[i].name.empty()) label += L"（" + utf8_to_wstr(mt_choices_[i].name) + L"）";
+        combo_add(hTranslatorDevice_, label.c_str());
+    }
 }
 
 void EditorApp::populate_translator() {
@@ -387,18 +435,28 @@ void EditorApp::start_translator_test() {
     if (index < 0 || index >= static_cast<int>(mt_choices_.size()) || !mt::find_installed(&installed)) return;
     mt_busy_ = MtBusy::kTesting;
     show_translator_state();
+    if (hTranslatorHint_) SetWindowTextW(hTranslatorHint_, tr("learning.translator_hint"));
     const HWND window = hwnd_;
     const std::string key = mt_choices_[static_cast<size_t>(index)].key;
     std::thread([window, installed, key] {
-        mt::LlamaServer server;
-        std::string error;
-        bool works = server.start(installed, key, &error);
-        if (works) {
-            const auto out = server.translate({{"en", "\xE4\xBD\xA0\xE5\xA5\xBD"}}, {});  // 你好
-            works = !out.empty() && !out[0].empty();
+        auto tested = std::make_unique<MtTested>();
+        {
+            mt::LlamaServer server;
+            std::string error;
+            tested->works = server.start(installed, key, &error);
+            if (tested->works) {
+                const auto out = server.translate({{"en", "\xE4\xBD\xA0\xE5\xA5\xBD"}}, {});  // 你好
+                tested->works = !out.empty() && !out[0].empty();
+            }
+            // An old card may run the model slower than the processor: time both.
+            if (tested->works && key != mt::kCpuDevice) tested->device_ms = time_pages(server);
         }
-        server.stop();
-        PostMessageW(window, kMtTestedMessage, works ? 1 : 0, 0);
+        if (tested->device_ms > 0) {
+            mt::LlamaServer cpu;
+            std::string error;
+            if (cpu.start(installed, mt::kCpuDevice, &error)) tested->cpu_ms = time_pages(cpu);
+        }
+        PostMessageW(window, kMtTestedMessage, 0, reinterpret_cast<LPARAM>(tested.release()));
     }).detach();
 }
 
@@ -463,6 +521,8 @@ bool EditorApp::handle_translator_message(UINT message, WPARAM wparam, LPARAM lp
         if (done->status == update::Status::kOk) {
             mt_note_.clear();
             show_translator_state();
+            fill_translator_devices();  // the cards, now that the model is here
+            populate_translator();
             set_check(hTranslator_, true);  // downloaded to be used: on, after a test where it runs
             start_translator_test();
         } else {
@@ -475,17 +535,26 @@ bool EditorApp::handle_translator_message(UINT message, WPARAM wparam, LPARAM lp
         }
         return true;
     }
-    case kMtTestedMessage:
+    case kMtTestedMessage: {
+        std::unique_ptr<MtTested> tested(reinterpret_cast<MtTested*>(lparam));
         mt_busy_ = MtBusy::kNone;
-        if (wparam == 0) {
+        if (!tested->works) {
             set_check(hTranslator_, false);
             show_translator_state();
             MessageBoxW(hwnd_, tr("learning.translator_card_failed"), tr("window.title"),
                         MB_OK | MB_ICONINFORMATION);
-        } else {
-            show_translator_state();
+            return true;
+        }
+        show_translator_state();
+        if (hTranslatorHint_ && tested->device_ms > 0 && tested->cpu_ms > 0) {
+            const bool slower = tested->device_ms > tested->cpu_ms;
+            SetWindowTextW(hTranslatorHint_,
+                           fill(tr(slower ? "learning.translator_slower" : "learning.translator_speed"),
+                                {std::to_wstring(tested->device_ms), std::to_wstring(tested->cpu_ms)})
+                               .c_str());
         }
         return true;
+    }
     default:
         return false;
     }

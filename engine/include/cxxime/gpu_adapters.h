@@ -31,6 +31,14 @@ struct GpuAdapter {
 
 std::vector<GpuAdapter> list_gpu_adapters();
 
+// The offline translator's cards (learning.translator_device): llama-server runs on Vulkan, so
+// these are the discrete GPUs Vulkan offers with at least kMinTranslatorGpuMemory of their own
+// memory, under Vulkan's names (the ones llama-server --list-devices prints; GpuAdapter::index
+// is the Vulkan device index). The DirectML rules above (Direct3D 12, 2 GB) do not apply.
+// Empty when Vulkan is not installed.
+constexpr std::uint64_t kMinTranslatorGpuMemory = 1000ull << 20;  // the model takes about 1 GB
+std::vector<GpuAdapter> list_translator_gpus();
+
 // The adapter whose key is `key`, or nullptr.
 const GpuAdapter* find_gpu_adapter(const std::vector<GpuAdapter>& adapters, const std::string& key);
 

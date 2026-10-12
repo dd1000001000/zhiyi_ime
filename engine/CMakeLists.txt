@@ -62,7 +62,7 @@ target_link_libraries(cxxime-engine PUBLIC
 # The x86 build only produces the in-process modules for 32-bit applications (the server is
 # 64-bit), so it gets a no-op LayaRerank and no ONNX Runtime.
 target_sources(cxxime-engine PRIVATE src/english_lexicon.cc src/english_candidates.cc src/english_learning.cc
-    src/experience_log.cc src/gpu_adapters.cc)
+    src/experience_log.cc src/gpu_adapters.cc src/vulkan_gpus.cc)
 target_include_directories(cxxime-engine PRIVATE ${CXXIME_GENERATED_INCLUDE_DIR})
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(LAYA_ORT_DIR ${CMAKE_SOURCE_DIR}/third_party/onnxruntime CACHE PATH "ONNX Runtime (onnxruntime-win-x64) root")

@@ -188,7 +188,7 @@ value  1–3 个义项：{词性 u8, 译文 UTF-8 \0}，以词性 0xFF 结尾
   （`shared/include/cxxime/translator_files.h`）。清单的 `prompt` 说明这个模型怎么问（第 2 版是 `zhiyi-mt-1`：
   训练时的英文短提示词，原样经 `/completion` 发送；没有这一项的第 1 版用 Hy-MT2 自己的中文模板），
   `min_app` 让旧版输入法不会装上它用不了的模型。
-- **显卡或 CPU**：在“学习”页选在哪里运行：显存大于 2 GB 的独立显卡，或 CPU（列在最后，没有独立显卡时只有它）。
+- **显卡或 CPU**：在“学习”页选在哪里运行：Vulkan 能用、自带显存约 1 GB 以上的独立显卡，或 CPU（列在最后，没有独立显卡时只有它）。显卡列表直接问 Vulkan（`list_translator_gpus`，`engine/src/vulkan_gpus.cc`），名称和 llama-server 的 `--list-devices` 一致；推荐模型那套 Direct3D 12、2 GB 的条件不适用。选了显卡后先试翻一个词，能用再在这块显卡和 CPU 上各翻三页常用词，提示两边一页的耗时，显卡更慢时建议改用 CPU。
   RTX 5070 Ti 上一页约 0.1 秒、约占 1 GB 显存；Ryzen 5 9600X 的 CPU 上一页中位数约 0.3 秒（较慢的 10% 约 0.5 秒），
   用最多 4 个线程，约占 1 GB 内存。第 1 版模型也能在 CPU 上运行，但一页约 1 秒。
 - **提示词缓存关闭**：模型服务以 `--cache-ram 0` 启动。llama-server 默认在内存里缓存最多 8 GB 的提示词，

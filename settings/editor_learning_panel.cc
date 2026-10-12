@@ -149,9 +149,6 @@ void EditorApp::create_learning_panel(HWND panel) {
     y += kRowH;
     const int preview_width = S(250);
     const int preview_x = client.right - kPanelPadLeft - preview_width;
-    hDigitsTranslation_ = make_check(kDigitsTranslationId, tr("learning.digits_translation"), x0, y,
-                                     preview_x - x0 - S(16), panel);
-    y += kRowH;
     make_hint(tr("learning.hint"), x0, y, preview_x - x0 - S(16), panel);
     y += S(40);
     make_hint(tr("learning.keys_hint"), x0, y, preview_x - x0 - S(16), panel);
@@ -161,7 +158,12 @@ void EditorApp::create_learning_panel(HWND panel) {
                                      preview_x, top, preview_width, preview_height, panel,
                                      reinterpret_cast<HMENU>(static_cast<INT_PTR>(kGlossPreviewId)),
                                      GetModuleHandle(nullptr), nullptr);
-    y = card_end(panel, (std::max)(y, top + preview_height) - S(4));
+    y = (std::max)(y, top + preview_height) + S(8);
+    // Below the preview: the label needs the card's width.
+    hDigitsTranslation_ = make_check(kDigitsTranslationId, tr("learning.digits_translation"), x0, y,
+                                     client.right - x0 * 2, panel);
+    y += kRowH;
+    y = card_end(panel, y - S(4));
 
     // Language packs: two tabs (Chinese -> other, English -> other) over one list of 7 rows.
     const int card_top = y;

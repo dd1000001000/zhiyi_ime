@@ -216,7 +216,7 @@
     "learning.not_downloaded": "（未下载）",
     "learning.hint": "打开后候选窗口改为竖排。灰色的语言要先在下面下载语言包。",
     "learning.digits_translation": "数字键直接打出翻译（Ctrl+数字打出候选本身）",
-    "learning.keys_hint": "打字时按 Ctrl+1～9 打出那个候选的翻译（第一个意思）；勾选上面一项后对调。没有翻译的候选不打字。",
+    "learning.keys_hint": "打字时按 Ctrl+1～9（勾选下面一项后按 1～9）打出那个候选的翻译；没有翻译的不打字。",
     "learning.preview": "预览",
     "learning.card_packs": "语言包",
     "learning.tab_chinese": "中文 → 外语",

@@ -281,6 +281,10 @@ private:
     // Chinese/English, punctuation or full/half width switched directly (no input box
     // needed); false for the style key or when the server did not answer.
     bool _apply_switch_key(int slot);
+    // The style key taken by a system hotkey (Ctrl+Space by default): sent to the server as a
+    // whole press, so it does what the key does when it reaches the IME; false when the server
+    // did not answer.
+    bool _press_style_key();
     // Windows keeps a Chinese/English mode per input box (the IMM layer) and restores it when
     // the box gets focus. Like Microsoft Pinyin, the IME keeps one mode everywhere: such a
     // restore is written back over; a change by a program at another time is applied.

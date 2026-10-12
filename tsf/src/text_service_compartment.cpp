@@ -190,12 +190,13 @@ bool TextService::_claim_switch_key_press(int slot) {
 }
 
 // A system input method hotkey changed a compartment: when a configured switch key is held,
-// that key is run (once per press) and the compartment change itself is not applied.
+// that key is run (once per press) and the compartment change itself is not applied. The style
+// key too: its default, Ctrl+Space, is Windows' Chinese IME open/close hotkey.
 bool TextService::_run_held_switch_key() {
     const int slot = _held_switch_key();
-    if (slot < 0 || slot == 1) return false;  // the style key is no system hotkey
+    if (slot < 0) return false;
     const bool claimed = _claim_switch_key_press(slot);
-    const bool applied = claimed && _apply_switch_key(slot);
+    const bool applied = claimed && (slot == 1 ? _press_style_key() : _apply_switch_key(slot));
     if (claimed && !applied) {
         _switchKeyTicks[slot] = 0;  // not done: the key event may still do it
     }
@@ -244,6 +245,28 @@ bool TextService::_apply_switch_key(int slot) {
         _sync_ime_status(response.ime_status);
     }
     cxxime_tsf::trace_activation_step("switch_key", "applied", S_OK, false);
+    return true;
+}
+
+bool TextService::_press_style_key() {
+    const cxxime::KeyboardShortcut key = _config.english_style_shortcut;
+    if (!key.enabled() || !_ensure_ipc_session()) return false;
+    const uint32_t modifiers = (key.modifiers & cxxime::kShortcutModifierMask) |
+                               (_get_modifiers() & cxxime::kKeyModifierCapsLock);
+    cxxime::IPCResponse response = {};
+    if (!_client.process_key(_sessionId, key.virtual_key, modifiers, response) ||
+        response.status != cxxime::IPCStatus::OK) {
+        return false;
+    }
+    // The key-up too: the server waits for it before the key switches again, and Windows may
+    // keep the real one for its hotkey.
+    cxxime::IPCResponse released = {};
+    _client.process_key(_sessionId, key.virtual_key, modifiers, released, true);
+    ITfContext* context = _current_edit_context_for_composition();
+    BOOL eaten = FALSE;
+    _apply_engine_response(context, response, &eaten);
+    if (context) context->Release();
+    cxxime_tsf::trace_activation_step("switch_key", "style_pressed", S_OK, false);
     return true;
 }
 

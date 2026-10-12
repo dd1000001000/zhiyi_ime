@@ -33,6 +33,7 @@ enum class InlineAsciiResult {
     kNotHandled,
     kAccepted,
     kResumeOrigin,
+    kCommitted,  // Space: the text as typed and a space (Context::committed_text)
 };
 
 class AsciiComposer {

@@ -632,6 +632,11 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
 
     const InlineAsciiResult inline_result =
         ascii_composer_.process_inline_ascii_composition(event, context_, opts.chinese_mode);
+    if (inline_result == InlineAsciiResult::kCommitted) {
+        apply_commit_learning_plan();
+        record_total_us(trace_, total_start, trace_enabled_);
+        return ProcessResult::COMMITTED;
+    }
     if (inline_result != InlineAsciiResult::kNotHandled) {
         if (inline_result == InlineAsciiResult::kResumeOrigin && context_.is_composing()) {
             context_.update_translation(translate_current_composition(per_query_deadline));

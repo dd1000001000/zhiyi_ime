@@ -57,7 +57,7 @@ preedit 为空时视为空闲状态，并将默认状态恢复为 `kIme`。`Cont
 - `Left`、`Right`、`Home`、`End` 移动光标；
 - `Backspace`、`Delete` 删除字符；
 - 在光标位置插入可归一化的 ASCII 字符；
-- `Escape` 或 `Space` 取消组合；
+- `Escape` 取消组合，`Space` 原样提交 preedit 并跟一个空格；
 - `Enter` 原样提交完整 preedit。
 
 删除技术字符后满足恢复条件时，会退出 `kInlineAscii` 并立即重新查询候选：
@@ -72,7 +72,7 @@ preedit 为空时视为空闲状态，并将默认状态恢复为 `kIme`。`Cont
 | 按键或事件 | `kInlineAscii` 行为 |
 |------------|---------------------|
 | `Enter` | 原样提交 preedit，不改变持久中英文模式 |
-| `Space` | 取消组合，不提交空格或 preedit |
+| `Space` | 原样提交 preedit，再打出一个空格（`Hello` + 空格 → `Hello `） |
 | `Escape` | 取消组合 |
 | 外部提交 | 原样提交并保留大小写 |
 | 失去焦点或清除组合 | 清除 preedit，并结束临时英文状态 |

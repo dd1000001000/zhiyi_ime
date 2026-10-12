@@ -90,7 +90,9 @@ bool TextService::_apply_engine_response(ITfContext* context, const cxxime::IPCR
         const bool ui_element_only = (_activateFlags & TF_TMF_UIELEMENTENABLEDONLY) != 0;
         const bool has_candidates = !decoded.candidates.items.empty();
         std::string popup_preedit;
-        if (ui_element_only || decision.show_preedit_in_popup) {
+        // Without candidates (English typed inline, a code nothing matches) the window still
+        // shows what is being typed, so typing always has the input method's window.
+        if (ui_element_only || decision.show_preedit_in_popup || !has_candidates) {
             popup_preedit = response.preedit;
         }
         const std::size_t popup_converted_prefix =

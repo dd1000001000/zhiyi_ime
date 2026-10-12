@@ -191,9 +191,15 @@ InlineAsciiResult AsciiComposer::process_inline_ascii_composition(const KeyEvent
             return InlineAsciiResult::kAccepted;
         }
         if (event.keycode == VK_SPACE) {
-            ctx.reset();
+            // The text as typed, then the space, as English typing goes on (Esc cancels).
+            if (!ctx.finalize_raw(CommitSource::kRawCodePreserveCase)) {
+                ctx.reset();
+                finish_temporary_ascii();
+                return InlineAsciiResult::kAccepted;
+            }
+            ctx.committed_text += ' ';
             finish_temporary_ascii();
-            return InlineAsciiResult::kAccepted;
+            return InlineAsciiResult::kCommitted;
         }
 
         const uint64_t revision_before = ctx.preedit_revision();

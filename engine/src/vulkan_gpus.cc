@@ -87,7 +87,7 @@ using GetPhysicalDeviceMemoryProperties = void(__stdcall*)(VkPhysicalDevice,
 
 }  // namespace
 
-std::vector<GpuAdapter> list_translator_gpus() {
+std::vector<GpuAdapter> list_translator_gpus(std::uint64_t min_memory_mb) {
     std::vector<GpuAdapter> gpus;
     HMODULE loader = LoadLibraryExW(L"vulkan-1.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!loader) return gpus;
@@ -137,7 +137,7 @@ std::vector<GpuAdapter> list_translator_gpus() {
                     local = (std::max)(local, heaps.memoryHeaps[h].size);
                 }
             }
-            if (local < kMinTranslatorGpuMemory || name.empty()) continue;
+            if (local < (min_memory_mb << 20) || name.empty()) continue;
             GpuAdapter gpu;
             gpu.name = name;
             gpu.key = same_name > 1 ? name + " #" + std::to_string(same_name) : name;

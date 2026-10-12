@@ -285,7 +285,8 @@ void EditorApp::fill_voice_devices() {
     voice_choices_.clear();
     const nlohmann::json state = read_test_state();
     const std::string model = model_id();
-    for (GpuAdapter& adapter : list_gpu_adapters()) {
+    const auto min_memory_mb = static_cast<std::uint64_t>(config_.voice_min_gpu_memory_mb);
+    for (GpuAdapter& adapter : list_gpu_adapters(min_memory_mb)) {
         const nlohmann::json* test = find_test(state, adapter, model);
         if (!test || test->value("gpu_ms", -1.0) > 0) voice_choices_.push_back(std::move(adapter));
     }

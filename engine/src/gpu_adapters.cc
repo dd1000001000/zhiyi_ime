@@ -63,7 +63,7 @@ PciAddress pci_address(const LUID& luid) {
 
 }  // namespace
 
-std::vector<GpuAdapter> list_gpu_adapters() {
+std::vector<GpuAdapter> list_gpu_adapters(std::uint64_t min_memory_mb) {
     std::vector<GpuAdapter> adapters;
     std::vector<PciAddress> addresses;
     HMODULE dxgi = LoadLibraryExW(L"dxgi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -81,12 +81,26 @@ std::vector<GpuAdapter> list_gpu_adapters() {
         IDXGIAdapter1* adapter = nullptr;
         for (UINT i = 0; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
             DXGI_ADAPTER_DESC1 desc = {};
-            // S_FALSE: a device could be created (the device itself is not requested).
-            const bool usable =
-                SUCCEEDED(adapter->GetDesc1(&desc)) && !(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) &&
-                desc.DedicatedVideoMemory >= kMinGpuMemory &&
-                create_device(adapter, D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), nullptr) ==
-                    S_FALSE;
+            bool usable = SUCCEEDED(adapter->GetDesc1(&desc)) &&
+                          !(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) &&
+                          desc.DedicatedVideoMemory >= (min_memory_mb << 20);
+            // A Direct3D 12 device, and not one sharing system memory (integrated graphics:
+            // their "dedicated" memory is only what the firmware set aside).
+            ID3D12Device* device = nullptr;
+            if (usable) {
+                usable = SUCCEEDED(create_device(adapter, D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device),
+                                                 reinterpret_cast<void**>(&device))) &&
+                         device;
+            }
+            if (device) {
+                D3D12_FEATURE_DATA_ARCHITECTURE architecture = {};
+                if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_ARCHITECTURE, &architecture,
+                                                          sizeof(architecture))) &&
+                    architecture.UMA) {
+                    usable = false;
+                }
+                device->Release();
+            }
             if (usable) {
                 const std::string name = to_utf8(desc.Description);
                 const PciAddress address = pci_address(desc.AdapterLuid);

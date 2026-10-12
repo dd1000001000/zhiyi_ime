@@ -274,7 +274,8 @@ bool VoiceService::ensure_recognizer(std::string* error) {
     const auto start = std::chrono::steady_clock::now();
     bool loaded = false;
     if (!device.empty()) {
-        const std::vector<cxxime::GpuAdapter> adapters = cxxime::list_gpu_adapters();
+        // The card chosen in Settings, whatever voice.min_gpu_memory_mb is now.
+        const std::vector<cxxime::GpuAdapter> adapters = cxxime::list_gpu_adapters(0);
         const cxxime::GpuAdapter* adapter = cxxime::find_gpu_adapter(adapters, device);
         std::string gpu_error = "graphics card not found";
         loaded = adapter && recognizer->load(installed.model, installed.tokens,

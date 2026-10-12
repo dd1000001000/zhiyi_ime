@@ -2,6 +2,7 @@
 
 #include <cxxime/config.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -312,6 +313,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         config.laya.context_memory_seconds = (std::max)(0, config.laya.context_memory_seconds);
         load_int(l, "threads", config.laya.threads);
         load_string(l, "device", config.laya.device);
+        load_int(l, "min_gpu_memory_mb", config.laya.min_gpu_memory_mb);
+        config.laya.min_gpu_memory_mb = std::clamp(config.laya.min_gpu_memory_mb, 0, 1 << 20);
         load_bool(l, "cache", config.laya.cache);
         load_bool(l, "english", config.laya.english);
         load_int(l, "english_context_chars", config.laya.english_context_chars);
@@ -422,6 +425,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_string(learning, "translator_device", config.mt_device);
         load_int(learning, "translator_context_chars", config.mt_context_chars);
         load_int(learning, "translator_idle_seconds", config.mt_idle_seconds);
+        load_int(learning, "translator_min_gpu_memory_mb", config.mt_min_gpu_memory_mb);
+        config.mt_min_gpu_memory_mb = std::clamp(config.mt_min_gpu_memory_mb, 0, 1 << 20);
         load_bool(learning, "digits_type_translation", config.digits_type_translation);
         config.mt_context_chars = (std::max)(0, (std::min)(config.mt_context_chars, 256));
         config.mt_idle_seconds = (std::max)(5, config.mt_idle_seconds);
@@ -442,6 +447,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_string(voice, "language", config.voice_language);
         load_bool(voice, "itn", config.voice_itn);
         load_int(voice, "max_seconds", config.voice_max_seconds);
+        load_int(voice, "min_gpu_memory_mb", config.voice_min_gpu_memory_mb);
+        config.voice_min_gpu_memory_mb = std::clamp(config.voice_min_gpu_memory_mb, 0, 1 << 20);
         config.voice_max_seconds = (std::max)(5, (std::min)(config.voice_max_seconds, 300));
         if (config.voice_language != "zh" && config.voice_language != "en" &&
             config.voice_language != "yue") {
@@ -681,6 +688,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["context_memory_seconds"] = config.laya.context_memory_seconds;
     j["laya"]["threads"] = config.laya.threads;
     j["laya"]["device"] = config.laya.device;
+    j["laya"]["min_gpu_memory_mb"] = config.laya.min_gpu_memory_mb;
     j["laya"]["cache"] = config.laya.cache;
     j["laya"]["english"] = config.laya.english;
     j["laya"]["english_context_chars"] = config.laya.english_context_chars;
@@ -775,6 +783,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["learning"]["translator_device"] = config.mt_device;
     j["learning"]["translator_context_chars"] = config.mt_context_chars;
     j["learning"]["translator_idle_seconds"] = config.mt_idle_seconds;
+    j["learning"]["translator_min_gpu_memory_mb"] = config.mt_min_gpu_memory_mb;
     j["learning"]["space_languages"] = config.translation_space_languages;
     j["learning"]["digits_type_translation"] = config.digits_type_translation;
     j["voice"]["enable"] = config.voice_enable;
@@ -782,6 +791,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["voice"]["language"] = config.voice_language;
     j["voice"]["itn"] = config.voice_itn;
     j["voice"]["max_seconds"] = config.voice_max_seconds;
+    j["voice"]["min_gpu_memory_mb"] = config.voice_min_gpu_memory_mb;
 
     return j;
 }

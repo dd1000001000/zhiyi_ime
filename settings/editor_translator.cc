@@ -3,7 +3,8 @@
 // "Offline translation" on the Learning page (docs/learning-mode.md): download, update and
 // remove the translation model (update.h: the release tagged "translator"; translator_files.h:
 // where it goes), turn it on, and choose where it runs: a discrete graphics card Vulkan offers
-// with about 1 GB of its own memory (list_translator_gpus, gpu_adapters.h), or the CPU, offered
+// with about 1 GB of its own memory (list_translator_gpus, gpu_adapters.h;
+// learning.translator_min_gpu_memory_mb), or the CPU, offered
 // last. Turning it on or choosing another one first translates a word there, and a choice the
 // model cannot run on is not kept; on a card, a few pages are then timed there and on the CPU.
 
@@ -296,7 +297,9 @@ void EditorApp::create_translator_card(HWND panel, int y) {
 // The cards are asked from Vulkan (about 0.15 s) only once the model is here: before, the box
 // is disabled and lists the CPU alone.
 void EditorApp::fill_translator_devices() {
-    mt_choices_ = mt::find_installed(nullptr) ? list_translator_gpus() : std::vector<GpuAdapter>{};
+    mt_choices_ = mt::find_installed(nullptr)
+                      ? list_translator_gpus(static_cast<std::uint64_t>(config_.mt_min_gpu_memory_mb))
+                      : std::vector<GpuAdapter>{};
     const size_t cards = mt_choices_.size();
     GpuAdapter cpu;
     cpu.name = cpu_info().name;

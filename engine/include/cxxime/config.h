@@ -101,6 +101,7 @@ struct Config {
     std::string mt_device;         // learning.translator_device: a card key (gpu_adapters.h)
     int mt_context_chars = 32;     // learning.translator_context_chars: text before the caret
     int mt_idle_seconds = 60;      // learning.translator_idle_seconds: unloaded after this
+    int mt_min_gpu_memory_mb = 1000;  // learning.translator_min_gpu_memory_mb: cards offered
     // Voice input (docs/voice-input.md): the server records while the voice key is on and turns
     // the speech into text with the downloaded model (voice_recognizer.h, voice_files.h).
     bool voice_enable = false;            // voice.enable
@@ -108,6 +109,7 @@ struct Config {
     std::string voice_language = "auto";  // voice.language: auto, zh, en or yue
     bool voice_itn = true;                // voice.itn: numbers and dates as digits ("3点")
     int voice_max_seconds = 60;           // voice.max_seconds: recording stops by itself after this
+    int voice_min_gpu_memory_mb = 1000;   // voice.min_gpu_memory_mb: cards offered
     // A "learning" section was read. User configs written before it hold style.layout
     // "horizontal" without the user having chosen it (there was no setting), so load_user keeps
     // the default (vertical) for them.
@@ -194,6 +196,9 @@ struct Config {
         // "" = the CPU; otherwise the name of the graphics card that runs the model (DirectML,
         // gpu_adapters.h). When that card is missing or fails, the CPU is used.
         std::string device;
+        // laya.min_gpu_memory_mb: Settings offers cards with at least this much memory of their
+        // own (gpu_adapters.h).
+        int min_gpu_memory_mb = 1000;
         // Keep a copy of the model with its weights packed for this CPU in the local app data
         // cache (built on first start, ~340 MB on disk). ONNX Runtime maps that file instead of
         // packing the weights onto the heap at every start: ~200 MB less private memory.

@@ -1,9 +1,11 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
-// Where the Laya model can run (laya.device): the CPU, or a graphics card through DirectML.
-// Cards offered: hardware adapters that create a Direct3D 12 device (feature level 11_0) and
-// have at least kMinGpuMemory of their own memory. Integrated graphics share system memory and
-// were slower than the CPU in our measurements, so they are left out. A card is listed once
+// Where the Laya model (laya.device) and the voice model (voice.device) can run: the CPU, or a
+// graphics card through DirectML. Cards offered: hardware adapters that create a Direct3D 12
+// device (feature level 11_0), do not share system memory (Direct3D 12's UMA: integrated
+// graphics, which were slower than the CPU in our measurements) and have at least the given
+// memory of their own (laya.min_gpu_memory_mb, voice.min_gpu_memory_mb; about 1 GB by default:
+// the Laya model takes about 500 MB on a card, the voice model less). A card is listed once
 // even when Windows enumerates it more than once (a virtual display driver adds a view of it
 // without a PCI address); two cards of the same model are both listed. dxgi.dll, d3d12.dll
 // and the D3DKMT functions are looked up on demand: processes that never ask (the text
@@ -17,7 +19,8 @@
 
 namespace cxxime {
 
-constexpr std::uint64_t kMinGpuMemory = 2ull << 30;  // 2 GB of dedicated video memory
+// The default least dedicated memory of a card offered, in MB (1000: cards sold as 1 GB too).
+constexpr std::uint64_t kDefaultMinGpuMemoryMb = 1000;
 
 struct GpuAdapter {
     std::string name;  // UTF-8 description ("NVIDIA GeForce RTX 5070 Ti")
@@ -29,15 +32,16 @@ struct GpuAdapter {
     std::uint64_t driver_version = 0;  // user-mode driver version (a test result is per driver)
 };
 
-std::vector<GpuAdapter> list_gpu_adapters();
+// min_memory_mb: the least dedicated memory; 0 lists every card that qualifies otherwise (to
+// find the card chosen before, whatever the setting is now).
+std::vector<GpuAdapter> list_gpu_adapters(std::uint64_t min_memory_mb = kDefaultMinGpuMemoryMb);
 
 // The offline translator's cards (learning.translator_device): llama-server runs on Vulkan, so
-// these are the discrete GPUs Vulkan offers with at least kMinTranslatorGpuMemory of their own
-// memory, under Vulkan's names (the ones llama-server --list-devices prints; GpuAdapter::index
-// is the Vulkan device index). The DirectML rules above (Direct3D 12, 2 GB) do not apply.
-// Empty when Vulkan is not installed.
-constexpr std::uint64_t kMinTranslatorGpuMemory = 1000ull << 20;  // the model takes about 1 GB
-std::vector<GpuAdapter> list_translator_gpus();
+// these are the discrete GPUs Vulkan offers with at least min_memory_mb of their own memory
+// (learning.translator_min_gpu_memory_mb; the model takes about 1 GB), under Vulkan's names (the
+// ones llama-server --list-devices prints; GpuAdapter::index is the Vulkan device index). The
+// DirectML rules above (Direct3D 12) do not apply. Empty when Vulkan is not installed.
+std::vector<GpuAdapter> list_translator_gpus(std::uint64_t min_memory_mb = kDefaultMinGpuMemoryMb);
 
 // The adapter whose key is `key`, or nullptr.
 const GpuAdapter* find_gpu_adapter(const std::vector<GpuAdapter>& adapters, const std::string& key);

@@ -110,7 +110,8 @@ std::wstring missing_model_file(const laya::RerankerOptions& opt) {
 // missing or fails.
 std::shared_ptr<laya::Reranker> load_on_gpu(laya::RerankerOptions opt, const std::string& name,
                                             std::string* error = nullptr) {
-    const std::vector<GpuAdapter> adapters = list_gpu_adapters();
+    // The card chosen in Settings, whatever laya.min_gpu_memory_mb is now.
+    const std::vector<GpuAdapter> adapters = list_gpu_adapters(0);
     const GpuAdapter* adapter = find_gpu_adapter(adapters, name);
     if (!adapter) {
         laya_log(L"graphics card " + laya::utf8_to_wide(name) + L" not found");

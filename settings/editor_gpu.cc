@@ -127,7 +127,8 @@ void EditorApp::load_gpu_choices() {
     gpu_choices_.clear();
     const nlohmann::json state = read_gpu_state();
     const std::string model = LayaRerank::instance().model_id(config_);
-    for (GpuAdapter& adapter : list_gpu_adapters()) {
+    const auto min_memory_mb = static_cast<std::uint64_t>(config_.laya.min_gpu_memory_mb);
+    for (GpuAdapter& adapter : list_gpu_adapters(min_memory_mb)) {
         const nlohmann::json* test = find_test(state, adapter, model);
         if (!test || test->value("gpu_ms", -1.0) > 0) {
             gpu_choices_.push_back(std::move(adapter));

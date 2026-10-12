@@ -79,14 +79,16 @@
     },
     "learning": {
         "chinese_target": "",
-        "english_target": ""
+        "english_target": "",
+        "translator_min_gpu_memory_mb": 1000
     },
     "voice": {
         "enable": false,
         "device": "",
         "language": "auto",
         "itn": true,
-        "max_seconds": 60
+        "max_seconds": 60,
+        "min_gpu_memory_mb": 1000
     },
     "theme": "moon_light",
     "ui": {

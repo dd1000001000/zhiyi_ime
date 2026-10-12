@@ -312,11 +312,39 @@ void CandidateWindow::init_gdi_renderer() {
 void CandidateWindow::init_d2d_renderer() {
     ScopedDpiAwarenessContext dpi_context(GetWindowDpiAwarenessContext(hwnd_));
     d2d_renderer_ = new D2DRenderer();
-    if (!d2d_renderer_->initialize(hwnd_, render_theme_, GetDpiForWindow(hwnd_))) {
+    if (!d2d_renderer_->initialize(render_theme_, GetDpiForWindow(hwnd_))) {
         delete d2d_renderer_;
         d2d_renderer_ = nullptr;
         backend_ = RenderBackend::GDI;
     }
+}
+
+void CandidateWindow::paint(HDC hdc, const RECT& rect) {
+    if (backend_ == RenderBackend::D2D && d2d_renderer_) {
+        HRESULT hr = d2d_renderer_->render(hdc, rect, render_ctx_);
+        if (SUCCEEDED(hr))
+            return;
+        // A lost device (driver reset, adapter change) needs a new target. Any other failure
+        // leaves this window on GDI until the configuration selects D2D again, so a broken
+        // renderer never shows as an empty window.
+        d2d_renderer_->finalize();
+        delete d2d_renderer_;
+        d2d_renderer_ = nullptr;
+        if (hr == D2DERR_RECREATE_TARGET) {
+            init_d2d_renderer();
+            if (d2d_renderer_) {
+                hr = d2d_renderer_->render(hdc, rect, render_ctx_);
+                if (SUCCEEDED(hr))
+                    return;
+                d2d_renderer_->finalize();
+                delete d2d_renderer_;
+                d2d_renderer_ = nullptr;
+            }
+        }
+        backend_ = RenderBackend::GDI;
+    }
+    if (gdi_renderer_)
+        gdi_renderer_->render(hdc, rect, render_ctx_);
 }
 
 bool CandidateWindow::refresh_dpi_scale() {
@@ -1147,7 +1175,6 @@ void CandidateWindow::update(const CandidatePage& page) {
                          SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
         }
     }
-    if (d2d_renderer_) d2d_renderer_->resize(lr.width, lr.height);
     update_window_region(lr.width, lr.height, cfg.round_corner_ex);
     RedrawWindow(hwnd_, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_NOERASE);
 }
@@ -1161,12 +1188,7 @@ LRESULT CALLBACK CandidateWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM
     switch (msg) {
     case WM_PAINT: {
         PAINTSTRUCT ps; HDC hdc = BeginPaint(hwnd, &ps); RECT rc; GetClientRect(hwnd, &rc);
-        if (self && self->gdi_renderer_) {
-            if (self->backend_ == RenderBackend::D2D && self->d2d_renderer_)
-                self->d2d_renderer_->render(self->render_ctx_);
-            else
-                self->gdi_renderer_->render(hdc, rc, self->render_ctx_);
-        }
+        if (self) self->paint(hdc, rc);
         EndPaint(hwnd, &ps); return 0;
     }
     case WM_LBUTTONDOWN: {

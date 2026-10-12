@@ -13,10 +13,11 @@ namespace cxxime {
 
 class D2DRenderer {
 public:
-    bool initialize(HWND hwnd, const Theme& theme, UINT dpi);
+    bool initialize(const Theme& theme, UINT dpi);
     void finalize();
-    void render(const RenderContext& ctx);
-    void resize(int width, int height);
+    // Draws into the window's paint DC. A failure means nothing was drawn;
+    // D2DERR_RECREATE_TARGET asks for a new renderer.
+    HRESULT render(HDC hdc, const RECT& rect, const RenderContext& ctx);
 
 private:
     void draw_preedit(const RenderContext& ctx);
@@ -29,7 +30,7 @@ private:
                                                       const Color& to, float opacity);
 
     ID2D1Factory* d2d_factory_ = nullptr;
-    ID2D1HwndRenderTarget* render_target_ = nullptr;
+    ID2D1DCRenderTarget* render_target_ = nullptr;
     ID2D1SolidColorBrush* text_brush_ = nullptr;
     ID2D1SolidColorBrush* comment_brush_ = nullptr;
     ID2D1SolidColorBrush* bg_brush_ = nullptr;

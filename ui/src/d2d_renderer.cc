@@ -46,25 +46,25 @@ static IDWriteTextFormat* mkfmt(IDWriteFactory* f, const wchar_t* name, float sz
     return fmt;
 }
 
-bool D2DRenderer::initialize(HWND hwnd, const Theme& theme, UINT dpi) {
+bool D2DRenderer::initialize(const Theme& theme, UINT dpi) {
     HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &d2d_factory_);
     if (FAILED(hr)) {
         finalize();
         return false;
     }
-    RECT rc; GetClientRect(hwnd, &rc);
-    hr = d2d_factory_->CreateHwndRenderTarget(
-        D2D1::RenderTargetProperties(),
-        D2D1::HwndRenderTargetProperties(hwnd, D2D1::SizeU(rc.right - rc.left, rc.bottom - rc.top)),
-        &render_target_);
+    // Draw into the paint DC rather than presenting to the HWND: an HWND target is tied to one
+    // adapter, and on a monitor driven by another GPU its presents can show nothing at all.
+    // CandidateWindow computes layout and HWND size in physical pixels. Keep D2D coordinates
+    // in the same pixel space; otherwise high-DPI targets read our rectangles as DIP.
+    const D2D1_RENDER_TARGET_PROPERTIES properties = D2D1::RenderTargetProperties(
+        D2D1_RENDER_TARGET_TYPE_DEFAULT,
+        D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE),
+        static_cast<float>(USER_DEFAULT_SCREEN_DPI), static_cast<float>(USER_DEFAULT_SCREEN_DPI));
+    hr = d2d_factory_->CreateDCRenderTarget(&properties, &render_target_);
     if (FAILED(hr)) {
         finalize();
         return false;
     }
-    // CandidateWindow computes layout and HWND size in physical pixels.
-    // Keep D2D coordinates in the same pixel space; otherwise high-DPI render
-    // targets interpret our rectangles as DIP and the content gets clipped.
-    render_target_->SetDpi(USER_DEFAULT_SCREEN_DPI, USER_DEFAULT_SCREEN_DPI);
     render_target_->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &text_brush_);
     render_target_->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Gray), &comment_brush_);
     render_target_->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), &bg_brush_);
@@ -189,8 +189,10 @@ void D2DRenderer::draw_preedit(const RenderContext& ctx) {
     }
 }
 
-void D2DRenderer::render(const RenderContext& ctx) {
-    if (!render_target_) return;
+HRESULT D2DRenderer::render(HDC hdc, const RECT& rect, const RenderContext& ctx) {
+    if (!render_target_) return E_POINTER;
+    HRESULT hr = render_target_->BindDC(hdc, &rect);
+    if (FAILED(hr)) return hr;
     render_target_->BeginDraw();
     auto* cfg = ctx.layout_cfg;
     float corner = cfg ? (float)cfg->round_corner : 4.0f;
@@ -263,7 +265,7 @@ void D2DRenderer::render(const RenderContext& ctx) {
         }
         draw_preedit_separator();
         draw_border();
-        render_target_->EndDraw(); return;
+        return render_target_->EndDraw();
     }
 
     // Preedit
@@ -352,7 +354,7 @@ void D2DRenderer::render(const RenderContext& ctx) {
 
     draw_border();
 
-    render_target_->EndDraw();
+    return render_target_->EndDraw();
 }
 
 ID2D1LinearGradientBrush* D2DRenderer::make_recommend_gradient(const D2D1_RECT_F& area,
@@ -439,7 +441,5 @@ void D2DRenderer::draw_sparkle(const RECT& mark, float t, bool highlighted) {
     if (sink) sink->Release();
     if (path) path->Release();
 }
-
-void D2DRenderer::resize(int w, int h) { if (render_target_) render_target_->Resize(D2D1::SizeU(w, h)); }
 
 } // namespace cxxime

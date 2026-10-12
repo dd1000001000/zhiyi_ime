@@ -96,6 +96,7 @@ private:
     void recreate_renderers_for_dpi();
     void init_gdi_renderer();
     void init_d2d_renderer();
+    void paint(HDC hdc, const RECT& rect);
     void move_window_now(int x, int y);
     bool calculate_target_position(const RECT& caret_rect, int width, int height, POINT& target);
     void update_window_region(int width, int height, int corner);

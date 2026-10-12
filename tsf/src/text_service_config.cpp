@@ -89,6 +89,9 @@ void TextService::_apply_config_snapshot() {
     _report_input_target();
     if (_localCandidateWindow) {
         _localCandidateWindow->set_config(_config);
+        // set_config does not touch the layout orientation; keep it in sync here too so a
+        // settings change reaches an already-created local candidate window at once.
+        _localCandidateWindow->set_layout(_config.layout);
     }
 
     _publish_ui_presentation();

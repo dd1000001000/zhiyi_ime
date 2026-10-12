@@ -108,6 +108,10 @@ bool TextService::_present_local_candidate_window(const cxxime::CandidatePresent
         return false;
     }
 
+    // The layout orientation is configuration state. Apply it on every presentation: the local
+    // fallback window never goes through the server's set_layout call, so without this it would
+    // keep CandidateWindow's default horizontal layout no matter what the settings say.
+    _localCandidateWindow->set_layout(_config.layout);
     _localCandidateWindow->set_page_info(page_current, page_total);
     _localCandidateWindow->set_preedit(
         preedit, preedit_cursor, _candidatePresentation.converted_prefix_bytes(),

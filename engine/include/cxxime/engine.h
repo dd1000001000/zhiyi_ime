@@ -239,8 +239,8 @@ private:
     uint32_t handled_shortcut_key_ = 0;
     std::optional<CandidatePick> last_pick_;
     std::optional<int> translation_request_;
-    // Set while a swapped Ctrl+1..9 (learning.digits_type_translation) is handled as 1..9, so
-    // that digit picks the candidate instead of asking for its translation.
+    // Set while a swapped Ctrl+number (learning.digits_type_translation) is handled as the
+    // number, so that it picks the candidate instead of asking for its translation.
     bool picking_by_ctrl_digit_ = false;
     std::shared_ptr<const ContinuationWork> continuation_work_;
     std::string continuation_work_key_;

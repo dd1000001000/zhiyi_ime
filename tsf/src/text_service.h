@@ -503,7 +503,7 @@ private:
     cxxime::ConfigGeneration _configGeneration;
     HWND _configWindow = nullptr;
     HHOOK _translationKeyHook = nullptr;
-    UINT _translationKeyDown = 0;  // a Ctrl+1..9 taken, until its key-up
+    UINT _translationKeyDown = 0;  // a Ctrl+0..9 taken, until its key-up
     std::optional<uint32_t> _modifierOverride;  // modifiers of a key taken by the hook
     std::uint32_t _configSubscriptionId = 0;
     bool _capsLockRefreshPending = false;

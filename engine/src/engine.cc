@@ -81,8 +81,12 @@ static bool is_main_candidate_command(const KeyEvent& event, const Context& cont
         event.is_alt()) {
         return false;
     }
-    return (event.keycode >= '1' && event.keycode <= '9') ||
-           (event.keycode == '0' && context.selectable_candidate_count() >= 10) ||
+    // A number picks a candidate only when the page has it (0 is the tenth); a number past the
+    // page is typed like punctuation, after the highlighted candidate.
+    const int selectable = context.selectable_candidate_count();
+    return (event.keycode >= '1' && event.keycode <= '9' &&
+            static_cast<int>(event.keycode - '1') < selectable) ||
+           (event.keycode == '0' && selectable >= 10) ||
            page_key(event, context) != PageKey::kNone;
 }
 
@@ -516,26 +520,40 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
     }
 
-    // Learning mode: Ctrl+1..9 types that candidate's translation (docs/learning-mode.md), and
-    // with learning.digits_type_translation the keys trade places: 1..9 type the translation,
-    // Ctrl+1..9 the candidate. Without a translation nothing is typed. While typing Ctrl+1..9
-    // is ours either way, so it never reaches the application (a browser would switch tabs);
-    // auto-repeat and the key-up are swallowed too.
+    // Learning mode: Ctrl+number types that candidate's translation (docs/learning-mode.md), and
+    // with learning.digits_type_translation the keys trade places: the number types the
+    // translation, Ctrl+number the candidate. The numbers are 1..9, and 0 for the tenth where 0
+    // picks it (pinyin and Wubi with ten candidates on the page). Without a translation nothing
+    // is typed. While typing Ctrl+0..9 is ours either way, so it never reaches the application
+    // (a browser would switch tabs); auto-repeat and the key-up are swallowed too.
     const Config* config = runtime_ ? &runtime_->config() : nullptr;
     const bool learning_keys =
         config && (!config->chinese_gloss_target.empty() || !config->english_gloss_target.empty()) &&
         config->layout != "horizontal";
     const bool swapped_keys = learning_keys && config->digits_type_translation;
-    const bool learning_digit = learning_keys && !picking_by_ctrl_digit_ && !event.is_key_up &&
-                                !event.is_alt() && !event.is_shift() && event.keycode >= '1' &&
-                                event.keycode <= '9' &&
-                                (context_.is_composing() || handled_shortcut_key_ == event.keycode);
+    const bool zero_picks = !english_composing_ && !SymbolProcessor::is_active(context_) &&
+                            context_.selectable_candidate_count() >= 10;
+    const int digit_index = event.keycode >= '1' && event.keycode <= '9'
+                                ? static_cast<int>(event.keycode - '1')
+                                : event.keycode == '0' ? 9 : -1;
+    const bool digit_picks = digit_index >= 0 &&
+                             digit_index < context_.selectable_candidate_count() &&
+                             (event.keycode != '0' || zero_picks);
+    // A plain number past the page is typed as a number (below); Ctrl+0..9 is ours either way.
+    const bool learning_digit =
+        learning_keys && !picking_by_ctrl_digit_ && !event.is_key_up && !event.is_alt() &&
+        !event.is_shift() && digit_index >= 0 && (digit_picks || event.is_ctrl()) &&
+        (context_.is_composing() || handled_shortcut_key_ == event.keycode);
     if (learning_digit && swapped_keys && event.is_ctrl()) {
         record_total_us(trace_, total_start, trace_enabled_);
         if (handled_shortcut_key_ == event.keycode) {
             return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
         }
-        // The candidate itself, as 1..9 picks it otherwise.
+        if (!digit_picks) {  // past the page: nothing to pick
+            handled_shortcut_key_ = event.keycode;
+            return ProcessResult::ACCEPTED;
+        }
+        // The candidate itself, as the number picks it otherwise.
         KeyEvent plain = event;
         plain.modifiers &= ~kKeyModifierControl;
         picking_by_ctrl_digit_ = true;
@@ -550,11 +568,8 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
             return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
         }
         handled_shortcut_key_ = event.keycode;
-        const int index = static_cast<int>(event.keycode - '1');
-        if (index >= context_.selectable_candidate_count()) {
-            return ProcessResult::ACCEPTED;
-        }
-        translation_request_ = index;
+        if (!digit_picks) return ProcessResult::ACCEPTED;  // Ctrl+number past the page
+        translation_request_ = digit_index;
         return ProcessResult::COMMIT_TRANSLATION;
     }
 
@@ -746,8 +761,7 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         !is_main_candidate_command(event, context_)) {
         const bool has_candidates = context_.candidate_count() > 0;
         const bool start_inline = is_inline_ascii_character(*normalized) ||
-                                  plain_main_zero || is_numpad_text_key(event.keycode) ||
-                                  !has_candidates;
+                                  is_numpad_text_key(event.keycode) || !has_candidates;
         if (opts.full_shape && !is_numpad_text_key(event.keycode)) {
             if (handle_full_shape(event, context_, opts)) {
                 routed_result = ProcessResult::COMMITTED;
@@ -1634,15 +1648,14 @@ std::optional<ProcessResult> Engine::process_english_key(const KeyEvent& event, 
     default:
         break;
     }
-    // 1-9 on the main keyboard select a candidate (as in Chinese mode). To type a digit after a
-    // word, commit the word first with Space.
+    // 1-9 on the main keyboard select a candidate (as in Chinese mode); a number past the
+    // candidates is typed after the word, as below.
     if (vk >= '1' && vk <= '9' && !event.is_shift()) {
         const CandidateEntry* entry = context_.candidate_entry(static_cast<int>(vk - '1'));
         if (entry) {
             learn_english_commit(typed, entry->candidate.text);
             return commit_english(entry->candidate.text);
         }
-        return ProcessResult::ACCEPTED;
     }
     // Any other printable key (punctuation, 0, numpad, shifted digits): commit the typed text
     // and the character, so ordinary English typing is never blocked.

@@ -229,8 +229,12 @@ void VoiceOverlay::Impl::run() {
 
 LRESULT CALLBACK VoiceOverlay::Impl::window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_NCCREATE) {
+        // The window exists from here on: Impl::hwnd before CreateWindowExW returns, so the
+        // messages of its creation go to it (not to a null window, which fails the creation).
         auto* create = reinterpret_cast<CREATESTRUCTW*>(lp);
-        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(create->lpCreateParams));
+        auto* impl = static_cast<Impl*>(create->lpCreateParams);
+        impl->hwnd = hwnd;
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(impl));
     }
     auto* self = reinterpret_cast<Impl*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     return self ? self->handle(msg, wp, lp) : DefWindowProcW(hwnd, msg, wp, lp);

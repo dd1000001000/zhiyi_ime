@@ -786,7 +786,8 @@ uint32_t SessionManager::create_session(uint64_t client_capabilities) {
     entry->client_capabilities =
         client_capabilities & (cxxime::kClientCapabilitySegmentedSelection |
                                cxxime::kClientCapabilitySegmentedPreeditPresentation |
-                               cxxime::kClientCapabilityCandidateRefresh);
+                               cxxime::kClientCapabilityCandidateRefresh |
+                               cxxime::kClientCapabilityVoiceInput);
     const bool segmented_selection =
         (entry->client_capabilities & cxxime::kClientCapabilitySegmentedSelection) != 0;
     entry->candidate_revision = segmented_selection ? 1 : 0;

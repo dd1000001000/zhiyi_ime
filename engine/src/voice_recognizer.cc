@@ -5,11 +5,13 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <chrono>
 #include <cmath>
 #include <complex>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <thread>
 
 #include <dml_provider_factory.h>
 #include <onnxruntime_cxx_api.h>
@@ -209,6 +211,49 @@ bool runtime_available() {
            nullptr;
 }
 
+int cpu_threads() {
+    const unsigned cores = std::thread::hardware_concurrency();
+    return static_cast<int>(std::clamp(cores / 2, 1u, 4u));
+}
+
+double time_recognition(const std::wstring& model, const std::wstring& tokens, int gpu_device,
+                        std::string* error) {
+    SpeechRecognizer recognizer;
+    if (!recognizer.load(model, tokens, gpu_device, cpu_threads(), error)) return 0.0;
+    // A voice-like sound: a buzz around 150 Hz whose loudness and pitch wander, with a little
+    // noise (the time depends on the length, not on what is said).
+    std::vector<float> sound(static_cast<std::size_t>(kTimedSeconds) * kSampleRate);
+    uint32_t seed = 12345;
+    double phase = 0.0;
+    for (std::size_t i = 0; i < sound.size(); ++i) {
+        const double t = static_cast<double>(i) / kSampleRate;
+        phase += 2.0 * kPi * (150.0 + 40.0 * std::sin(2.0 * kPi * 0.7 * t)) / kSampleRate;
+        seed = seed * 1664525u + 1013904223u;
+        const double noise = (static_cast<double>(seed >> 8) / (1u << 24) - 0.5) * 0.02;
+        const double loudness = 0.5 + 0.5 * std::sin(2.0 * kPi * 3.0 * t);
+        sound[i] = static_cast<float>(0.2 * loudness * (std::sin(phase) + 0.5 * std::sin(2.0 * phase)) + noise);
+    }
+    // Every recording has a length of its own, and DirectML prepares each new length the first
+    // time it sees it: the timed runs have lengths not seen before (0.4 s apart, the last the full
+    // length), as speech would.
+    std::vector<double> times;
+    std::string text;
+    for (int run = 0; run < 4; ++run) {
+        const std::size_t length =
+            run == 0 ? sound.size() * 3 / 5 : sound.size() - static_cast<std::size_t>(3 - run) * kSampleRate * 2 / 5;
+        const auto start = std::chrono::steady_clock::now();
+        if (!recognizer.transcribe(sound.data(), length, Language::kAuto, true, &text, error)) {
+            return 0.0;
+        }
+        if (run > 0) {
+            times.push_back(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
+                                .count());
+        }
+    }
+    std::sort(times.begin(), times.end());
+    return (std::max)(0.1, times[times.size() / 2]);
+}
+
 // ---- SenseVoice ----
 
 struct SpeechRecognizer::Impl {
@@ -255,7 +300,10 @@ bool SpeechRecognizer::load(const std::wstring& model, const std::wstring& token
     }
     try {
         Ort::SessionOptions options;
-        options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+        // On DirectML, ONNX Runtime 1.24's extended graph optimizations crash (access violation)
+        // on this model while the session is made: basic ones only there.
+        options.SetGraphOptimizationLevel(gpu_device >= 0 ? GraphOptimizationLevel::ORT_ENABLE_BASIC
+                                                          : GraphOptimizationLevel::ORT_ENABLE_ALL);
         if (gpu_device >= 0) {
             options.DisableMemPattern();
             options.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);

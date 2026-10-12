@@ -19,11 +19,6 @@ constexpr auto kDoneTimeout = std::chrono::seconds(5);
 // The model leaves memory after this long unused.
 constexpr auto kModelIdle = std::chrono::minutes(10);
 
-int cpu_threads() {
-    const unsigned cores = std::thread::hardware_concurrency();
-    return static_cast<int>(std::clamp(cores / 2, 1u, 4u));
-}
-
 VoiceOverlay::Message message_for(VoiceRecorder::Error error) {
     switch (error) {
     case VoiceRecorder::Error::kNoDevice:
@@ -289,7 +284,10 @@ bool VoiceService::ensure_recognizer(std::string* error) {
                        gpu_error.c_str());
         }
     }
-    if (!loaded) loaded = recognizer->load(installed.model, installed.tokens, -1, cpu_threads(), error);
+    if (!loaded) {
+        loaded = recognizer->load(installed.model, installed.tokens, -1, cxxime::voice::cpu_threads(),
+                                  error);
+    }
     if (!loaded) return false;
     CXXIME_LOG(L"voice: model loaded in %lld ms",
                static_cast<long long>(std::chrono::duration_cast<std::chrono::milliseconds>(

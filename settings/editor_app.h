@@ -152,6 +152,10 @@ private:
     void read_voice(cxxime::Config& config);
     void show_voice_key();
     void show_voice_state();
+    void fill_voice_devices();
+    void show_voice_device();
+    void show_voice_device_hint(const wchar_t* text, bool warning);
+    void start_voice_test();
     void start_voice_check();
     void start_voice_install();
     void remove_voice();
@@ -261,7 +265,11 @@ private:
     HWND hVoiceEnable_ = nullptr, hVoiceKeyText_ = nullptr, hVoiceStatus_ = nullptr;
     HWND hVoiceAction_ = nullptr, hVoiceRemove_ = nullptr;
     HWND hVoiceDevice_ = nullptr, hVoiceLanguage_ = nullptr, hVoiceItn_ = nullptr;
-    enum class VoiceBusy { kNone, kChecking, kDownloading } voice_busy_ = VoiceBusy::kNone;
+    HWND hVoiceDeviceHint_ = nullptr;
+    std::vector<GpuAdapter> voice_choices_;  // the device combo's items after the CPU
+    bool voice_device_warning_ = false;      // the hint says the card is slower than the CPU
+    double voice_cpu_ms_ = 0;                // the CPU's time, when it was timed alone
+    enum class VoiceBusy { kNone, kChecking, kDownloading, kTesting } voice_busy_ = VoiceBusy::kNone;
     bool voice_remote_known_ = false;
     update::VoiceManifest voice_remote_;
     std::uint64_t voice_done_mb_ = 0, voice_total_mb_ = 0;

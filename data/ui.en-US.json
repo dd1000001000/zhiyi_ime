@@ -328,8 +328,7 @@
     "voice.installed": "Voice model · v{0}",
     "voice.model_hint": "SenseVoice-Small (FunAudioLLM): Mandarin, English, Cantonese and Chinese mixed with English; other dialects not yet. Recognized on this computer; recordings are not kept or sent anywhere.",
     "voice.device": "Runs on:",
-    "voice.cpu": "CPU (recommended)",
-    "voice.device_hint": "A sentence takes about 0.1 s on the CPU, so a graphics card is seldom needed; one (DirectML) takes the work off the CPU.",
+    "voice.device_hint": "A sentence usually takes under 0.1 s on the CPU; choosing a graphics card (DirectML) times it first",
     "voice.language": "Language:",
     "voice.lang_auto": "Automatic",
     "voice.lang_zh": "Mandarin",
@@ -338,5 +337,12 @@
     "voice.itn": "Numbers and dates as digits (“3点”, “10月15号”)",
     "voice.remove_confirm": "Remove the voice model? Voice input is turned off; you can download it again at any time.",
     "voice.needs_app": "This voice model needs Zhiyi IME {0} or later",
-    "voice.failed_disk": "Can't save the voice model: not enough space or no permission"
+    "voice.failed_disk": "Can't save the voice model: not enough space or no permission",
+    "voice.device_hint_cpu": "A sentence usually takes under 0.1 s on the CPU (this computer has no graphics card to use)",
+    "voice.device_testing": "Timing recognition, please wait…",
+    "voice.device_result": "5 s of speech: about {0} ms on this card, {1} ms on the CPU",
+    "voice.device_slower": "5 s of speech: about {0} ms on this card, slower than the CPU ({1} ms); the CPU is recommended",
+    "voice.device_cpu_result": "5 s of speech: about {1} ms on the CPU",
+    "voice.device_failed": "The voice model cannot run on this graphics card; the CPU is used.",
+    "voice.model_failed": "The voice model cannot run; remove it and download it again"
 }

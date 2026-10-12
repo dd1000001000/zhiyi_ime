@@ -255,7 +255,7 @@ void EditorApp::destroy_controls() {
     hPackActions_.clear();
     hPackRemoves_.clear();
     hVoiceEnable_ = hVoiceKeyText_ = hVoiceStatus_ = hVoiceAction_ = hVoiceRemove_ = nullptr;
-    hVoiceDevice_ = hVoiceLanguage_ = hVoiceItn_ = hVoiceKey_ = nullptr;
+    hVoiceDevice_ = hVoiceLanguage_ = hVoiceItn_ = hVoiceKey_ = hVoiceDeviceHint_ = nullptr;
     hints_.clear();
     clear_cards();
     for (HWND& panel : hPanels_) {

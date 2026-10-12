@@ -328,8 +328,7 @@
     "voice.installed": "语音模型 · v{0}",
     "voice.model_hint": "SenseVoice-Small（FunAudioLLM），支持普通话、英语、粤语以及中英混说，暂不支持其他方言。全程在本机识别，录音不保存、不上传。",
     "voice.device": "识别设备：",
-    "voice.cpu": "CPU（推荐）",
-    "voice.device_hint": "在 CPU 上识别一句话约 0.1 秒，一般不需要显卡；选择显卡（DirectML）可以减少 CPU 占用。",
+    "voice.device_hint": "在 CPU 上识别一句话一般不到 0.1 秒；选择显卡（DirectML）时会先测一下速度",
     "voice.language": "识别语言：",
     "voice.lang_auto": "自动",
     "voice.lang_zh": "普通话",
@@ -338,5 +337,12 @@
     "voice.itn": "数字和日期写成阿拉伯数字（如“3点”“10月15号”）",
     "voice.remove_confirm": "卸载语音模型？卸载后语音输入会关闭，可以随时重新下载。",
     "voice.needs_app": "这个语音模型需要知意输入法 {0} 或更新的版本",
-    "voice.failed_disk": "无法保存语音模型：磁盘空间不足或没有权限"
+    "voice.failed_disk": "无法保存语音模型：磁盘空间不足或没有权限",
+    "voice.device_hint_cpu": "在 CPU 上识别一句话一般不到 0.1 秒（这台电脑没有能用的显卡）",
+    "voice.device_testing": "正在测试识别速度，请稍候……",
+    "voice.device_result": "识别 5 秒语音：这块显卡约 {0} ms，CPU 约 {1} ms",
+    "voice.device_slower": "识别 5 秒语音：这块显卡约 {0} ms，比 CPU（约 {1} ms）慢，建议改用 CPU",
+    "voice.device_cpu_result": "识别 5 秒语音：CPU 约 {1} ms",
+    "voice.device_failed": "语音模型无法在这块显卡上运行，继续使用 CPU。",
+    "voice.model_failed": "语音模型无法运行，请卸载后重新下载"
 }

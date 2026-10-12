@@ -45,6 +45,17 @@ Language parse_language(const std::string& name);
 // before this is true).
 bool runtime_available();
 
+// Threads for the CPU: half the cores, 1 to 4 (the server and Settings' speed test alike).
+int cpu_threads();
+
+// Settings' speed test (voice.device): how long the model takes for kTimedSeconds of sound on a
+// graphics card (gpu_device, a DirectML adapter index) or the CPU (-1), in ms: the median of
+// three runs of lengths it has not seen (about kTimedSeconds; a card prepares each new length, as
+// for every recording) after a first one. 0 with *error when it does not run there.
+constexpr int kTimedSeconds = 5;
+double time_recognition(const std::wstring& model, const std::wstring& tokens, int gpu_device,
+                        std::string* error);
+
 class SpeechRecognizer {
 public:
     SpeechRecognizer();

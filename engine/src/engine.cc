@@ -516,15 +516,35 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
     }
 
-    // Learning mode: Ctrl+1..9 types that candidate's translation (docs/learning-mode.md). While
-    // typing the key is ours even without a translation, so it never reaches the application
-    // (a browser would switch tabs); auto-repeat and the key-up are swallowed too.
+    // Learning mode: Ctrl+1..9 types that candidate's translation (docs/learning-mode.md), and
+    // with learning.digits_type_translation the keys trade places: 1..9 type the translation,
+    // Ctrl+1..9 the candidate. Without a translation nothing is typed. While typing Ctrl+1..9
+    // is ours either way, so it never reaches the application (a browser would switch tabs);
+    // auto-repeat and the key-up are swallowed too.
     const Config* config = runtime_ ? &runtime_->config() : nullptr;
-    if (!event.is_key_up && event.is_ctrl() && !event.is_alt() && !event.is_shift() &&
-        event.keycode >= '1' && event.keycode <= '9' && config &&
-        (!config->chinese_gloss_target.empty() || !config->english_gloss_target.empty()) &&
-        config->layout != "horizontal" &&
-        (context_.is_composing() || handled_shortcut_key_ == event.keycode)) {
+    const bool learning_keys =
+        config && (!config->chinese_gloss_target.empty() || !config->english_gloss_target.empty()) &&
+        config->layout != "horizontal";
+    const bool swapped_keys = learning_keys && config->digits_type_translation;
+    const bool learning_digit = learning_keys && !picking_by_ctrl_digit_ && !event.is_key_up &&
+                                !event.is_alt() && !event.is_shift() && event.keycode >= '1' &&
+                                event.keycode <= '9' &&
+                                (context_.is_composing() || handled_shortcut_key_ == event.keycode);
+    if (learning_digit && swapped_keys && event.is_ctrl()) {
+        record_total_us(trace_, total_start, trace_enabled_);
+        if (handled_shortcut_key_ == event.keycode) {
+            return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+        }
+        // The candidate itself, as 1..9 picks it otherwise.
+        KeyEvent plain = event;
+        plain.modifiers &= ~kKeyModifierControl;
+        picking_by_ctrl_digit_ = true;
+        const ProcessResult result = process_key(plain, opts, visible_candidate_count);
+        picking_by_ctrl_digit_ = false;
+        handled_shortcut_key_ = event.keycode;
+        return result;
+    }
+    if (learning_digit && event.is_ctrl() != swapped_keys) {
         record_total_us(trace_, total_start, trace_enabled_);
         if (handled_shortcut_key_ == event.keycode) {
             return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;

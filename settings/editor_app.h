@@ -210,6 +210,7 @@ private:
         std::shared_ptr<std::atomic<bool>> cancel;
     };
     HWND hChineseTarget_ = nullptr, hEnglishTarget_ = nullptr;
+    HWND hDigitsTranslation_ = nullptr;  // learning.digits_type_translation
     HWND hGlossPreview_ = nullptr;
     HWND hPackTabs_[2] = {};
     HWND hCheckAllPacks_ = nullptr;

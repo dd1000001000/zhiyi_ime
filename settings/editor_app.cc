@@ -317,6 +317,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(layout);
     KEEP_PAGE_EDIT(chinese_gloss_target);
     KEEP_PAGE_EDIT(english_gloss_target);
+    KEEP_PAGE_EDIT(digits_type_translation);
     KEEP_PAGE_EDIT(mt_enable);
     KEEP_PAGE_EDIT(mt_device);
     KEEP_PAGE_EDIT(page_size);

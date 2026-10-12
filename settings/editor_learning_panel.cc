@@ -24,6 +24,7 @@ enum ControlId {
     kChineseTargetId = 1501,
     kEnglishTargetId,
     kGlossPreviewId,
+    kDigitsTranslationId,
     kPackTabFirstId = 1510,  // .. 1511
     kCheckAllPacksId = 1515,
     kPackActionFirstId = 1520,  // .. 1526, one per row
@@ -148,6 +149,9 @@ void EditorApp::create_learning_panel(HWND panel) {
     y += kRowH;
     const int preview_width = S(250);
     const int preview_x = client.right - kPanelPadLeft - preview_width;
+    hDigitsTranslation_ = make_check(kDigitsTranslationId, tr("learning.digits_translation"), x0, y,
+                                     preview_x - x0 - S(16), panel);
+    y += kRowH;
     make_hint(tr("learning.hint"), x0, y, preview_x - x0 - S(16), panel);
     y += S(40);
     make_hint(tr("learning.keys_hint"), x0, y, preview_x - x0 - S(16), panel);
@@ -381,6 +385,7 @@ std::string EditorApp::combo_target(HWND combo, const std::string& source) const
 void EditorApp::populate_learning() {
     fill_target_combo(hChineseTarget_, "zh", config_.chinese_gloss_target);
     fill_target_combo(hEnglishTarget_, "en", config_.english_gloss_target);
+    set_check(hDigitsTranslation_, config_.digits_type_translation);
     if (hGlossPreview_) InvalidateRect(hGlossPreview_, nullptr, TRUE);
 }
 
@@ -388,6 +393,9 @@ void EditorApp::read_learning(Config& config) {
     if (!hChineseTarget_) return;
     config.chinese_gloss_target = combo_target(hChineseTarget_, "zh");
     config.english_gloss_target = combo_target(hEnglishTarget_, "en");
+    config.digits_type_translation =
+        get_check(hDigitsTranslation_) &&
+        (!config.chinese_gloss_target.empty() || !config.english_gloss_target.empty());
 }
 
 bool EditorApp::handle_learning_item(UINT message, LPARAM lparam) {
@@ -698,6 +706,10 @@ bool EditorApp::handle_learning_command(int control_id, int notification) {
             return true;
         }
         last = index;
+        // Neither Chinese nor English candidates translated: the number keys have nothing to type.
+        if (combo_index(hChineseTarget_) <= 0 && combo_index(hEnglishTarget_) <= 0) {
+            set_check(hDigitsTranslation_, false);
+        }
         if (index > 0 && hVertical_) {  // translations show in the vertical layout
             set_check(hVertical_, true);
             set_check(hHorizontal_, false);

@@ -175,6 +175,7 @@
 | `learning.translator_context_chars` | 32 | 交给翻译模型的光标前文字（字数，0–256），帮助多义词选对意思 |
 | `learning.translator_idle_seconds` | 60 | 这么多秒没有要翻译的词就卸载翻译模型，释放显存 |
 | `learning.space_languages` | `["en", "ko", "fr", "de", "es", "ru"]` | Ctrl+1～9 打出这些语言的翻译时，光标前是英文等字母或数字就先补一个空格（`[]` = 都不补） |
+| `learning.digits_type_translation` | false | 学习模式下 1～9 打出翻译、Ctrl+1～9 打出候选本身（默认相反）；没有翻译时都不打字 |
 | `style.render_backend` | d2d | 候选窗口渲染：d2d 或 gdi |
 | `theme` | moon_light | 候选窗口配色（`moon_light` / `moon_dark`；`themes.json` 中还有其他预设） |
 | `ui.language` | auto | 界面语言：auto、zh-CN、en-US |

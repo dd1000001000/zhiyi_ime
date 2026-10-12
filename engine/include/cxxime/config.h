@@ -143,6 +143,11 @@ struct Config {
     // (shortcuts.shape_toggle).
     KeyboardShortcut punct_toggle_shortcut = {kKeyModifierControl, 0xBE /* VK_OEM_PERIOD */};
     KeyboardShortcut shape_toggle_shortcut = {kKeyModifierShift, 0x20 /* VK_SPACE */};
+    // Candidate paging besides PageUp/PageDown, pressed alone while candidates are shown:
+    // shortcuts.page_up is "-", "," or "[", shortcuts.page_down "=", "." or "]". 0 ("" in the
+    // file, and anything else found there) is none, the default.
+    char page_up_key = 0;
+    char page_down_key = 0;
 
 
     // Users control only trace_mode; rotation and thresholds remain package settings.

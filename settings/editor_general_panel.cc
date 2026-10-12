@@ -53,6 +53,8 @@ enum ControlId {
     kPunctKeyId,
     kShapeKeyId,
     kRestoreKeysId,
+    kPageUpKeyId,
+    kPageDownKeyId,
     kLearningId = 1201,
     kClearLearningId,
     kExportBackupId,
@@ -64,6 +66,17 @@ enum ControlId {
     kFuzzyEnabledId = 1301,
     kFuzzyGroupFirstId = 1311,  // .. 1317, FuzzyGroup bit order
 };
+
+// Page key choices in combo order; 0 is none (shortcuts.page_up / page_down).
+constexpr char kPageUpKeys[] = {0, '-', ',', '['};
+constexpr char kPageDownKeys[] = {0, '=', '.', ']'};
+
+int page_key_index(const char (&keys)[4], char key) {
+    for (int i = 0; i < 4; ++i) {
+        if (keys[i] == key) return i;
+    }
+    return 0;
+}
 
 // Fuzzy pinyin pairs in FuzzyGroup bit order (engine/include/cxxime/spellings_index.h):
 // four initials (left column) and three finals (right column).
@@ -301,7 +314,9 @@ void EditorApp::create_fuzzy_panel(HWND panel) {
 void EditorApp::create_keys_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     int y = card_begin(panel, kPanelPadTop, tr("keys.card"));
-    const int labels = label_width({"keys.switch", "keys.style", "keys.punct", "keys.shape"});
+    // One label column for both cards, so the page key boxes line up with the switch keys.
+    const int labels = label_width({"keys.switch", "keys.style", "keys.punct", "keys.shape",
+                                    "keys.page_up", "keys.page_down"});
     const int box_width = S(340);
     struct Row {
         const char* label;
@@ -345,7 +360,25 @@ void EditorApp::create_keys_panel(HWND panel) {
     make_hint(tr("keys.capture_hint"), x0, y - S(4), S(500), panel, 3);
     y += S(58);
     make_button(kRestoreKeysId, tr("keys.restore"), x0, y, S(160), panel);
-    card_end(panel, y + S(30));
+    y = card_end(panel, y + S(30));
+
+    y = card_begin(panel, y, tr("keys.page_card"));
+    const int up_x = make_aligned_label(tr("keys.page_up"), x0, labels, y, panel);
+    hPageUpKey_ = make_combo(kPageUpKeyId, up_x, y, S(160), panel);
+    for (const char* key : {"keys.page_none", "keys.page_minus", "keys.page_comma",
+                            "keys.page_left_bracket"}) {
+        combo_add(hPageUpKey_, tr(key));
+    }
+    y += kRowH;
+    const int down_x = make_aligned_label(tr("keys.page_down"), x0, labels, y, panel);
+    hPageDownKey_ = make_combo(kPageDownKeyId, down_x, y, S(160), panel);
+    for (const char* key : {"keys.page_none", "keys.page_equal", "keys.page_period",
+                            "keys.page_right_bracket"}) {
+        combo_add(hPageDownKey_, tr(key));
+    }
+    y += kRowH;
+    make_hint(tr("keys.page_hint"), x0, y - S(4), S(500), panel, 2);
+    card_end(panel, y + S(36));
 }
 
 void EditorApp::create_dictionary_panel(HWND panel) {
@@ -459,6 +492,8 @@ void EditorApp::populate_controls() {
     populate_device();
 
     set_switch_key_boxes(config_);
+    combo_set_index(hPageUpKey_, page_key_index(kPageUpKeys, config_.page_up_key));
+    combo_set_index(hPageDownKey_, page_key_index(kPageDownKeys, config_.page_down_key));
 
     set_check(hLearning_, config_.candidate_learning);
     set_check(hExperience_, config_.experience_program);
@@ -498,6 +533,8 @@ bool EditorApp::read_controls(bool report_errors) {
     const KeyChoice choices[4] = {key_capture_get(hSwitchKey_), key_capture_get(hStyleKey_),
                                   key_capture_get(hPunctKey_), key_capture_get(hShapeKey_)};
     apply_switch_key_choices(c, choices);
+    c.page_up_key = kPageUpKeys[std::clamp(combo_index(hPageUpKey_), 0, 3)];
+    c.page_down_key = kPageDownKeys[std::clamp(combo_index(hPageDownKey_), 0, 3)];
     c.candidate_learning = get_check(hLearning_);
     c.experience_program = get_check(hExperience_);
     c.collect_input = c.experience_program && get_check(hCollectInput_);

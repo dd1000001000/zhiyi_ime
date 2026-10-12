@@ -83,7 +83,7 @@ static bool is_main_candidate_command(const KeyEvent& event, const Context& cont
     }
     return (event.keycode >= '1' && event.keycode <= '9') ||
            (event.keycode == '0' && context.selectable_candidate_count() >= 10) ||
-           event.keycode == VK_OEM_MINUS || event.keycode == VK_OEM_PLUS;
+           page_key(event, context) != PageKey::kNone;
 }
 
 static bool is_numpad_text_key(uint32_t keycode) {
@@ -605,8 +605,10 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         return ProcessResult::ACCEPTED;
     }
 
-    // Propagate CapsLock style to Context for PinyinProcessor
+    // Propagate CapsLock style and the page keys to Context for the processors
     context_.caps_lock_style = ascii_composer_.get_binding(VK_CAPITAL);
+    context_.page_up_key = runtime_ ? runtime_->config().page_up_key : 0;
+    context_.page_down_key = runtime_ ? runtime_->config().page_down_key : 0;
 
     // CapsLock plus a letter commits directly with case inversion.
     // When CapsLock is not configured as an IME switch, keep the OS CapsLock

@@ -63,7 +63,9 @@
         }
     },
     "shortcuts": {
-        "activate_ime": "disabled"
+        "activate_ime": "disabled",
+        "page_up": "",
+        "page_down": ""
     },
     "privacy": {
         "experience_program": false,

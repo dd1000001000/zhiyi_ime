@@ -116,14 +116,9 @@ ProcessResult SymbolProcessor::process_key(const KeyEvent& event, Context& conte
         return ProcessResult::ACCEPTED;
     }
 
-    const bool shortcut_page_up = event.keycode == VK_OEM_MINUS && !event.is_shift() &&
-                                  !event.is_ctrl() && !event.is_alt();
-    const bool shortcut_page_down = event.keycode == VK_OEM_PLUS && !event.is_shift() &&
-                                    !event.is_ctrl() && !event.is_alt();
-    if (event.keycode == VK_PRIOR || event.keycode == VK_NEXT || shortcut_page_up ||
-        shortcut_page_down) {
+    if (const PageKey page = page_key(event, context); page != PageKey::kNone) {
         if (context.candidate_count() > 0) {
-            if (event.keycode == VK_NEXT || shortcut_page_down) {
+            if (page == PageKey::kNext) {
                 context.request_next_page();
             } else {
                 context.request_previous_page();

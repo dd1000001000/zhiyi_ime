@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <utility>
@@ -52,6 +53,22 @@ static bool load_keyboard_shortcut(Json& obj, const char* key, KeyboardShortcut&
     }
     value = {};
     return false;
+}
+
+// A page key (shortcuts.page_up / page_down) is one of `allowed` or "" for none; anything else
+// in the file is none.
+template <typename Json>
+static void load_page_key(Json& obj, const char* key, const char* allowed, char& value) {
+    if (!obj.contains(key)) {
+        return;
+    }
+    const std::string text = obj[key].is_string() ? obj[key].template get<std::string>() : "?";
+    value = 0;
+    if (text.size() == 1 && text[0] != '\0' && std::strchr(allowed, text[0])) {
+        value = text[0];
+    } else if (!text.empty()) {
+        CXXIME_LOG(L"Config: shortcuts.%S is not one of %S, no page key", key, allowed);
+    }
 }
 
 // Fuzzy pinyin pairs in the config file ("fuzzy_groups": ["z_zh", ...]).
@@ -422,6 +439,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         auto& shortcuts = j["shortcuts"];
         load_keyboard_shortcut(shortcuts, "activate_ime", config.activate_ime_shortcut,
                                is_valid_activate_ime_shortcut);
+        load_page_key(shortcuts, "page_up", "-,[", config.page_up_key);
+        load_page_key(shortcuts, "page_down", "=.]", config.page_down_key);
         for (const auto& [key, value] :
              {std::pair{"english_style", &config.english_style_shortcut},
               std::pair{"ascii_toggle", &config.ascii_toggle_shortcut},
@@ -729,6 +748,8 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["shortcuts"]["ascii_toggle"] = keyboard_shortcut_string(config.ascii_toggle_shortcut);
     j["shortcuts"]["punct_toggle"] = keyboard_shortcut_string(config.punct_toggle_shortcut);
     j["shortcuts"]["shape_toggle"] = keyboard_shortcut_string(config.shape_toggle_shortcut);
+    j["shortcuts"]["page_up"] = std::string(config.page_up_key ? 1 : 0, config.page_up_key);
+    j["shortcuts"]["page_down"] = std::string(config.page_down_key ? 1 : 0, config.page_down_key);
     j["privacy"]["experience_program"] = config.experience_program;
     j["privacy"]["collect_input"] = config.collect_input && config.experience_program;
     j["update"]["notify"] = config.update_notify;

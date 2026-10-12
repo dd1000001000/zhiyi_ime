@@ -30,6 +30,7 @@ add_library(cxxime-engine STATIC
     src/pinyin_path_filter.cc
     src/pinyin_partial_candidates.cc
     src/pinyin_translator.cc
+    src/page_key.cc
     src/pinyin_processor.cc
     src/wubi_translator.cc
     src/wubi_processor.cc

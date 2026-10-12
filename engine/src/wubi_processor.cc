@@ -68,16 +68,12 @@ ProcessResult WubiProcessor::process_key(const KeyEvent& event, Context& context
         return ProcessResult::REJECTED;
     }
 
-    // Page Up / Page Down and unmodified - / =: pagination
-    bool shortcut_page_up = vk == VK_OEM_MINUS && !event.is_shift() &&
-                                  !event.is_ctrl() && !event.is_alt();
-    bool shortcut_page_down = vk == VK_OEM_PLUS && !event.is_shift() &&
-                                    !event.is_ctrl() && !event.is_alt();
-    if (vk == VK_PRIOR || vk == VK_NEXT || shortcut_page_up || shortcut_page_down) {
+    // PageUp / PageDown and the configured page keys: pagination
+    if (const PageKey page = page_key(event, context); page != PageKey::kNone) {
         if (context.is_composing() && context.candidate_count() > 0) {
-            if (vk == VK_NEXT || shortcut_page_down) {  // Page Down
+            if (page == PageKey::kNext) {
                 context.request_next_page();
-            } else {  // Page Up
+            } else {
                 context.request_previous_page();
             }
             return ProcessResult::ACCEPTED;

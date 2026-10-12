@@ -185,6 +185,8 @@ private:
     HWND hStyleKey_ = nullptr;
     HWND hPunctKey_ = nullptr;
     HWND hShapeKey_ = nullptr;
+    HWND hPageUpKey_ = nullptr;  // shortcuts.page_up / page_down: none or a symbol
+    HWND hPageDownKey_ = nullptr;
 
     // Dictionary
     HWND hLearning_ = nullptr;

@@ -42,6 +42,9 @@ public:
     std::string committed_text;
     int visible_candidate_count = 0;
     AsciiModeSwitchStyle caps_lock_style{};
+    // Config::page_up_key / page_down_key, copied by the engine for the processors.
+    char page_up_key = 0;
+    char page_down_key = 0;
 
     bool is_composing() const { return composition_.is_composing(); }
     const std::string& active_input() const { return composition_.active().input; }

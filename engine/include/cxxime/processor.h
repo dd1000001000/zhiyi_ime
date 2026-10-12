@@ -29,6 +29,16 @@ enum class ProcessResult {
     COMMIT_TRANSLATION,
 };
 
+enum class PageKey {
+    kNone,
+    kPrevious,
+    kNext,
+};
+
+// The page a key turns to while candidates are shown: PageUp/PageDown, or the page keys of
+// the context (shortcuts.page_up / page_down) pressed without Shift, Ctrl or Alt.
+PageKey page_key(const KeyEvent& event, const Context& context);
+
 // Abstract processor interface
 class IProcessor {
 public:

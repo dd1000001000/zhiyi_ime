@@ -78,6 +78,19 @@
 - 配置文件中这四项无效（例如手工改出了重复的键）时，会自动恢复默认值。
 - 学习模式下打字时，Ctrl+1～9 打出那个候选的翻译（见 [学习模式](learning-mode.md#打出翻译)），不能更改。
 
+### 候选翻页
+
+有候选时用来翻页的键，两项都默认“不使用”：
+
+| 项 | 可选 |
+|----|------|
+| 上一页 | 不使用、`-` 减号、`,` 逗号、`[` 左方括号 |
+| 下一页 | 不使用、`=` 等号、`.` 句号、`]` 右方括号 |
+
+- PageUp / PageDown 不管这里怎么选都能翻页；要单独按下（不带 Shift、Ctrl、Alt）才算翻页键。
+- 选了的键只在有候选时翻页（拼音、五笔、双拼和 `\` 符号输入都一样），没在打字时照常打出符号。所以选了逗号或句号后，要在拼音后面直接打出逗号、句号，得先按空格上屏。
+- 配置文件里是 `shortcuts.page_up` / `shortcuts.page_down`，值为 `""`（不使用）或上表中的一个符号；写成其他内容时按“不使用”处理。
+
 ## 词库
 
 - **自学习**：选过一次的词会往前排，选过两次的词固定在最前面，逐字选出的新词也会被记住；长期不用的记录会自己淡掉。
@@ -166,6 +179,7 @@
 | `theme` | moon_light | 候选窗口配色（`moon_light` / `moon_dark`；`themes.json` 中还有其他预设） |
 | `ui.language` | auto | 界面语言：auto、zh-CN、en-US |
 | `shortcuts.ascii_toggle` / `english_style` / `punct_toggle` / `shape_toggle` | 见“按键” | 切换键，如 `Ctrl+Space`；`disabled` 表示不用 |
+| `shortcuts.page_up` / `page_down` | `""` | 有候选时翻到上一页 / 下一页的键：`-` `,` `[` / `=` `.` `]`，`""` 表示不用（见“按键”的候选翻页） |
 | `ascii_composer.switch_key` | Shift 切换 | 单独轻按 Shift / Ctrl 的行为（`code`、`clear`、`set_ascii_mode`、`noop` 等，见 [组合输入](ascii-composer.md)） |
 | `english.word_mode` | true | 英文模式默认单词联想 |
 | `english.correction` | true | 英文拼写纠错 |

@@ -331,6 +331,8 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(laya.device);
     KEEP_PAGE_EDIT(fuzzy_pinyin);
     KEEP_PAGE_EDIT(fuzzy_groups);
+    KEEP_PAGE_EDIT(page_up_key);
+    KEEP_PAGE_EDIT(page_down_key);
 #undef KEEP_PAGE_EDIT
     // The switch keys move together, so a merge never repeats a key.
     if (!(ui.ascii_switch_key == before.ascii_switch_key) ||

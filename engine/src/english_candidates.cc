@@ -53,9 +53,9 @@ bool english_common_word(const EnglishLexicon& lexicon, const std::string& typed
 }
 
 EnglishPool build_english_pool(const EnglishLexicon& lexicon, const EnglishLearning* learning,
-                               const std::string& typed, const Config::EnglishConfig& config) {
+                               const std::string& typed, const Config::EnglishConfig& config,
+                               int size) {
     EnglishPool pool;
-    const int size = (std::max)({0, config.completion_count, config.completion_pool});
     const std::string key = lowercase(typed);
 
     // Dictionary order: exact match first, then completions by frequency.

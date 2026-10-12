@@ -76,7 +76,8 @@ bool switch_keys_valid(const Config& config) {
     const KeyboardShortcut* keys[] = {&config.ascii_toggle_shortcut,
                                       &config.english_style_shortcut,
                                       &config.punct_toggle_shortcut,
-                                      &config.shape_toggle_shortcut};
+                                      &config.shape_toggle_shortcut,
+                                      &config.voice_input_shortcut};
     for (size_t i = 0; i < std::size(keys); ++i) {
         if (!keys[i]->enabled()) continue;
         if (!is_valid_input_mode_shortcut(*keys[i]) || *keys[i] == config.activate_ime_shortcut) {
@@ -95,6 +96,7 @@ void reset_switch_keys(Config& config) {
     config.english_style_shortcut = defaults.english_style_shortcut;
     config.punct_toggle_shortcut = defaults.punct_toggle_shortcut;
     config.shape_toggle_shortcut = defaults.shape_toggle_shortcut;
+    config.voice_input_shortcut = {};
     // "code": the letters typed so far are committed, then the mode switches.
     config.ascii_switch_key["Shift_L"] = "code";
     config.ascii_switch_key["Shift_R"] = "code";
@@ -339,8 +341,6 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(en, "position_in_pinyin", config.english.position_in_pinyin);
         load_bool(en, "completion_in_ascii", config.english.completion_in_ascii);
         load_bool(en, "word_mode", config.english.word_mode);
-        load_int(en, "completion_pool", config.english.completion_pool);
-        load_int(en, "completion_count", config.english.completion_count);
         load_int(en, "min_score", config.english.min_score);
         load_bool(en, "correction", config.english.correction);
         load_int(en, "correction_count", config.english.correction_count);
@@ -435,6 +435,20 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         }
     }
 
+    if (j.contains("voice") && j["voice"].is_object()) {
+        auto& voice = j["voice"];
+        load_bool(voice, "enable", config.voice_enable);
+        load_string(voice, "device", config.voice_device);
+        load_string(voice, "language", config.voice_language);
+        load_bool(voice, "itn", config.voice_itn);
+        load_int(voice, "max_seconds", config.voice_max_seconds);
+        config.voice_max_seconds = (std::max)(5, (std::min)(config.voice_max_seconds, 300));
+        if (config.voice_language != "zh" && config.voice_language != "en" &&
+            config.voice_language != "yue") {
+            config.voice_language = "auto";
+        }
+    }
+
     bool switch_keys_loaded = true;
     if (j.contains("shortcuts") && j["shortcuts"].is_object()) {
         auto& shortcuts = j["shortcuts"];
@@ -446,7 +460,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
              {std::pair{"english_style", &config.english_style_shortcut},
               std::pair{"ascii_toggle", &config.ascii_toggle_shortcut},
               std::pair{"punct_toggle", &config.punct_toggle_shortcut},
-              std::pair{"shape_toggle", &config.shape_toggle_shortcut}}) {
+              std::pair{"shape_toggle", &config.shape_toggle_shortcut},
+              std::pair{"voice_input", &config.voice_input_shortcut}}) {
             if (!load_keyboard_shortcut(shortcuts, key, *value, is_valid_input_mode_shortcut)) {
                 switch_keys_loaded = false;
             }
@@ -683,8 +698,6 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["english"]["position_in_pinyin"] = config.english.position_in_pinyin;
     j["english"]["completion_in_ascii"] = config.english.completion_in_ascii;
     j["english"]["word_mode"] = config.english.word_mode;
-    j["english"]["completion_pool"] = config.english.completion_pool;
-    j["english"]["completion_count"] = config.english.completion_count;
     j["english"]["min_score"] = config.english.min_score;
     j["english"]["correction"] = config.english.correction;
     j["english"]["correction_count"] = config.english.correction_count;
@@ -749,6 +762,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["shortcuts"]["ascii_toggle"] = keyboard_shortcut_string(config.ascii_toggle_shortcut);
     j["shortcuts"]["punct_toggle"] = keyboard_shortcut_string(config.punct_toggle_shortcut);
     j["shortcuts"]["shape_toggle"] = keyboard_shortcut_string(config.shape_toggle_shortcut);
+    j["shortcuts"]["voice_input"] = keyboard_shortcut_string(config.voice_input_shortcut);
     j["shortcuts"]["page_up"] = std::string(config.page_up_key ? 1 : 0, config.page_up_key);
     j["shortcuts"]["page_down"] = std::string(config.page_down_key ? 1 : 0, config.page_down_key);
     j["privacy"]["experience_program"] = config.experience_program;
@@ -763,6 +777,11 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["learning"]["translator_idle_seconds"] = config.mt_idle_seconds;
     j["learning"]["space_languages"] = config.translation_space_languages;
     j["learning"]["digits_type_translation"] = config.digits_type_translation;
+    j["voice"]["enable"] = config.voice_enable;
+    j["voice"]["device"] = config.voice_device;
+    j["voice"]["language"] = config.voice_language;
+    j["voice"]["itn"] = config.voice_itn;
+    j["voice"]["max_seconds"] = config.voice_max_seconds;
 
     return j;
 }

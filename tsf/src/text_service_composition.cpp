@@ -141,6 +141,8 @@ STDMETHODIMP TextService::OnCompositionTerminated(TfEditCookie ecWrite,
 
     _composing = false;
     _emptyCompositionPlaceholderActive = false;
+    _voiceComposition = false;  // the program kept the voice text
+    _voiceText.clear();
     clear_applied_inline_composition_text();
     _end_reading_ui_element("hide:composition_terminated_reading");
     if (_composition) {
@@ -567,6 +569,8 @@ HRESULT TextService::_end_composition(ITfContext* context, bool sync) {
 
 void TextService::_AbortComposition() {
     invalidate_composition_edit_requests();
+    _voiceComposition = false;  // ending the composition leaves the voice text in place
+    _voiceText.clear();
     ITfComposition* aborted_composition = _composition;
     _hide_candidate_window("hide:abort_composition");
     _end_reading_ui_element("hide:abort_composition_reading");

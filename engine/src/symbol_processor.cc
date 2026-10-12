@@ -95,6 +95,11 @@ ProcessResult SymbolProcessor::process_key(const KeyEvent& event, Context& conte
         return ProcessResult::ACCEPTED;
     }
 
+    if (is_cycle_key(event)) {
+        context.cycle_highlight(event.is_shift());
+        return ProcessResult::ACCEPTED;
+    }
+
     if (event.keycode == VK_UP || event.keycode == VK_DOWN) {
         if (context.candidate_count() > 0) {
             if (event.keycode == VK_DOWN) {

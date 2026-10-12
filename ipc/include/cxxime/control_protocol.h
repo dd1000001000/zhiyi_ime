@@ -31,6 +31,8 @@ enum class ControlMessageType : std::uint16_t {
     kLexiconResult = 9,
     kUserBackupRequest = 10,
     kUserBackupResult = 11,
+    kWordListRequest = 12,
+    kWordListResult = 13,
 };
 
 enum class UserConfigMutationKind : std::uint8_t {

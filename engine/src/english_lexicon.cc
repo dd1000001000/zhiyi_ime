@@ -123,16 +123,68 @@ std::wstring widen(const std::string& s) {
 
 }  // namespace
 
-std::shared_ptr<const EnglishLexicon> EnglishLexicon::shared() {
-    static std::once_flag once;
-    static std::shared_ptr<const EnglishLexicon> instance;
-    std::call_once(once, [] {
+namespace {
+
+struct SharedEnglish {
+    std::mutex mutex;
+    std::once_flag once;
+    std::shared_ptr<const EnglishLexicon> base;     // english.words.tsv
+    std::shared_ptr<const EnglishLexicon> current;  // base plus the user's word lists
+};
+
+SharedEnglish& shared_english() {
+    static SharedEnglish state;
+    std::call_once(state.once, [] {
         auto lexicon = std::make_shared<EnglishLexicon>();
         if (lexicon->load(data_path("english.words.tsv")) && lexicon->size() > 0) {
-            instance = std::move(lexicon);
+            state.base = std::move(lexicon);
+            state.current = state.base;
         }
     });
-    return instance;
+    return state;
+}
+
+}  // namespace
+
+std::shared_ptr<const EnglishLexicon> EnglishLexicon::shared() {
+    SharedEnglish& state = shared_english();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    return state.current;
+}
+
+std::shared_ptr<const EnglishLexicon> EnglishLexicon::builtin() {
+    SharedEnglish& state = shared_english();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    return state.base;
+}
+
+void EnglishLexicon::set_extension(std::vector<std::pair<std::string, int>> words) {
+    SharedEnglish& state = shared_english();
+    std::shared_ptr<const EnglishLexicon> base;
+    {
+        std::lock_guard<std::mutex> lock(state.mutex);
+        base = state.base;
+    }
+    if (!base) return;
+    std::shared_ptr<const EnglishLexicon> combined = base;
+    if (!words.empty()) {
+        auto lexicon = std::make_shared<EnglishLexicon>(*base);
+        for (auto& [text, score] : words) {
+            Entry e;
+            for (char c : text) {
+                if (c != ' ') e.key += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            e.text = std::move(text);
+            e.score = score;
+            e.imported = true;
+            if (!e.key.empty()) lexicon->entries_.push_back(std::move(e));
+        }
+        std::stable_sort(lexicon->entries_.begin(), lexicon->entries_.end(),
+                         [](const Entry& a, const Entry& b) { return a.key < b.key; });
+        combined = std::move(lexicon);
+    }
+    std::lock_guard<std::mutex> lock(state.mutex);
+    state.current = std::move(combined);
 }
 
 bool EnglishLexicon::load(const std::string& path) {
@@ -243,8 +295,8 @@ std::vector<EnglishWord> EnglishLexicon::corrections(const std::string& code, in
     std::vector<Hit> hits;
     auto consider = [&](size_t index, float cost, bool completion) {
         const Entry& e = entries_[index];
-        if (cost > 0.0f && cost <= max_cost && e.score >= min_score && plain_lowercase_letters(e.key) &&
-            ordinary_word(e.key, e.text))
+        if (cost > 0.0f && cost <= max_cost && e.score >= min_score && !e.imported &&
+            plain_lowercase_letters(e.key) && ordinary_word(e.key, e.text))
             hits.push_back({index, completion ? cost + kCompletionPenalty : cost});
     };
 

@@ -13,6 +13,7 @@ add_library(cxxime-ipc STATIC
     src/ui_protocol.cc
     src/lexicon_control.cc
     src/user_backup_control.cc
+    src/word_list_control.cc
 )
 
 target_include_directories(cxxime-ipc PUBLIC

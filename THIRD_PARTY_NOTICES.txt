@@ -227,6 +227,21 @@ Part of the distillation text was drawn from:
   Open Data Commons Attribution License (ODC-BY) 1.0.
 
 
+Voice input models (downloaded separately, not in the installer)
+----------------------------------------------------------------
+
+Settings > Voice input downloads these from the release tagged "voice" of
+https://github.com/dd1000001000/zhiyi_ime, unchanged, each with its license file:
+
+- SenseVoice-Small (model.int8.onnx, tokens.txt), Tongyi Speech Lab, Alibaba Group
+  (FunAudioLLM), https://github.com/FunAudioLLM/SenseVoice ; the int8 ONNX export of k2-fsa
+  sherpa-onnx, https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17 .
+  License: FunASR Model Open Source License, Version 1.1
+  https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE
+- Silero VAD v4 (silero_vad.onnx), Silero Team, https://github.com/snakers4/silero-vad .
+  License: MIT License.
+
+
 Microsoft Visual C++ Runtime
 ----------------------------
 

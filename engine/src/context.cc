@@ -504,4 +504,17 @@ void Context::move_to_previous_candidate() {
     request_previous_page(true);
 }
 
+void Context::cycle_highlight(bool backward) {
+    const int count = selectable_candidate_count();
+    if (count <= 0) {
+        return;
+    }
+    const int current = translation_.highlighted;
+    if (current < 0 || current >= count) {
+        translation_.highlighted = backward ? count - 1 : 0;
+    } else {
+        translation_.highlighted = (current + (backward ? count - 1 : 1)) % count;
+    }
+}
+
 } // namespace cxxime

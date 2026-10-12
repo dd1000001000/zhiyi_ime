@@ -455,6 +455,7 @@ void TextService::_register_switch_keys() {
         {&c_guidPreservedKeyStyle, _config.english_style_shortcut, L"Input style"},
         {&c_guidPreservedKeyPunct, _config.punct_toggle_shortcut, L"Punctuation"},
         {&c_guidPreservedKeyShape, _config.shape_toggle_shortcut, L"Full/half width"},
+        {&c_guidPreservedKeyVoice, _config.voice_input_shortcut, L"Voice input"},
     };
     for (size_t i = 0; i < std::size(keys); ++i) {
         if (!keys[i].key.enabled()) continue;
@@ -481,7 +482,8 @@ void TextService::_unregister_switch_keys() {
     if (_threadMgr && SUCCEEDED(_threadMgr->QueryInterface(
                           IID_ITfKeystrokeMgr, reinterpret_cast<void**>(&keystroke_mgr)))) {
         const GUID* guids[] = {&c_guidPreservedKeyAsciiToggle, &c_guidPreservedKeyStyle,
-                               &c_guidPreservedKeyPunct, &c_guidPreservedKeyShape};
+                               &c_guidPreservedKeyPunct, &c_guidPreservedKeyShape,
+                               &c_guidPreservedKeyVoice};
         for (size_t i = 0; i < std::size(guids); ++i) {
             if (!_preservedSwitchKeys[i].enabled()) continue;
             TF_PRESERVEDKEY preserved = {};

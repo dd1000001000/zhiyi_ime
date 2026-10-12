@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace cxxime {
@@ -34,9 +35,16 @@ float english_correction_limit(std::size_t length);
 
 class EnglishLexicon {
 public:
-    // Process-wide instance loaded once from data_path("english.words.tsv").
-    // Returns nullptr when the file is missing or empty.
+    // Process-wide instance loaded once from data_path("english.words.tsv"), with the words of
+    // the user's English word lists (set_extension). Returns nullptr when the file is missing
+    // or empty.
     static std::shared_ptr<const EnglishLexicon> shared();
+    // The words (text, score) of the user's enabled English word lists (word_list.h): they
+    // complete as the list's own words do, but are never offered as spelling corrections.
+    // Empty: the list alone.
+    static void set_extension(std::vector<std::pair<std::string, int>> words);
+    // english.words.tsv alone (what an imported list is compared with).
+    static std::shared_ptr<const EnglishLexicon> builtin();
 
     bool load(const std::string& path);
     std::size_t size() const { return entries_.size(); }
@@ -63,6 +71,7 @@ private:
         std::string key;   // lowercase code
         std::string text;
         int score = 0;
+        bool imported = false;  // from a user word list (set_extension)
     };
     std::vector<Entry> entries_;  // sorted by key
 };

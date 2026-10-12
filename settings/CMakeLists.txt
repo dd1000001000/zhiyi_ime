@@ -9,6 +9,8 @@ add_executable(cxxime-settings WIN32
     editor_controls.cc
     editor_general_panel.cc
     editor_backup.cc
+    editor_voice_panel.cc
+    editor_word_list_panel.cc
     editor_gpu.cc
     data_move.cc
     data_move.h

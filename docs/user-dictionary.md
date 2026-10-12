@@ -272,8 +272,69 @@ std::uint64_t manual_candidate_order_version() const;
 
 设置页通过 IPC 的 `kQueryCandidateOrder` / `kSetCandidateOrder` / `kClearCandidateOrder` 操作访问（`lexicon_control.h`），写入携带 `expected_version`；版本不一致返回 `ERROR_REVISION_MISMATCH`，界面提示刷新重试。设置界面操作方式见 [设置指南 — 词库管理](settings-guide.md)。
 
+## 自定义词表（扩展词典）
+
+用户导入的词库（设置的“自定义词表”页，见 [设置指南](settings-guide.md#自定义词表)）不进用户词库，
+而是作为**扩展词典**和系统词典一起查询，按系统词的规则排序。
+
+### 读取与转换（`engine/include/cxxime/word_list.h`）
+
+1. `read_word_list` / `parse_word_list`（`word_list_read.cc`）：按文件内容识别格式，读出词、拼音（`a:li:ba:ba`）、
+   五笔编码和文件自带的权重。
+   - 搜狗细胞词库 `.scel`：UTF-16LE；`0x120` 处是拼音组数和词数，`0x130` 是词库名，`0x1540` 起是音节表，
+     `0x2628`（第 5 字节为 `E` 时 `0x26C4`）起按拼音分组存词；每个词后的附加数据前两字节是序号，不当词频；
+     `lue` / `nue` 换成系统的 `lve` / `nve`。
+   - Rime `.dict.yaml`：按文件头 `columns` 取列；编码含空格（或单字编码是音节）为拼音，1–4 个字母为五笔；
+     多数行是 ASCII 文本时按英文词表读。
+   - 文本：编码自动识别（BOM、无 BOM 的 UTF-16、UTF-8，否则 GBK）；中文行取汉字词和拼音（`'` 或空格分隔，
+     没有分隔时按字数切成音节）及数字权重；英文行取词或短语（单词本 `word,释义` 取第一列）。
+   - 没有拼音的中文词表返回 `kNoPinyin`，不导入。
+2. `resolve_word_list`（`word_list_resolve.cc`）：对照系统词典得到要导入的条目。
+   - 拼音：每个音节必须在系统音节表里，音节数等于字数；系统词典已有同字同音的词时拼音部分不导入。
+   - 没有拼音（五笔词库）：在系统拼音词典里查这个词及其片段，拆成最少、最常用的已知词拼出读音（`guessed_reading`），
+     多音字只取一个读音。
+   - 五笔：文件没给编码时按五笔 86 组词规则由各字的全码（五笔词典里该字最长的编码）算出；五笔词典已有这个词时不导入五笔部分。
+   - 词频：两字 `kWordListTwoCharacterFrequency`（1000），三字以上 `kWordListLongWordFrequency`（500），单字 100；
+     文件有权重（多数词都有）时按名次在一半到两倍之间分配。英文按 100 × Zipf，默认 400，按名次 300–500。
+3. `write_word_list` / `load_word_list`：知意自己的格式，首行 `# zhiyi-wordlist format=1`，接 `# language=`、`# name=`，
+   中文每行 `词<TAB>音节<TAB>五笔<TAB>词频<TAB>g?`（`g`：读音是推出来的），英文每行 `词<TAB>分数`。
+
+### 存放与应用（`server/src/word_list_service.cc`）
+
+- 数据文件夹 `wordlists\index.json`（每份词表的编号、名称、原文件名、格式、语言、导入时间、启用与否、各项计数、
+  原文件的校验和）和 `<编号>.tsv`。设置程序通过控制管道的 `kWordListRequest`（`ipc/include/cxxime/word_list_control.h`）
+  列出、预览、导入、启用 / 停用、删除词表和查看推出的读音。
+- 先查后缀（`word_list_extension_supported`：`.scel` `.yaml` `.yml` `.txt` `.csv` `.tsv`；设置程序选文件后先查一次，
+  后台读文件前再查），再查校验和（FNV-1a 加文件大小，同一个文件不导入第二次）和数量（中文、英文各
+  `kMaxWordListsPerLanguage` = 64 份），最后才读文件。名称最多 48 个字，回复（64 KiB 以内）的列表不带原文件名。
+- `index.json` 读不出来，或者不在但有词表文件时，按 `*.tsv` 重新生成（全部启用，计数取自词表文件，原文件的校验和
+  丢失），损坏的文件改名为 `index.json.damaged`。重新生成也写不进去时返回 `kWordListErrorStorage`，不做任何改动，
+  以免写出一个缺了词表的目录。
+- 后台启动、词典重载和每次改动后，`apply_word_lists` 读出启用的词表（`collect_extension_words`，同词同码去重取最高词频），
+  交给 `Dict::set_extension`（拼音、五笔各一份）和 `EnglishLexicon::set_extension`。停用词表里、启用的词表里没有的词
+  作为 `withheld` 传入。
+- 删除词表时，只属于它的词的候选偏好（学习记录）一起删除。备份把所有词表放在一项 `wordlists/wordlists.json`
+  里（没有词表时不写），导入时只添加本机没有的词表（编号和原文件的校验和都不同的），超出 64 份的跳过。
+
+### 查询（`engine/include/cxxime/extension_lexicon.h`）
+
+`ExtensionLexicon` 在内存里建索引，只读，改动时整个换掉（`std::atomic_store`，查询中的线程不受影响）：
+
+- 拼音词按**系统词典的音节编号**排序（同音按词频从高到低），所以和系统词走同样的查询：`has_prefix` / `lookup_by_ids`
+  （整词与更长的词）、`lookup_exact_span`（组句的每一段，也用于分段选词）、`lookup_by_syllables`。
+  组句和排序因此把它们当作这个词频的系统词（`origin` 为 `kSystem`，Laya 也按词频给组句分）。
+- 短输入快速路径：Top-N 索引（`pinyin.topn.bin`）只有系统词，扩展词典另有一份键索引，生成与评分同
+  `scripts/build_pinyin_topn.py`（全拼、首字母、混合键、儿化，至多 6 个字母的前缀）：1–3 个字母的键在建索引时算好最好的
+  32 个词，更长的键查询时算分。双拼和“全拼夹首字母”经由同一接口查到。
+- 五笔按编码排序：先精确匹配，再按码长；排在同一组的系统词之后，系统词原来的位置不变。
+- 系统词的隐藏列表同样过滤扩展词典的词；`preference_candidate_available` 认扩展词典的词，学过的词照常加分和置顶；
+  不在任何启用词表里、但在停用词表里的词（`is_withheld`），学习记录不再补进候选。
+- 约 4 万词（4 份细胞词库）建索引约 0.25 秒，查询每次按键多约 0.1 ms（`word_list_test` 的
+  `four_cell_dictionaries_stay_fast`）。
+
 ## Cache 失效
 
+- **自定义词表**：`Dict::user_dict_version()` 含扩展词典的代数，换词表后各翻译器的查询缓存随之失效。
 - **用户词库**：以 `UserLexicon::version()` 判定新鲜度。长拼音查询页缓存键包含该版本，版本不一致的条目不会命中，由 LRU 自然淘汰；Session recent cache 在版本变化后扫描时过滤已删除或已不存在的词条。
 - **候选偏好**：偏好只影响候选排序，不进入查询索引；`apply_candidate_preferences` 在每次翻译时应用。其版本（`CandidatePreference::version()`）用于设置页等服务端查询的数据新鲜度判断。
 - **手动候选顺序**：`ManualCandidateOrder::version()` 同样参与查询页缓存与 Translator 快照的失效判断；任何固定项变更都会使旧缓存失效。

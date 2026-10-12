@@ -156,6 +156,7 @@ cxxime::KeyboardShortcut TextService::_switch_key(int slot) const {
     case 1: return _config.english_style_shortcut;
     case 2: return _config.punct_toggle_shortcut;
     case 3: return _config.shape_toggle_shortcut;
+    case 4: return _config.voice_input_shortcut;
     default: return {};
     }
 }
@@ -168,7 +169,7 @@ int TextService::_held_switch_key() const {
     auto down = [](int key) {
         return (GetKeyState(key) & 0x8000) != 0 || (GetAsyncKeyState(key) & 0x8000) != 0;
     };
-    for (int slot = 0; slot < 4; ++slot) {
+    for (int slot = 0; slot < 5; ++slot) {
         const cxxime::KeyboardShortcut key = _switch_key(slot);
         if (!key.enabled() || !down(static_cast<int>(key.virtual_key))) continue;
         if (down(VK_CONTROL) == ((key.modifiers & cxxime::kKeyModifierControl) != 0) &&
@@ -182,7 +183,7 @@ int TextService::_held_switch_key() const {
 
 bool TextService::_claim_switch_key_press(int slot) {
     constexpr ULONGLONG kSamePressMs = 300;
-    if (slot < 0 || slot >= 4) return false;
+    if (slot < 0 || slot >= 5) return false;
     const ULONGLONG now = GetTickCount64();
     if (_switchKeyTicks[slot] != 0 && now - _switchKeyTicks[slot] < kSamePressMs) return false;
     _switchKeyTicks[slot] = now;
@@ -191,12 +192,13 @@ bool TextService::_claim_switch_key_press(int slot) {
 
 // A system input method hotkey changed a compartment: when a configured switch key is held,
 // that key is run (once per press) and the compartment change itself is not applied. The style
-// key too: its default, Ctrl+Space, is Windows' Chinese IME open/close hotkey.
+// key too: its default, Ctrl+Space, is Windows' Chinese IME open/close hotkey; and the voice key.
 bool TextService::_run_held_switch_key() {
     const int slot = _held_switch_key();
     if (slot < 0) return false;
     const bool claimed = _claim_switch_key_press(slot);
-    const bool applied = claimed && (slot == 1 ? _press_style_key() : _apply_switch_key(slot));
+    const bool applied =
+        claimed && (slot == 1 || slot == 4 ? _press_switch_key(slot) : _apply_switch_key(slot));
     if (claimed && !applied) {
         _switchKeyTicks[slot] = 0;  // not done: the key event may still do it
     }
@@ -248,8 +250,8 @@ bool TextService::_apply_switch_key(int slot) {
     return true;
 }
 
-bool TextService::_press_style_key() {
-    const cxxime::KeyboardShortcut key = _config.english_style_shortcut;
+bool TextService::_press_switch_key(int slot) {
+    const cxxime::KeyboardShortcut key = _switch_key(slot);
     if (!key.enabled() || !_ensure_ipc_session()) return false;
     const uint32_t modifiers = (key.modifiers & cxxime::kShortcutModifierMask) |
                                (_get_modifiers() & cxxime::kKeyModifierCapsLock);
@@ -266,7 +268,8 @@ bool TextService::_press_style_key() {
     BOOL eaten = FALSE;
     _apply_engine_response(context, response, &eaten);
     if (context) context->Release();
-    cxxime_tsf::trace_activation_step("switch_key", "style_pressed", S_OK, false);
+    cxxime_tsf::trace_activation_step("switch_key", slot == 1 ? "style_pressed" : "voice_pressed",
+                                      S_OK, false);
     return true;
 }
 

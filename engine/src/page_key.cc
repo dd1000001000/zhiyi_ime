@@ -33,4 +33,8 @@ PageKey page_key(const KeyEvent& event, const Context& context) {
     return PageKey::kNone;
 }
 
+bool is_cycle_key(const KeyEvent& event) {
+    return event.keycode == VK_TAB && !event.is_ctrl() && !event.is_alt();
+}
+
 }  // namespace cxxime

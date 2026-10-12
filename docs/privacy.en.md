@@ -99,6 +99,15 @@ processed in this computer's memory and video memory, **never sent over the netw
 are remembered in memory only, not written to a file. The model and its runtime are downloaded from
 GitHub only on "Download" or "Update".
 
+## Voice input (not part of this program)
+
+Only after voice input is turned on in Settings > Voice input and the voice key is pressed does the
+background service open the microphone; it closes it as soon as the key is pressed again, stop is
+clicked, Esc is pressed or the input box is left (the microphone icon on the taskbar shows exactly
+this time). The recording is turned into text in memory, **never saved and never sent anywhere**,
+and the text is not written to any log. The voice model is downloaded from GitHub only when
+"Download" or "Update" is clicked.
+
 ## Update check (not part of this program)
 
 "Tell me when a new version is available" in Settings > Updates (on by default, setting

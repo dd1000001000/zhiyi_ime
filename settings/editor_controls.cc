@@ -200,6 +200,33 @@ void scroll_panel_to(HWND panel, int position) {
     RedrawWindow(panel, nullptr, nullptr, RDW_UPDATENOW | RDW_ALLCHILDREN);
 }
 
+}  // namespace
+
+int clear_panel(HWND panel) {
+    for (HWND child = GetWindow(panel, GW_CHILD); child;) {
+        const HWND next = GetWindow(child, GW_HWNDNEXT);
+        DestroyWindow(child);
+        child = next;
+    }
+    g_cards.erase(panel);
+    g_open_cards.erase(panel);
+    int position = 0;
+    const auto scroll = g_scroll.find(panel);
+    if (scroll != g_scroll.end()) {
+        position = scroll->second;
+        scroll->second = 0;
+        SetScrollPos(panel, SB_VERT, 0, TRUE);
+    }
+    InvalidateRect(panel, nullptr, TRUE);
+    return position;
+}
+
+void scroll_panel(HWND panel, int position) {
+    if (g_scroll.find(panel) != g_scroll.end()) scroll_panel_to(panel, position);
+}
+
+namespace {
+
 // WM_VSCROLL / WM_MOUSEWHEEL on a scrollable page; false for any other page.
 bool scroll_message(HWND panel, UINT message, WPARAM wparam) {
     if (g_scroll.find(panel) == g_scroll.end()) return false;

@@ -292,6 +292,21 @@ bool IpcClient::refresh_candidates(uint32_t session_id, IPCResponse& response,
     return send_request(req, response) && response.status == IPCStatus::OK;
 }
 
+bool IpcClient::voice_status(uint32_t session_id, IPCResponse& response) {
+    IPCRequest req = {};
+    req.command = IPCCommand::VOICE_STATUS;
+    req.session_id = session_id;
+    return send_request(req, response) && response.status == IPCStatus::OK;
+}
+
+bool IpcClient::voice_cancel(uint32_t session_id) {
+    IPCRequest req = {};
+    req.command = IPCCommand::VOICE_CANCEL;
+    req.session_id = session_id;
+    IPCResponse resp = {};
+    return send_request(req, resp) && resp.status == IPCStatus::OK;
+}
+
 bool IpcClient::clear_composition(uint32_t session_id) {
     IPCRequest req = {};
     req.command = IPCCommand::CLEAR_COMPOSITION;

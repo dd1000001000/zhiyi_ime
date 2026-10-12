@@ -196,6 +196,63 @@ bool parse_translator_manifest(const std::string& text, const std::string& downl
     return true;
 }
 
+std::uint64_t VoiceManifest::total_size() const {
+    std::uint64_t total = 0;
+    for (const TranslatorFile& file : files) total += file.size;
+    return total;
+}
+
+bool parse_voice_manifest(const std::string& text, const std::string& download_prefix,
+                          VoiceManifest* manifest) {
+    const nlohmann::json json = nlohmann::json::parse(text, nullptr, false);
+    if (!manifest || !json.is_object()) return false;
+    VoiceManifest parsed;
+    const auto version = json.find("version");
+    if (version == json.end() || !version->is_number_unsigned()) return false;
+    parsed.version = version->get<std::uint32_t>();
+    if (json.contains("min_app") && json["min_app"].is_string()) {
+        parsed.min_app = json["min_app"].get<std::string>();
+    }
+    const auto files = json.find("files");
+    if (parsed.version == 0 || files == json.end() || !files->is_array() || files->size() > 16 ||
+        (!parsed.min_app.empty() && !is_release_version(parsed.min_app))) {
+        return false;
+    }
+    // The three model files by name, and licenses: plain names, nothing else.
+    auto allowed = [](const std::string& name) {
+        if (name == "model.int8.onnx" || name == "tokens.txt" || name == "silero_vad.onnx") return true;
+        if (name.size() > 64 || name.rfind("LICENSE-", 0) != 0 ||
+            name.compare(name.size() - 4, 4, ".txt") != 0) {
+            return false;
+        }
+        return std::all_of(name.begin(), name.end(), [](char c) {
+            return std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '-' || c == '_';
+        });
+    };
+    int required = 0;
+    for (const nlohmann::json& item : *files) {
+        if (!item.is_object() || !item.contains("file") || !item["file"].is_string() ||
+            !item.contains("sha256") || !item["sha256"].is_string() || !item.contains("size") ||
+            !item["size"].is_number_unsigned()) {
+            return false;
+        }
+        TranslatorFile file;
+        file.file = item["file"].get<std::string>();
+        file.sha256 = item["sha256"].get<std::string>();
+        file.size = item["size"].get<std::uint64_t>();
+        file.url = download_prefix + kVoiceReleasePath + file.file;
+        if (!allowed(file.file) || !is_lower_hex(file.sha256, 64) || file.size == 0) return false;
+        for (const TranslatorFile& seen : parsed.files) {
+            if (seen.file == file.file) return false;
+        }
+        if (file.file.rfind("LICENSE-", 0) != 0) ++required;
+        parsed.files.push_back(std::move(file));
+    }
+    if (required != 3) return false;
+    *manifest = std::move(parsed);
+    return true;
+}
+
 bool is_newer_release(const std::string& candidate, const std::string& current) {
     if (candidate.find('-') != std::string::npos) return false;  // pre-releases are not offered
     installer::VersionOrder order;

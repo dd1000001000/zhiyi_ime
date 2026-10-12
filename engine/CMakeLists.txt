@@ -15,6 +15,9 @@ add_library(cxxime-engine STATIC
     src/dict_span_query.cc
     src/mapped_file.cc
     src/dict_wubi_query.cc
+    src/extension_lexicon.cc
+    src/word_list_read.cc
+    src/word_list_resolve.cc
     src/user_data_file.cc
     src/disabled_system_lexicon.cc
     src/user_lexicon.cc
@@ -76,6 +79,8 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         src/laya/slots.cpp
         src/laya/reranker.cpp
         src/machine_translation.cc
+        src/voice_recognizer.cc
+        src/voice_files.cc
     )
     # Offline translation (machine_translation.h): llama-server.exe over HTTP on 127.0.0.1.
     target_link_libraries(cxxime-engine PUBLIC winhttp ws2_32 bcrypt)

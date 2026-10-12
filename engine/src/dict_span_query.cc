@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <climits>
 
+#include <cxxime/extension_lexicon.h>
 #include <cxxime/query_budget.h>
 
 namespace cxxime {
@@ -53,7 +54,8 @@ bool Dict::lookup_exact_span(const std::vector<uint32_t>& ids, size_t start, siz
                              const SpanLookupLimits& limits, const QueryDeadline& deadline,
                              std::vector<Candidate>& output, SpanLookupStats& stats) const {
     output.clear();
-    if (start >= end || end > ids.size() || id_index_.empty()) {
+    const auto extension = std::atomic_load(&extension_);
+    if (start >= end || end > ids.size() || (id_index_.empty() && !extension)) {
         return false;
     }
     if (stats.range_queries >= limits.max_range_queries ||
@@ -93,9 +95,6 @@ bool Dict::lookup_exact_span(const std::vector<uint32_t>& ids, size_t start, siz
             high = middle;
         }
     }
-    if (low >= id_index_.size()) {
-        return false;
-    }
 
     auto prefix_matches = [&](const IdEntry& entry) {
         if (static_cast<size_t>(entry.count) < query_size) {
@@ -103,7 +102,9 @@ bool Dict::lookup_exact_span(const std::vector<uint32_t>& ids, size_t start, siz
         }
         return std::equal(query, query + query_size, entry.ids);
     };
-    if (!prefix_matches(id_index_[low])) {
+    const bool system_prefix = low < id_index_.size() && prefix_matches(id_index_[low]);
+    const bool extension_prefix = extension && extension->has_prefix(query, query_size);
+    if (!system_prefix && !extension_prefix) {
         return false;
     }
 
@@ -114,13 +115,28 @@ bool Dict::lookup_exact_span(const std::vector<uint32_t>& ids, size_t start, siz
 
     std::vector<Candidate> candidates;
     candidates.reserve(limits.max_candidates_per_range);
+    // The words of the user's word lists with these syllables (the most frequent first).
+    if (extension_prefix) {
+        for (const ExtensionLexicon::Word* word :
+             extension->match_ids(query, query_size, true, limits.max_candidates_per_range)) {
+            ++stats.entry_scans;
+            Candidate candidate;
+            candidate.text = word->text;
+            candidate.syllables = word->code;
+            candidate.code = word->compact;
+            candidate.frequency = word->frequency;
+            candidate.source_frequency = word->frequency;
+            offer_bounded(candidates, std::move(candidate), limits.max_candidates_per_range);
+        }
+    }
     // Entries with the same syllables are stored by frequency, highest first (dict.bin is built
     // ORDER BY syllable_ids, frequency DESC and the index keeps that order). Once the bounded list
     // is full, the rest cannot enter it: stop instead of scanning every homophone (several hundred
     // for "yi" or "shi"), which spent the scan budget of a long sentence before its last syllable.
     bool descending = true;
     int previous_frequency = INT_MAX;
-    for (size_t position = low; position < id_index_.size() && exact_matches(id_index_[position]);
+    for (size_t position = low; system_prefix && position < id_index_.size() &&
+                                exact_matches(id_index_[position]);
          ++position) {
         if (stats.entry_scans >= limits.max_entry_scans) {
             stats.truncated = true;
@@ -141,7 +157,11 @@ bool Dict::lookup_exact_span(const std::vector<uint32_t>& ids, size_t start, siz
         descending = descending && frequency <= previous_frequency;
         previous_frequency = frequency;
         offer_bounded(candidates, std::move(candidate), limits.max_candidates_per_range);
-        if (descending && candidates.size() >= limits.max_candidates_per_range) {
+        // The rest are no more frequent than this entry: none enters once the list is full
+        // and this entry is at its bottom.
+        if (descending && candidates.size() >= limits.max_candidates_per_range &&
+            std::none_of(candidates.begin(), candidates.end(),
+                         [&](const Candidate& c) { return c.frequency < frequency; })) {
             break;
         }
     }

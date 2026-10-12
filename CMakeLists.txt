@@ -97,7 +97,7 @@ endif()
 
 if(CXXIME_BUILD_TOOLS)
     foreach(tool dict_query laya_smoke sqlite_query ipc_test candidate_window_tool
-                 tsf_position_tool query_bench tray_icon_tool punct_test update_tool)
+                 tsf_position_tool query_bench tray_icon_tool punct_test update_tool voice_smoke)
         if(EXISTS "${CMAKE_SOURCE_DIR}/tools/${tool}/CMakeLists.txt")
             add_subdirectory(tools/${tool})
         endif()

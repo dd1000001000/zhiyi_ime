@@ -12,6 +12,7 @@
 
 #include <cxxime/candidate_preference.h>
 #include <cxxime/disabled_system_lexicon.h>
+#include <cxxime/extension_lexicon.h>
 #include <cxxime/manual_candidate_order.h>
 #include <cxxime/user_lexicon.h>
 
@@ -116,7 +117,63 @@ bool Dict::has_user_entry(const std::string& text) const {
 
 size_t Dict::user_entry_count() const { return user_lexicon_->entry_count(); }
 
-uint64_t Dict::user_dict_version() const { return user_lexicon_->version(); }
+uint64_t Dict::user_dict_version() const {
+    // Every change of the word lists moves the version too (caches keyed on it are refreshed).
+    return user_lexicon_->version() + (extension_generation_.load() << 40);
+}
+
+void Dict::set_extension(std::vector<ExtensionWord> words, std::vector<std::string> withheld) {
+    std::shared_ptr<const ExtensionLexicon> extension;
+    if (!words.empty() || !withheld.empty()) {
+        extension = kind_ == UserDictKind::PINYIN
+                        ? ExtensionLexicon::build_pinyin(std::move(words), syllabary_, std::move(withheld))
+                        : ExtensionLexicon::build_wubi(std::move(words), std::move(withheld));
+    }
+    std::atomic_store(&extension_, std::move(extension));
+    ++extension_generation_;
+}
+
+std::shared_ptr<const ExtensionLexicon> Dict::extension() const {
+    return std::atomic_load(&extension_);
+}
+
+std::vector<Candidate> Dict::lookup_extension_key(const std::string& key, int limit,
+                                                 int min_score) const {
+    const auto extension = std::atomic_load(&extension_);
+    if (!extension) return {};
+    std::vector<Candidate> candidates = extension->lookup_key(key, limit, min_score);
+    filter_disabled_system_candidates(candidates);
+    return candidates;
+}
+
+bool Dict::contains_system_entry(const std::string& text, const std::string& code) const {
+    if (!dict_entries_ || code.empty()) {
+        return false;
+    }
+    auto entry_code = [&](std::uint32_t index) {
+        const auto& entry = dict_entries_[index];
+        return std::string_view(dict_strings_ + entry.syllable_ids_offset, entry.syllable_ids_len);
+    };
+    std::uint32_t lower = 0;
+    std::uint32_t upper = dict_entry_count_;
+    while (lower < upper) {
+        const std::uint32_t middle = lower + (upper - lower) / 2;
+        if (entry_code(middle) < code) {
+            lower = middle + 1;
+        } else {
+            upper = middle;
+        }
+    }
+    for (std::uint32_t index = lower; index < dict_entry_count_ && entry_code(index) == code;
+         ++index) {
+        const auto& entry = dict_entries_[index];
+        if (entry.text_len == text.size() &&
+            std::memcmp(dict_strings_ + entry.text_offset, text.data(), entry.text_len) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
 
 std::vector<Candidate> Dict::lookup_user_exact(const std::string& code, int limit,
                                                const QueryBudget& budget, QueryTrace* trace,
@@ -184,6 +241,7 @@ void Dict::apply_candidate_preferences(const std::string& code, CandidateSource 
     }
     auto preferences = candidate_preference_->preferred_candidates(code, source);
     const bool filter_disabled = disabled_system_entry_count() != 0;
+    const auto extension = std::atomic_load(&extension_);
     for (auto& preference : preferences) {
         if (filter_disabled && is_system_entry_disabled(preference.text) &&
             preference.origin != CandidateOrigin::kUser) {
@@ -210,7 +268,8 @@ void Dict::apply_candidate_preferences(const std::string& code, CandidateSource 
             continue;
         }
         if (!preference_candidate_available(preference, source)) {
-            if (!add_unlisted) {
+            // A word of a disabled word list is hidden with its list.
+            if (!add_unlisted || (extension && extension->is_withheld(preference.text))) {
                 continue;
             }
             preference.frequency = kFallbackCandidateScore;
@@ -237,6 +296,12 @@ bool Dict::preference_candidate_available(const Candidate& candidate,
     if (user_lexicon_->contains_candidate(candidate.text, candidate.code, candidate.syllables)) {
         return true;
     }
+    const std::string& target_code = candidate.syllables.empty() ? candidate.code : candidate.syllables;
+    if (const auto extension = std::atomic_load(&extension_)) {
+        if (extension->contains(candidate.text, target_code)) {
+            return true;
+        }
+    }
     if (!dict_entries_) {
         return false;
     }
@@ -249,34 +314,7 @@ bool Dict::preference_candidate_available(const Candidate& candidate,
             return true;
         }
     }
-
-    const std::string_view target_code = candidate.syllables.empty()
-        ? std::string_view(candidate.code)
-        : std::string_view(candidate.syllables);
-    auto entry_code = [&](std::uint32_t index) {
-        const auto& entry = dict_entries_[index];
-        return std::string_view(dict_strings_ + entry.syllable_ids_offset, entry.syllable_ids_len);
-    };
-    std::uint32_t lower = 0;
-    std::uint32_t upper = dict_entry_count_;
-    while (lower < upper) {
-        const std::uint32_t middle = lower + (upper - lower) / 2;
-        if (entry_code(middle) < target_code) {
-            lower = middle + 1;
-        } else {
-            upper = middle;
-        }
-    }
-    for (std::uint32_t index = lower; index < dict_entry_count_ && entry_code(index) == target_code;
-         ++index) {
-        const auto& entry = dict_entries_[index];
-        if (entry.text_len == candidate.text.size() &&
-            std::memcmp(dict_strings_ + entry.text_offset, candidate.text.data(), entry.text_len) ==
-                0) {
-            return true;
-        }
-    }
-    return false;
+    return contains_system_entry(candidate.text, target_code);
 }
 
 std::vector<UserDictEntryInfo> Dict::query_candidate_preferences(const std::string& query,

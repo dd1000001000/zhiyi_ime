@@ -22,6 +22,8 @@ constexpr UINT_PTR TIMER_CXXIME_INPUT_INDICATOR_REFRESH = 0xC317;
 // A conversion mode change from outside is judged a moment later (TextService::
 // _settle_conversion_change): restored by a focus change, or set by a program.
 constexpr UINT_PTR TIMER_CXXIME_CONVERSION_SETTLE = 0xC318;
+// Voice input: where the server's recording is (TextService::_poll_voice).
+constexpr UINT_PTR TIMER_CXXIME_VOICE_POLL = 0xC319;
 
 struct ConfigSnapshot {
     cxxime::ConfigGeneration generation;

@@ -9,6 +9,7 @@
 
 #include <cxxime/candidate_preference.h>
 #include <cxxime/disabled_system_lexicon.h>
+#include <cxxime/extension_lexicon.h>
 #include <cxxime/logging.h>
 #include <cxxime/manual_candidate_order.h>
 #include <cxxime/query_budget.h>
@@ -21,6 +22,8 @@
 
 static const char DICT_MAGIC_V2[] = "CXDIC\x02\x00\x00";
 static constexpr int kExactSpanCollectionBoost = 100000000;
+// Words of the user's word lists looked at per lookup (they are few for a whole syllable path).
+static constexpr std::size_t kMaxExtensionScan = 256;
 
 namespace cxxime {
 
@@ -331,6 +334,19 @@ std::vector<Candidate> Dict::lookup_by_syllables(
                 break;
         }
         ++lo;
+    }
+
+    // The user's word lists.
+    if (const auto extension = std::atomic_load(&extension_)) {
+        for (const ExtensionLexicon::Word* word : extension->match_syllables(key)) {
+            if (filter_disabled && is_system_entry_disabled(word->text)) continue;
+            Candidate c;
+            c.text = word->text;
+            c.code = concat_code;
+            c.syllables = key;
+            c.frequency = word->frequency;
+            merge_candidate_by_score(results, std::move(c));
+        }
     }
 
     // Query the user dictionary through the exact index.
@@ -660,7 +676,13 @@ uint32_t Dict::syllable_to_id(const std::string& syllable) const {
 }
 
 bool Dict::has_prefix(const std::vector<uint32_t>& query_ids, QueryTrace* trace) const {
-    if (query_ids.empty() || id_index_.empty())
+    if (query_ids.empty())
+        return false;
+    if (const auto extension = std::atomic_load(&extension_)) {
+        if (extension->has_prefix(query_ids.data(), query_ids.size()))
+            return true;
+    }
+    if (id_index_.empty())
         return false;
     auto ids_less = [&](const IdEntry& e, const std::vector<uint32_t>& q) {
         uint32_t n = e.count < q.size() ? e.count : (uint32_t)q.size();
@@ -841,6 +863,26 @@ std::vector<Candidate> Dict::lookup_by_ids(const std::vector<uint32_t>& query_id
             }
             ++pos;
             ++prefix_count;
+        }
+    }
+
+    // The user's word lists: their exact matches with the same boost, then the longer words.
+    if (!deadline_hit) {
+        if (const auto extension = std::atomic_load(&extension_)) {
+            for (const ExtensionLexicon::Word* word :
+                 extension->match_ids(query_ids.data(), query_ids.size(), false,
+                                      (std::min)(kMaxExtensionScan, topk_cap))) {
+                if (filter_disabled && is_system_entry_disabled(word->text)) continue;
+                if (contains_text(collector.items(), word->text)) continue;
+                Candidate c;
+                c.text = word->text;
+                c.syllables = word->code;
+                c.code = word->compact;
+                c.source_frequency = word->frequency;
+                c.frequency = word->frequency +
+                              (word->id_count == query_ids.size() ? kExactSpanCollectionBoost : 0);
+                collector.offer(std::move(c));
+            }
         }
     }
 

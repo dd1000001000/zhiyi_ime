@@ -204,7 +204,20 @@ enum class IPCCommand : uint32_t {
     // the server's UiCommandType::kRefreshCandidates (the continuation model's sentences came in
     // after the key). ERR_ENGINE_PROCESS_FAILED when nothing is being composed.
     REFRESH_CANDIDATES = 32,
+    // Voice input (docs/voice-input.md), after a key answered with voice_state kVoiceListening:
+    // where the session's voice input is (voice_state), with the text once it is done
+    // (voice_text; given once, then the session's keys reach the input box again).
+    VOICE_STATUS = 33,
+    // The client drops the session's voice input (its input box lost the focus).
+    VOICE_CANCEL = 34,
 };
+
+// IPCResponse::voice_state.
+constexpr uint32_t kVoiceIdle = 0;        // nothing (never started, dropped, or nothing heard)
+constexpr uint32_t kVoiceListening = 1;   // recording
+constexpr uint32_t kVoiceRecognizing = 2; // turning the recording into text
+constexpr uint32_t kVoiceDone = 3;        // voice_text holds the text
+constexpr std::size_t kVoiceTextCapacity = 2048;
 
 constexpr uint32_t kContextTextRead = 1u << 0;
 constexpr uint32_t kContextNewInputBox = 1u << 1;
@@ -223,6 +236,9 @@ constexpr uint64_t kClientCapabilitySegmentedPreeditPresentation = 1ULL << 1;
 // The client fetches the candidates again on UiCommandType::kRefreshCandidates
 // (REFRESH_CANDIDATES): only its sessions get the continuation model's sentences after the key.
 constexpr uint64_t kClientCapabilityCandidateRefresh = 1ULL << 2;
+// Voice input (docs/voice-input.md): the client shows the text on UiCommandType::kVoiceResult
+// (VOICE_RESULT). Recording starts only for such clients.
+constexpr uint64_t kClientCapabilityVoiceInput = 1ULL << 3;
 
 enum class PreeditPresentationFlag : uint32_t {
     SyllableBoundaries = 1u << 0,
@@ -342,6 +358,10 @@ struct IPCResponse {
     uint32_t candidate_learned_mask = 0;
     // Learning mode translation of candidates[i] (encoded senses, candidate_presentation.h).
     char candidate_glosses[kCandidateCapacity][kCandidateGlossCapacity] = {};
+    // Voice input: kVoice* (after a key: kVoiceListening when it started recording), and the
+    // text (UTF-8) when kVoiceDone.
+    uint32_t voice_state = kVoiceIdle;
+    char voice_text[kVoiceTextCapacity] = {};
 };
 
 static_assert(std::is_standard_layout<IPCResponse>::value,

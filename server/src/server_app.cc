@@ -21,6 +21,7 @@
 #include "lexicon_control_handler.h"
 #include "machine_translator.h"
 #include "user_backup_service.h"
+#include "word_list_service.h"
 
 namespace {
 
@@ -153,6 +154,7 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
                 }
                 SendMessageW(config_window, kCommitConfigMessage, 0, 0);
                 ui_presentation_controller_.update_config(config);
+                voice_.update_config(config);
                 control_server_.publish_snapshot(config->to_runtime_json());
             },
             [this, config_window](const std::shared_ptr<const cxxime::Config>& config,
@@ -201,6 +203,11 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
                     UserBackupService backup(&session_mgr_, &config_writer_);
                     return backup.handle_request(payload, response_payload);
                 }
+                if (request_type == cxxime::ControlMessageType::kWordListRequest) {
+                    *response_type = cxxime::ControlMessageType::kWordListResult;
+                    WordListService word_lists(&session_mgr_);
+                    return word_lists.handle_request(payload, response_payload);
+                }
                 return false;
             })) {
         config_writer_.stop();
@@ -215,9 +222,25 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
         }
     });
 
+    // Voice input (voice_service.h): recording and the model run on threads of their own.
+    VoiceService::Sessions voice_sessions;
+    voice_sessions.set_capture = [this](uint32_t id, bool capturing) {
+        return session_mgr_.set_voice_capture(id, capturing);
+    };
+    voice_sessions.capabilities = [this](uint32_t id) { return session_mgr_.client_capabilities(id); };
+    voice_sessions.chinese_punct = [this](uint32_t id) {
+        const auto [status, ime_status] = session_mgr_.get_ime_status(id);
+        return status != cxxime::IPCStatus::OK || ime_status.chinese_punct();
+    };
+    if (!voice_.start(std::move(voice_sessions), initial_config)) {
+        CXXIME_LOG(L"%s", L"voice: window failed to start");
+    }
+
     ipc_server_.set_handler([this](const cxxime::IPCRequest& req) { return handle_request(req); });
-    ipc_server_.set_disconnect_handler(
-        [this](uint32_t session_id) { session_mgr_.destroy_session(session_id); });
+    ipc_server_.set_disconnect_handler([this](uint32_t session_id) {
+        voice_.session_ended(session_id);
+        session_mgr_.destroy_session(session_id);
+    });
     if (!ipc_server_.start(cxxime::IPC_PIPE_BASE_NAME)) {
         session_mgr_.set_config_patch_handler({});
         config_writer_.stop();
@@ -317,6 +340,8 @@ void ServerApp::prepare_user_data_shutdown() {
 }
 
 void ServerApp::finalize() {
+    // The microphone and the voice model.
+    voice_.stop();
     // The model server first: it holds the graphics card and the model file.
     MachineTranslator::instance().set_callback({});
     MachineTranslator::instance().stop();
@@ -430,6 +455,7 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
     }
 
     case cxxime::IPCCommand::END_SESSION:
+        voice_.session_ended(request.session_id);
         session_mgr_.destroy_session(request.session_id);
         CXXIME_LOG(L"END_SESSION: session=%u", request.session_id);
         break;
@@ -456,6 +482,14 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
             r.result == cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED ||
             r.result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE ||
             r.result == cxxime::ProcessResult::CYCLE_INPUT_STYLE;
+
+        // The voice key starts or stops recording; Esc while recording drops it.
+        if (r.voice_request == cxxime::Engine::VoiceRequest::kToggle) {
+            voice_.toggle(request.session_id);
+        } else if (r.voice_request == cxxime::Engine::VoiceRequest::kCancel) {
+            voice_.cancel(request.session_id);
+        }
+        response.voice_state = voice_.state(request.session_id);
 
         if (r.status == cxxime::IPCStatus::OK &&
             r.result == cxxime::ProcessResult::REJECTED) {
@@ -489,6 +523,7 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
     }
 
     case cxxime::IPCCommand::FOCUS_IN: {
+        voice_.focus_in(request.session_id);
         const auto r = session_mgr_.focus_in(request.session_id);
         fill_process_response(r, &response);
         break;
@@ -515,6 +550,7 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
     }
 
     case cxxime::IPCCommand::FOCUS_OUT: {
+        voice_.focus_out(request.session_id);
         const auto r = session_mgr_.focus_out(request.session_id);
         fill_process_response(r, &response);
         break;
@@ -593,6 +629,20 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
         fill_process_response(r, &response);
         break;
     }
+
+    case cxxime::IPCCommand::VOICE_STATUS: {
+        std::string text;
+        response.voice_state = voice_.take_status(request.session_id, &text);
+        if (response.voice_state == cxxime::kVoiceDone &&
+            !response_copy_field(response.voice_text, sizeof(response.voice_text), text)) {
+            response.voice_state = cxxime::kVoiceIdle;
+        }
+        break;
+    }
+
+    case cxxime::IPCCommand::VOICE_CANCEL:
+        voice_.cancel(request.session_id);
+        break;
 
     case cxxime::IPCCommand::GET_STATUS: {
         auto [status, ime_status] = session_mgr_.get_ime_status(request.session_id);

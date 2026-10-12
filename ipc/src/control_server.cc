@@ -425,11 +425,14 @@ private:
             }
 
             case ControlMessageType::kLexiconRequest:
-            case ControlMessageType::kUserBackupRequest: {
+            case ControlMessageType::kUserBackupRequest:
+            case ControlMessageType::kWordListRequest: {
                 const ControlMessageType expected_response =
                     message.type == ControlMessageType::kLexiconRequest
                         ? ControlMessageType::kLexiconResult
-                        : ControlMessageType::kUserBackupResult;
+                    : message.type == ControlMessageType::kUserBackupRequest
+                        ? ControlMessageType::kUserBackupResult
+                        : ControlMessageType::kWordListResult;
                 ControlMessageType response_type = expected_response;
                 std::string response_payload;
                 if (message.generation != ConfigGeneration{} || !request_handler_ ||

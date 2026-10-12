@@ -281,10 +281,21 @@ private:
     // Chinese/English, punctuation or full/half width switched directly (no input box
     // needed); false for the style key or when the server did not answer.
     bool _apply_switch_key(int slot);
-    // The style key taken by a system hotkey (Ctrl+Space by default): sent to the server as a
-    // whole press, so it does what the key does when it reaches the IME; false when the server
-    // did not answer.
-    bool _press_style_key();
+    // The style key (slot 1) or the voice key (slot 4) taken by a system hotkey (Ctrl+Space by
+    // default for the style key): sent to the server as a whole press, so it does what the key
+    // does when it reaches the IME; false when the server did not answer.
+    bool _press_switch_key(int slot);
+    // Voice input (text_service_voice.cpp): asking the server where the recording is while it
+    // records and recognizes, and the text it gives, shown underlined until a key decides.
+    void _start_voice_poll();
+    void _stop_voice_poll(bool cancel);
+    void _poll_voice();
+    void _show_voice_text(const std::wstring& text);
+    void _commit_voice_text(ITfContext* context);
+    void _delete_voice_text(ITfContext* context);
+    // A key while the voice text is shown: true when the key was used up (Backspace, Esc,
+    // Enter); otherwise the text is kept and the key goes on as usual.
+    bool _handle_voice_text_key(ITfContext* context, WPARAM key);
     // Windows keeps a Chinese/English mode per input box (the IMM layer) and restores it when
     // the box gets focus. Like Microsoft Pinyin, the IME keeps one mode everywhere: such a
     // restore is written back over; a change by a program at another time is applied.
@@ -456,7 +467,7 @@ private:
     ITfCompartment* _openCloseCompartment = nullptr;
     ITfSource* _openCloseCompartmentSource = nullptr;
     DWORD _dwOpenCloseCompartmentCookie = TF_INVALID_COOKIE;
-    ULONGLONG _switchKeyTicks[4] = {};  // when each switch key was last run
+    ULONGLONG _switchKeyTicks[5] = {};  // when each switch key was last run
     ULONGLONG _focusChangeTick = 0;       // the last focus change in this thread
     ULONGLONG _conversionChangeTick = 0;  // an outside conversion change waiting to settle
     bool _applyingDeferredConversion = false;
@@ -496,13 +507,17 @@ private:
     ReadingUIElement* _readingUiElement = nullptr;
     cxxime::Config _config;
     // Registered preserved switch keys, in c_guidPreservedKey* order (disabled when unset).
-    cxxime::KeyboardShortcut _preservedSwitchKeys[4] = {};
+    cxxime::KeyboardShortcut _preservedSwitchKeys[5] = {};
     cxxime::KeyboardShortcut _switch_key(int slot) const;
     std::unique_ptr<cxxime::CandidateWindow> _localCandidateWindow;
     std::uint64_t _localCandidatePlacementTargetGeneration = 0;
     cxxime::ConfigGeneration _configGeneration;
     HWND _configWindow = nullptr;
     HHOOK _translationKeyHook = nullptr;
+    bool _voicePolling = false;               // the server records or recognizes for us
+    std::uint64_t _voiceTargetGeneration = 0;  // the input box it is for (_uiTargetGeneration)
+    bool _voiceComposition = false;           // the voice text is shown, underlined
+    std::wstring _voiceText;
     UINT _translationKeyDown = 0;  // a Ctrl+0..9 taken, until its key-up
     std::optional<uint32_t> _modifierOverride;  // modifiers of a key taken by the hook
     std::uint32_t _configSubscriptionId = 0;

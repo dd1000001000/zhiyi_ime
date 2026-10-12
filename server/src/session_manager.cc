@@ -4,6 +4,7 @@
 
 #include "continuation_worker.h"
 #include "machine_translator.h"
+#include "word_list_service.h"
 
 #include <algorithm>
 #include <array>
@@ -508,6 +509,8 @@ bool load_dictionary_resources(const std::string& manifest_path, const std::stri
         return false;
     }
     CXXIME_LOG(L"SharedResources: wubi dict loaded");
+    // The user's enabled word lists (word_list_service.h).
+    apply_word_lists(loaded_dict.get(), loaded_wubi_dict.get());
 
     out.dict = std::move(loaded_dict);
     out.wubi_dict = std::move(loaded_wubi_dict);
@@ -1823,6 +1826,7 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     ProcessKeyResult ret;
     ret.status = cxxime::IPCStatus::OK;
     ret.result = result;
+    ret.voice_request = engine.take_voice_request();
 
     // Handle toggle results and return updated ImeStatus.
     if (result == cxxime::ProcessResult::TOGGLE_SHAPE) {
@@ -1886,6 +1890,22 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
 
     schedule_continuation(id, s);
     return ret;
+}
+
+bool SessionManager::set_voice_capture(uint32_t id, bool capturing) {
+    std::shared_ptr<SessionEntry> entry = lookup_session(id);
+    if (!entry) return false;
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    if (entry->closing || !entry->engine) return false;
+    entry->engine->set_voice_capture(capturing);
+    return true;
+}
+
+uint64_t SessionManager::client_capabilities(uint32_t id) {
+    std::shared_ptr<SessionEntry> entry = lookup_session(id);
+    if (!entry) return 0;
+    std::lock_guard<std::mutex> lock(entry->mutex);
+    return entry->closing ? 0 : entry->client_capabilities;
 }
 
 cxxime::CandidatePage SessionManager::search_candidates(const std::string& input) {

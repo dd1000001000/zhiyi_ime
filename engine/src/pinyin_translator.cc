@@ -530,6 +530,23 @@ PinyinTranslator::IndexedFastResult PinyinTranslator::lookup_indexed_fast(
         }
     }
 
+    // 3. The user's word lists, scored as the Top-N index scores its words; only those that can
+    //    enter the `limit` best (the composer asks for every span of a sentence).
+    if (dict_) {
+        int min_score = INT_MIN;
+        if (static_cast<int>(result.candidates.size()) >= limit) {
+            std::vector<int> scores;
+            scores.reserve(result.candidates.size());
+            for (const auto& c : result.candidates) scores.push_back(c.frequency);
+            std::nth_element(scores.begin(), scores.begin() + (limit - 1), scores.end(),
+                             std::greater<int>());
+            min_score = scores[static_cast<std::size_t>(limit - 1)];
+        }
+        for (auto& c : dict_->lookup_extension_key(key, limit, min_score)) {
+            merge_candidate_by_score(result.candidates, std::move(c));
+        }
+    }
+
     if (candidate_learning_enabled_ && dict_) {
         dict_->apply_candidate_preferences(key, CandidateSource::kPinyin, result.candidates,
                                            limit);

@@ -101,6 +101,13 @@ struct Config {
     std::string mt_device;         // learning.translator_device: a card key (gpu_adapters.h)
     int mt_context_chars = 32;     // learning.translator_context_chars: text before the caret
     int mt_idle_seconds = 60;      // learning.translator_idle_seconds: unloaded after this
+    // Voice input (docs/voice-input.md): the server records while the voice key is on and turns
+    // the speech into text with the downloaded model (voice_recognizer.h, voice_files.h).
+    bool voice_enable = false;            // voice.enable
+    std::string voice_device;             // voice.device: "" the CPU, else a card key (gpu_adapters.h)
+    std::string voice_language = "auto";  // voice.language: auto, zh, en or yue
+    bool voice_itn = true;                // voice.itn: numbers and dates as digits ("3点")
+    int voice_max_seconds = 60;           // voice.max_seconds: recording stops by itself after this
     // A "learning" section was read. User configs written before it hold style.layout
     // "horizontal" without the user having chosen it (there was no setting), so load_user keeps
     // the default (vertical) for them.
@@ -146,6 +153,9 @@ struct Config {
     // (shortcuts.shape_toggle).
     KeyboardShortcut punct_toggle_shortcut = {kKeyModifierControl, 0xBE /* VK_OEM_PERIOD */};
     KeyboardShortcut shape_toggle_shortcut = {kKeyModifierShift, 0x20 /* VK_SPACE */};
+    // Voice input (shortcuts.voice_input, or a tapped Shift / Ctrl bound to "toggle_voice" in
+    // ascii_composer.switch_key): starts recording, and stops it. None by default.
+    KeyboardShortcut voice_input_shortcut;
     // Candidate paging besides PageUp/PageDown, pressed alone while candidates are shown:
     // shortcuts.page_up is "-", "," or "[", shortcuts.page_down "=", "." or "]". 0 ("" in the
     // file, and anything else found there) is none, the default.
@@ -234,8 +244,6 @@ struct Config {
         // shortcuts.english_style and persisted).
         bool completion_in_ascii = true;
         bool word_mode = true;
-        int completion_count = 6;       // completions shown after the typed text
-        int completion_pool = 8;        // dictionary words reranked before choosing them
         int min_score = 300;            // 100 * Zipf; hides rare words (Zipf < 3.0)
         // Spelling correction (teh -> the): candidates only, the typed text stays first.
         bool correction = true;
@@ -268,11 +276,11 @@ struct Config {
 };
 
 // The switch keys: Chinese/English (a combination, or Shift / Ctrl tapped alone), style,
-// punctuation and full/half width. Valid when every combination is a valid switch key and none
+// punctuation, full/half width and voice input. Valid when every combination is a valid switch key and none
 // repeats another or the IME activation shortcut.
 bool switch_keys_valid(const Config& config);
-// Defaults: tap Shift, Ctrl+Space, Ctrl+., Shift+Space (one equal to the IME activation shortcut
-// is left unset).
+// Defaults: tap Shift, Ctrl+Space, Ctrl+., Shift+Space, no voice key (one equal to the IME
+// activation shortcut is left unset).
 void reset_switch_keys(Config& config);
 
 } // namespace cxxime

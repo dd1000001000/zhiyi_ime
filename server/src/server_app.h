@@ -21,6 +21,7 @@
 #include "system_lifecycle_monitor.h"
 #include "ui_presentation_controller.h"
 #include "ui_presentation_router.h"
+#include "voice_service.h"
 
 class ServerApp {
 public:
@@ -45,6 +46,7 @@ private:
     SystemLifecycleMonitor system_lifecycle_monitor_;
     UiPresentationController ui_presentation_controller_;
     UiPresentationRouter ui_presentation_router_;
+    VoiceService voice_;
     HWND hwnd_ = nullptr;
     bool user_data_shutdown_prepared_ = false;
     std::string config_path_;

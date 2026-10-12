@@ -43,6 +43,9 @@ public:
     bool refresh_candidates(uint32_t session_id, IPCResponse& response,
                             CandidateUiContext candidate_ui = {});
     bool clear_composition(uint32_t session_id);
+    // Voice input: where it is (response.voice_state / voice_text), and dropping it.
+    bool voice_status(uint32_t session_id, IPCResponse& response);
+    bool voice_cancel(uint32_t session_id);
     bool focus_in(uint32_t session_id);
     bool set_input_target(uint32_t session_id, const std::string& app,
                           const std::string& window_title);

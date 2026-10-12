@@ -40,6 +40,15 @@ ProcessResult WubiProcessor::process_key(const KeyEvent& event, Context& context
         return ProcessResult::REJECTED;
     }
 
+    // Tab / Shift+Tab: round the candidates on the page
+    if (is_cycle_key(event)) {
+        if (context.is_composing() && context.candidate_count() > 0) {
+            context.cycle_highlight(event.is_shift());
+            return ProcessResult::ACCEPTED;
+        }
+        return ProcessResult::REJECTED;
+    }
+
     // Up/Down arrows: navigate candidates
     if (vk == VK_UP || vk == VK_DOWN) {
         if (context.is_composing() && context.candidate_count() > 0) {

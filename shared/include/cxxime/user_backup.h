@@ -17,6 +17,9 @@ enum class UserBackupComponent : std::uint32_t {
     kLearning = 1u << 3,
     kDisabledSystemLexicon = 1u << 4,
     kDeviceSettings = 1u << 5,
+    // The imported word lists (server/src/word_list_service.cc), one entry for all of them;
+    // left out of a backup when there is none, so older versions still read it.
+    kWordLists = 1u << 6,
 };
 
 constexpr std::uint32_t user_backup_component_flag(UserBackupComponent component) {
@@ -28,7 +31,8 @@ constexpr std::uint32_t kPortableUserBackupComponents =
     user_backup_component_flag(UserBackupComponent::kUserLexicon) |
     user_backup_component_flag(UserBackupComponent::kCandidateOrder) |
     user_backup_component_flag(UserBackupComponent::kLearning) |
-    user_backup_component_flag(UserBackupComponent::kDisabledSystemLexicon);
+    user_backup_component_flag(UserBackupComponent::kDisabledSystemLexicon) |
+    user_backup_component_flag(UserBackupComponent::kWordLists);
 constexpr std::uint32_t kAllUserBackupComponents =
     kPortableUserBackupComponents |
     user_backup_component_flag(UserBackupComponent::kDeviceSettings);

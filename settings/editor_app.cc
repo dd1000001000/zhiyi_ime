@@ -31,10 +31,11 @@ constexpr int kCancelId = 2002;
 constexpr int kApplyId = 2003;
 
 const char* const kPanelKeys[] = {"nav.general",  "nav.fuzzy",   "nav.keys",
-                                  "nav.dictionary", "nav.learning", "nav.privacy",
-                                  "nav.update",   "nav.about"};
+                                  "nav.dictionary", "nav.wordlists", "nav.voice",
+                                  "nav.learning", "nav.privacy",  "nav.update",  "nav.about"};
 // Segoe Fluent Icons / MDL2 Assets glyphs for the pages above.
-const wchar_t kPanelIcons[] = {0xE713, 0xE8D2, 0xE765, 0xE82D, 0xE7BE, 0xE72E, 0xE895, 0xE946};
+const wchar_t kPanelIcons[] = {0xE713, 0xE8D2, 0xE765, 0xE82D, 0xE8F1,
+                               0xE720, 0xE7BE, 0xE72E, 0xE895, 0xE946};
 
 UINT settings_navigate_message() {
     static const UINT message = RegisterWindowMessageW(cxxime::kSettingsNavigateMessage);
@@ -47,12 +48,16 @@ int settings_panel_index(cxxime::SettingsPanel panel) {
         return 2;
     case cxxime::SettingsPanel::kDictionary:
         return 3;
+    case cxxime::SettingsPanel::kWordLists:
+        return kWordListPanel;
+    case cxxime::SettingsPanel::kVoice:
+        return kVoicePanel;
     case cxxime::SettingsPanel::kDiagnostics:
-        return 5;
+        return kPrivacyPanel;
     case cxxime::SettingsPanel::kUpdate:
         return kUpdatePanel;
     case cxxime::SettingsPanel::kAbout:
-        return 7;
+        return kAboutPanel;
     default:
         return 0;
     }
@@ -208,12 +213,18 @@ void EditorApp::create_controls(HWND window) {
     create_fuzzy_panel(hPanels_[1]);
     create_keys_panel(hPanels_[2]);
     create_dictionary_panel(hPanels_[3]);
+    make_panel_scrollable(hPanels_[kWordListPanel]);
+    create_word_list_panel(hPanels_[kWordListPanel]);
+    update_panel_scroll(hPanels_[kWordListPanel]);
+    make_panel_scrollable(hPanels_[kVoicePanel]);
+    create_voice_panel(hPanels_[kVoicePanel]);
+    update_panel_scroll(hPanels_[kVoicePanel]);
     make_panel_scrollable(hPanels_[kLearningPanel]);
     create_learning_panel(hPanels_[kLearningPanel]);
     update_panel_scroll(hPanels_[kLearningPanel]);
-    create_privacy_panel(hPanels_[5]);
+    create_privacy_panel(hPanels_[kPrivacyPanel]);
     create_update_panel(hPanels_[kUpdatePanel]);
-    create_about_panel(hPanels_[7], panel_width);
+    create_about_panel(hPanels_[kAboutPanel], panel_width);
 
     const struct {
         int id;
@@ -243,6 +254,8 @@ void EditorApp::destroy_controls() {
     hPackTabs_[0] = hPackTabs_[1] = nullptr;
     hPackActions_.clear();
     hPackRemoves_.clear();
+    hVoiceEnable_ = hVoiceKeyText_ = hVoiceStatus_ = hVoiceAction_ = hVoiceRemove_ = nullptr;
+    hVoiceDevice_ = hVoiceLanguage_ = hVoiceItn_ = hVoiceKey_ = nullptr;
     hints_.clear();
     clear_cards();
     for (HWND& panel : hPanels_) {
@@ -275,6 +288,9 @@ void EditorApp::show_panel(int idx) {
     }
     panel_ = idx;
     InvalidateRect(hList_, nullptr, TRUE);
+    if (idx == kWordListPanel && !word_lists_loaded_) {
+        load_word_lists();
+    }
 }
 
 void EditorApp::release_fonts() {
@@ -334,18 +350,24 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(fuzzy_groups);
     KEEP_PAGE_EDIT(page_up_key);
     KEEP_PAGE_EDIT(page_down_key);
+    KEEP_PAGE_EDIT(voice_enable);
+    KEEP_PAGE_EDIT(voice_device);
+    KEEP_PAGE_EDIT(voice_language);
+    KEEP_PAGE_EDIT(voice_itn);
 #undef KEEP_PAGE_EDIT
     // The switch keys move together, so a merge never repeats a key.
     if (!(ui.ascii_switch_key == before.ascii_switch_key) ||
         ui.ascii_toggle_shortcut != before.ascii_toggle_shortcut ||
         ui.english_style_shortcut != before.english_style_shortcut ||
         ui.punct_toggle_shortcut != before.punct_toggle_shortcut ||
-        ui.shape_toggle_shortcut != before.shape_toggle_shortcut) {
+        ui.shape_toggle_shortcut != before.shape_toggle_shortcut ||
+        ui.voice_input_shortcut != before.voice_input_shortcut) {
         merged.ascii_switch_key = ui.ascii_switch_key;
         merged.ascii_toggle_shortcut = ui.ascii_toggle_shortcut;
         merged.english_style_shortcut = ui.english_style_shortcut;
         merged.punct_toggle_shortcut = ui.punct_toggle_shortcut;
         merged.shape_toggle_shortcut = ui.shape_toggle_shortcut;
+        merged.voice_input_shortcut = ui.voice_input_shortcut;
     }
     config_ = std::move(merged);
     loaded_config_ = std::move(disk);
@@ -429,7 +451,11 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     const UINT navigate_message = settings_navigate_message();
     if (a->handle_update_message(msg, wp, lp) || a->handle_learning_message(msg, wp, lp) ||
         a->handle_gpu_message(msg, wp, lp) || a->handle_data_message(msg, wp, lp) ||
-        a->handle_translator_message(msg, wp, lp)) {
+        a->handle_translator_message(msg, wp, lp) || a->handle_voice_message(msg, wp, lp)) {
+        return 0;
+    }
+    if (msg == kRebuildWordListsMessage) {
+        a->rebuild_word_list_panel();
         return 0;
     }
     if (navigate_message != 0 && msg == navigate_message) {  // opened again from the IME

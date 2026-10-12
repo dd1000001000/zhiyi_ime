@@ -21,6 +21,7 @@
 #include <cxxime/gpu_adapters.h>
 #include <cxxime/settings_route.h>
 #include <cxxime/update.h>
+#include <cxxime/word_list_control.h>
 
 #include "i18n.h"
 
@@ -42,6 +43,15 @@ private:
     void create_fuzzy_panel(HWND panel);
     void create_keys_panel(HWND panel);
     void create_dictionary_panel(HWND panel);
+    // Word lists (editor_word_list_panel.cc): the imported lists, enabled or not.
+    void create_word_list_panel(HWND panel);
+    void rebuild_word_list_panel();
+    void load_word_lists();  // from the server, when the page is first shown
+    void import_word_list();
+    void set_word_list_enabled(std::size_t index, bool enabled);
+    void remove_word_list(std::size_t index);
+    void show_guessed_readings(std::size_t index);
+    bool handle_word_list_command(int control_id, int notification);
     void create_learning_panel(HWND panel);
     void create_privacy_panel(HWND panel);
     void open_log_folder();
@@ -136,6 +146,17 @@ private:
     bool handle_translator_message(UINT message, WPARAM wparam, LPARAM lparam);
     bool handle_learning_item(UINT message, LPARAM lparam);  // WM_MEASUREITEM / WM_DRAWITEM
     static LRESULT CALLBACK pack_list_proc(HWND, UINT, WPARAM, LPARAM);
+    // Voice input (editor_voice_panel.cc)
+    void create_voice_panel(HWND panel);
+    void populate_voice();
+    void read_voice(cxxime::Config& config);
+    void show_voice_key();
+    void show_voice_state();
+    void start_voice_check();
+    void start_voice_install();
+    void remove_voice();
+    bool handle_voice_command(int control_id, int notification);
+    bool handle_voice_message(UINT message, WPARAM wparam, LPARAM lparam);
     void set_switch_key_boxes(const cxxime::Config& config);
     void update_switch_key_notes();
     void restore_default_keys();
@@ -152,7 +173,7 @@ private:
     HWND make_hint(const wchar_t* text, int x, int y, int width, HWND parent, int lines = 2);
     int panel_ = 0;
     cxxime::SettingsPanel initial_panel_ = cxxime::SettingsPanel::kInput;
-    static constexpr int kPanelCount = 8;
+    static constexpr int kPanelCount = 10;
     HWND hPanels_[kPanelCount] = {};
 
     // General
@@ -186,11 +207,16 @@ private:
     HWND hStyleKey_ = nullptr;
     HWND hPunctKey_ = nullptr;
     HWND hShapeKey_ = nullptr;
+    HWND hVoiceKey_ = nullptr;
     HWND hPageUpKey_ = nullptr;  // shortcuts.page_up / page_down: none or a symbol
     HWND hPageDownKey_ = nullptr;
 
     // Dictionary
     HWND hLearning_ = nullptr;
+
+    // Word lists
+    std::vector<WordListInfo> word_lists_;
+    bool word_lists_loaded_ = false;
 
     // Learning
     struct PackState {
@@ -230,6 +256,17 @@ private:
     std::uint64_t mt_done_mb_ = 0, mt_total_mb_ = 0;
     std::shared_ptr<std::atomic<bool>> mt_cancel_;
     std::wstring mt_note_;  // the last result (failed, cancelled)
+
+    // Voice input
+    HWND hVoiceEnable_ = nullptr, hVoiceKeyText_ = nullptr, hVoiceStatus_ = nullptr;
+    HWND hVoiceAction_ = nullptr, hVoiceRemove_ = nullptr;
+    HWND hVoiceDevice_ = nullptr, hVoiceLanguage_ = nullptr, hVoiceItn_ = nullptr;
+    enum class VoiceBusy { kNone, kChecking, kDownloading } voice_busy_ = VoiceBusy::kNone;
+    bool voice_remote_known_ = false;
+    update::VoiceManifest voice_remote_;
+    std::uint64_t voice_done_mb_ = 0, voice_total_mb_ = 0;
+    std::shared_ptr<std::atomic<bool>> voice_cancel_;
+    std::wstring voice_note_;  // the last result (failed, cancelled)
 
     // Privacy
     HWND hExperience_ = nullptr;

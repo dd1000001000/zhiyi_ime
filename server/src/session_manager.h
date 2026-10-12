@@ -149,6 +149,8 @@ struct ProcessKeyResult {
     cxxime::CandidatePresentationPage presentation;
     uint64_t candidate_revision = 0;
     cxxime::ImeStatus ime_status;
+    // The voice key or Esc while recording (Engine::take_voice_request).
+    cxxime::Engine::VoiceRequest voice_request = cxxime::Engine::VoiceRequest::kNone;
 };
 
 class ContinuationWorker;
@@ -209,6 +211,11 @@ public:
     // SET_CONTEXT: the text before the caret (flags: cxxime::kContextTextRead / kContextNewInputBox).
     bool set_context(uint32_t id, const std::string& text, uint32_t flags);
     ProcessKeyResult focus_out(uint32_t id);
+    // Voice input: while capturing, the session's keys do not reach the input box
+    // (Engine::set_voice_capture). False when there is no such session.
+    bool set_voice_capture(uint32_t id, bool capturing);
+    // What the session's client can do (kClientCapability*); 0 when there is no such session.
+    uint64_t client_capabilities(uint32_t id);
 
     // Long pinyin with the continuation model in the background (laya_rerank.h): after a key of
     // a client that can fetch a page without one (kClientCapabilityCandidateRefresh), the paths
@@ -272,6 +279,10 @@ public:
                          std::size_t* imported_count, std::size_t* skipped_count);
     bool freeze_and_save_candidate_preferences();
     bool close_english_learning();
+    // The dictionary the sessions use now (word lists are applied to it).
+    std::shared_ptr<cxxime::Dict> dictionary(cxxime::UserDictKind kind) const {
+        return shared_.dict_for_kind(kind);
+    }
 
 private:
     struct GlobalVisibleState {

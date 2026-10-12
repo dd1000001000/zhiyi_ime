@@ -29,6 +29,9 @@ bool TextService::_apply_engine_response(ITfContext* context, const cxxime::IPCR
     if (!eaten || response.status == cxxime::IPCStatus::ERR_INVALID_SESSION) {
         return false;
     }
+    // The voice text stays in the input box whatever the server does next.
+    _commit_voice_text(context);
+    if (response.voice_state == cxxime::kVoiceListening) _start_voice_poll();
     if (response_has_ime_status(response.status)) {
         _sync_ime_status(response.ime_status);
     }

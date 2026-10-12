@@ -127,6 +127,7 @@ void TextService::_release_effective_edit_target() {
 }
 
 void TextService::_clear_effective_edit_target(const char* source, bool target_unavailable) {
+    _stop_voice_poll(true);  // the recording was for the input box left
     invalidate_composition_edit_requests();
     const cxxime_tsf::EffectiveEditTargetSnapshot previous = _effectiveEditTarget;
     const cxxime_tsf::EffectiveEditTargetSnapshot unavailable;

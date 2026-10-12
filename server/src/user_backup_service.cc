@@ -24,6 +24,7 @@
 
 #include "config_write_coordinator.h"
 #include "session_manager.h"
+#include "word_list_service.h"
 
 namespace {
 
@@ -306,6 +307,13 @@ bool UserBackupService::handle_request(const std::string& payload, std::string* 
         return cxxime::encode_user_backup_result(result, response_payload);
     }
     result.summary = archive.summary;
+    // A backup without word lists (none were kept, or an older version made it) has none to add.
+    request.components &= archive.summary.components |
+                           ~cxxime::user_backup_component_flag(cxxime::UserBackupComponent::kWordLists);
+    const cxxime::UserBackupEntry* word_lists =
+        includes(request.components, cxxime::UserBackupComponent::kWordLists)
+            ? find_entry(archive, "wordlists/wordlists.json")
+            : nullptr;
     if ((request.components & ~archive.summary.components) != 0 ||
         !required_entries_present(archive, request.components)) {
         result.error_code = ERROR_FILE_NOT_FOUND;
@@ -319,7 +327,8 @@ bool UserBackupService::handle_request(const std::string& payload, std::string* 
     if ((import_config &&
          (!make_config_patch(archive, request.components, &config_patch) ||
           !valid_config_patch(config_patch))) ||
-        !session_manager_->validate_user_data(imported_data)) {
+        !session_manager_->validate_user_data(imported_data) ||
+        (word_lists && !validate_word_lists_backup(word_lists->contents))) {
         result.error_code = ERROR_INVALID_DATA;
         return cxxime::encode_user_backup_result(result, response_payload);
     }
@@ -342,6 +351,10 @@ bool UserBackupService::handle_request(const std::string& payload, std::string* 
     if (!imported_data.empty()) {
         session_manager_->merge_user_data(imported_data, &imported_data_count, &skipped_data_count);
     }
+    if (word_lists) {
+        merge_word_lists_backup(session_manager_, word_lists->contents, &imported_data_count,
+                                &skipped_data_count);
+    }
     result.imported_count += imported_data_count;
     result.skipped_count += skipped_data_count;
     result.succeeded = true;
@@ -361,6 +374,13 @@ bool UserBackupService::export_backup(const std::wstring& path, std::uint32_t co
          !session_manager_->snapshot_user_data(user_data_names, &current_user_data))) {
         return false;
     }
-    const auto entries = make_entries(snapshot_config, current_user_data, components);
+    auto entries = make_entries(snapshot_config, current_user_data, components);
+    if (!entries.empty() && includes(components, cxxime::UserBackupComponent::kWordLists)) {
+        std::string word_lists = snapshot_word_lists();
+        if (!word_lists.empty()) {  // none: left out, the backup reads in older versions
+            entries.push_back({cxxime::UserBackupComponent::kWordLists, "wordlists/wordlists.json",
+                               std::move(word_lists)});
+        }
+    }
     return !entries.empty() && cxxime::write_user_backup_archive(path, entries, summary, error);
 }

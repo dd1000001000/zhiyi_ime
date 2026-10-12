@@ -101,6 +101,9 @@ public:
     void replace_candidate_sequence(TranslationResult&& result);
     void move_to_next_candidate();
     void move_to_previous_candidate();
+    // Tab / Shift+Tab: the next / previous candidate on the page shown; after the last comes
+    // the first and before the first the last (no page turn).
+    void cycle_highlight(bool backward);
     int selectable_candidate_count() const;
 
     const std::optional<CompositionOrigin>& composition_origin() const {

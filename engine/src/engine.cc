@@ -190,6 +190,7 @@ void Engine::init_per_session(const Config& config) {
     ascii_toggle_shortcut_ = config.ascii_toggle_shortcut;
     punct_toggle_shortcut_ = config.punct_toggle_shortcut;
     shape_toggle_shortcut_ = config.shape_toggle_shortcut;
+    voice_input_shortcut_ = config.voice_input_shortcut;
     english_word_mode_ = config.english.word_mode;
     pinyin_style_ = config.pinyin_style;
     // Start loading the Laya model in the background so it is ready by the first keystroke.
@@ -414,6 +415,8 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
                event.keycode, event.is_key_up, context_.is_composing());
     const uint64_t input_revision_before = context_.preedit_revision();
     context_.visible_candidate_count = (std::max)(0, visible_candidate_count);
+    context_.page_up_key = runtime_ ? runtime_->config().page_up_key : 0;
+    context_.page_down_key = runtime_ ? runtime_->config().page_down_key : 0;
 
     // Initialize the trace for this query when tracing is enabled.
     // Preserve session_id/revision set by caller (server) before this call.
@@ -448,8 +451,35 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         record_total_us(trace_, total_start, trace_enabled_);
         return opts.chinese_mode ? ProcessResult::CYCLE_INPUT_STYLE
                                  : ProcessResult::TOGGLE_ENGLISH_STYLE;
+    case AsciiModeSwitchStyle::TOGGLE_VOICE:
+        record_total_us(trace_, total_start, trace_enabled_);
+        if (voice_capture_) {
+            voice_request_ = VoiceRequest::kToggle;
+            return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+        }
+        return request_voice_input();
     default:
         break;
+    }
+
+    // Recording (or turning it into text): nothing reaches the input box.
+    if (voice_capture_) {
+        record_total_us(trace_, total_start, trace_enabled_);
+        if (is_modifier_key(event.keycode)) return ProcessResult::REJECTED;
+        if (event.is_key_up) {
+            if (event.keycode == handled_shortcut_key_) handled_shortcut_key_ = 0;
+            return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+        }
+        if (voice_input_shortcut_.matches(event)) {
+            if (handled_shortcut_key_ != event.keycode) {  // not auto-repeat
+                handled_shortcut_key_ = event.keycode;
+                voice_request_ = VoiceRequest::kToggle;
+            }
+            return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+        }
+        handled_shortcut_key_ = 0;
+        if (event.keycode == VK_ESCAPE) voice_request_ = VoiceRequest::kCancel;
+        return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
     }
 
     // The key after a commit decides what the commit taught: Backspace takes it back (the
@@ -507,6 +537,16 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         }
     }
 
+    // Voice input; auto-repeat and the key-up are swallowed like the other switch keys'.
+    if (!event.is_key_up && voice_input_shortcut_.matches(event)) {
+        record_total_us(trace_, total_start, trace_enabled_);
+        if (handled_shortcut_key_ != 0) {
+            return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+        }
+        handled_shortcut_key_ = event.keycode;
+        return request_voice_input();
+    }
+
     // Style shortcut: in English mode word completion <-> letter by letter (a word being typed
     // stays open; the new style applies from the next word); in Chinese mode the next input
     // style (full pinyin, initials, Wubi, shuangpin; the server applies it).
@@ -523,7 +563,7 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
     // Learning mode: Ctrl+number types that candidate's translation (docs/learning-mode.md), and
     // with learning.digits_type_translation the keys trade places: the number types the
     // translation, Ctrl+number the candidate. The numbers are 1..9, and 0 for the tenth where 0
-    // picks it (pinyin and Wubi with ten candidates on the page). Without a translation nothing
+    // picks it (ten candidates on the page, not in Symbol mode). Without a translation nothing
     // is typed. While typing Ctrl+0..9 is ours either way, so it never reaches the application
     // (a browser would switch tabs); auto-repeat and the key-up are swallowed too.
     const Config* config = runtime_ ? &runtime_->config() : nullptr;
@@ -531,7 +571,7 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         config && (!config->chinese_gloss_target.empty() || !config->english_gloss_target.empty()) &&
         config->layout != "horizontal";
     const bool swapped_keys = learning_keys && config->digits_type_translation;
-    const bool zero_picks = !english_composing_ && !SymbolProcessor::is_active(context_) &&
+    const bool zero_picks = !SymbolProcessor::is_active(context_) &&
                             context_.selectable_candidate_count() >= 10;
     const int digit_index = event.keycode >= '1' && event.keycode <= '9'
                                 ? static_cast<int>(event.keycode - '1')
@@ -645,10 +685,8 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         return ProcessResult::ACCEPTED;
     }
 
-    // Propagate CapsLock style and the page keys to Context for the processors
+    // Propagate CapsLock style to Context for the processors (the page keys are set above)
     context_.caps_lock_style = ascii_composer_.get_binding(VK_CAPITAL);
-    context_.page_up_key = runtime_ ? runtime_->config().page_up_key : 0;
-    context_.page_down_key = runtime_ ? runtime_->config().page_down_key : 0;
 
     // CapsLock plus a letter commits directly with case inversion.
     // When CapsLock is not configured as an IME switch, keep the OS CapsLock
@@ -1457,12 +1495,14 @@ char english_letter(const KeyEvent& event) {
 void Engine::refresh_english_candidates() {
     const std::string typed = context_.composition().active().input;
     const auto& ec = runtime_->config().english;
-    const int page_size = (std::max)(1, runtime_->config().page_size);
-    TranslationResult result;
-    result.page_size = page_size;
+    // Two pages at least, as many as the model compares in pinyin (laya_candidate_count).
+    const int count = (std::max)(2 * (std::max)(1, runtime_->config().page_size),
+                                 runtime_->config().laya_candidate_count());
+    std::vector<CandidateEntry>& entries = english_entries_;
+    entries.clear();
     // The typed text always comes first, so Space/1 commit exactly what was typed when no
     // dictionary word matches.
-    result.entries.push_back(make_english_entry(typed, typed, 0));
+    entries.push_back(make_english_entry(typed, typed, 0));
     english_corrections_shown_.clear();
     if (auto lexicon = EnglishLexicon::shared()) {
         // Dictionary order (exact match first, then by frequency; corrections and learned words
@@ -1470,8 +1510,17 @@ void Engine::refresh_english_candidates() {
         // the recommended slot by context.
         const std::shared_ptr<EnglishLearning> learning =
             runtime_->config().candidate_learning ? EnglishLearning::shared() : nullptr;
-        EnglishPool pool = build_english_pool(*lexicon, learning.get(), typed, ec);
+        EnglishPool pool = build_english_pool(*lexicon, learning.get(), typed, ec, count);
         std::vector<EnglishWord>& words = pool.words;
+        // The model compares the words of the first two pages, as in pinyin; a learned pick
+        // stays among them.
+        if (static_cast<int>(words.size()) > count) {
+            auto pick = std::find_if(words.begin(), words.end(),
+                                     [&](const EnglishWord& w) { return w.text == pool.learned_pick; });
+            if (!pool.learned_pick.empty() && pick - words.begin() >= count)
+                std::rotate(words.begin() + (count - 1), pick, pick + 1);
+            words.resize(static_cast<size_t>(count));
+        }
         // The model was trained on completions of the typed letters and favours words sharing
         // its beginning (thier -> this), so it does not choose among corrections: they keep
         // their own order (frequency and typing cost) and only the best one competes with the
@@ -1508,27 +1557,52 @@ void Engine::refresh_english_candidates() {
             }
         }
         if (recommended && !words.empty() && words.front().text == typed)
-            result.entries.front().candidate.recommended = true;  // the pick is what was typed
-        int shown = 0;
+            entries.front().candidate.recommended = true;  // the pick is what was typed
         int corrections = 0;
         for (size_t i = 0; i < words.size(); ++i) {
             const auto& w = words[i];
-            if (static_cast<int>(result.entries.size()) >= page_size || shown >= ec.completion_count) break;
+            if (static_cast<int>(entries.size()) >= count) break;
             if (w.text == typed) continue;  // already first
             if (w.corrected && corrections >= ec.correction_count) continue;
-            result.entries.push_back(make_english_entry(w.text, typed, w.score));
-            result.entries.back().candidate.recommended = recommended && i == 0;
+            entries.push_back(make_english_entry(w.text, typed, w.score));
+            entries.back().candidate.recommended = recommended && i == 0;
             if (w.corrected) {
                 ++corrections;
                 english_corrections_shown_.push_back(w.text);
             }
-            ++shown;
         }
     }
-    const int n = static_cast<int>(result.entries.size());
-    result.extent = make_candidate_extent(n, n, false);
-    result.highlighted = 0;
-    context_.update_translation(std::move(result));
+    context_.reset_pagination();
+    context_.update_translation(english_page(0, 0));
+}
+
+TranslationResult Engine::english_page(int offset, int page_index) const {
+    const int page_size = (std::max)(1, runtime_->config().page_size);
+    const int count = static_cast<int>(english_entries_.size());
+    const int end = (std::min)(count, offset + page_size);
+    TranslationResult page;
+    page.page_size = page_size;
+    page.page_index = page_index;
+    page.page_offset = offset;
+    if (offset < end)
+        page.entries.assign(english_entries_.begin() + offset, english_entries_.begin() + end);
+    page.extent = make_candidate_extent(count, end, false);
+    page.highlighted = 0;
+    return page;
+}
+
+void Engine::follow_english_navigation() {
+    const std::optional<CandidateNavigationRequest> navigation =
+        context_.take_candidate_navigation();
+    if (!navigation) return;
+    if (navigation->direction == CandidateNavigation::kPreviousPage) {
+        context_.apply_previous_page(navigation->highlight_last);
+        return;
+    }
+    const int visible = context_.selectable_candidate_count();
+    const int offset = context_.page_offset() + visible;
+    if (visible > 0 && offset < static_cast<int>(english_entries_.size()))
+        context_.apply_next_page(english_page(offset, context_.page_index() + 1), visible);
 }
 
 void Engine::learn_english_commit(const std::string& typed, const std::string& committed) {
@@ -1557,6 +1631,20 @@ void Engine::learn_english_commit(const std::string& typed, const std::string& c
             return;
         }
     }
+}
+
+ProcessResult Engine::request_voice_input() {
+    voice_request_ = VoiceRequest::kToggle;
+    if (!context_.is_composing()) return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+    // As the Chinese/English switch: what was typed goes in as typed.
+    context_.finalize_raw(CommitSource::kRawCodePreserveCase);
+    english_composing_ = false;
+    if (context_.committed_text.empty()) {
+        reset_composition_state();
+        return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+    }
+    apply_commit_learning_plan();
+    return ProcessResult::COMMITTED;
 }
 
 ProcessResult Engine::commit_english(std::string text) {
@@ -1625,18 +1713,13 @@ std::optional<ProcessResult> Engine::process_english_key(const KeyEvent& event, 
         learn_english_commit(typed, word);
         return commit_english(word + " ");
     }
-    case VK_TAB:
-        if (event.is_shift()) {
-            context_.move_to_previous_candidate();
-        } else {
-            context_.move_to_next_candidate();
-        }
-        return ProcessResult::ACCEPTED;
     case VK_DOWN:
         context_.move_to_next_candidate();
+        follow_english_navigation();
         return ProcessResult::ACCEPTED;
     case VK_UP:
         context_.move_to_previous_candidate();
+        follow_english_navigation();
         return ProcessResult::ACCEPTED;
     case VK_LEFT:
         context_.move_preedit_cursor_left();
@@ -1653,10 +1736,28 @@ std::optional<ProcessResult> Engine::process_english_key(const KeyEvent& event, 
     default:
         break;
     }
-    // 1-9 on the main keyboard select a candidate (as in Chinese mode); a number past the
-    // candidates is typed after the word, as below.
-    if (vk >= '1' && vk <= '9' && !event.is_shift()) {
-        const CandidateEntry* entry = context_.candidate_entry(static_cast<int>(vk - '1'));
+    if (is_cycle_key(event)) {
+        context_.cycle_highlight(event.is_shift());
+        return ProcessResult::ACCEPTED;
+    }
+    // PageUp / PageDown and the page keys (shortcuts.page_up / page_down), as in Chinese mode.
+    if (const PageKey page = page_key(event, context_); page != PageKey::kNone) {
+        if (page == PageKey::kNext) {
+            context_.request_next_page();
+        } else {
+            context_.request_previous_page();
+        }
+        follow_english_navigation();
+        return ProcessResult::ACCEPTED;
+    }
+    // 1-9 on the main keyboard select a candidate, and 0 the tenth (as in Chinese mode); a
+    // number past the candidates is typed after the word, as below.
+    const int selectable = context_.selectable_candidate_count();
+    const int digit = vk >= '1' && vk <= '9' ? static_cast<int>(vk - '1')
+                      : vk == '0' && selectable >= 10 ? 9
+                                                      : -1;
+    if (digit >= 0 && digit < selectable && !event.is_shift()) {
+        const CandidateEntry* entry = context_.candidate_entry(digit);
         if (entry) {
             learn_english_commit(typed, entry->candidate.text);
             return commit_english(entry->candidate.text);

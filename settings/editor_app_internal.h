@@ -14,8 +14,14 @@ namespace settings {
 
 inline constexpr int kFontPt = 14;
 inline constexpr int kNavFontPt = kFontPt + 1;
-inline constexpr int kLearningPanel = 4;  // page index of Learning
-inline constexpr int kUpdatePanel = 6;    // page index of Updates
+inline constexpr int kWordListPanel = 4;  // page index of Word lists
+inline constexpr int kVoicePanel = 5;     // page index of Voice input
+inline constexpr int kLearningPanel = 6;  // page index of Learning
+inline constexpr int kPrivacyPanel = 7;   // page index of Privacy
+inline constexpr int kUpdatePanel = 8;    // page index of Updates
+inline constexpr int kAboutPanel = 9;     // page index of About
+// Makes the Word lists page again after an import or a removal (posted from its buttons).
+inline constexpr UINT kRebuildWordListsMessage = WM_APP + 90;
 
 extern float g_dpi;
 extern HFONT g_hFont;
@@ -69,6 +75,10 @@ void clear_cards();
 // its width), then update_panel_scroll() once they are.
 void make_panel_scrollable(HWND panel);
 void update_panel_scroll(HWND panel);
+// Takes a page's controls and cards away (scrolled to the top) so it can be made again; returns
+// how far it was scrolled, for scroll_panel() afterwards.
+int clear_panel(HWND panel);
+void scroll_panel(HWND panel, int position);
 void set_card_visible(HWND panel, int index, bool visible);  // index in card_begin order
 void paint_panel(HWND panel, HDC dc);
 void fill_round_rect(HDC dc, const RECT& rect, int radius, COLORREF fill, COLORREF border);

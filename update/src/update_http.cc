@@ -383,6 +383,26 @@ TranslatorCheckResult check_translator() {
     return result;
 }
 
+VoiceCheckResult check_voice() {
+    VoiceCheckResult result;
+    bool test = false;
+    const std::string base = release_base(&test);
+    const std::string prefix = test ? base : std::string(kDownloadPrefix);
+    std::string manifest_text;
+    std::string signature;
+    result.status = fetch(prefix + kVoiceReleasePath + "voice.json", kManifestLimit, &manifest_text);
+    if (result.status == Status::kOk) {
+        result.status =
+            fetch(prefix + kVoiceReleasePath + "voice.json.sig", kSignatureLimit, &signature);
+    }
+    if (result.status != Status::kOk) return result;
+    if (!verify_signature(manifest_text, trim(signature), builtin_public_key()) ||
+        !parse_voice_manifest(manifest_text, prefix, &result.manifest)) {
+        result.status = Status::kInvalid;
+    }
+    return result;
+}
+
 Status download_translator_file(const TranslatorFile& file, const std::wstring& path,
                                 const Progress& progress, const std::atomic<bool>* cancel) {
     const std::wstring directory = path.substr(0, path.find_last_of(L'\\'));

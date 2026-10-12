@@ -41,6 +41,7 @@ static AsciiModeSwitchStyle parse_style(const std::string& s) {
     if (s == "toggle_style")     return AsciiModeSwitchStyle::TOGGLE_STYLE;
     if (s == "toggle_punct")     return AsciiModeSwitchStyle::TOGGLE_PUNCT;
     if (s == "toggle_shape")     return AsciiModeSwitchStyle::TOGGLE_SHAPE;
+    if (s == "toggle_voice")     return AsciiModeSwitchStyle::TOGGLE_VOICE;
     return AsciiModeSwitchStyle::NOOP;
 }
 
@@ -73,7 +74,8 @@ void AsciiComposer::load_config(const Config& config) {
                 style == AsciiModeSwitchStyle::UNSET_ASCII_MODE ||
                 style == AsciiModeSwitchStyle::TOGGLE_STYLE ||
                 style == AsciiModeSwitchStyle::TOGGLE_PUNCT ||
-                style == AsciiModeSwitchStyle::TOGGLE_SHAPE) {
+                style == AsciiModeSwitchStyle::TOGGLE_SHAPE ||
+                style == AsciiModeSwitchStyle::TOGGLE_VOICE) {
                 style = AsciiModeSwitchStyle::CLEAR;
             }
         }
@@ -137,7 +139,8 @@ bool AsciiComposer::process_key(uint32_t key_code, bool is_key_up, Context& ctx,
                 const AsciiModeSwitchStyle style = get_binding(key_code);
                 if (style == AsciiModeSwitchStyle::TOGGLE_STYLE ||
                     style == AsciiModeSwitchStyle::TOGGLE_PUNCT ||
-                    style == AsciiModeSwitchStyle::TOGGLE_SHAPE) {
+                    style == AsciiModeSwitchStyle::TOGGLE_SHAPE ||
+                    style == AsciiModeSwitchStyle::TOGGLE_VOICE) {
                     tap_toggle_ = style;
                     shift_pressed_ = false;
                     ctrl_pressed_ = false;

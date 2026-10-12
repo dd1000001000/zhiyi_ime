@@ -27,6 +27,7 @@ enum class AsciiModeSwitchStyle {
     TOGGLE_STYLE,
     TOGGLE_PUNCT,
     TOGGLE_SHAPE,
+    TOGGLE_VOICE,  // voice input (docs/voice-input.md)
 };
 
 enum class InlineAsciiResult {
@@ -61,7 +62,7 @@ public:
     void sync_caps_lock(bool caps_lock, Context& ctx) { apply_caps_lock_overlay(caps_lock, ctx); }
 
     AsciiModeSwitchStyle get_binding(uint32_t key_code) const;
-    // A tap of a modifier bound to TOGGLE_STYLE / TOGGLE_PUNCT / TOGGLE_SHAPE, once (NOOP when
+    // A tap of a modifier bound to TOGGLE_STYLE / TOGGLE_PUNCT / TOGGLE_SHAPE / TOGGLE_VOICE, once (NOOP when
     // none since the last call).
     AsciiModeSwitchStyle take_tap_toggle() {
         const AsciiModeSwitchStyle toggle = tap_toggle_;

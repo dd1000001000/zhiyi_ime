@@ -131,6 +131,10 @@ LRESULT CALLBACK TextService::_config_window_proc(HWND hwnd, UINT msg, WPARAM wp
         service->_settle_conversion_change();
         return 0;
     }
+    if (msg == WM_TIMER && wp == cxxime_tsf::TIMER_CXXIME_VOICE_POLL && service) {
+        service->_poll_voice();
+        return 0;
+    }
     if (msg == WM_TIMER && wp == cxxime_tsf::TIMER_CXXIME_INPUT_INDICATOR_REFRESH && service) {
         KillTimer(hwnd, cxxime_tsf::TIMER_CXXIME_INPUT_INDICATOR_REFRESH);
         service->_inputIndicatorRefreshRetryActive = false;

@@ -52,6 +52,7 @@ enum ControlId {
     kStyleKeyId,
     kPunctKeyId,
     kShapeKeyId,
+    kVoiceKeyId,
     kRestoreKeysId,
     kPageUpKeyId,
     kPageDownKeyId,
@@ -112,21 +113,27 @@ std::string tap_action(const Config& config, const char* left, const char* right
     return "noop";
 }
 
-// The switch keys in box order (中英切换, 输入方式切换, 中英文标点, 全角/半角): the
+// The switch keys in box order (中英切换, 输入方式切换, 中英文标点, 全角/半角, 语音输入): the
 // switch_key action of a tapped Shift or Ctrl for each.
-constexpr const char* kTapActions[] = {"code", "toggle_style", "toggle_punct", "toggle_shape"};
+constexpr int kSwitchKeyCount = 5;
+constexpr const char* kTapActions[kSwitchKeyCount] = {"code", "toggle_style", "toggle_punct",
+                                                      "toggle_shape", "toggle_voice"};
 
 bool is_toggle_action(const std::string& action) {
-    return action == kTapActions[1] || action == kTapActions[2] || action == kTapActions[3];
+    for (int slot = 1; slot < kSwitchKeyCount; ++slot) {
+        if (action == kTapActions[slot]) return true;
+    }
+    return false;
 }
 
 // A switch key: its combination (shortcuts.*), else Shift or Ctrl tapped alone, else none.
-// Any action but the three others taps the Chinese/English switch (set_ascii_mode, clear ...).
+// Any action but the four others taps the Chinese/English switch (set_ascii_mode, clear ...).
 KeyChoice switch_key_choice(const Config& config, int slot) {
     const KeyboardShortcut* combos[] = {&config.ascii_toggle_shortcut,
                                         &config.english_style_shortcut,
                                         &config.punct_toggle_shortcut,
-                                        &config.shape_toggle_shortcut};
+                                        &config.shape_toggle_shortcut,
+                                        &config.voice_input_shortcut};
     if (combos[slot]->enabled()) return KeyChoice::of(*combos[slot]);
     for (const auto& [left, right, vk] : {std::tuple{"Shift_L", "Shift_R", VK_SHIFT},
                                           std::tuple{"Control_L", "Control_R", VK_CONTROL}}) {
@@ -149,15 +156,16 @@ std::wstring label_name(const char* key) {
     return name;
 }
 
-// The four boxes (box order) into the config: combinations to shortcuts.*, a tapped Shift or
+// The five boxes (box order) into the config: combinations to shortcuts.*, a tapped Shift or
 // Ctrl to its switch_key action ("code" for the Chinese/English switch: the keys typed so far
 // are committed as letters, then the mode switches).
-void apply_switch_key_choices(Config& config, const KeyChoice (&choices)[4]) {
+void apply_switch_key_choices(Config& config, const KeyChoice (&choices)[kSwitchKeyCount]) {
     KeyboardShortcut* combos[] = {&config.ascii_toggle_shortcut, &config.english_style_shortcut,
-                                  &config.punct_toggle_shortcut, &config.shape_toggle_shortcut};
+                                  &config.punct_toggle_shortcut, &config.shape_toggle_shortcut,
+                                  &config.voice_input_shortcut};
     const char* shift = "noop";
     const char* ctrl = "noop";
-    for (int slot = 0; slot < 4; ++slot) {
+    for (int slot = 0; slot < kSwitchKeyCount; ++slot) {
         const KeyChoice& choice = choices[slot];
         *combos[slot] = choice.kind == KeyChoice::Kind::kCombo ? choice.combo : KeyboardShortcut{};
         if (choice.kind != KeyChoice::Kind::kTap) continue;
@@ -316,7 +324,7 @@ void EditorApp::create_keys_panel(HWND panel) {
     int y = card_begin(panel, kPanelPadTop, tr("keys.card"));
     // One label column for both cards, so the page key boxes line up with the switch keys.
     const int labels = label_width({"keys.switch", "keys.style", "keys.punct", "keys.shape",
-                                    "keys.page_up", "keys.page_down"});
+                                    "keys.voice", "keys.page_up", "keys.page_down"});
     const int box_width = S(340);
     struct Row {
         const char* label;
@@ -330,6 +338,7 @@ void EditorApp::create_keys_panel(HWND panel) {
         {"keys.style", kStyleKeyId, &hStyleKey_, "keys.style_hint"},
         {"keys.punct", kPunctKeyId, &hPunctKey_, nullptr},
         {"keys.shape", kShapeKeyId, &hShapeKey_, nullptr},
+        {"keys.voice", kVoiceKeyId, &hVoiceKey_, "keys.voice_hint"},
     };
     for (const Row& row : rows) {
         const int x = make_aligned_label(tr(row.label), x0, labels, y, panel);
@@ -505,6 +514,7 @@ void EditorApp::populate_controls() {
     }
     populate_learning();
     populate_translator();
+    populate_voice();
     update_enabled_controls();
 }
 
@@ -530,8 +540,9 @@ bool EditorApp::read_controls(bool report_errors) {
     c.autostart = get_check(hAutostart_);
     c.laya.enable = get_check(hLaya_);
     c.laya.device = selected_device();
-    const KeyChoice choices[4] = {key_capture_get(hSwitchKey_), key_capture_get(hStyleKey_),
-                                  key_capture_get(hPunctKey_), key_capture_get(hShapeKey_)};
+    const KeyChoice choices[kSwitchKeyCount] = {
+        key_capture_get(hSwitchKey_), key_capture_get(hStyleKey_), key_capture_get(hPunctKey_),
+        key_capture_get(hShapeKey_), key_capture_get(hVoiceKey_)};
     apply_switch_key_choices(c, choices);
     c.page_up_key = kPageUpKeys[std::clamp(combo_index(hPageUpKey_), 0, 3)];
     c.page_down_key = kPageDownKeys[std::clamp(combo_index(hPageDownKey_), 0, 3)];
@@ -541,6 +552,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.update_notify = get_check(hUpdateNotify_);
     read_learning(c);
     read_translator(c);
+    read_voice(c);
     c.fuzzy_pinyin = get_check(hFuzzyEnabled_);
     c.fuzzy_groups = 0;
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
@@ -556,7 +568,8 @@ bool EditorApp::read_controls(bool report_errors) {
             const char* message = "keys.same";
             for (const KeyboardShortcut& shortcut :
                  {keys.ascii_toggle_shortcut, keys.english_style_shortcut,
-                  keys.punct_toggle_shortcut, keys.shape_toggle_shortcut}) {
+                  keys.punct_toggle_shortcut, keys.shape_toggle_shortcut,
+                  keys.voice_input_shortcut}) {
                 if (!shortcut.enabled()) continue;
                 if (!is_valid_input_mode_shortcut(shortcut)) message = "keys.invalid";
                 else if (shortcut == keys.activate_ime_shortcut) message = "keys.conflict";
@@ -573,13 +586,15 @@ void EditorApp::set_switch_key_boxes(const Config& config) {
     key_capture_set(hStyleKey_, switch_key_choice(config, 1));
     key_capture_set(hPunctKey_, switch_key_choice(config, 2));
     key_capture_set(hShapeKey_, switch_key_choice(config, 3));
+    key_capture_set(hVoiceKey_, switch_key_choice(config, 4));
     update_switch_key_notes();
+    show_voice_key();
 }
 
 // Checked on this machine each time (programs come and go): another program's global hotkey
 // wins over the IME, a Windows input method hotkey is taken over by it.
 void EditorApp::update_switch_key_notes() {
-    for (HWND box : {hSwitchKey_, hStyleKey_, hPunctKey_, hShapeKey_}) {
+    for (HWND box : {hSwitchKey_, hStyleKey_, hPunctKey_, hShapeKey_, hVoiceKey_}) {
         if (!box) continue;
         const KeyChoice choice = key_capture_get(box);
         if (choice.kind != KeyChoice::Kind::kCombo) {
@@ -635,6 +650,9 @@ void EditorApp::update_enabled_controls() {
 }
 
 bool EditorApp::handle_command(int control_id, int notification) {
+    if (handle_word_list_command(control_id, notification)) {
+        return true;
+    }
     switch (control_id) {
     case kLightId:
     case kDarkId:
@@ -706,12 +724,15 @@ bool EditorApp::handle_command(int control_id, int notification) {
     case kStyleKeyId:
     case kPunctKeyId:
     case kShapeKeyId:
+    case kVoiceKeyId:
         if (notification == kKeyCaptureChanged) {
             update_switch_key_notes();
+            show_voice_key();
         }
         return true;
     default:
         return handle_learning_command(control_id, notification) ||
+               handle_voice_command(control_id, notification) ||
                handle_translator_command(control_id, notification) ||
                handle_update_command(control_id, notification);
     }

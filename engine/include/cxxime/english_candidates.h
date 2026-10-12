@@ -24,9 +24,11 @@ struct EnglishPool {
     std::string learned_pick;
 };
 
-// `learning` is nullptr when self-learning is off.
+// `learning` is nullptr when self-learning is off. `size` dictionary words and as many user
+// words are looked up (corrections come on top).
 EnglishPool build_english_pool(const EnglishLexicon& lexicon, const EnglishLearning* learning,
-                               const std::string& typed, const Config::EnglishConfig& config);
+                               const std::string& typed, const Config::EnglishConfig& config,
+                               int size);
 
 // True when `typed` is a common word as it is (a dictionary word scoring min_score or more).
 bool english_common_word(const EnglishLexicon& lexicon, const std::string& typed,

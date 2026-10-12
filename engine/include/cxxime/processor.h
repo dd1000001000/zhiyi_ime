@@ -39,6 +39,10 @@ enum class PageKey {
 // the context (shortcuts.page_up / page_down) pressed without Shift, Ctrl or Alt.
 PageKey page_key(const KeyEvent& event, const Context& context);
 
+// Tab / Shift+Tab (without Ctrl or Alt): the next / previous candidate on the page, going round
+// (Context::cycle_highlight).
+bool is_cycle_key(const KeyEvent& event);
+
 // Abstract processor interface
 class IProcessor {
 public:

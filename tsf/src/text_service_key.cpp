@@ -114,6 +114,13 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
         return S_OK;
     }
 
+    // The voice text shown: Backspace / Esc delete it, Enter keeps it, other keys keep it and
+    // go on.
+    if (_handle_voice_text_key(pic, wParam)) {
+        *pfEaten = TRUE;
+        _fTestKeyDownPending = true;
+        return S_OK;
+    }
     const int switch_slot = _held_switch_key();
     if (switch_slot >= 0 && wParam == _switch_key(switch_slot).virtual_key &&
         !_claim_switch_key_press(switch_slot)) {
@@ -159,6 +166,10 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lPara
         return S_OK;
     }
     // Some apps call OnKeyDown without OnTestKeyDown (e.g. QQ2012)
+    if (_handle_voice_text_key(pic, wParam)) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
     const int switch_slot = _held_switch_key();
     if (switch_slot >= 0 && wParam == _switch_key(switch_slot).virtual_key &&
         !_claim_switch_key_press(switch_slot)) {
@@ -278,7 +289,10 @@ bool TextService::_ProcessKeyEvent(ITfContext* pic, WPARAM wParam, LPARAM lParam
             english_words = _lastImeStatus.english_words();
         }
         // Only where the model recommends: pinyin, or English word completion.
-        if ((_chinese_mode || english_words) && _ensure_ipc_session()) _send_text_before_caret(pic);
+        // Not while recording: the keys do not reach the input box then.
+        if ((_chinese_mode || english_words) && !_voicePolling && _ensure_ipc_session()) {
+            _send_text_before_caret(pic);
+        }
     }
 
     cxxime::IPCResponse response = {};
@@ -454,7 +468,8 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext* pic, REFGUID rguid, BOOL* p
     }
     *pfEaten = FALSE;
     const GUID* keys[] = {&c_guidPreservedKeyAsciiToggle, &c_guidPreservedKeyStyle,
-                          &c_guidPreservedKeyPunct, &c_guidPreservedKeyShape};
+                          &c_guidPreservedKeyPunct, &c_guidPreservedKeyShape,
+                          &c_guidPreservedKeyVoice};
     for (size_t i = 0; i < std::size(keys); ++i) {
         if (IsEqualGUID(rguid, *keys[i]) && _preservedSwitchKeys[i].enabled()) {
             const int slot = static_cast<int>(i);

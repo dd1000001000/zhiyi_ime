@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include <cxxime/extension_lexicon.h>
 #include <cxxime/query_budget.h>
 #include <cxxime/query_trace.h>
 
@@ -228,6 +229,36 @@ std::vector<Candidate> Dict::lookup(const std::string& code_prefix, int limit, Q
                                   entry.frequency;
         }
         results.push_back(std::move(candidate));
+    }
+
+    // The user's word lists: after the system words of the same kind of match (the exact code,
+    // then each longer code), so that the positions a Wubi typist knows stay where they were.
+    if (const auto extension = std::atomic_load(&extension_)) {
+        const auto group = [&](const std::string& code) {
+            return std::make_pair(code.size() == prefix_length ? 0 : 1, code.size());
+        };
+        bool added = false;
+        for (const ExtensionLexicon::Word* word :
+             extension->match_code_prefix(code_prefix, static_cast<std::size_t>(limit))) {
+            if (filter_disabled && is_system_entry_disabled(word->text)) continue;
+            if (std::any_of(results.begin(), results.end(),
+                            [&](const Candidate& c) { return c.text == word->text; })) {
+                continue;
+            }
+            Candidate candidate;
+            candidate.text = word->text;
+            candidate.code = word->code;
+            const auto at = std::find_if(results.begin(), results.end(), [&](const Candidate& c) {
+                return group(c.code) > group(candidate.code);
+            });
+            results.insert(at, std::move(candidate));
+            added = true;
+        }
+        if (added && use_prefix_index) {
+            for (size_t rank = 0; rank < results.size(); ++rank) {
+                results[rank].frequency = kSystemRankBase - static_cast<int>(rank);
+            }
+        }
     }
 
     QueryBudget user_budget;

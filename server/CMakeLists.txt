@@ -18,6 +18,10 @@ add_executable(cxxime-server WIN32
     src/ui_presentation_controller.cc
     src/ui_presentation_router.cc
     src/user_backup_service.cc
+    src/voice_overlay.cc
+    src/voice_recorder.cc
+    src/voice_service.cc
+    src/word_list_service.cc
 )
 
 target_include_directories(cxxime-server PRIVATE
@@ -34,6 +38,9 @@ target_link_libraries(cxxime-server PRIVATE
     ole32
     uuid
     wtsapi32
+    d2d1
+    dwrite
+    shcore
 )
 
 # Laya: ONNX Runtime DLLs and (when present) the model next to the server executable.

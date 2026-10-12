@@ -3,7 +3,9 @@
 #ifndef CXXIME_DICT_H_
 #define CXXIME_DICT_H_
 
+#include <atomic>
 #include <chrono>
+#include <climits>
 #include <cxxime/mapped_file.h>
 #include <cstddef>
 #include <cstdint>
@@ -28,6 +30,8 @@ struct UserLookupStats;
 class CandidatePreference;
 struct CandidatePreferenceReceipt;
 class DisabledSystemLexicon;
+class ExtensionLexicon;
+struct ExtensionWord;
 class ManualCandidateOrder;
 class UserLexicon;
 class WubiPrefixIndex;
@@ -200,7 +204,20 @@ public:
     CandidateStoreView candidate_store() const;
     bool has_wubi_prefix_index() const;
 
-    // User dictionary version for cache invalidation
+    // User word lists (word_list.h): the words of the enabled lists, queried beside the system
+    // dictionary and ranked as its words of the same frequency (pinyin: codes are syllables;
+    // Wubi: codes). `withheld`: the words of disabled lists, whose learned picks stay hidden.
+    // Safe while other threads query.
+    void set_extension(std::vector<ExtensionWord> words, std::vector<std::string> withheld = {});
+    std::shared_ptr<const ExtensionLexicon> extension() const;
+    // The short-input fast path's share of the extension (as the Top-N index answers `key`).
+    std::vector<Candidate> lookup_extension_key(const std::string& key, int limit,
+                                                int min_score = INT_MIN) const;
+    // The system dictionary has this word with this code (pinyin: syllables "a:li" or the
+    // compact code; Wubi: the code).
+    bool contains_system_entry(const std::string& text, const std::string& code) const;
+
+    // User dictionary version for cache invalidation (the extension's changes included)
     uint64_t user_dict_version() const;
     bool has_user_entry(const std::string& text) const;
     size_t user_entry_count() const;
@@ -270,6 +287,9 @@ private:
     std::unique_ptr<ManualCandidateOrder> manual_candidate_order_;
     std::unique_ptr<DisabledSystemLexicon> disabled_system_lexicon_;
 
+    // Read with std::atomic_load, replaced with std::atomic_store (set_extension).
+    std::shared_ptr<const ExtensionLexicon> extension_;
+    std::atomic<uint64_t> extension_generation_{0};
 };
 
 } // namespace cxxime

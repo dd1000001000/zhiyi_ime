@@ -81,6 +81,13 @@
         "chinese_target": "",
         "english_target": ""
     },
+    "voice": {
+        "enable": false,
+        "device": "",
+        "language": "auto",
+        "itn": true,
+        "max_seconds": 60
+    },
     "theme": "moon_light",
     "ui": {
         "language": "auto"

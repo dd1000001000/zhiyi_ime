@@ -47,6 +47,8 @@ public:
 
     bool initialize(std::shared_ptr<const EngineRuntimeState> runtime);
     bool apply_runtime_state(std::shared_ptr<const EngineRuntimeState> runtime);
+    // The dictionaries and settings in use (tools: word lists applied to its dictionary).
+    const EngineRuntimeState* runtime_state() const { return runtime_.get(); }
 
     void finalize();
 
@@ -94,6 +96,20 @@ public:
         translation_request_.reset();
         return index;
     }
+    // Voice input (docs/voice-input.md): the voice key asks the server to start or stop
+    // recording (kToggle; a composition is committed as typed first), Esc while recording to
+    // drop it (kCancel). The server reads the request after each key, once.
+    enum class VoiceRequest { kNone, kToggle, kCancel };
+    VoiceRequest take_voice_request() {
+        const VoiceRequest request = voice_request_;
+        voice_request_ = VoiceRequest::kNone;
+        return request;
+    }
+    // While the server records or turns the recording into text for this session no key reaches
+    // the input box: keys are eaten (modifiers alone pass, so the voice key can be a tapped
+    // Shift or Ctrl), the voice key asks to stop and Esc to cancel.
+    void set_voice_capture(bool capturing) { voice_capture_ = capturing; }
+    bool voice_capture() const { return voice_capture_; }
     // Types `translation` in place of candidate `index` (text confirmed before it stays; input
     // after it is typed on), after a space when `spaced` (its language writes spaces between
     // words, learning.space_languages) and a word comes before it. Nothing happens (ACCEPTED)
@@ -208,14 +224,19 @@ private:
     // English words mixed into the first pinyin page (config.english.mixed_in_chinese).
     void add_english_candidates(const std::string& input, int page_size, TranslationResult& result) const;
     // English (ASCII) mode word completion (config.english.completion_in_ascii): letters build
-    // a word, candidates = the typed text + completions; 1-9 select, Space commits the
-    // highlighted candidate plus a space, Enter commits the typed text.
+    // a word, candidates = the typed text + completions, two pages at least; 1-9 (0 the tenth)
+    // select, Space commits the highlighted candidate plus a space, Enter commits the typed text.
     std::optional<ProcessResult> process_english_key(const KeyEvent& event, const OutputOptions& opts);
     void refresh_english_candidates();
+    // The page of english_entries_ starting at `offset`.
+    TranslationResult english_page(int offset, int page_index) const;
+    // Turns the page a candidate move or a page key asked for.
+    void follow_english_navigation();
     ProcessResult commit_english(std::string text);
     // Self-learning (EnglishLearning): `committed` is the word committed for `typed`.
     void learn_english_commit(const std::string& typed, const std::string& committed);
-    std::vector<std::string> english_corrections_shown_;  // corrections on the current page
+    std::vector<CandidateEntry> english_entries_;  // the whole list; a page of it is shown
+    std::vector<std::string> english_corrections_shown_;  // corrections in english_entries_
     bool english_composing_ = false;
     bool english_word_mode_ = true;
     PinyinStyle pinyin_style_ = PinyinStyle::kFull;
@@ -223,6 +244,11 @@ private:
     KeyboardShortcut ascii_toggle_shortcut_;
     KeyboardShortcut punct_toggle_shortcut_;
     KeyboardShortcut shape_toggle_shortcut_;
+    KeyboardShortcut voice_input_shortcut_;
+    VoiceRequest voice_request_ = VoiceRequest::kNone;
+    bool voice_capture_ = false;
+    // The voice key outside recording: commits a composition as typed, asks for recording.
+    ProcessResult request_voice_input();
 
     std::shared_ptr<const EngineRuntimeState> runtime_;
 

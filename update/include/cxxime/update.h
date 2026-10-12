@@ -180,6 +180,34 @@ TranslatorCheckResult check_translator();
 Status download_translator_file(const TranslatorFile& file, const std::wstring& path,
                                 const Progress& progress, const std::atomic<bool>* cancel);
 
+// Voice input's model (docs/voice-input.md, voice_files.h), in the release tagged "voice" (not
+// marked latest):
+//   voice.json      {"version": N, "min_app": "1.5.0",
+//                    "files": [{"file", "size", "sha256"}, ...]}
+//   voice.json.sig  signed like latest.json
+//   the files: model.int8.onnx, tokens.txt, silero_vad.onnx (all three required) and the
+//   models' licenses (LICENSE-*.txt)
+inline constexpr char kVoiceReleasePath[] = "voice/";  // under kDownloadPrefix
+
+struct VoiceManifest {
+    std::uint32_t version = 0;
+    std::string min_app;  // the oldest program version that runs it ("" = any)
+    std::vector<TranslatorFile> files;
+
+    std::uint64_t total_size() const;
+};
+
+bool parse_voice_manifest(const std::string& text, const std::string& download_prefix,
+                          VoiceManifest* manifest);
+
+struct VoiceCheckResult {
+    Status status = Status::kNetwork;
+    VoiceManifest manifest;
+};
+
+// Downloads and verifies voice.json (blocking; run on a worker thread).
+VoiceCheckResult check_voice();
+
 // %USERPROFILE%\zhiyi\update-state.json: a version the user skipped, and the version being
 // installed (so the next settings start can say it was updated).
 struct State {

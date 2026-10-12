@@ -211,7 +211,10 @@ void EditorApp::create_controls(HWND window) {
     create_general_panel(hPanels_[0]);
     update_panel_scroll(hPanels_[0]);
     create_fuzzy_panel(hPanels_[1]);
+    // Five switch keys and the page keys: taller than the window at larger scales.
+    make_panel_scrollable(hPanels_[2]);
     create_keys_panel(hPanels_[2]);
+    update_panel_scroll(hPanels_[2]);
     create_dictionary_panel(hPanels_[3]);
     make_panel_scrollable(hPanels_[kWordListPanel]);
     create_word_list_panel(hPanels_[kWordListPanel]);

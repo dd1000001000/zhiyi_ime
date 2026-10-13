@@ -265,6 +265,8 @@
 | `laya.continuation_paths` | 4 | 每个组合最多给模型几种拼音切分（每种一次模型调用，在后台算） |
 | `laya.continuation_delay_ms` | 100 | 停止打字多少毫秒后后台才开始组句（CPU 和显卡都一样）；连续打字时不做马上作废的计算 |
 | `laya.continuation_rerank` | false | 模型组出的整句再交给选词头重排；关时模型的第一句放在第一个并加星标，这一页不再重排 |
+| `laya.decoder_beam` | 16 | 解码器模型（1.5.4 起）逐字组句时同时保留的路径数；每写一个字所有路径一起算一次 |
+| `laya.decoder_weight` | 0.3 | 解码器模型组句时每个词的分数 = 各字 ln P(模型) 之和 + 权重 × 引擎的词分数（`laya.continuation_weight` 只用于组句头模型） |
 | `privacy.experience_program` / `collect_input` | false / false | 用户体验改进计划两档 |
 | `update.notify` | true | 打开设置时检查更新 |
 | `startup.autostart` | true | 登录时启动后台服务；false = 第一次切换到知意输入法时再启动 |

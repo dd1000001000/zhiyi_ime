@@ -20,7 +20,7 @@ IMM 兼容模块）、构建脚本，以及生成运行时词典的工具（`dat
 
 ```cmd
 python scripts\fetch_onnxruntime.py   :: ONNX Runtime 1.24.4（DirectML 版）+ DirectML.dll -> third_party\onnxruntime\
-python scripts\fetch_model.py         :: Laya 模型（GitHub Release model-zhen-unified-s）-> models\laya\
+python scripts\fetch_model.py         :: Laya 模型（GitHub Release model-zhen-unified-dec）-> models\laya\
 build_laya.bat                        :: Ninja Release 构建，产物在 build\
 ```
 
@@ -44,10 +44,11 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 
 - [Laya](https://huggingface.co/convaiinnovations/laya) 结构的决策模型，编码器是 mmBERT-small（22 层、宽 384）。1.2.0 起由 1.1 的模型（mmBERT-base 上中英联合训练的 LoRA r64）蒸馏而来，训练样本 111 万条（原有的输入法实际候选样本，加上从 LCCC 和 C4 中文抽取、由输入法生成候选的样本）。导出为 int8 ONNX，在 CPU 上推理（默认 4 线程），每次约 10–20 ms；显卡上约 6 ms。
 - 1.4.0 起是“统一模型”：在 1.2 的模型上加第二个头（2 层），两个头一起训练、从更大的统一教师模型蒸馏。第一个头照旧在候选里选词；第二个头读已打的拼音（每个音节一个槽位，`unit_ids` / `slot_pos`，单位和字表在模型目录的 `unified_vocab.json`），给每个音节位置上的每个字打分，用于长拼音组句（见下文“长拼音组句”）。没有 `unified_vocab.json` 或模型没有第二个头时只选词。
+- 1.5.4 起第二个头换成解码器（2 层，带交叉注意力）：编码器读一遍上文和已打的拼音（`laya.int8g.onnx` 输出 `memory` / `slot_vec`），解码器（`laya_decoder.int8.onnx`，`unified_vocab.json` 的 `decoder` 字段指明）按顺序每次写一个字，每个字都看上文、全部音节和前面已经写下的字。组句部分用 315 万条长拼音样本重新训练（七成来自带真实上文的长篇网页文本 SkyPile-150B，三成对话），两个头都从更大的同结构教师模型蒸馏。引擎认出 `decoder` 字段就用解码器组句（见下文“长拼音组句”），没有时照旧用组句头，两种模型可以互换。
 - 模型只看上文和候选词，不看拼音或已打的字母（“猜词”提示词，模型目录的 `rl_agent_config.json` 中
   `"zhiyi_prompt": "guess"`）。训练时中文上文是上一句加本句，
   英文是最后 192 个字符；中文候选是输入法实际给出的第一页（全拼、末音节不完整、简拼和混打）。
-- 模型权重随 [Release model-zhen-unified-s](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-unified-s)
+- 模型权重随 [Release model-zhen-unified-dec](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-unified-dec)
   发布（`scripts/fetch_model.py`）；训练代码与训练、评测数据涉及第三方语料版权，不公开。
 - 上文：开始输入时，TSF 模块读取输入框里光标前（有选中文字时为选区之前）最多 256 个字（`SET_CONTEXT`），
   模型取其中最后 128 个字 / 192 个英文字符。程序不允许读取时，改用之前上屏的文字，换到另一个输入框时清空；
@@ -60,7 +61,7 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
   引擎的排序可以通过排位先验加回来：
   得分 = log P(模型) + `laya.rank_prior_weight`（默认 0，英文 0.2）× log P(正确词排在第 r 位)，
   先验按训练数据统计。中文默认不加先验：加 0.4 时总体首选准确率高约 1.4 个点，但正确词排在后面时
-  更容易被第一个候选压住；旧版本配置里保存的 0.4 读取时按 0 处理（只在配置格式 1.1 之前的文件上做一次）。模型词向量表只保留中英文用到的 8.2 万个 token（1.2 的模型文件 85 MB，加上组句头的统一模型 92 MB；1.1 的 mmBERT-base 模型为 194 MB）。
+  更容易被第一个候选压住；旧版本配置里保存的 0.4 读取时按 0 处理（只在配置格式 1.1 之前的文件上做一次）。模型词向量表只保留中英文用到的 8.2 万个 token（1.2 的模型文件 85 MB，加上组句头的统一模型 92 MB，1.5.4 的解码器模型 84 MB 加解码器 20 MB；1.1 的 mmBERT-base 模型为 194 MB）。
   长拼音组句（统一模型，`laya.continuation`，默认开）：从 `laya.continuation_min_syllables`（4）个音节起，模型读已打的音节、给每个音节上的每个字打分，
   引擎组句时每个词的分数 = ln P(模型给这几个字) + `laya.continuation_weight`（0.5）× 引擎的词分数；每种切分（如 xian / xi'an，最多 `laya.continuation_paths` 种）
   一次模型调用，简拼的各种读法共用一次。模型在后台算，按键从不等它（`server/src/continuation_worker.cc`）：
@@ -77,6 +78,7 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
   端到端（首选，bench `eval_long_e2e.py`，822 条长句、1898 条词语 eng_test；旧选词模型 → 按键时 → 停顿后；小鹤双拼打同样的全拼长句也是 47.0% → 60.7%）：
   全拼 46.6% → 47.0% → 60.7%，末字只打声母 16.3% → 17.3% → 30.6%，全简拼 3.0% → 3.2% → 5.2%，前简后全 8.4% → 9.9% → 16.2%，
   词语 77.6% → 78.2% → 78.1%；两种都没有空页（按键时同步组句的版本有 13 页空的）。
+  解码器模型（1.5.4）：同样从 `laya.continuation_min_syllables` 个音节起、在后台算。每种切分读一遍（`Reranker::encode`，缓存方式同上），然后按字做 beam 搜索（`pinyin_composer.h` 的 `sequential_compose`）：每条路径要么接着写当前词典词的下一个字，要么在词边界开始一个新词，每写一个字所有路径一起调用一次解码器（`laya.decoder_beam` 条，默认 16），一个词的分数 = 它每个字的 ln P 之和 + `laya.decoder_weight`（0.3）× 引擎的词分数，最后取总分最高的完整路径；简拼和末字未打完的输入（`compose_typed_spans`）也一样。CPU 上编码一次约 8 ms，每写一个字约 2 ms。端到端（停顿后，同上）：全拼 60.7% → 61.4%，末字只打声母 30.6% → 30.8%，全简拼 5.2% → 7.1%，前简后全 16.2% → 18.1%，词语 78.1% → 78.5%。
   长句（关掉 `laya.continuation` 或模型没有组句头时；4 个音节以上、没有词典词覆盖全部输入）：引擎组句时每段音节多留同音词（最多 8 个，不再限于最常见词的十分之一以内），
   给模型最多 8 个整句；模型是按“猜下一个词”训练的，单独挑整句不如引擎自己的顺序，所以得分 = log P(模型) +
   `laya.sentence_score_weight`（默认 1）× 引擎整句分数（各词 ln 频率之和，`Candidate::composed_score`）。

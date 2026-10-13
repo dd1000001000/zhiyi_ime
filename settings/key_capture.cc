@@ -37,6 +37,9 @@ struct State {
     // The key presses of one capture: modifiers seen, and whether another key came with them.
     uint32_t modifiers_seen = 0;
     bool other_key_seen = false;
+    // A tapped modifier may stay generic (either side) or keep its side (see key_capture.h).
+    bool distinguish_side = false;
+    uint32_t captured_modifier_vk = 0;  // the last modifier pressed, with its side
 };
 
 State* state_of(HWND window) {
@@ -63,6 +66,108 @@ uint32_t modifier_bit(UINT vk) {
 }
 
 bool key_down(int vk) { return (GetKeyState(vk) & 0x8000) != 0; }
+
+// The generic modifier of a bit, either side (VK_SHIFT / VK_CONTROL / VK_MENU).
+uint32_t generic_modifier_vk(uint32_t bit) {
+    switch (bit) {
+    case kKeyModifierShift:
+        return VK_SHIFT;
+    case kKeyModifierControl:
+        return VK_CONTROL;
+    case kKeyModifierAlt:
+        return VK_MENU;
+    default:
+        return 0;
+    }
+}
+
+// A modifier key as the window message reports it, with its side from the scan code (right Shift,
+// 0x36) or the extended flag (right Ctrl / right Alt). Any other key passes unchanged.
+uint32_t modifier_vk_with_side(UINT vk, LPARAM lparam) {
+    const uint32_t flags = static_cast<uint32_t>(lparam);
+    const bool extended = (flags & (1u << 24)) != 0;
+    const uint32_t scan = (flags >> 16) & 0xFF;
+    switch (vk) {
+    case VK_SHIFT:
+        return scan == 0x36 ? VK_RSHIFT : VK_LSHIFT;
+    case VK_CONTROL:
+        return extended ? VK_RCONTROL : VK_LCONTROL;
+    case VK_MENU:
+        return extended ? VK_RMENU : VK_LMENU;
+    default:
+        return vk;
+    }
+}
+
+// The modifier family of a tap key (the generic VK) and its side (0 either, 1 left, 2 right).
+uint32_t modifier_family(uint32_t vk) {
+    switch (vk) {
+    case VK_SHIFT:
+    case VK_LSHIFT:
+    case VK_RSHIFT:
+        return VK_SHIFT;
+    case VK_CONTROL:
+    case VK_LCONTROL:
+    case VK_RCONTROL:
+        return VK_CONTROL;
+    case VK_MENU:
+    case VK_LMENU:
+    case VK_RMENU:
+        return VK_MENU;
+    default:
+        return 0;
+    }
+}
+
+uint32_t modifier_side(uint32_t vk) {
+    switch (vk) {
+    case VK_LSHIFT:
+    case VK_LCONTROL:
+    case VK_LMENU:
+        return 1;
+    case VK_RSHIFT:
+    case VK_RCONTROL:
+    case VK_RMENU:
+        return 2;
+    default:
+        return 0;
+    }
+}
+
+// Two tapped modifiers overlap when they share a family and either is side-agnostic or both are
+// the same side. Left Ctrl and right Ctrl do not overlap; Ctrl and left Ctrl do.
+bool tap_keys_overlap(uint32_t left, uint32_t right) {
+    const uint32_t family = modifier_family(left);
+    if (family == 0 || family != modifier_family(right)) return family == modifier_family(right);
+    const uint32_t left_side = modifier_side(left);
+    const uint32_t right_side = modifier_side(right);
+    return left_side == 0 || right_side == 0 || left_side == right_side;
+}
+
+// "Ctrl", "Right Ctrl" / "右 Ctrl" for a tapped modifier key.
+std::wstring tapped_modifier_text(uint32_t vk) {
+    const wchar_t* mod = nullptr;
+    const wchar_t* side = nullptr;
+    switch (vk) {
+    case VK_CONTROL: mod = tr("keys.mod_ctrl"); break;
+    case VK_LCONTROL: mod = tr("keys.mod_ctrl"); side = tr("keys.side_left"); break;
+    case VK_RCONTROL: mod = tr("keys.mod_ctrl"); side = tr("keys.side_right"); break;
+    case VK_SHIFT: mod = tr("keys.mod_shift"); break;
+    case VK_LSHIFT: mod = tr("keys.mod_shift"); side = tr("keys.side_left"); break;
+    case VK_RSHIFT: mod = tr("keys.mod_shift"); side = tr("keys.side_right"); break;
+    case VK_MENU: mod = tr("keys.mod_alt"); break;
+    case VK_LMENU: mod = tr("keys.mod_alt"); side = tr("keys.side_left"); break;
+    case VK_RMENU: mod = tr("keys.mod_alt"); side = tr("keys.side_right"); break;
+    default: return {};
+    }
+    std::wstring text;
+    if (side) {
+        text += side;
+        text += L' ';
+    }
+    text += mod;
+    return text;
+}
 
 uint32_t modifiers_down() {
     uint32_t modifiers = 0;
@@ -186,6 +291,7 @@ void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam,
     if ((lparam & (1 << 30)) != 0) return;  // auto-repeat
     if (const uint32_t bit = modifier_bit(vk)) {
         state->modifiers_seen |= bit;
+        state->captured_modifier_vk = modifier_vk_with_side(vk, lparam);
         return;
     }
     if (vk == VK_LWIN || vk == VK_RWIN || vk == VK_CAPITAL || vk == VK_NUMLOCK ||
@@ -220,13 +326,17 @@ void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam,
 void on_key_up(HWND window, State* state, UINT vk) {
     const uint32_t bit = modifier_bit(vk);
     if (bit == 0) return;
-    // A modifier pressed and released alone.
+    // A modifier pressed and released alone: a tap. Shift, Ctrl and Alt all qualify, each with its
+    // side when this box tells the two apart.
     if (!state->other_key_seen && state->modifiers_seen == bit) {
-        if (state->allow_tap && (bit == kKeyModifierShift || bit == kKeyModifierControl)) {
-            accept(window, state, KeyChoice::tap(bit == kKeyModifierShift ? VK_SHIFT : VK_CONTROL));
+        if (state->allow_tap) {
+            uint32_t tap_vk =
+                state->distinguish_side ? state->captured_modifier_vk : generic_modifier_vk(bit);
+            if (tap_vk == 0) tap_vk = generic_modifier_vk(bit);
+            accept(window, state, KeyChoice::tap(tap_vk));
             return;
         }
-        reject(window, state, state->allow_tap ? tr("keys.tap_only") : tr("keys.need_combo"));
+        reject(window, state, tr("keys.need_combo"));
     }
     if (modifiers_down() == 0) {
         state->modifiers_seen = 0;
@@ -451,8 +561,31 @@ void key_capture_set(HWND control, const KeyChoice& choice) {
         state->choice = choice;
         state->capturing = false;
         state->message = nullptr;
+        if (choice.kind == KeyChoice::Kind::kTap) {
+            state->distinguish_side = modifier_side(choice.tap_key) != 0;
+            state->captured_modifier_vk = choice.tap_key;
+        }
         InvalidateRect(control, nullptr, TRUE);
     }
+}
+
+void key_capture_set_distinguish(HWND control, bool distinguish) {
+    State* state = state_of(control);
+    if (!state) return;
+    state->distinguish_side = distinguish;
+    if (state->choice.kind == KeyChoice::Kind::kTap) {
+        const uint32_t source =
+            state->captured_modifier_vk ? state->captured_modifier_vk : state->choice.tap_key;
+        const uint32_t tap_vk =
+            distinguish ? source : generic_modifier_vk(modifier_bit(source));
+        if (tap_vk != 0) state->choice = KeyChoice::tap(tap_vk);
+    }
+    InvalidateRect(control, nullptr, TRUE);
+}
+
+bool key_capture_get_distinguish(HWND control) {
+    const State* state = state_of(control);
+    return state && state->distinguish_side;
 }
 
 void key_capture_set_note(HWND control, KeyNote kind, const std::wstring& text) {
@@ -473,7 +606,7 @@ bool same_key_choice(const KeyChoice& left, const KeyChoice& right) {
     if (left.kind != right.kind) return false;
     switch (left.kind) {
     case KeyChoice::Kind::kTap:
-        return left.tap_key == right.tap_key;
+        return tap_keys_overlap(left.tap_key, right.tap_key);
     case KeyChoice::Kind::kCombo:
         return left.combo == right.combo;
     case KeyChoice::Kind::kNone:
@@ -490,7 +623,7 @@ KeyChoice key_capture_get(HWND control) {
 std::wstring key_choice_text(const KeyChoice& choice, const wchar_t* none) {
     switch (choice.kind) {
     case KeyChoice::Kind::kTap:
-        return choice.tap_key == VK_CONTROL ? L"Ctrl" : L"Shift";
+        return tapped_modifier_text(choice.tap_key);
     case KeyChoice::Kind::kCombo: {
         const std::string text = keyboard_shortcut_string(choice.combo);
         std::wstring out;

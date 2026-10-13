@@ -103,6 +103,8 @@ void reset_switch_keys(Config& config) {
     config.ascii_switch_key["Shift_R"] = "code";
     config.ascii_switch_key["Control_L"] = "noop";
     config.ascii_switch_key["Control_R"] = "noop";
+    config.ascii_switch_key["Alt_L"] = "noop";
+    config.ascii_switch_key["Alt_R"] = "noop";
     for (KeyboardShortcut* key : {&config.english_style_shortcut, &config.punct_toggle_shortcut,
                                   &config.shape_toggle_shortcut}) {
         if (*key == config.activate_ime_shortcut) *key = {};

@@ -61,6 +61,25 @@ bool indicates_unavailable_input_target(const char* block_reason) {
                             std::strcmp(block_reason, "context_not_foreground") == 0);
 }
 
+// TSF reports a modifier as the generic key (VK_SHIFT / VK_CONTROL / VK_MENU); the side is in the
+// scan code (right Shift, 0x36) or the extended flag (right Ctrl / right Alt). The switch keys may
+// tell the two sides apart, so hand the engine the specific key. Any other key passes unchanged.
+uint32_t modifier_vk_with_side(WPARAM vk, LPARAM lparam) {
+    const uint32_t flags = static_cast<uint32_t>(lparam);
+    const bool extended = (flags & (1u << 24)) != 0;
+    const uint32_t scan = (flags >> 16) & 0xFF;
+    switch (vk) {
+    case VK_SHIFT:
+        return scan == 0x36 ? VK_RSHIFT : VK_LSHIFT;
+    case VK_CONTROL:
+        return extended ? VK_RCONTROL : VK_LCONTROL;
+    case VK_MENU:
+        return extended ? VK_RMENU : VK_LMENU;
+    default:
+        return static_cast<uint32_t>(vk);
+    }
+}
+
 }  // namespace
 
 // ITfKeyEventSink
@@ -91,6 +110,7 @@ STDMETHODIMP TextService::OnSetFocus(BOOL fForeground) {
 }
 
 STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
+    wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
     _fTestKeyUpPending = false;
     if (_fTestKeyDownPending) {
         *pfEaten = TRUE;
@@ -140,6 +160,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
 }
 
 STDMETHODIMP TextService::OnTestKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
+    wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
     _fTestKeyDownPending = false;
     if (_fTestKeyUpPending) {
         *pfEaten = TRUE;
@@ -160,6 +181,7 @@ STDMETHODIMP TextService::OnTestKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lPa
 }
 
 STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
+    wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
     if (_fTestKeyDownPending) {
         _fTestKeyDownPending = false;
         *pfEaten = TRUE;
@@ -184,6 +206,7 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lPara
 }
 
 STDMETHODIMP TextService::OnKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
+    wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
     if (_fTestKeyUpPending) {
         _fTestKeyUpPending = false;
         *pfEaten = TRUE;

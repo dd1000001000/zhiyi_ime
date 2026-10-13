@@ -36,13 +36,14 @@ uint32_t tap_family(uint32_t vk);
 TapSide tap_side(uint32_t vk);
 // The tap key of a family on a side: (VK_CONTROL, kRight) -> VK_RCONTROL; 0 for no family.
 uint32_t tap_key_on_side(uint32_t family, TapSide side);
-// Two tapped modifiers clash when they share a family and either is "either side" or both are the
-// same side: Ctrl and left Ctrl clash, left Ctrl and right Ctrl do not.
+// One modifier is for one switch, whichever side: Ctrl and right Ctrl clash, and so do left Ctrl
+// and right Ctrl.
 bool tap_keys_overlap(uint32_t left, uint32_t right);
 
 constexpr int kSwitchKeyCount = 5;
 // The key of a switch (box order) as the config stores it: its combination, else a tapped
-// modifier (one side when only that side has the switch's action), else none.
+// modifier (one side when only that side has the switch's action), else none. Each side is read
+// on its own, so a hand-written config with the two sides on two switches shows (and keeps) both.
 KeyChoice switch_key_choice(const Config& config, int slot);
 // The five boxes (box order) into the config.
 void apply_switch_key_choices(Config& config, const KeyChoice (&choices)[kSwitchKeyCount]);

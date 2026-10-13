@@ -85,11 +85,7 @@ uint32_t tap_key_on_side(uint32_t family, TapSide side) {
 }
 
 bool tap_keys_overlap(uint32_t left, uint32_t right) {
-    if (tap_family(left) != tap_family(right)) return false;
-    const TapSide left_side = tap_side(left);
-    const TapSide right_side = tap_side(right);
-    return left_side == TapSide::kEither || right_side == TapSide::kEither ||
-           left_side == right_side;
+    return tap_family(left) != 0 && tap_family(left) == tap_family(right);
 }
 
 KeyChoice switch_key_choice(const Config& config, int slot) {
@@ -99,7 +95,7 @@ KeyChoice switch_key_choice(const Config& config, int slot) {
                                         &config.shape_toggle_shortcut,
                                         &config.voice_input_shortcut};
     if (combos[slot]->enabled()) return KeyChoice::of(*combos[slot]);
-    // Each side on its own: left Ctrl may be one switch and right Ctrl another.
+    // Each side on its own (a hand-written config may give the two sides to two switches).
     for (const TapKeys& keys : kTapKeys) {
         const bool left = action_of_slot(tap_key_action(config, keys.left), slot);
         const bool right = action_of_slot(tap_key_action(config, keys.right), slot);

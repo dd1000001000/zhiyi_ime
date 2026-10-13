@@ -21,12 +21,12 @@
     "installer": {
         "script": [
             "New-Item -ItemType Directory -Force $persist_dir | Out-Null",
-            "if (Test-Path \"$persist_dir\\zhiyiime.busy\") { Remove-Item \"$persist_dir\\zhiyiime.busy\" -Recurse -Force -ErrorAction SilentlyContinue }",
-            "if (Test-Path \"$persist_dir\\zhiyiime\") { Rename-Item \"$persist_dir\\zhiyiime\" \"zhiyiime.busy\" -Force }",
-            "$p = Start-Process \"$dir\\$fname\" -ArgumentList '/S',\"/D=$persist_dir\\zhiyiime\" -Verb RunAs -PassThru",
+            "if (Test-Path \"$persist_dir\\zhiyuime.busy\") { Remove-Item \"$persist_dir\\zhiyuime.busy\" -Recurse -Force -ErrorAction SilentlyContinue }",
+            "if (Test-Path \"$persist_dir\\zhiyuime\") { Rename-Item \"$persist_dir\\zhiyuime\" \"zhiyuime.busy\" -Force }",
+            "$p = Start-Process \"$dir\\$fname\" -ArgumentList '/S',\"/D=$persist_dir\\zhiyuime\" -Verb RunAs -PassThru",
             "$p.WaitForExit()",
             "if ($p.ExitCode -ne 0) { throw \"知语输入法安装失败（$($p.ExitCode)）\" }",
-            "if (Test-Path \"$persist_dir\\zhiyiime.busy\") { Remove-Item \"$persist_dir\\zhiyiime.busy\" -Recurse -Force -ErrorAction SilentlyContinue }"
+            "if (Test-Path \"$persist_dir\\zhiyuime.busy\") { Remove-Item \"$persist_dir\\zhiyuime.busy\" -Recurse -Force -ErrorAction SilentlyContinue }"
         ]
     },
     "post_uninstall": [
@@ -34,7 +34,7 @@
         "if ($u) { Start-Process $u.FullName -Wait -ArgumentList '/S','/VERYSILENT','/NORESTART' } else {",
         "  $roots = 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall','HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall','HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall'",
         "  $k = Get-ChildItem $roots -ErrorAction SilentlyContinue | Get-ItemProperty -ErrorAction SilentlyContinue |",
-        "       Where-Object { ($_.InstallLocation -like '*zhiyiime*') -or ($_.InstallBaseLocation -like '*zhiyiime*') -or ($_.DisplayIcon -like '*zhiyiime*') } | Select-Object -First 1",
+        "       Where-Object { ($_.InstallLocation -like '*zhiyuime*') -or ($_.InstallBaseLocation -like '*zhiyuime*') -or ($_.DisplayIcon -like '*zhiyuime*') } | Select-Object -First 1",
         "  $exe = if ($k -and $k.InstallLocation) { Get-ChildItem $k.InstallLocation -Filter 'unins*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object { $_.FullName } }",
         "  if ($exe) { Start-Process $exe -Wait -ArgumentList '/S' -Verb RunAs }",
         "  else { Write-Host '[卸载] 未找到卸载器，可能需手动清理（Program Files / 注册表）' }",

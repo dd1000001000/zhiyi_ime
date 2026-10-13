@@ -20,7 +20,9 @@ namespace settings {
 struct KeyChoice {
     enum class Kind { kNone, kTap, kCombo };
     Kind kind = Kind::kNone;
-    uint32_t tap_key = 0;     // VK_SHIFT or VK_CONTROL, tapped alone (either side)
+    // A modifier tapped alone: the generic VK_SHIFT / VK_CONTROL / VK_MENU for either side, or the
+    // specific VK_LSHIFT / VK_RSHIFT / VK_LCONTROL / VK_RCONTROL / VK_LMENU / VK_RMENU for one side.
+    uint32_t tap_key = 0;
     KeyboardShortcut combo;   // kCombo
 
     static KeyChoice none() { return {}; }
@@ -36,6 +38,11 @@ constexpr WORD kKeyCaptureChanged = 0x4B43;  // WM_COMMAND notification code
 HWND create_key_capture(int id, int x, int y, int width, int height, HWND parent, bool allow_tap);
 void key_capture_set(HWND control, const KeyChoice& choice);
 KeyChoice key_capture_get(HWND control);
+// Whether this box tells the left and right modifier apart (default off: a tapped Ctrl is either
+// side). Off, a tapped modifier is stored as the generic VK (VK_CONTROL ...) and both sides act
+// alike; on, as the specific side (VK_LCONTROL / VK_RCONTROL ...).
+void key_capture_set_distinguish(HWND control, bool distinguish);
+bool key_capture_get_distinguish(HWND control);
 // Checked before a pressed key is taken: a non-empty message (the key is used by another box)
 // keeps the previous key and shows the message for a moment.
 using KeyCaptureCheck = std::function<std::wstring(const KeyChoice&)>;

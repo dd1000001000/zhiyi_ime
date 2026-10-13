@@ -1,0 +1,43 @@
+{
+    "version": "1.6.0",
+    "description": "知语输入法 / Zhiyu IME - 懂上文的 Windows 中英文输入法",
+    "homepage": "https://github.com/w3c0929/zhiyi_ime",
+    "license": "GPL-3.0",
+    "notes": [
+        "系统注册已完成；若输入法未即时生效：新打开的窗口通常直接可用（旧窗口需重开），任务栏等系统组件需重启 ctfmon（taskkill /f /im ctfmon.exe）或重新启动资源管理器，仍无效再注销或重启。"
+    ],
+    "checkver": {
+        "github": "https://github.com/w3c0929/zhiyi_ime"
+    },
+    "url": "https://github.com/w3c0929/zhiyi_ime/releases/download/v1.6.0/zhiyu-v1.6.0-setup.exe",
+    "hash": "sha256:PUT-YOUR-SETUP-SHA256-HERE",
+    "autoupdate": {
+        "url": "https://github.com/w3c0929/zhiyi_ime/releases/download/v$version/zhiyu-v$version-setup.exe",
+        "hash": {
+            "url": "https://github.com/w3c0929/zhiyi_ime/releases/download/v$version/latest.json",
+            "jsonpath": "$.sha256"
+        }
+    },
+    "installer": {
+        "script": [
+            "New-Item -ItemType Directory -Force $persist_dir | Out-Null",
+            "if (Test-Path \"$persist_dir\\zhiyiime.busy\") { Remove-Item \"$persist_dir\\zhiyiime.busy\" -Recurse -Force -ErrorAction SilentlyContinue }",
+            "if (Test-Path \"$persist_dir\\zhiyiime\") { Rename-Item \"$persist_dir\\zhiyiime\" \"zhiyiime.busy\" -Force }",
+            "$p = Start-Process \"$dir\\$fname\" -ArgumentList '/S',\"/D=$persist_dir\\zhiyiime\" -Verb RunAs -PassThru",
+            "$p.WaitForExit()",
+            "if ($p.ExitCode -ne 0) { throw \"知语输入法安装失败（$($p.ExitCode)）\" }",
+            "if (Test-Path \"$persist_dir\\zhiyiime.busy\") { Remove-Item \"$persist_dir\\zhiyiime.busy\" -Recurse -Force -ErrorAction SilentlyContinue }"
+        ]
+    },
+    "post_uninstall": [
+        "$u = Get-ChildItem \"$dir\\unins*.exe\" -ErrorAction SilentlyContinue | Select-Object -First 1",
+        "if ($u) { Start-Process $u.FullName -Wait -ArgumentList '/S','/VERYSILENT','/NORESTART' } else {",
+        "  $roots = 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall','HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall','HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall'",
+        "  $k = Get-ChildItem $roots -ErrorAction SilentlyContinue | Get-ItemProperty -ErrorAction SilentlyContinue |",
+        "       Where-Object { ($_.InstallLocation -like '*zhiyiime*') -or ($_.InstallBaseLocation -like '*zhiyiime*') -or ($_.DisplayIcon -like '*zhiyiime*') } | Select-Object -First 1",
+        "  $exe = if ($k -and $k.InstallLocation) { Get-ChildItem $k.InstallLocation -Filter 'unins*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object { $_.FullName } }",
+        "  if ($exe) { Start-Process $exe -Wait -ArgumentList '/S' -Verb RunAs }",
+        "  else { Write-Host '[卸载] 未找到卸载器，可能需手动清理（Program Files / 注册表）' }",
+        "}"
+    ]
+}

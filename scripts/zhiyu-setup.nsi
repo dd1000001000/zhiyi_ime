@@ -2,16 +2,19 @@
 ;
 ;   makensis /DVERSION=1.6.0 /DSRCDIR=..\dist\zhiyu-v1.6.0 scripts\zhiyu-setup.nsi
 ;
-; Upstream's own zhiyi-setup.nsi is not published, so this mirrors its *model*: the files are
-; laid out under <root>\<version>, the 64-bit and 32-bit TSF DLLs are registered with regsvr32
-; (they export DllRegisterServer, see tsf/src/dllmain.cpp and register.cpp), the background
-; server is started, and the uninstall entry lives under ...\Uninstall\ZhiyiIME.
+; Mirrors the upstream model (its zhiyi-setup.nsi is not published):
+;   * the installer is silent-capable: `/S` and `/D=<root>` (NSIS built-ins). scoop installs it
+;     as  Start-Process setup.exe '/S', "/D=$persist_dir\zhiyiime"  — see scripts/zhiyu-scoop.json.
+;   * <root>  holds  <root>\<version>\  (the program files) and  <root>\uninstall.exe.
+;   * the 64-bit and 32-bit TSF DLLs are registered with regsvr32 (they export DllRegisterServer,
+;     tsf/src/dllmain.cpp + register.cpp); the background server is started.
+;   * the uninstall entry carries an InstallLocation containing "zhiyiime" (scoop looks it up),
+;     and the uninstaller is named uninstall.exe (matches scoop's unins*.exe).
 ;
-; It does not drive the installer helper's transactional lifecycle (lifecycle-prepare /
-; lifecycle-commit / lifecycle-gc, see installer/src/main.cc). Those commands exist and are the
-; robust way to upgrade in place; wire them in here if you want the exact upstream behaviour.
+; The helper's transactional lifecycle (lifecycle-prepare / -commit / -gc, installer/src/main.cc)
+; is the robust in-place upgrade path; this template does the plain version-directory layout.
 ;
-; Build the input of SRCDIR with:  python scripts/package_release.py --version 1.6.0 ...
+; SRCDIR comes from:  python scripts/package_release.py --version 1.6.0 ...
 
 Unicode true
 !include "MUI2.nsh"
@@ -32,7 +35,8 @@ Unicode true
 
 Name "${APP_NAME} ${VERSION}"
 OutFile "zhiyu-v${VERSION}-setup.exe"
-InstallDir "$LOCALAPPDATA\ZhiyuIME\${VERSION}"
+; /D from the command line overrides this (scoop passes the persist directory).
+InstallDir "$LOCALAPPDATA\ZhiyuIME"
 InstallDirRegKey HKCU "Software\ZhiyiIME" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
@@ -45,54 +49,60 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
 
+Var AppDir  ; <root>\<version>
+
 !macro RegisterTsf
-  ; 64-bit TSF DLL with the 64-bit regsvr32, the 32-bit one with the SysWOW64 regsvr32.
-  ExecWait '"$SYSDIR\regsvr32.exe" /s "$INSTDIR\zhiyi_tsf_x64.dll"'
+  ExecWait '"$SYSDIR\regsvr32.exe" /s "$AppDir\zhiyi_tsf_x64.dll"'
   ${If} ${RunningX64}
-    ExecWait '"$WINDIR\SysWOW64\regsvr32.exe" /s "$INSTDIR\zhiyi_tsf_x86.dll"'
+    ExecWait '"$WINDIR\SysWOW64\regsvr32.exe" /s "$AppDir\zhiyi_tsf_x86.dll"'
   ${EndIf}
 !macroend
 
 !macro UnregisterTsf
-  ExecWait '"$SYSDIR\regsvr32.exe" /s /u "$INSTDIR\zhiyi_tsf_x64.dll"'
+  ExecWait '"$SYSDIR\regsvr32.exe" /s /u "$AppDir\zhiyi_tsf_x64.dll"'
   ${If} ${RunningX64}
-    ExecWait '"$WINDIR\SysWOW64\regsvr32.exe" /s /u "$INSTDIR\zhiyi_tsf_x86.dll"'
+    ExecWait '"$WINDIR\SysWOW64\regsvr32.exe" /s /u "$AppDir\zhiyi_tsf_x86.dll"'
   ${EndIf}
 !macroend
 
 Section "Install"
-  SetOutPath "$INSTDIR"
+  StrCpy $AppDir "$INSTDIR\${VERSION}"
 
-  ; An older copy may be running: let the helper stop it (and release the TSF DLLs).
-  IfFileExists "$INSTDIR\zhiyi-installer-helper.exe" 0 +2
-    ExecWait '"$INSTDIR\zhiyi-installer-helper.exe" force-stop-server "$INSTDIR"'
+  ; An older copy may be running: let its helper stop it (and release the TSF DLLs).
+  IfFileExists "$INSTDIR\uninstall.exe" 0 +3
+    ExecWait '"$INSTDIR\uninstall.exe" /S _?=$INSTDIR'
 
+  CreateDirectory "$AppDir"
+  SetOutPath "$AppDir"
   File /r "${SRCDIR}\*.*"
+
+  ; A marker the settings program and the helper look for.
+  FileOpen $0 "$AppDir\.zhiyi-install-complete" w
+  FileClose $0
 
   !insertmacro RegisterTsf
 
-  IfFileExists "$INSTDIR\zhiyi-server.exe" 0 +2
-    Exec '"$INSTDIR\zhiyi-server.exe"'
+  IfFileExists "$AppDir\zhiyi-server.exe" 0 +2
+    Exec '"$AppDir\zhiyi-server.exe"'
 
   WriteRegStr HKCU "Software\ZhiyiIME" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayName" "${APP_NAME} (${APP_NAME_EN})"
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "${UNINST_KEY}" "Publisher" "${COMPANY}"
-  WriteRegStr HKCU "${UNINST_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegStr HKCU "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "${UNINST_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKCU "${UNINST_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINST_KEY}" "NoRepair" 1
   WriteUninstaller "$INSTDIR\uninstall.exe"
-
-  ; A marker the settings program and the helper look for.
-  FileOpen $0 "$INSTDIR\.zhiyi-install-complete" w
-  FileClose $0
 SectionEnd
 
 Section "Uninstall"
-  ExecWait '"$INSTDIR\zhiyi-installer-helper.exe" force-stop-server "$INSTDIR"'
+  StrCpy $AppDir "$INSTDIR\${VERSION}"
+  IfFileExists "$AppDir\zhiyi-installer-helper.exe" 0 +2
+    ExecWait '"$AppDir\zhiyi-installer-helper.exe" force-stop-server "$AppDir"'
+
   !insertmacro UnregisterTsf
-  Delete "$INSTDIR\zhiyi-server.exe"
+
   RMDir /r "$INSTDIR"
 
   DeleteRegKey HKCU "${UNINST_KEY}"
@@ -100,7 +110,6 @@ Section "Uninstall"
 SectionEnd
 
 Function .onInit
-  ; Refuse to run on a machine without the TSF runtime bits (very old Windows).
   ${IfNot} ${AtLeastWin10}
     MessageBox MB_ICONSTOP "Windows 10 or later is required."
     Abort

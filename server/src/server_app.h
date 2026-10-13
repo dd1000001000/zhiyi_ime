@@ -19,6 +19,7 @@
 #include "input_method_hotkey.h"
 #include "session_manager.h"
 #include "system_lifecycle_monitor.h"
+#include "translate_service.h"
 #include "ui_presentation_controller.h"
 #include "ui_presentation_router.h"
 #include "voice_service.h"
@@ -47,6 +48,7 @@ private:
     UiPresentationController ui_presentation_controller_;
     UiPresentationRouter ui_presentation_router_;
     VoiceService voice_;
+    TranslateService translate_;
     HWND hwnd_ = nullptr;
     bool user_data_shutdown_prepared_ = false;
     std::string config_path_;

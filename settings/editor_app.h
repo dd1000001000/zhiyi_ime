@@ -212,6 +212,9 @@ private:
     HWND hPunctKey_ = nullptr;
     HWND hShapeKey_ = nullptr;
     HWND hVoiceKey_ = nullptr;
+    // Selection translation: the shortcut box and its options (editor_general_panel.cc).
+    HWND hTranslateKey_ = nullptr;
+    HWND hTranslateDirect_ = nullptr;
     HWND hPageUpKey_ = nullptr;  // shortcuts.page_up / page_down: none or a symbol
     HWND hPageDownKey_ = nullptr;
 

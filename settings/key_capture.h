@@ -31,6 +31,15 @@ KeyChoice key_capture_get(HWND control);
 using KeyCaptureCheck = std::function<std::wstring(const KeyChoice&)>;
 void key_capture_set_check(HWND control, KeyCaptureCheck check);
 
+// A box that stores a key pressed twice as "Ctrl+C+C" (KeyboardShortcut::repeat 2): while it
+// captures, a second press of the same combination within a moment doubles it. The selection
+// translate key uses this.
+void key_capture_set_allow_double(HWND control, bool allow_double);
+
+// A box that may take a common application shortcut (Ctrl+C): it is validated as a translate key
+// instead of a switch key. The first press still goes to the application.
+void key_capture_set_allow_common(HWND control, bool allow_common);
+
 bool same_key_choice(const KeyChoice& left, const KeyChoice& right);
 
 // A note after the key: gray information, or a warning on a yellow box.

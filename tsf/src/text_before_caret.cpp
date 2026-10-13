@@ -64,7 +64,8 @@ bool is_chromium_document(ITfContext* context) {
 
 class ReadSession : public ITfEditSession {
 public:
-    ReadSession(ITfContext* context, size_t max_chars) : _context(context), _max(max_chars) {}
+    ReadSession(ITfContext* context, size_t max_chars, bool selection)
+        : _context(context), _max(max_chars), _selection(selection) {}
 
     STDMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
         if (!ppv) return E_INVALIDARG;
@@ -98,6 +99,24 @@ public:
         }
         com_ptr<ITfRange> range;
         if (FAILED(caret->Clone(&range))) return E_FAIL;
+        if (_selection) {
+            // The selection itself: what the selection translation reads (empty when collapsed).
+            std::wstring buffer(_max, L'\0');
+            ULONG length = 0;
+            if (FAILED(range->GetText(ec, 0, buffer.data(), static_cast<ULONG>(buffer.size()),
+                                      &length))) {
+                return E_FAIL;
+            }
+            buffer.resize((std::min)(static_cast<size_t>(length), buffer.size()));
+            buffer.erase(std::remove_if(buffer.begin(), buffer.end(),
+                                        [](wchar_t c) {
+                                            return c == TS_CHAR_EMBEDDED || c == TS_CHAR_REGION;
+                                        }),
+                         buffer.end());
+            text = std::move(buffer);
+            result = TextBeforeCaret::kRead;
+            return S_OK;
+        }
         range->Collapse(ec, TF_ANCHOR_START);  // typing replaces a selection: read before it
         LONG shifted = 0;
         if (FAILED(range->ShiftStart(ec, -static_cast<LONG>(_max), &shifted, nullptr))) return E_FAIL;
@@ -123,6 +142,7 @@ private:
     LONG _ref = 1;
     ITfContext* _context;
     size_t _max;
+    const bool _selection;
 };
 
 }  // namespace
@@ -133,12 +153,12 @@ bool context_is_imm_document(ITfContext* context) {
            (status.dwStaticFlags & TF_SS_TRANSITORY) != 0 && !is_chromium_document(context);
 }
 
-TextBeforeCaret read_text_before_caret(ITfContext* context, TfClientId client_id, size_t max_chars,
-                                       std::wstring* text) {
+static TextBeforeCaret read_impl(ITfContext* context, TfClientId client_id, size_t max_chars,
+                                 std::wstring* text, bool selection) {
     if (!context || client_id == TF_CLIENTID_NULL || max_chars == 0) return TextBeforeCaret::kUnavailable;
     // Classic Win32 edit boxes: a read "succeeds" with no text.
     if (context_is_imm_document(context)) return TextBeforeCaret::kUnavailable;
-    ReadSession* session = new (std::nothrow) ReadSession(context, max_chars);
+    ReadSession* session = new (std::nothrow) ReadSession(context, max_chars, selection);
     if (!session) return TextBeforeCaret::kUnavailable;
     HRESULT session_hr = E_FAIL;
     const HRESULT hr = context->RequestEditSession(client_id, session, TF_ES_SYNC | TF_ES_READ, &session_hr);
@@ -149,4 +169,14 @@ TextBeforeCaret read_text_before_caret(ITfContext* context, TfClientId client_id
     }
     session->Release();
     return result;
+}
+
+TextBeforeCaret read_text_before_caret(ITfContext* context, TfClientId client_id, size_t max_chars,
+                                       std::wstring* text) {
+    return read_impl(context, client_id, max_chars, text, false);
+}
+
+TextBeforeCaret read_selection_text(ITfContext* context, TfClientId client_id, size_t max_chars,
+                                    std::wstring* text) {
+    return read_impl(context, client_id, max_chars, text, true);
 }

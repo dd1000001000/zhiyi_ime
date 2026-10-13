@@ -52,6 +52,8 @@ enum ControlId {
     kPunctKeyId,
     kShapeKeyId,
     kVoiceKeyId,
+    kTranslateKeyId,
+    kTranslateDirectId,
     kRestoreKeysId,
     kPageUpKeyId,
     kPageDownKeyId,
@@ -286,6 +288,22 @@ void EditorApp::create_keys_panel(HWND panel) {
             y += S(8);
         }
     }
+    // Selection translation: a shortcut (Ctrl+C by default, pressed twice — press it twice in the
+    // box and it is stored as "Ctrl+C+C") and the direct-insert option.
+    {
+        const int tx = make_aligned_label(tr("keys.translate"), x0, labels, y, panel);
+        hTranslateKey_ = create_key_capture(kTranslateKeyId, tx, y, box_width, kCtrlH, panel, false);
+        key_capture_set_allow_double(hTranslateKey_, true);
+        key_capture_set_allow_common(hTranslateKey_, true);
+        y += kRowH;
+        // A single line (make_hint: lines * (font + 6)); the check sits right under it.
+        const int hint_top = y - S(6);
+        make_hint(tr("keys.translate_hint"), tx, hint_top, S(430), panel, 1);
+        y = hint_top + S(kFontPt + 6) + S(4);
+        hTranslateDirect_ = make_check(kTranslateDirectId, tr("keys.translate_direct"), tx, y,
+                                       S(430), panel);
+        y += kRowH + S(8);
+    }
     // A key already used by another box is not taken: the box keeps its previous key.
     for (const Row& row : rows) {
         HWND self = *row.box;
@@ -436,6 +454,8 @@ void EditorApp::populate_controls() {
     populate_device();
 
     set_switch_key_boxes(config_);
+    key_capture_set(hTranslateKey_, KeyChoice::of(config_.translate_selection_shortcut));
+    set_check(hTranslateDirect_, config_.translate_direct_insert);
     combo_set_index(hPageUpKey_, page_key_index(kPageUpKeys, config_.page_up_key));
     combo_set_index(hPageDownKey_, page_key_index(kPageDownKeys, config_.page_down_key));
 
@@ -479,6 +499,12 @@ bool EditorApp::read_controls(bool report_errors) {
         key_capture_get(hSwitchKey_), key_capture_get(hStyleKey_), key_capture_get(hPunctKey_),
         key_capture_get(hShapeKey_), key_capture_get(hVoiceKey_)};
     apply_switch_key_choices(c, choices);
+    {
+        const KeyChoice translate = key_capture_get(hTranslateKey_);
+        c.translate_selection_shortcut =
+            translate.kind == KeyChoice::Kind::kCombo ? translate.combo : cxxime::KeyboardShortcut{};
+        c.translate_direct_insert = get_check(hTranslateDirect_);
+    }
     c.page_up_key = kPageUpKeys[std::clamp(combo_index(hPageUpKey_), 0, 3)];
     c.page_down_key = kPageDownKeys[std::clamp(combo_index(hPageDownKey_), 0, 3)];
     c.candidate_learning = get_check(hLearning_);

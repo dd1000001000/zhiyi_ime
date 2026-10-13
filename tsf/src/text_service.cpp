@@ -325,6 +325,9 @@ STDMETHODIMP TextService::Deactivate() {
     _unregister_open_close_compartment_sink();
     _stop_voice_poll(true);
     _commit_voice_text(nullptr);
+    _remove_translation_key_hook();
+    _stop_translation_poll();
+    _hide_translate_window();
 
     if (_sessionId && _composing) {
         cxxime::IPCResponse response = {};

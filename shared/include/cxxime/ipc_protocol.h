@@ -210,6 +210,10 @@ enum class IPCCommand : uint32_t {
     VOICE_STATUS = 33,
     // The client drops the session's voice input (its input box lost the focus).
     VOICE_CANCEL = 34,
+    // Selection translation: the client sends the selected text (request translate_text) for the
+    // offline model; TRANSLATE_STATUS polls for the result (response translate_state/translate_text).
+    TRANSLATE_SELECTION = 35,
+    TRANSLATE_STATUS = 36,
 };
 
 // IPCResponse::voice_state.
@@ -218,6 +222,12 @@ constexpr uint32_t kVoiceListening = 1;   // recording
 constexpr uint32_t kVoiceRecognizing = 2; // turning the recording into text
 constexpr uint32_t kVoiceDone = 3;        // voice_text holds the text
 constexpr std::size_t kVoiceTextCapacity = 2048;
+
+// IPCResponse::translate_state (TRANSLATE_SELECTION / TRANSLATE_STATUS).
+constexpr uint32_t kTranslateIdle = 0;        // nothing, or the text could not be translated
+constexpr uint32_t kTranslateTranslating = 1; // the model is working
+constexpr uint32_t kTranslateDone = 2;        // translate_text holds the translation
+constexpr std::size_t kTranslateTextCapacity = 4096;
 
 constexpr uint32_t kContextTextRead = 1u << 0;
 constexpr uint32_t kContextNewInputBox = 1u << 1;
@@ -303,6 +313,8 @@ struct IPCRequest {
     // Fields after search_result form the 0.5 append-only extension.
     uint64_t client_capabilities = 0;
     uint64_t candidate_revision = 0;
+    // Selection translation (TRANSLATE_SELECTION): the selected text, UTF-8.
+    char translate_text[kTranslateTextCapacity] = {};
 };
 
 static_assert(std::is_standard_layout<IPCRequest>::value,
@@ -321,6 +333,8 @@ static_assert(offsetof(IPCRequest, search_result) == 320,
               "IPCRequest::search_result offset changed");
 static_assert(offsetof(IPCRequest, client_capabilities) == IPC_REQUEST_BASELINE_SIZE,
               "IPCRequest 0.5 extension moved into the 0.4 baseline");
+static_assert(offsetof(IPCRequest, translate_text) >= IPC_REQUEST_BASELINE_SIZE,
+              "IPCRequest translate fields must be appended after the baseline");
 
 struct IPCResponse {
     IPCStatus status = IPCStatus::OK;
@@ -362,6 +376,9 @@ struct IPCResponse {
     // text (UTF-8) when kVoiceDone.
     uint32_t voice_state = kVoiceIdle;
     char voice_text[kVoiceTextCapacity] = {};
+    // Selection translation: kTranslate* and the translated text (UTF-8) when done.
+    uint32_t translate_state = kTranslateIdle;
+    char translate_text[kTranslateTextCapacity] = {};
 };
 
 static_assert(std::is_standard_layout<IPCResponse>::value,
@@ -405,6 +422,11 @@ static_assert(offsetof(IPCResponse, candidate_extent_complete) ==
               "IPCResponse candidate extent completeness extension moved");
 static_assert(offsetof(IPCResponse, candidate_comments) == IPC_RESPONSE_BASELINE_SIZE + 40,
               "IPCResponse candidate comments extension moved");
+static_assert(offsetof(IPCResponse, translate_state) >= IPC_RESPONSE_BASELINE_SIZE,
+              "IPCResponse translate fields must be appended after the baseline");
+static_assert(offsetof(IPCResponse, translate_text) >=
+                  offsetof(IPCResponse, translate_state) + sizeof(uint32_t),
+              "IPCResponse translate text follows the state");
 
 } // namespace cxxime
 

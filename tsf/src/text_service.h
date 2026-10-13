@@ -435,6 +435,18 @@ private:
                                          const std::string& preedit,
                                          std::size_t preedit_cursor, const RECT& caret);
     void _hide_local_candidate_window();
+    // Selection translation (text_service_translate.cpp): the translate key was pressed, the
+    // server's answer (polled), and the result window.
+    // The translate key (Ctrl+C by default) pressed twice: true when the press was taken (its
+    // key-up is swallowed too). Called from OnTestKeyDown and OnKeyDown.
+    bool _handle_translate_key(WPARAM key);
+    void _process_selection_translate();
+    void _start_translation_poll();
+    void _stop_translation_poll();
+    void _poll_translation();
+    void _present_translate_window(const std::wstring& translation, const std::wstring& source,
+                                   const RECT& caret);
+    void _hide_translate_window();
     void _publish_ui_session_ended();
     void _queue_ui_command(const cxxime::UiCommand& command);
     void _drain_ui_commands();
@@ -518,6 +530,16 @@ private:
     std::uint64_t _voiceTargetGeneration = 0;  // the input box it is for (_uiTargetGeneration)
     bool _voiceComposition = false;           // the voice text is shown, underlined
     std::wstring _voiceText;
+    // Selection translation (text_service_translate.cpp).
+    bool _translationPolling = false;         // the server translates for us
+    std::uint64_t _translationTargetGeneration = 0;
+    std::unique_ptr<cxxime::CandidateWindow> _translateWindow;  // shows the translation
+    std::wstring _translateSource;            // the selected text (shown after the translation)
+    // The translate key (Ctrl+C by default): the second press is taken, the first stays the
+    // application's (copy).
+    ULONGLONG _lastTranslateCopyTick = 0;
+    UINT _translateKeyDown = 0;  // the taken press, until its key-up
+    ULONGLONG _lastTranslateKeySeen = 0;  // the last press seen (Test and Down are one press)
     UINT _translationKeyDown = 0;  // a Ctrl+0..9 taken, until its key-up
     std::optional<uint32_t> _modifierOverride;  // modifiers of a key taken by the hook
     std::uint32_t _configSubscriptionId = 0;

@@ -24,6 +24,10 @@ constexpr UINT_PTR TIMER_CXXIME_INPUT_INDICATOR_REFRESH = 0xC317;
 constexpr UINT_PTR TIMER_CXXIME_CONVERSION_SETTLE = 0xC318;
 // Voice input: where the server's recording is (TextService::_poll_voice).
 constexpr UINT_PTR TIMER_CXXIME_VOICE_POLL = 0xC319;
+// Selection translation: the key hook took the translate key (TextService::_process_selection_translate).
+constexpr UINT WM_CXXIME_TRANSLATE_SELECTION = WM_APP + 0x31A;
+// Selection translation: where the server's translation is (TextService::_poll_translation).
+constexpr UINT_PTR TIMER_CXXIME_TRANSLATE_POLL = 0xC31A;
 
 struct ConfigSnapshot {
     cxxime::ConfigGeneration generation;

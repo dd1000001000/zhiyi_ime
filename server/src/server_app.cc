@@ -155,6 +155,7 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
                 SendMessageW(config_window, kCommitConfigMessage, 0, 0);
                 ui_presentation_controller_.update_config(config);
                 voice_.update_config(config);
+                translate_.update_config(config);
                 control_server_.publish_snapshot(config->to_runtime_json());
             },
             [this, config_window](const std::shared_ptr<const cxxime::Config>& config,
@@ -235,10 +236,13 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
     if (!voice_.start(std::move(voice_sessions), initial_config)) {
         CXXIME_LOG(L"%s", L"voice: window failed to start");
     }
+    // Selection translation (translate_service.h): the model runs on a thread of its own.
+    translate_.start(initial_config);
 
     ipc_server_.set_handler([this](const cxxime::IPCRequest& req) { return handle_request(req); });
     ipc_server_.set_disconnect_handler([this](uint32_t session_id) {
         voice_.session_ended(session_id);
+        translate_.session_ended(session_id);
         session_mgr_.destroy_session(session_id);
     });
     if (!ipc_server_.start(cxxime::IPC_PIPE_BASE_NAME)) {
@@ -342,6 +346,7 @@ void ServerApp::prepare_user_data_shutdown() {
 void ServerApp::finalize() {
     // The microphone and the voice model.
     voice_.stop();
+    translate_.stop();
     // The model server first: it holds the graphics card and the model file.
     MachineTranslator::instance().set_callback({});
     MachineTranslator::instance().stop();
@@ -456,6 +461,7 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
 
     case cxxime::IPCCommand::END_SESSION:
         voice_.session_ended(request.session_id);
+        translate_.session_ended(request.session_id);
         session_mgr_.destroy_session(request.session_id);
         CXXIME_LOG(L"END_SESSION: session=%u", request.session_id);
         break;
@@ -551,6 +557,7 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
 
     case cxxime::IPCCommand::FOCUS_OUT: {
         voice_.focus_out(request.session_id);
+        translate_.session_ended(request.session_id);
         const auto r = session_mgr_.focus_out(request.session_id);
         fill_process_response(r, &response);
         break;
@@ -643,6 +650,21 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
     case cxxime::IPCCommand::VOICE_CANCEL:
         voice_.cancel(request.session_id);
         break;
+
+    case cxxime::IPCCommand::TRANSLATE_SELECTION:
+        translate_.request(request.session_id, std::string(request.translate_text));
+        response.translate_state = cxxime::kTranslateTranslating;
+        break;
+
+    case cxxime::IPCCommand::TRANSLATE_STATUS: {
+        std::string text;
+        response.translate_state = translate_.take_status(request.session_id, &text);
+        if (response.translate_state == cxxime::kTranslateDone &&
+            !response_copy_field(response.translate_text, sizeof(response.translate_text), text)) {
+            response.translate_state = cxxime::kTranslateIdle;
+        }
+        break;
+    }
 
     case cxxime::IPCCommand::GET_STATUS: {
         auto [status, ime_status] = session_mgr_.get_ime_status(request.session_id);

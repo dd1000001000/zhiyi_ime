@@ -156,6 +156,7 @@ void TextService::_clear_effective_edit_target(const char* source, bool target_u
     if (_sessionId && _client.is_connected()) {
         _client.focus_out(_sessionId);
     }
+    _hide_translate_window();
     _AbortComposition();
     _unadvise_text_edit_sink();
     _unadvise_text_layout_sink();
@@ -246,6 +247,7 @@ bool TextService::_synchronize_effective_edit_target(ITfContext* event_context,
         if (_composing && _sessionId && _client.is_connected()) {
             _client.focus_out(_sessionId);
         }
+        _hide_translate_window();
         _AbortComposition();
         _unadvise_text_edit_sink();
         _unadvise_text_layout_sink();

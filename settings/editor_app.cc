@@ -357,6 +357,8 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(voice_device);
     KEEP_PAGE_EDIT(voice_language);
     KEEP_PAGE_EDIT(voice_itn);
+    KEEP_PAGE_EDIT(translate_selection_shortcut);
+    KEEP_PAGE_EDIT(translate_direct_insert);
 #undef KEEP_PAGE_EDIT
     // The switch keys move together, so a merge never repeats a key.
     if (!(ui.ascii_switch_key == before.ascii_switch_key) ||

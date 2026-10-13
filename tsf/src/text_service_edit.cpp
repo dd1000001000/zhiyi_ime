@@ -34,6 +34,9 @@ STDMETHODIMP TextService::OnEndEdit(ITfContext* context, TfEditCookie edit_cooki
     if (!context || !edit_record) {
         return E_INVALIDARG;
     }
+    // The translation window is transient, like the candidate window: an edit (a click that moves
+    // the caret) dismisses it.
+    _hide_translate_window();
     if (!_composing || !_composition || context != _textEditSinkContext) {
         return S_OK;
     }

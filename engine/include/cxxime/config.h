@@ -158,6 +158,13 @@ struct Config {
     // Voice input (shortcuts.voice_input, or a tapped Shift / Ctrl bound to "toggle_voice" in
     // ascii_composer.switch_key): starts recording, and stops it. None by default.
     KeyboardShortcut voice_input_shortcut;
+    // Selection translation: this key (Ctrl+C by default, pressed twice) translates the text
+    // selected in the input box with the offline model. It is not a switch key: the first press
+    // goes to the application (Ctrl+C copies), only the second one is ours.
+    KeyboardShortcut translate_selection_shortcut = {kKeyModifierControl, 'C' /* VK_C */, 2};
+    bool translate_direct_insert = false;  // true: replace the selection, no candidate window
+    std::string translate_device;        // "" the CPU, else a card key (gpu_adapters.h)
+    int translate_idle_seconds = 60;     // the model is unloaded after this long without a request
     // Candidate paging besides PageUp/PageDown, pressed alone while candidates are shown:
     // shortcuts.page_up is "-", "," or "[", shortcuts.page_down "=", "." or "]". 0 ("" in the
     // file, and anything else found there) is none, the default.

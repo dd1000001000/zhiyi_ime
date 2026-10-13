@@ -111,6 +111,8 @@ STDMETHODIMP TextService::OnSetFocus(BOOL fForeground) {
 
 STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
+    // The translation window is transient, like the candidate window: any key dismisses it.
+    _hide_translate_window();
     _fTestKeyUpPending = false;
     if (_fTestKeyDownPending) {
         *pfEaten = TRUE;
@@ -141,6 +143,11 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
         _fTestKeyDownPending = true;
         return S_OK;
     }
+    if (_handle_translate_key(wParam)) {
+        *pfEaten = TRUE;
+        _fTestKeyDownPending = true;
+        return S_OK;
+    }
     const int switch_slot = _held_switch_key();
     if (switch_slot >= 0 && wParam == _switch_key(switch_slot).virtual_key &&
         !_claim_switch_key_press(switch_slot)) {
@@ -162,6 +169,11 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
 STDMETHODIMP TextService::OnTestKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
     _fTestKeyDownPending = false;
+    if (_translateKeyDown != 0 && wParam == _translateKeyDown) {
+        _translateKeyDown = 0;
+        *pfEaten = TRUE;
+        return S_OK;
+    }
     if (_fTestKeyUpPending) {
         *pfEaten = TRUE;
         return S_OK;
@@ -182,6 +194,7 @@ STDMETHODIMP TextService::OnTestKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lPa
 
 STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
+    _hide_translate_window();
     if (_fTestKeyDownPending) {
         _fTestKeyDownPending = false;
         *pfEaten = TRUE;
@@ -189,6 +202,10 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lPara
     }
     // Some apps call OnKeyDown without OnTestKeyDown (e.g. QQ2012)
     if (_handle_voice_text_key(pic, wParam)) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+    if (_handle_translate_key(wParam)) {
         *pfEaten = TRUE;
         return S_OK;
     }
@@ -207,6 +224,11 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lPara
 
 STDMETHODIMP TextService::OnKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
+    if (_translateKeyDown != 0 && wParam == _translateKeyDown) {
+        _translateKeyDown = 0;
+        *pfEaten = TRUE;
+        return S_OK;
+    }
     if (_fTestKeyUpPending) {
         _fTestKeyUpPending = false;
         *pfEaten = TRUE;

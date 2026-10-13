@@ -13,6 +13,9 @@ namespace cxxime {
 struct KeyboardShortcut {
     uint32_t modifiers = 0;
     uint32_t virtual_key = 0;
+    // 2 when the key is meant to be pressed twice (the selection translate key, "Ctrl+C+C"): the
+    // display and the settings use it, the input method tells a double press apart on its own.
+    uint32_t repeat = 1;
 
     constexpr bool enabled() const { return virtual_key != 0; }
     constexpr bool matches(const KeyEvent& event) const {
@@ -20,7 +23,8 @@ struct KeyboardShortcut {
                (event.modifiers & kShortcutModifierMask) == modifiers;
     }
     constexpr bool operator==(const KeyboardShortcut& other) const {
-        return modifiers == other.modifiers && virtual_key == other.virtual_key;
+        return modifiers == other.modifiers && virtual_key == other.virtual_key &&
+               repeat == other.repeat;
     }
     constexpr bool operator!=(const KeyboardShortcut& other) const { return !(*this == other); }
 };
@@ -32,6 +36,10 @@ bool is_valid_keyboard_shortcut(const KeyboardShortcut& shortcut);
 // Ctrl/Alt (optionally with Shift) with a letter, digit, punctuation key or Space; never one of
 // the common application shortcuts below.
 bool is_valid_input_mode_shortcut(const KeyboardShortcut& shortcut);
+// A selection-translation key: any valid combination with Ctrl or Alt. Unlike a switch key it may
+// be a common application shortcut (Ctrl+C): the first press goes to the application, only the
+// second one (or the held key) is the input method's.
+bool is_valid_translate_shortcut(const KeyboardShortcut& shortcut);
 // Copy, paste, undo, save, find ... and Alt+F4 / Alt+Space, which a switch key would take away
 // from applications.
 bool is_common_app_shortcut(const KeyboardShortcut& shortcut);

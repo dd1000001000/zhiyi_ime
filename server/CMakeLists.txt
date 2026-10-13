@@ -14,6 +14,7 @@ add_executable(cxxime-server WIN32
     src/system_lifecycle_monitor.cc
     src/lexicon_control_handler.cc
     src/machine_translator.cc
+    src/translate_service.cc
     src/ui_candidate_page_conversion.cc
     src/ui_presentation_controller.cc
     src/ui_presentation_router.cc

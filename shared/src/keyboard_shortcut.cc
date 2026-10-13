@@ -130,6 +130,10 @@ std::string keyboard_shortcut_string(const KeyboardShortcut& shortcut) {
         value += "Shift+";
     }
     value += virtual_key_name(shortcut.virtual_key);
+    for (uint32_t i = 1; i < shortcut.repeat; ++i) {
+        value += "+";
+        value += virtual_key_name(shortcut.virtual_key);
+    }
     return value;
 }
 
@@ -166,7 +170,15 @@ bool parse_keyboard_shortcut(const std::string& value, KeyboardShortcut* shortcu
                 return false;
             }
             parsed.modifiers |= kKeyModifierShift;
-        } else if (parsed.virtual_key != 0 || !parse_virtual_key(token, &parsed.virtual_key)) {
+        } else if (parsed.virtual_key != 0) {
+            // A repeat of the same key: "Ctrl+C+C" is the key pressed twice.
+            uint32_t repeat_key = 0;
+            if (!parse_virtual_key(token, &repeat_key) || repeat_key != parsed.virtual_key ||
+                parsed.repeat != 1) {
+                return false;
+            }
+            parsed.repeat = 2;
+        } else if (!parse_virtual_key(token, &parsed.virtual_key)) {
             return false;
         }
         if (separator == std::string::npos) {
@@ -189,7 +201,8 @@ bool is_valid_keyboard_shortcut(const KeyboardShortcut& shortcut) {
         return shortcut.modifiers == 0;
     }
     return (shortcut.modifiers & ~kShortcutModifierMask) == 0 &&
-           is_supported_virtual_key(shortcut.virtual_key);
+           is_supported_virtual_key(shortcut.virtual_key) &&
+           (shortcut.repeat == 1 || shortcut.repeat == 2);
 }
 
 bool is_common_app_shortcut(const KeyboardShortcut& shortcut) {
@@ -228,6 +241,17 @@ bool is_valid_input_mode_shortcut(const KeyboardShortcut& shortcut) {
     if (shortcut.modifiers == kKeyModifierShift && shortcut.virtual_key == VK_SPACE) {
         return true;
     }
+    return (shortcut.modifiers & (kKeyModifierControl | kKeyModifierAlt)) != 0;
+}
+
+bool is_valid_translate_shortcut(const KeyboardShortcut& shortcut) {
+    if (!is_valid_keyboard_shortcut(shortcut)) {
+        return false;
+    }
+    if (!shortcut.enabled()) {
+        return true;
+    }
+    // A common application shortcut (Ctrl+C) is allowed: the first press is the application's.
     return (shortcut.modifiers & (kKeyModifierControl | kKeyModifierAlt)) != 0;
 }
 

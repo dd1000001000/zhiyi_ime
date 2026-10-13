@@ -46,6 +46,10 @@ public:
     // Voice input: where it is (response.voice_state / voice_text), and dropping it.
     bool voice_status(uint32_t session_id, IPCResponse& response);
     bool voice_cancel(uint32_t session_id);
+    // Selection translation: ask for `text` (UTF-8, truncated to the field) to be translated,
+    // then poll translate_status for the result (response.translate_state / translate_text).
+    bool translate_selection(uint32_t session_id, const std::string& text, IPCResponse& response);
+    bool translate_status(uint32_t session_id, IPCResponse& response);
     bool focus_in(uint32_t session_id);
     bool set_input_target(uint32_t session_id, const std::string& app,
                           const std::string& window_title);

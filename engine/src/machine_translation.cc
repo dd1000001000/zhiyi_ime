@@ -255,7 +255,8 @@ bool translatable(const std::string& text) {
     return std::any_of(chars.begin(), chars.end(), is_letter);
 }
 
-std::string clean_translation(const std::string& source, const std::string& answer) {
+static std::string clean_answer(const std::string& source, const std::string& answer,
+                                size_t max_bytes) {
     std::string line;
     size_t start = 0;
     while (start <= answer.size() && line.empty()) {
@@ -284,9 +285,8 @@ std::string clean_translation(const std::string& source, const std::string& answ
         if (static_cast<unsigned char>(c) < 0x20) c = ' ';
     }
     // Long answers end at a character boundary.
-    constexpr size_t kMaxBytes = 120;
-    if (line.size() > kMaxBytes) {
-        size_t cut = kMaxBytes;
+    if (line.size() > max_bytes) {
+        size_t cut = max_bytes;
         while (cut > 0 && (static_cast<unsigned char>(line[cut]) & 0xC0) == 0x80) --cut;
         line.resize(cut);
     }
@@ -294,6 +294,15 @@ std::string clean_translation(const std::string& source, const std::string& answ
     std::transform(a.begin(), a.end(), a.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     std::transform(b.begin(), b.end(), b.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return a == b ? std::string() : line;
+}
+
+std::string clean_translation(const std::string& source, const std::string& answer) {
+    return clean_answer(source, answer, 120);
+}
+
+std::string clean_translation_long(const std::string& source, const std::string& answer,
+                                   size_t max_bytes) {
+    return clean_answer(source, answer, max_bytes);
 }
 
 std::string translation_prompt(const std::string& target, const std::string& text,
@@ -433,17 +442,18 @@ bool LlamaServer::start(const InstalledModel& installed, const std::string& devi
     return true;
 }
 
-std::vector<std::string> LlamaServer::translate(const std::vector<Item>& items,
-                                                const std::string& context, int timeout_ms) {
+std::vector<std::string> LlamaServer::translate_impl(const std::vector<Item>& items,
+                                                     const std::string& context, int timeout_ms,
+                                                     int max_tokens, bool long_form) {
     std::vector<std::string> results(items.size());
     if (!running()) return results;
     std::vector<std::thread> threads;
     for (size_t i = 0; i < items.size(); ++i) {
-        threads.emplace_back([this, &items, &results, &context, timeout_ms, i] {
+        threads.emplace_back([this, &items, &results, &context, timeout_ms, max_tokens, long_form, i] {
             if (prompt_ == kStudentPrompt) {
                 const nlohmann::json body = {
                     {"prompt", student_prompt(items[i], context)},
-                    {"n_predict", 48},
+                    {"n_predict", max_tokens},
                     {"temperature", 0},
                     {"top_k", 1},
                     {"repeat_penalty", 1.05},
@@ -455,14 +465,18 @@ std::vector<std::string> LlamaServer::translate(const std::vector<Item>& items,
                 if (status != 200) return;
                 const nlohmann::json answer = nlohmann::json::parse(response, nullptr, false);
                 if (answer.is_object() && answer.contains("content") && answer["content"].is_string()) {
-                    results[i] = clean_translation(items[i].text, answer["content"].get<std::string>());
+                    results[i] = long_form
+                                     ? clean_translation_long(items[i].text,
+                                                              answer["content"].get<std::string>())
+                                     : clean_translation(items[i].text,
+                                                         answer["content"].get<std::string>());
                 }
                 return;
             }
             const nlohmann::json body = {
                 {"messages", {{{"role", "user"},
                                {"content", translation_prompt(items[i].target, items[i].text, context)}}}},
-                {"max_tokens", 48},
+                {"max_tokens", max_tokens},
                 {"temperature", 0},
                 {"top_k", 1},
                 {"repetition_penalty", 1.05},
@@ -479,12 +493,27 @@ std::vector<std::string> LlamaServer::translate(const std::vector<Item>& items,
             }
             const auto& message = answer["choices"][0]["message"];
             if (message.is_object() && message.contains("content") && message["content"].is_string()) {
-                results[i] = clean_translation(items[i].text, message["content"].get<std::string>());
+                results[i] = long_form
+                                 ? clean_translation_long(items[i].text,
+                                                          message["content"].get<std::string>())
+                                 : clean_translation(items[i].text,
+                                                     message["content"].get<std::string>());
             }
         });
     }
     for (auto& thread : threads) thread.join();
     return results;
+}
+
+std::vector<std::string> LlamaServer::translate(const std::vector<Item>& items,
+                                                const std::string& context, int timeout_ms) {
+    return translate_impl(items, context, timeout_ms, 48, false);
+}
+
+std::vector<std::string> LlamaServer::translate_document(const std::vector<Item>& items,
+                                                         const std::string& context,
+                                                         int max_tokens, int timeout_ms) {
+    return translate_impl(items, context, timeout_ms, max_tokens, true);
 }
 
 }  // namespace mt

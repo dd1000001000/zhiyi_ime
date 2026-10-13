@@ -115,6 +115,10 @@ LRESULT CALLBACK TextService::_config_window_proc(HWND hwnd, UINT msg, WPARAM wp
         service->_process_translation_key(static_cast<UINT>(wp), lp != 0);
         return 0;
     }
+    if (msg == cxxime_tsf::WM_CXXIME_TRANSLATE_SELECTION && service) {
+        service->_process_selection_translate();
+        return 0;
+    }
     if (msg == cxxime_tsf::WM_CXXIME_UI_COMMAND && service) {
         service->_drain_ui_commands();
         return 0;
@@ -133,6 +137,10 @@ LRESULT CALLBACK TextService::_config_window_proc(HWND hwnd, UINT msg, WPARAM wp
     }
     if (msg == WM_TIMER && wp == cxxime_tsf::TIMER_CXXIME_VOICE_POLL && service) {
         service->_poll_voice();
+        return 0;
+    }
+    if (msg == WM_TIMER && wp == cxxime_tsf::TIMER_CXXIME_TRANSLATE_POLL && service) {
+        service->_poll_translation();
         return 0;
     }
     if (msg == WM_TIMER && wp == cxxime_tsf::TIMER_CXXIME_INPUT_INDICATOR_REFRESH && service) {

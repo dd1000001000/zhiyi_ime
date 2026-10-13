@@ -21,12 +21,18 @@ namespace {
 constexpr wchar_t kClassName[] = L"ZhiyiKeyCapture";
 constexpr UINT_PTR kNoticeTimer = 1;
 constexpr UINT kNoticeMs = 2500;
+constexpr UINT_PTR kDoubleTimer = 2;
+constexpr UINT kDoubleMs = 350;  // a second press within this doubles the key
 // A key the capture hook took: wParam the key, lParam the modifiers held.
 constexpr UINT kCapturedKey = WM_APP + 0x4B;
 
 struct State {
     KeyChoice choice;
     bool allow_tap = false;
+    bool allow_double = false;      // a second press of the same key doubles it
+    bool allow_common = false;      // a common application shortcut (Ctrl+C) is allowed
+    bool waiting_double = false;    // the first press is in, waiting for a second one
+    KeyChoice pending_double;       // that first press
     bool capturing = false;
     bool hover = false;
     const wchar_t* message = nullptr;  // why the last key was not taken (while capturing)
@@ -219,6 +225,31 @@ void accept(HWND window, State* state, const KeyChoice& choice) {
             return;
         }
     }
+    // A box that takes a double press: the second press of the same key within a moment stores it
+    // as "Ctrl+C+C" (repeat 2).
+    if (state->allow_double && choice.kind == KeyChoice::Kind::kCombo) {
+        if (state->waiting_double && state->pending_double.kind == KeyChoice::Kind::kCombo &&
+            state->pending_double.combo.modifiers == choice.combo.modifiers &&
+            state->pending_double.combo.virtual_key == choice.combo.virtual_key) {
+            KeyboardShortcut doubled = choice.combo;
+            doubled.repeat = 2;
+            state->choice = KeyChoice::of(doubled);
+            state->waiting_double = false;
+            KillTimer(window, kDoubleTimer);
+            clear_notice(window, state);
+            stop_capture(window, state);
+            notify_changed(window);
+            return;
+        }
+        // The first press: remember it (still capturing) and wait for a second one.
+        state->choice = choice;
+        state->pending_double = choice;
+        state->waiting_double = true;
+        SetTimer(window, kDoubleTimer, kDoubleMs, nullptr);
+        clear_notice(window, state);
+        InvalidateRect(window, nullptr, TRUE);
+        return;
+    }
     clear_notice(window, state);
     state->choice = choice;
     stop_capture(window, state);
@@ -255,11 +286,13 @@ void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam,
         stop_capture(window, state);  // cancel, keep the key
         return;
     }
-    if (is_common_app_shortcut(shortcut)) {
+    if (!state->allow_common && is_common_app_shortcut(shortcut)) {
         reject(window, state, tr("keys.common"));
         return;
     }
-    if (!is_valid_input_mode_shortcut(shortcut)) {
+    const bool valid = state->allow_common ? is_valid_translate_shortcut(shortcut)
+                                           : is_valid_input_mode_shortcut(shortcut);
+    if (!valid) {
         reject(window, state, is_valid_keyboard_shortcut(shortcut) ? tr("keys.need_combo")
                                                                    : tr("keys.unsupported"));
         return;
@@ -429,6 +462,15 @@ LRESULT CALLBACK key_capture_proc(HWND window, UINT message, WPARAM wparam, LPAR
             clear_notice(window, state);
             return 0;
         }
+        if (state && wparam == kDoubleTimer) {
+            KillTimer(window, kDoubleTimer);
+            if (state->waiting_double) {
+                state->waiting_double = false;
+                stop_capture(window, state);  // no second press: the key stays single
+                notify_changed(window);
+            }
+            return 0;
+        }
         break;
     case kCapturedKey:
         if (state && state->capturing) {
@@ -573,6 +615,14 @@ void key_capture_set(HWND control, const KeyChoice& choice) {
         state->message = nullptr;
         InvalidateRect(control, nullptr, TRUE);
     }
+}
+
+void key_capture_set_allow_double(HWND control, bool allow_double) {
+    if (State* state = state_of(control)) state->allow_double = allow_double;
+}
+
+void key_capture_set_allow_common(HWND control, bool allow_common) {
+    if (State* state = state_of(control)) state->allow_common = allow_common;
 }
 
 void key_capture_set_note(HWND control, KeyNote kind, const std::wstring& text) {

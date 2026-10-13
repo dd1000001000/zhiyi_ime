@@ -307,6 +307,26 @@ bool IpcClient::voice_cancel(uint32_t session_id) {
     return send_request(req, resp) && resp.status == IPCStatus::OK;
 }
 
+bool IpcClient::translate_selection(uint32_t session_id, const std::string& text,
+                                    IPCResponse& response) {
+    IPCRequest req = {};
+    req.command = IPCCommand::TRANSLATE_SELECTION;
+    req.session_id = session_id;
+    const std::size_t capacity = sizeof(req.translate_text);
+    std::size_t length = text.size() < capacity ? text.size() : capacity - 1;
+    while (length > 0 && (static_cast<unsigned char>(text[length]) & 0xC0) == 0x80) --length;
+    std::memcpy(req.translate_text, text.data(), length);
+    req.translate_text[length] = '\0';
+    return send_request(req, response) && response.status == IPCStatus::OK;
+}
+
+bool IpcClient::translate_status(uint32_t session_id, IPCResponse& response) {
+    IPCRequest req = {};
+    req.command = IPCCommand::TRANSLATE_STATUS;
+    req.session_id = session_id;
+    return send_request(req, response) && response.status == IPCStatus::OK;
+}
+
 bool IpcClient::clear_composition(uint32_t session_id) {
     IPCRequest req = {};
     req.command = IPCCommand::CLEAR_COMPOSITION;

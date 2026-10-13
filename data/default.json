@@ -64,6 +64,7 @@
     },
     "shortcuts": {
         "activate_ime": "disabled",
+        "translate_selection": "Ctrl+C+C",
         "page_up": "",
         "page_down": ""
     },
@@ -89,6 +90,11 @@
         "itn": true,
         "max_seconds": 60,
         "min_gpu_memory_mb": 1000
+    },
+    "translate": {
+        "direct_insert": false,
+        "device": "",
+        "idle_seconds": 60
     },
     "theme": "moon_light",
     "ui": {

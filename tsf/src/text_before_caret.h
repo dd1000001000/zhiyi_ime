@@ -26,4 +26,9 @@ bool context_is_imm_document(ITfContext* context);
 TextBeforeCaret read_text_before_caret(ITfContext* context, TfClientId client_id, size_t max_chars,
                                        std::wstring* text);
 
+// As read_text_before_caret, but reads the selected text itself (empty when nothing is selected):
+// what the selection translation translates.
+TextBeforeCaret read_selection_text(ITfContext* context, TfClientId client_id, size_t max_chars,
+                                    std::wstring* text);
+
 #endif  // ZHIYI_TSF_TEXT_BEFORE_CARET_H_

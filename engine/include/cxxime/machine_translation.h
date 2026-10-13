@@ -51,6 +51,10 @@ bool translatable(const std::string& text);
 // empty when it only repeats the candidate.
 std::string clean_translation(const std::string& source, const std::string& answer);
 
+// As clean_translation, but for a longer text (selection translation): no 120-byte cut.
+std::string clean_translation_long(const std::string& source, const std::string& answer,
+                                   size_t max_bytes = 4096);
+
 // The prompt for one candidate (Hy-MT2's templates), with the text before it when given.
 std::string translation_prompt(const std::string& target, const std::string& text,
                                const std::string& context);
@@ -83,8 +87,15 @@ public:
     // The translations, in the order of `items` (empty where it failed), asked in parallel.
     std::vector<std::string> translate(const std::vector<Item>& items, const std::string& context,
                                        int timeout_ms = 10000);
+    // Selection translation: longer answers (no 120-byte cut), max_tokens scaled to the input.
+    std::vector<std::string> translate_document(const std::vector<Item>& items,
+                                                const std::string& context, int max_tokens = 512,
+                                                int timeout_ms = 30000);
 
 private:
+    std::vector<std::string> translate_impl(const std::vector<Item>& items,
+                                            const std::string& context, int timeout_ms,
+                                            int max_tokens, bool long_form);
     struct Impl;
     std::unique_ptr<Impl> impl_;
     std::string device_;

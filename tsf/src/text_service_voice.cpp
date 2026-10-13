@@ -4,13 +4,14 @@
 // voice key's answer says recording started (IPCResponse::voice_state), and from then on the
 // text service asks every 100 ms where it is (VOICE_STATUS) until the text comes, which it shows
 // underlined in the input box as a composition of its own: Backspace or Esc delete it, Enter
-// keeps it, any other key keeps it and then does what it does. The input box losing the focus
-// drops the recording.
+// keeps it, any other key keeps it and then does what it does. (Classic Win32 programs get the
+// text at once.) The input box losing the focus drops the recording.
 #include "text_service.h"
 
 #include <cstring>
 
 #include "config_coordinator.h"
+#include "text_before_caret.h"
 
 namespace {
 
@@ -61,6 +62,16 @@ void TextService::_show_voice_text(const std::wstring& text) {
     ITfContext* context = _current_edit_context_for_composition();
     if (!context) return;
     _hide_candidate_window("hide:voice_text");
+    // Classic Win32 programs (Sublime Text) reach TSF through the IMM layer, and cancel a
+    // composition, text and all, on a click or when they lose the focus; even text committed
+    // just before the click is gone (issue #14). There the text goes in at once.
+    if (context_is_imm_document(context)) {
+        _enqueue_event_trace("voice_text", "imm_insert");
+        if (_composition) _end_composition(context);
+        insert_text(text, true);
+        context->Release();
+        return;
+    }
     // (A program that defers the edit still shows the text: the composition comes a moment later.)
     const HRESULT result = update_composition(context, text, text.size(), true, TF_ES_SYNC);
     if (SUCCEEDED(result)) {

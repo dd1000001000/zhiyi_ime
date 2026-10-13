@@ -18,6 +18,10 @@ enum class TextBeforeCaret {
                    // Win32 edit boxes; not Chromium's): the remembered context is used instead
 };
 
+// A classic Win32 program reaching TSF through the IMM compatibility layer: its transitory
+// document holds only the composition (Chromium's transitory documents are real ones).
+bool context_is_imm_document(ITfContext* context);
+
 // A synchronous read-only edit session; call it while handling a key.
 TextBeforeCaret read_text_before_caret(ITfContext* context, TfClientId client_id, size_t max_chars,
                                        std::wstring* text);

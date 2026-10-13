@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cwchar>
+#include <iterator>
 #include <string>
 
 #include <shellapi.h>
@@ -90,7 +91,7 @@ constexpr int kFuzzyInitialCount = 4;
 // after full pinyin).
 const char* const kShuangpinSchemeLabels[] = {
     "general.shuangpin_microsoft", "general.shuangpin_xiaohe", "general.shuangpin_ziranma",
-    "general.shuangpin_sogou",
+    "general.shuangpin_sogou", "general.shuangpin_abc",
 };
 
 constexpr char kLightTheme[] = "moon_light";
@@ -459,7 +460,8 @@ bool EditorApp::read_controls(bool report_errors) {
     c.pinyin_style = get_check(hInitials_)     ? PinyinStyle::kInitials
                      : get_check(hShuangpin_) ? PinyinStyle::kShuangpin
                                               : PinyinStyle::kFull;
-    const int scheme = std::clamp(combo_index(hShuangpinScheme_), 0, 3);
+    const int scheme = std::clamp(combo_index(hShuangpinScheme_), 0,
+                                  static_cast<int>(std::size(kShuangpinSchemeLabels)) - 1);
     c.shuangpin_scheme = built_in_pinyin_schemes()[1 + static_cast<std::size_t>(scheme)].id;
     c.theme = get_check(hDark_) ? kDarkTheme : kLightTheme;
     c.font_size = get_check(hFontSmall_) ? kFontSmall

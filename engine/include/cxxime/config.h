@@ -66,7 +66,7 @@ struct Config {
     // The base spelling table: full pinyin (a shuangpin id here is read as shuangpin_scheme).
     std::string pinyin_scheme = "full_pinyin";
     // engine.shuangpin_scheme: microsoft_shuangpin | xiaohe_shuangpin | ziranma_shuangpin |
-    // sogou_shuangpin.
+    // sogou_shuangpin | abc_shuangpin.
     std::string shuangpin_scheme = "xiaohe_shuangpin";
     bool wubi_auto_commit = true;  // Auto-commit the only candidate at four codes.
     bool wubi_commit_first_on_fifth_key = true;  // Commit the first choice before code 5.

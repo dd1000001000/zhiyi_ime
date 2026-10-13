@@ -25,7 +25,7 @@
 | 选项 | 说明 |
 |------|------|
 | 中文输入 | 启动时的输入方式：**全拼**（也能识别首字母简拼和混合输入，`wsyige` → 我是一个）、**首字母**（每个字母对应一个字，`zgr` → 中国人）、**五笔**（86 版）或**双拼**。打字时按“输入方式切换”键按 全拼 → 首字母 → 五笔 → 双拼 循环 |
-| 双拼方案 | 微软双拼、小鹤双拼（默认）、自然码双拼或搜狗双拼；换方案立即生效 |
+| 双拼方案 | 微软双拼、小鹤双拼（默认）、自然码双拼、搜狗双拼或智能ABC双拼；换方案立即生效 |
 | 主题 | 浅色或深色，候选窗口和设置程序一起切换 |
 | 字号 | 小 / 中 / 大 |
 | 候选排列 | 竖排（默认）或横排；学习模式的翻译只在竖排时显示 |
@@ -43,7 +43,7 @@
 ### 双拼
 
 - 两个键一个字：前一个键是声母，后一个键是韵母，按所选方案的键位；只打了声母时也出候选。零声母字按各方案自己的规则
-  （如小鹤 `aa` 啊、`an` 安）。微软双拼的 `;` 在打字过程中是韵母键（ing），没在打字时仍是标点。
+  （如小鹤 `aa` 啊、`an` 安；智能ABC 的 a、e、v 是 zh、ch、sh，零声母一律以 o 开头，如 `oa` 啊、`oj` 安）。微软双拼的 `;` 在打字过程中是韵母键（ing），没在打字时仍是标点。
 - 输入框显示实际按下的键（如 `nihc`），选了一部分候选后显示“已选的字 + 剩下的键”（如 `你hc`）。
 - 与全拼共用词库、自学习、用户词和上文推荐（推荐模型读的是换算后的全拼）；模糊音的设置同样适用于双拼。
 - 中文模式里夹英文单词：双拼下几乎任何字母串都能切成音节，所以只有整串切不出双拼时才给英文单词候选。
@@ -217,7 +217,7 @@
 | 字段 | 默认 | 说明 |
 |------|------|------|
 | `engine.input_style` | `full` | 中文输入方式：`full`（全拼）、`initials`（首字母）、`wubi`（五笔）、`shuangpin`（双拼）。旧版的 `engine.input_mode`（1 = 五笔）与 `engine.pinyin_initials` 照样读取，保存时换成这一项 |
-| `engine.shuangpin_scheme` | `xiaohe_shuangpin` | 双拼方案：`microsoft_shuangpin`、`xiaohe_shuangpin`、`ziranma_shuangpin`、`sogou_shuangpin` |
+| `engine.shuangpin_scheme` | `xiaohe_shuangpin` | 双拼方案：`microsoft_shuangpin`、`xiaohe_shuangpin`、`ziranma_shuangpin`、`sogou_shuangpin`、`abc_shuangpin` |
 | `engine.page_size` | 7 | 每页候选数（3–10） |
 | `engine.candidate_learning` | true | 自学习 |
 | `engine.fuzzy_pinyin` / `engine.fuzzy_groups` | true / `["en_eng","in_ing"]` | 模糊音开关与组合（`z_zh`、`c_ch`、`s_sh`、`n_l`、`an_ang`、`en_eng`、`in_ing`） |

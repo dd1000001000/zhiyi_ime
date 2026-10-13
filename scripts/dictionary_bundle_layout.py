@@ -6,6 +6,7 @@ SHUANGPIN_SCHEME_NAMES = (
     "xiaohe",
     "ziranma",
     "sogou",
+    "abc",
 )
 
 SHUANGPIN_MANIFEST_FILES = tuple(

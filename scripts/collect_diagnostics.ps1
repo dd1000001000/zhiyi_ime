@@ -312,6 +312,7 @@ $dataFiles = @(
     "pinyin.xiaohe-shuangpin.spellings.bin",
     "pinyin.ziranma-shuangpin.spellings.bin",
     "pinyin.sogou-shuangpin.spellings.bin",
+    "pinyin.abc-shuangpin.spellings.bin",
     "pinyin.topn.bin",
     "pinyin.reverse.idx",
     "wubi86.dict.bin",

@@ -41,8 +41,8 @@
   and downloaded models can move to another drive with one click on the General page.
 - **Full pinyin, initials, Wubi, shuangpin**: full pinyin also accepts initials and a mix of both
   (`wsyige` → 我是一个); in initials mode each letter is one character (`zgr` → 中国人); shuangpin
-  comes in the Microsoft, Xiaohe, Ziranma and Sogou schemes and shares the dictionary and learning
-  records with full pinyin. While typing, the style switch key (Ctrl+Space by default) cycles the
+  comes in the Microsoft, Xiaohe, Ziranma, Sogou and Smart ABC schemes and shares the dictionary
+  and learning records with full pinyin. While typing, the style switch key (Ctrl+Space by default) cycles the
   four; the input box always shows the keys as typed.
 - **Fuzzy pinyin**: z=zh, c=ch, s=sh, n=l, an=ang, en=eng, in=ing, each pair on or off; words found
   through a fuzzy pair show their correct pinyin.

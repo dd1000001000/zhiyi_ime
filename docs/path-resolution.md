@@ -154,7 +154,7 @@ cxxime::set_data_dir("");             // 清除覆盖，恢复默认回退链
 
 服务端从词典清单（`dictionary_manifest.json`）取拼写表：全拼用角色 `pinyin_spellings`（`pinyin.spellings.bin`），
 设置中所选的双拼方案（`engine.shuangpin_scheme`：`microsoft_shuangpin`、`xiaohe_shuangpin`、`ziranma_shuangpin`、
-`sogou_shuangpin`）用角色 `pinyin_spellings_<方案名>_shuangpin`（`pinyin.<方案名>-shuangpin.spellings.bin`，即
+`sogou_shuangpin`、`abc_shuangpin`）用角色 `pinyin_spellings_<方案名>_shuangpin`（`pinyin.<方案名>-shuangpin.spellings.bin`，即
 `PinyinSchemeDescriptor.spelling_filename`），两份同时载入，按拼音方式选用；双拼表缺失时双拼按全拼处理。自带资源的
 `Engine::initialize(dict_path)`（测试与工具）按主词典路径推导：同目录下的 `pinyin.spellings.bin`，以及存在时的所选双拼表。
 五份拼写表共用同一个 `pinyin.dict.bin`，换双拼方案只重新载入那份拼写表，不重新加载主词典。

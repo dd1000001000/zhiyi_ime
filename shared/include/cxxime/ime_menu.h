@@ -68,8 +68,10 @@ inline bool ime_menu_uses_chinese(const std::string& ui_language) {
 // ImeStatus::shuangpin_scheme(): the scheme's name.
 inline const wchar_t* shuangpin_scheme_name(uint32_t index, bool chinese) {
     static constexpr const wchar_t* kNames[][2] = {
-        {L"微软", L"Microsoft"}, {L"小鹤", L"Xiaohe"}, {L"自然码", L"Ziranma"}, {L"搜狗", L"Sogou"}};
-    return kNames[index & 3u][chinese ? 0 : 1];
+        {L"微软", L"Microsoft"}, {L"小鹤", L"Xiaohe"}, {L"自然码", L"Ziranma"},
+        {L"搜狗", L"Sogou"}, {L"智能ABC", L"Smart ABC"}};
+    constexpr uint32_t kCount = sizeof(kNames) / sizeof(kNames[0]);
+    return kNames[index < kCount ? index : 1u][chinese ? 0 : 1];  // unknown: the default
 }
 
 // "双拼（小鹤）": the shuangpin item names the scheme.

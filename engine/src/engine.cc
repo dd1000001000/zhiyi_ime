@@ -101,6 +101,14 @@ static bool is_inline_ascii_character(char ch) {
     return std::strchr(kInlineCharacters, ch) != nullptr;
 }
 
+// A key the punctuation table turns into Chinese punctuation right now (half-shape Chinese
+// punctuation). Typed during a composition it commits the candidate and the punctuation instead
+// of staying in the composition as a literal technical character.
+static bool has_chinese_punctuation(char ch, const OutputOptions& opts) {
+    return opts.chinese_punct && !opts.full_shape && opts.punct_mapping &&
+           opts.punct_mapping->half_shape.count(std::string(1, ch)) > 0;
+}
+
 static bool is_ascii_digit_or_symbol(char ch) {
     return ch >= 0x21 && ch <= 0x7e && !std::isalpha(static_cast<unsigned char>(ch));
 }
@@ -803,7 +811,8 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         normalized && is_ascii_digit_or_symbol(*normalized) &&
         !is_main_candidate_command(event, context_)) {
         const bool has_candidates = context_.candidate_count() > 0;
-        const bool start_inline = is_inline_ascii_character(*normalized) ||
+        const bool start_inline = (is_inline_ascii_character(*normalized) &&
+                                   !has_chinese_punctuation(*normalized, opts)) ||
                                   is_numpad_text_key(event.keycode) || !has_candidates;
         if (opts.full_shape && !is_numpad_text_key(event.keycode)) {
             if (handle_full_shape(event, context_, opts)) {
@@ -887,7 +896,8 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         context_.composition_scheme() == CompositionScheme::kSymbol && normalized &&
         is_ascii_digit_or_symbol(*normalized)) {
         const bool has_candidates = context_.candidate_count() > 0;
-        const bool start_inline = is_inline_ascii_character(*normalized) ||
+        const bool start_inline = (is_inline_ascii_character(*normalized) &&
+                                   !has_chinese_punctuation(*normalized, opts)) ||
                                   plain_main_zero || is_numpad_text_key(event.keycode);
         if (opts.full_shape && !is_numpad_text_key(event.keycode)) {
             if (handle_full_shape(event, context_, opts)) {

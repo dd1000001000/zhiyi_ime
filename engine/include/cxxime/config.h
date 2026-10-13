@@ -220,6 +220,13 @@ struct Config {
         bool continuation = true;
         double continuation_weight = 0.5;  // the composer's word score next to the model's ln P
         int continuation_min_syllables = 4;
+        // A decoder model (unified_vocab.json names its decoder graph, bench unified_dec.py):
+        // the sentence is written a character at a time, each given the characters before it,
+        // in a beam of decoder_beam paths over the dictionary's words (pinyin_composer.h
+        // sequential_compose); decoder_weight is the composer's word score next to the model's
+        // ln P there (continuation_weight's part).
+        int decoder_beam = 16;
+        double decoder_weight = 0.3;
         // Typed segmentations (xian / xi'an) the model reads per key: one model call each; the
         // readings of an abbreviation ("g" as guo, gong, ge...) share a call.
         int continuation_paths = 4;

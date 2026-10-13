@@ -326,6 +326,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(l, "continuation_paths", config.laya.continuation_paths);
         load_int(l, "continuation_delay_ms", config.laya.continuation_delay_ms);
         load_bool(l, "continuation_rerank", config.laya.continuation_rerank);
+        load_int(l, "decoder_beam", config.laya.decoder_beam);
+        load_double(l, "decoder_weight", config.laya.decoder_weight);
         // The same for the rank prior: 0.4 was the default until schema 1.1, which turned it off.
         // Applied once: a file saved since then (schema 1.1) keeps what it says.
         const bool before_rank_prior_off =
@@ -700,6 +702,8 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["continuation_paths"] = config.laya.continuation_paths;
     j["laya"]["continuation_delay_ms"] = config.laya.continuation_delay_ms;
     j["laya"]["continuation_rerank"] = config.laya.continuation_rerank;
+    j["laya"]["decoder_beam"] = config.laya.decoder_beam;
+    j["laya"]["decoder_weight"] = config.laya.decoder_weight;
     j["laya"]["english_freq_weight"] = config.laya.english_freq_weight;
     j["laya"]["english_correction_weight"] = config.laya.english_correction_weight;
 

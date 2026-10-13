@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <numeric>
 #include <string_view>
 #include <utility>
@@ -1640,7 +1641,7 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
                 edge.end = end;
                 edge.frequency = candidate.source_frequency;
                 edge.score = composed_word_score(candidate.source_frequency) + credibility;
-                if (scorer) {
+                if (scorer && !scorer->sequential()) {
                     double ln_p = 0.0;
                     if (!scorer->score(candidate.text, slot_at[start], slot_at[end], ln_p)) {
                         continue;
@@ -1664,6 +1665,57 @@ std::vector<Candidate> PinyinTranslator::compose_typed_spans(const std::string& 
                 edges_from[start].push_back(edge);
             }
         }
+    }
+
+    if (scorer && scorer->sequential() && slot_offsets && !slot_offsets->empty()) {
+        // A decoder model: the sentence is written a character (typed syllable) at a time over
+        // the same words (sequential_compose), the words' own scores as the composer's.
+        const size_t slot_count = slot_offsets->size() - 1;
+        std::vector<std::vector<SequentialEdge>> by_slot(slot_count);
+        std::vector<std::vector<const Edge*>> edge_at(slot_count);
+        for (size_t start = 0; start < n; ++start) {
+            if (slot_at[start] == SIZE_MAX || slot_at[start] >= slot_count) continue;
+            for (const Edge& edge : edges_from[start]) {
+                if (slot_at[edge.end] == SIZE_MAX) continue;
+                by_slot[slot_at[start]].push_back(
+                    {static_cast<uint16_t>(slot_at[edge.end]), edge.score, &edge.word->text});
+                edge_at[slot_at[start]].push_back(&edge);
+            }
+        }
+        QueryDeadline deadline = budget ? budget->deadline : QueryDeadline{};
+        bool hit = false;
+        const auto found = sequential_compose(slot_count, by_slot, nullptr, *scorer, max_results * 2,
+                                              deadline, hit);
+        std::vector<Candidate> results;
+        int64_t best = 0;
+        for (const auto& found_path : found) {
+            if (found_path.edges.size() < 2) continue;
+            if (results.empty()) best = found_path.score;
+            else if (found_path.score < best - kSentenceWindow) break;
+            Candidate candidate;
+            int frequency = (std::numeric_limits<int>::max)();
+            for (const auto& [slot, index] : found_path.edges) {
+                const Edge* edge = edge_at[slot][index];
+                candidate.text += edge->word->text;
+                if (!candidate.syllables.empty()) candidate.syllables += ':';
+                candidate.syllables += edge->word->syllables;
+                frequency = (std::min)(frequency, edge->frequency);
+            }
+            if (std::any_of(results.begin(), results.end(),
+                            [&](const Candidate& r) { return r.text == candidate.text; })) {
+                continue;
+            }
+            candidate.code = input;
+            candidate.input_code = input;
+            candidate.origin = CandidateOrigin::kComposed;
+            candidate.source = CandidateSource::kPinyin;
+            candidate.source_frequency = frequency;
+            candidate.frequency = sentence_frequency(found_path.score);
+            candidate.composed_score = (std::min)(found_path.score, int64_t{-1});
+            results.push_back(std::move(candidate));
+            if (results.size() >= max_results) break;
+        }
+        return results;
     }
 
     std::vector<State> states;

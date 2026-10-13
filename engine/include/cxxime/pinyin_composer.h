@@ -127,7 +127,55 @@ public:
     // The translator composed without the model after all (nothing it scored made a sentence):
     // scored() is false from then on.
     virtual void discard() {}
+
+    // A decoder model (laya_rerank.h): it reads the characters chosen so far, so a sentence is
+    // scored a character at a time, in order (sequential_compose), not word by word; score() is
+    // not used. step() gives, for each prefix (the characters chosen at the slots before `slot`,
+    // one each), the distribution of the character at `slot` of the prepared path; false when
+    // the model cannot (the search stops). char_ln_p reads it: ln P of `utf8_char` for
+    // prefixes[prefix]; false when the model does not write that character.
+    virtual bool sequential() const { return false; }
+    virtual bool step(const std::vector<std::string>& prefixes, size_t slot) {
+        (void)prefixes;
+        (void)slot;
+        return false;
+    }
+    virtual bool char_ln_p(size_t prefix, const std::string& utf8_char, double& ln_p) const {
+        (void)prefix;
+        (void)utf8_char;
+        (void)ln_p;
+        return false;
+    }
+    // Sequential models: the paths kept at every character.
+    virtual size_t beam_width() const { return 16; }
 };
+
+// A dictionary word spanning the slots [start, end) of a path, for sequential_compose.
+struct SequentialEdge {
+    uint16_t end = 0;
+    int64_t score = 0;                  // its composed_word_score (and joint penalties)
+    const std::string* text = nullptr;  // one character per slot
+};
+
+struct SequentialPath {
+    std::vector<std::pair<uint16_t, uint32_t>> edges;  // (start slot, index in edges_by_start[start])
+    double ln_p = 0.0;                                  // the model's, summed over the characters
+    int64_t word_score = 0;                             // the words' scores, summed
+    int64_t score = 0;  // ln_p x kComposedScoreScale + word_weight() x word_score
+};
+
+// Sequential models: a beam search a character at a time over `slots` slots. At every slot the
+// model is asked once for the paths kept (scorer.step); a path inside a word takes the word's
+// next character, a path at a word boundary starts every word of edges_by_start[slot] (none at
+// an ambiguous joint), and the best beam_width() paths by score go on. The model's time moves
+// the deadline back (as the composer does for prepare). Returns the complete paths, best first,
+// at most max_results; empty when the model fails, no word covers the slots, or the deadline
+// passes (deadline_hit).
+std::vector<SequentialPath> sequential_compose(size_t slots,
+                                               const std::vector<std::vector<SequentialEdge>>& edges_by_start,
+                                               const std::vector<uint8_t>* ambiguous_joint,
+                                               SpanScorer& scorer, size_t max_results,
+                                               QueryDeadline& deadline, bool& deadline_hit);
 
 class PinyinComposer {
 public:

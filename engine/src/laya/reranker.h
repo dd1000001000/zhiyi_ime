@@ -6,7 +6,9 @@
 // unified model (bench export_unified.py) also reads unit_ids and slot_pos: the typed input as
 // slots ([MASK] + a unit vector per syllable or letter) after the choice sequence, and a second
 // output, "char_logits", the continuation head's score of every character at every slot. The
-// graph's input names say which one was loaded (has_slots()).
+// graph's input names say which one was loaded (has_slots()). A decoder model (bench
+// export_unified_dec.py) gives "memory" and "slot_vec" instead, what its decoder graph (a second
+// file, unified_vocab.json names it) reads to write one character at a time (encode / decode).
 #pragma once
 
 #include <cstdint>
@@ -36,6 +38,23 @@ struct Sequence {
   std::vector<int64_t> units;    // the unit vector row of each token (0 = none); empty = no slots
   std::vector<int64_t> slots;    // the slot positions (continuation: where the head is read)
 };
+
+// A decoder model's reading of one continuation sequence (encode): what its decoder reads at
+// every character it writes (decode). About length x width floats (160 x 384: 245 KB).
+struct Encoded {
+  int64_t length = 0;  // tokens of the sequence (the card's fixed length on DirectML)
+  int64_t width = 0;
+  int64_t slots = 0;
+  std::vector<float> memory;      // (length, width)
+  std::vector<int64_t> mask;      // (length): 1 = a token
+  std::vector<float> slot_vec;    // (slots, width)
+  std::vector<int64_t> unit_ids;  // (slots): the unit of each slot
+  size_t bytes() const {
+    return memory.size() * sizeof(float) + mask.size() * sizeof(int64_t) + slot_vec.size() * sizeof(float) +
+           unit_ids.size() * sizeof(int64_t);
+  }
+};
+inline size_t cache_bytes(const Encoded& e) { return e.bytes(); }
 
 struct RerankerOptions {
   std::string model_dir;                  // 含 tokenizer.json, rl_agent_config.json
@@ -87,6 +106,17 @@ class Reranker {
   std::vector<std::vector<float>> continuation(const std::string& context,
                                                const std::vector<Unit>& units) const;
 
+  // A decoder model (has_decoder): the sequence of continuation() read once; nullptr when the
+  // model has no decoder, there are no units, more than its maximum, or the model fails.
+  std::shared_ptr<const Encoded> encode(const std::string& context, const std::vector<Unit>& units) const;
+  // ... then, for each prefix (the characters chosen at the slots before `slot`, as indices into
+  // vocab()->chars(), -1 for one the model does not write), ln P over the characters at `slot`
+  // (-1e4 for those its unit cannot spell). One decoder call for all the prefixes. Empty when
+  // the model fails.
+  std::vector<std::vector<float>> decode(const Encoded& encoded, const std::vector<std::vector<int>>& prefixes,
+                                         size_t slot) const;
+  bool has_decoder() const { return decoder_ != nullptr; }
+
   bool has_slots() const { return vocab_ != nullptr; }  // a unified model
   const UnifiedVocab* vocab() const { return vocab_.get(); }
   const BpeTokenizer& tokenizer() const { return *tok_; }
@@ -95,13 +125,16 @@ class Reranker {
 
  private:
   void append_slots(Sequence& seq, const std::vector<Unit>& units) const;
+  // p2c_common.encode: [CLS] 已输入的上文: context [SEP] [MASK] x slots [SEP].
+  Sequence continuation_sequence(const std::string& context, const std::vector<Unit>& units) const;
   bool run(Sequence seq, std::vector<float>* logits, std::vector<float>* char_logits,
-           size_t* chars) const;
+           size_t* chars, Encoded* encoded) const;
 
   std::unique_ptr<BpeTokenizer> tok_;
   std::unique_ptr<UnifiedVocab> vocab_;
   std::unique_ptr<Ort::Env> env_;
   std::unique_ptr<Ort::Session> session_;
+  std::unique_ptr<Ort::Session> decoder_;  // a decoder model's second graph (the CPU)
   std::string load_note_;
   std::unique_ptr<Ort::MemoryInfo> mem_;
   std::vector<int64_t> head_ids_;  // "choice question: <instructions>" 只编码一次
@@ -113,6 +146,7 @@ class Reranker {
   // continuation share the model); the CPU takes them together.
   mutable std::mutex gpu_run_mutex_;
   bool slots_input_ = false;  // the graph reads unit_ids / slot_pos
+  bool memory_output_ = false;  // the graph gives memory / slot_vec (a decoder model)
 };
 
 }  // namespace laya

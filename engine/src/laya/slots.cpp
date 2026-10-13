@@ -90,6 +90,7 @@ UnifiedVocab::UnifiedVocab(const std::string& json_path) {
   max_slots_ = j.value("max_slots", max_slots_);
   max_context_tokens_ = j.value("max_context_tokens", max_context_tokens_);
   context_prefix_ = j.value("context_prefix", std::string(u8"已输入的上文: "));
+  decoder_file_ = j.value("decoder", std::string());
 }
 
 int64_t UnifiedVocab::unit_id(const Unit& unit) const {

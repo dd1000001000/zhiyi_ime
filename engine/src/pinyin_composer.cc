@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <string>
+#include <unordered_set>
 
 #include <cxxime/dict.h>
 #include <cxxime/query_budget.h>
@@ -187,7 +189,135 @@ void offer_result(std::vector<ComposedResult>& results, ComposedResult result, s
     }
 }
 
+std::vector<std::string> utf8_characters(const std::string& text) {
+    std::vector<std::string> out;
+    for (size_t i = 0; i < text.size();) {
+        size_t n = 1;
+        const unsigned char c = static_cast<unsigned char>(text[i]);
+        if (c >= 0xF0) n = 4;
+        else if (c >= 0xE0) n = 3;
+        else if (c >= 0xC0) n = 2;
+        out.push_back(text.substr(i, n));
+        i += n;
+    }
+    return out;
+}
+
+struct SequentialHypothesis {
+    std::string text;
+    std::vector<std::pair<uint16_t, uint32_t>> edges;
+    double ln_p = 0.0;
+    int64_t word_score = 0;
+    int64_t score = 0;
+    uint16_t word_start = 0;             // the current word's start slot
+    uint32_t word_index = UINT32_MAX;    // in edges_by_start[word_start]; UINT32_MAX = at a boundary
+    size_t offset = 0;                   // characters of the current word taken
+    uint32_t sequence = 0;
+};
+
 } // namespace
+
+std::vector<SequentialPath> sequential_compose(size_t slots,
+                                               const std::vector<std::vector<SequentialEdge>>& edges_by_start,
+                                               const std::vector<uint8_t>* ambiguous_joint,
+                                               SpanScorer& scorer, size_t max_results,
+                                               QueryDeadline& deadline, bool& deadline_hit) {
+    deadline_hit = false;
+    std::vector<SequentialPath> out;
+    if (slots == 0 || max_results == 0) return out;
+    // Every word's characters, split once.
+    std::vector<std::vector<std::vector<std::string>>> chars(edges_by_start.size());
+    for (size_t start = 0; start < edges_by_start.size(); ++start) {
+        for (const SequentialEdge& edge : edges_by_start[start]) {
+            chars[start].push_back(edge.text ? utf8_characters(*edge.text) : std::vector<std::string>{});
+        }
+    }
+    const double weight = scorer.word_weight();
+    const size_t width = (std::max)(size_t{1}, scorer.beam_width());
+    std::vector<SequentialHypothesis> live(1);  // the empty prefix, at slot 0
+    uint32_t sequence = 0;
+    std::vector<std::string> prefixes;
+    std::vector<SequentialHypothesis> next;
+    std::unordered_set<std::string> seen;
+    for (size_t slot = 0; slot < slots; ++slot) {
+        if (deadline.enabled && deadline.expired()) {
+            deadline_hit = true;
+            return out;
+        }
+        prefixes.clear();
+        for (const auto& h : live) prefixes.push_back(h.text);
+        const auto model_start = QueryDeadline::Clock::now();
+        const bool stepped = scorer.step(prefixes, slot);
+        if (deadline.enabled) deadline.expires_at += QueryDeadline::Clock::now() - model_start;
+        if (!stepped) return out;
+        next.clear();
+        for (size_t i = 0; i < live.size(); ++i) {
+            const SequentialHypothesis& h = live[i];
+            const auto extend = [&](uint16_t start, uint32_t index, size_t offset) {
+                const std::vector<std::string>& word = chars[start][index];
+                double ln_p = 0.0;
+                if (!scorer.char_ln_p(i, word[offset], ln_p)) return;
+                SequentialHypothesis n = h;
+                n.text += word[offset];
+                n.ln_p += ln_p;
+                n.word_start = start;
+                n.word_index = index;
+                n.offset = offset + 1;
+                if (offset == 0) {
+                    n.edges.emplace_back(start, index);
+                    n.word_score += edges_by_start[start][index].score;
+                }
+                if (n.offset == word.size()) n.word_index = UINT32_MAX;  // the word is complete
+                n.score = static_cast<int64_t>(std::llround(n.ln_p * kComposedScoreScale +
+                                                            weight * static_cast<double>(n.word_score)));
+                n.sequence = ++sequence;
+                next.push_back(std::move(n));
+            };
+            if (h.word_index != UINT32_MAX) {
+                extend(h.word_start, h.word_index, h.offset);
+                continue;
+            }
+            if (ambiguous_joint && slot < ambiguous_joint->size() && (*ambiguous_joint)[slot]) continue;
+            if (slot >= edges_by_start.size()) continue;
+            for (uint32_t e = 0; e < edges_by_start[slot].size(); ++e) {
+                const SequentialEdge& edge = edges_by_start[slot][e];
+                if (edge.end <= slot || edge.end > slots || chars[slot][e].size() != edge.end - slot) continue;
+                extend(static_cast<uint16_t>(slot), e, 0);
+            }
+        }
+        if (next.empty()) return out;
+        std::sort(next.begin(), next.end(), [](const SequentialHypothesis& a, const SequentialHypothesis& b) {
+            if (a.score != b.score) return a.score > b.score;
+            if (a.edges.size() != b.edges.size()) return a.edges.size() < b.edges.size();
+            return a.sequence < b.sequence;
+        });
+        // The same characters in the same word state: one path.
+        live.clear();
+        seen.clear();
+        for (auto& n : next) {
+            std::string key = n.text;
+            key += '\x1f';
+            if (n.word_index != UINT32_MAX) {
+                key += std::to_string(n.word_start) + ':' + std::to_string(n.word_index) + ':' +
+                       std::to_string(n.offset);
+            }
+            if (!seen.insert(key).second) continue;
+            live.push_back(std::move(n));
+            if (live.size() >= width) break;
+        }
+    }
+    for (const auto& h : live) {
+        if (h.word_index != UINT32_MAX) continue;
+        SequentialPath path;
+        path.edges = h.edges;
+        path.ln_p = h.ln_p;
+        path.word_score = h.word_score;
+        path.score = h.score;
+        out.push_back(std::move(path));
+        if (out.size() >= max_results) break;
+    }
+    return out;
+}
 
 std::vector<Candidate>
 PinyinComposer::compose(const std::string& input, const std::vector<CompositionPath>& paths,
@@ -323,7 +453,7 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
                             edge.score += kAmbiguousJointPenalty;
                         }
                     }
-                    if (scorer) {
+                    if (scorer && !scorer->sequential()) {
                         double ln_p = 0.0;
                         if (!scorer->score(candidate.text, start, end, ln_p)) {
                             continue;
@@ -343,6 +473,59 @@ PinyinComposer::compose(const std::string& input, const std::vector<CompositionP
             }
         }
         stats.span_candidate_count += static_cast<uint32_t>(edges.size());
+
+        if (scorer && scorer->sequential()) {
+            // A decoder model writes the sentence a character at a time over the same words
+            // (sequential_compose); its paths are the composed sentences of this syllable path.
+            std::vector<std::vector<SequentialEdge>> by_start(ids.size());
+            for (size_t start = 0; start < ids.size(); ++start) {
+                for (uint32_t edge_index : edges_by_start[start]) {
+                    const SpanEdge& edge = edges[edge_index];
+                    by_start[start].push_back({edge.end, edge.score, &edge.candidate.text});
+                }
+            }
+            bool hit = false;
+            const auto found = sequential_compose(ids.size(), by_start, &ambiguous_joint, *scorer,
+                                                  result_capacity, deadline, hit);
+            if (hit) {
+                stats.deadline_exceeded = true;
+                stats.truncated = true;
+            }
+            for (const auto& found_path : found) {
+                if (found_path.edges.size() < 2) {
+                    continue;  // a single word is already a dictionary candidate
+                }
+                ComposedResult result;
+                Candidate& candidate = result.candidate;
+                int32_t weakest = (std::numeric_limits<int32_t>::max)();
+                for (const auto& [start, index] : found_path.edges) {
+                    const SpanEdge& edge = edges[edges_by_start[start][index]];
+                    candidate.text += edge.candidate.text;
+                    weakest = (std::min)(weakest, edge.candidate.source_frequency);
+                }
+                candidate.code = path.input_code ? *path.input_code : input;
+                if (path.input_code) {
+                    candidate.input_code = *path.input_code;
+                }
+                candidate.syllables = join_syllables(*path.syllables);
+                candidate.origin = CandidateOrigin::kComposed;
+                candidate.source = CandidateSource::kPinyin;
+                candidate.source_frequency = weakest;
+                candidate.frequency = sentence_frequency(found_path.score);
+                candidate.composed_score = (std::min)(found_path.score, int64_t{-1});
+                result.kind = path.kind;
+                result.path_rank = path.rank;
+                result.segment_count = static_cast<uint16_t>(found_path.edges.size());
+                result.weakest_frequency = weakest;
+                result.aggregate_score = found_path.score;
+                result.sequence = ++result_sequence;
+                offer_result(results, std::move(result), result_capacity);
+            }
+            if (lookup_stats.truncated || hit) {
+                break;
+            }
+            continue;
+        }
 
         const uint32_t node_capacity =
             limits.max_nodes > stats.state_count ? limits.max_nodes - stats.state_count : 0;

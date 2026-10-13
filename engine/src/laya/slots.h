@@ -49,6 +49,8 @@ class UnifiedVocab {
   int max_slots() const { return max_slots_; }
   int max_context_tokens() const { return max_context_tokens_; }
   const std::string& context_prefix() const { return context_prefix_; }
+  // The decoder graph beside the model (export_unified_dec.py), "" for a continuation head.
+  const std::string& decoder_file() const { return decoder_file_; }
 
  private:
   std::unordered_map<std::string, int64_t> units_;  // "f:zhong" -> row
@@ -61,6 +63,7 @@ class UnifiedVocab {
   int max_slots_ = 24;
   int max_context_tokens_ = 160;
   std::string context_prefix_;
+  std::string decoder_file_;
   mutable std::mutex mu_;
   mutable std::unordered_map<int64_t, std::vector<uint8_t>> allowed_;
 };

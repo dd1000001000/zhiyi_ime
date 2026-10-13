@@ -58,6 +58,8 @@ struct State {
     // Continuation scores: context and the typed units -> ln P per slot and character, at most
     // 2 x kContinuationCacheBytes.
     laya::ContinuationCache continuation{kContinuationCacheBytes};
+    // A decoder model's readings (laya::Encoded), the same way.
+    laya::GenerationCache<laya::Encoded> encoded{kContinuationCacheBytes};
     bool continuation_in_background = false;
     LayaRerankStats stats;
     LayaRerank::CaptureFn capture;
@@ -380,6 +382,32 @@ SlotScores run_continuation(laya::Reranker& model, const std::string& context,
     return std::make_shared<const std::vector<std::vector<float>>>(std::move(scores));
 }
 
+using EncodedPtr = std::shared_ptr<const laya::Encoded>;
+
+EncodedPtr cached_encoded(const std::string& key) {
+    State& s = state();
+    std::lock_guard<std::mutex> lk(s.mu);
+    return s.encoded.find(key);
+}
+
+void cache_encoded(const std::string& key, EncodedPtr encoded) {
+    State& s = state();
+    std::lock_guard<std::mutex> lk(s.mu);
+    s.encoded.insert(key, std::move(encoded));
+}
+
+// The model's reading; an empty one (no slots) when it fails, so the key is not asked again.
+EncodedPtr run_encode(laya::Reranker& model, const std::string& context, const std::vector<laya::Unit>& units) {
+    EncodedPtr encoded;
+    try {
+        encoded = model.encode(context, units);
+    } catch (const std::exception& e) {
+        laya_log(L"encode failed: " + laya::utf8_to_wide(e.what()));
+        encoded = nullptr;
+    }
+    return encoded ? encoded : std::make_shared<const laya::Encoded>();
+}
+
 }  // namespace
 
 struct ContinuationWork {
@@ -499,6 +527,122 @@ private:
     const std::vector<std::vector<float>>* current_ = nullptr;
 };
 
+// A decoder model's scorer (pinyin_composer.h, sequential): prepare reads the path once
+// (encode, cached as the continuation scores are, computed in the background the same way);
+// the composer's character beam then asks it for the next character of every path it keeps
+// (step: one decoder call), word by word over the dictionary (char_ln_p).
+class DecoderScorer : public SpanScorer {
+public:
+    DecoderScorer(std::shared_ptr<laya::Reranker> model, std::string context, const Config::LayaConfig& lc,
+                  bool background)
+        : model_(std::move(model)),
+          context_(std::move(context)),
+          weight_(lc.decoder_weight),
+          beam_(static_cast<size_t>((std::max)(1, lc.decoder_beam))),
+          min_syllables_(static_cast<size_t>((std::max)(1, lc.continuation_min_syllables))),
+          max_calls_(static_cast<size_t>((std::max)(1, lc.continuation_paths))),
+          background_(background) {}
+
+    bool prepare(const CompositionPath& path, const std::string& input) override {
+        current_ = nullptr;
+        ln_p_.clear();
+        if (!path.syllables || path.syllables->size() < min_syllables_ ||
+            path.syllables->size() > static_cast<size_t>(model_->vocab()->max_slots())) {
+            return false;
+        }
+        const std::string code = letters_only(path.input_code ? *path.input_code : input);
+        std::vector<laya::Unit> units = laya::slot_units(*path.syllables, code);
+        if (units.empty()) {
+            for (const auto& s : *path.syllables) units.push_back({'f', s});
+        }
+        const std::string key = continuation_key(context_, units);
+        auto it = cache_.find(key);
+        if (it == cache_.end()) {
+            if (cache_.size() + missing_keys_.size() >= max_calls_ && !missing_keys_.count(key)) return false;
+            EncodedPtr encoded = cached_encoded(key);
+            if (!encoded && background_) {
+                if (missing_keys_.insert(key).second) missing_.push_back(std::move(units));
+                return false;
+            }
+            if (!encoded) {
+                encoded = run_encode(*model_, context_, units);
+                cache_encoded(key, encoded);
+            }
+            it = cache_.emplace(key, std::move(encoded)).first;
+        }
+        if (!it->second || it->second->slots != static_cast<int64_t>(path.syllables->size())) return false;
+        current_ = it->second;
+        scored_ = true;
+        return true;
+    }
+
+    bool score(const std::string&, size_t, size_t, double&) const override { return false; }
+    bool sequential() const override { return true; }
+
+    bool step(const std::vector<std::string>& prefixes, size_t slot) override {
+        ln_p_.clear();
+        if (!current_) return false;
+        const laya::UnifiedVocab& vocab = *model_->vocab();
+        std::vector<std::vector<int>> ids(prefixes.size());
+        for (size_t i = 0; i < prefixes.size(); ++i) {
+            for (const std::string& c : laya::utf8_chars(prefixes[i])) ids[i].push_back(vocab.char_index(c));
+        }
+        try {
+            ln_p_ = model_->decode(*current_, ids, slot);
+        } catch (const std::exception& e) {
+            laya_log(L"decode failed: " + laya::utf8_to_wide(e.what()));
+            ln_p_.clear();
+        }
+        if (ln_p_.size() != prefixes.size()) {
+            ln_p_.clear();
+            return false;
+        }
+        return true;
+    }
+
+    bool char_ln_p(size_t prefix, const std::string& utf8_char, double& ln_p) const override {
+        if (prefix >= ln_p_.size()) return false;
+        const int k = model_->vocab()->char_index(utf8_char);
+        if (k < 0 || static_cast<size_t>(k) >= ln_p_[prefix].size()) {
+            ln_p = -20.0;  // a character the model does not write
+            return true;
+        }
+        ln_p = static_cast<double>(ln_p_[prefix][static_cast<size_t>(k)]);
+        return true;
+    }
+
+    size_t beam_width() const override { return beam_; }
+    double word_weight() const override { return weight_; }
+    size_t min_syllables() const override { return min_syllables_; }
+    bool scored() const override { return scored_; }
+    void discard() override { scored_ = false; }
+
+    std::shared_ptr<const ContinuationWork> take_work() {
+        if (missing_.empty()) return nullptr;
+        auto work = std::make_shared<ContinuationWork>();
+        work->context = context_;
+        work->units = std::move(missing_);
+        missing_.clear();
+        missing_keys_.clear();
+        return work;
+    }
+
+private:
+    std::shared_ptr<laya::Reranker> model_;
+    std::string context_;
+    double weight_;
+    size_t beam_;
+    size_t min_syllables_;
+    size_t max_calls_;
+    bool background_;
+    bool scored_ = false;
+    std::unordered_map<std::string, EncodedPtr> cache_;  // the paths this translation read
+    std::vector<std::vector<laya::Unit>> missing_;
+    std::unordered_set<std::string> missing_keys_;
+    EncodedPtr current_;
+    std::vector<std::vector<float>> ln_p_;  // the last step's, per prefix
+};
+
 }  // namespace
 
 std::unique_ptr<SpanScorer> LayaRerank::span_scorer(const Config& config, const std::string& context) {
@@ -513,6 +657,7 @@ std::unique_ptr<SpanScorer> LayaRerank::span_scorer(const Config& config, const 
         std::lock_guard<std::mutex> lk(s.mu);
         background = s.continuation_in_background;
     }
+    if (model->has_decoder()) return std::make_unique<DecoderScorer>(std::move(model), ctx, lc, background);
     return std::make_unique<ContinuationScorer>(std::move(model), ctx, lc, background);
 }
 
@@ -523,8 +668,9 @@ void LayaRerank::set_continuation_in_background(bool on) {
 }
 
 std::shared_ptr<const ContinuationWork> LayaRerank::take_continuation_work(SpanScorer& scorer) {
-    auto* continuation = dynamic_cast<ContinuationScorer*>(&scorer);
-    return continuation ? continuation->take_work() : nullptr;
+    if (auto* continuation = dynamic_cast<ContinuationScorer*>(&scorer)) return continuation->take_work();
+    if (auto* decoder = dynamic_cast<DecoderScorer*>(&scorer)) return decoder->take_work();
+    return nullptr;
 }
 
 bool LayaRerank::compute_continuation(const Config& config, const ContinuationWork& work) {
@@ -532,8 +678,13 @@ bool LayaRerank::compute_continuation(const Config& config, const ContinuationWo
     if (!model || !model->has_slots()) return false;
     for (const auto& units : work.units) {
         const std::string key = continuation_key(work.context, units);
-        if (cached_continuation(key)) continue;
-        cache_continuation(key, run_continuation(*model, work.context, units));
+        if (model->has_decoder()) {
+            if (cached_encoded(key)) continue;
+            cache_encoded(key, run_encode(*model, work.context, units));
+        } else {
+            if (cached_continuation(key)) continue;
+            cache_continuation(key, run_continuation(*model, work.context, units));
+        }
     }
     return true;
 }

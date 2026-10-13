@@ -140,6 +140,29 @@ bool has_input(const Ort::Session& session, const char* name) {
   return false;
 }
 
+bool has_output(const Ort::Session& session, const char* name) {
+  Ort::AllocatorWithDefaultOptions alloc;
+  for (size_t i = 0, n = session.GetOutputCount(); i < n; ++i) {
+    if (std::string(session.GetOutputNameAllocated(i, alloc).get()) == name) return true;
+  }
+  return false;
+}
+
+// ln softmax of x over the characters `ok` allows (-1e4 for the others).
+void masked_ln_softmax(const float* x, size_t C, const std::vector<uint8_t>& ok, std::vector<float>& lp) {
+  const size_t n = std::min(C, ok.size());
+  float mx = -1e30f;
+  for (size_t k = 0; k < n; ++k)
+    if (ok[k] && x[k] > mx) mx = x[k];
+  double sum = 0.0;
+  for (size_t k = 0; k < n; ++k)
+    if (ok[k]) sum += std::exp(static_cast<double>(x[k] - mx));
+  const float lse = mx + static_cast<float>(std::log((std::max)(sum, 1e-30)));
+  lp.assign(C, -1e4f);
+  for (size_t k = 0; k < n; ++k)
+    if (ok[k]) lp[k] = x[k] - lse;
+}
+
 }  // namespace
 
 size_t clear_reshape_allowzero(std::vector<char>& model) {
@@ -235,6 +258,18 @@ Reranker::Reranker(const RerankerOptions& opt) {
     vocab_ = std::make_unique<UnifiedVocab>(opt.model_dir + "/unified_vocab.json");
     context_prefix_ids_ = tok_->encode(vocab_->context_prefix());
     load_note_ += "; unified model (" + std::to_string(vocab_->char_count()) + " characters)";
+    // A decoder model: its decoder graph beside it, on the CPU (a few small calls per character).
+    memory_output_ = has_output(*session_, "memory");
+    if (memory_output_ && !vocab_->decoder_file().empty()) {
+      const std::wstring decoder_path = utf8_to_wide(opt.model_dir + "/" + vocab_->decoder_file());
+      std::error_code dec_ec;
+      if (std::filesystem::exists(std::filesystem::path(decoder_path), dec_ec)) {
+        decoder_ = std::make_unique<Ort::Session>(*env_, decoder_path.c_str(), session_options(opt));
+        load_note_ += "; decoder " + vocab_->decoder_file();
+      } else {
+        load_note_ += "; decoder file missing: " + vocab_->decoder_file();
+      }
+    }
   }
 
   head_ids_ = tok_->encode(std::string("choice question: ") +
@@ -345,7 +380,7 @@ std::vector<float> Reranker::score(const std::string& context, const std::vector
 }
 
 bool Reranker::run(Sequence seq, std::vector<float>* logits, std::vector<float>* char_logits,
-                   size_t* chars) const {
+                   size_t* chars, Encoded* encoded) const {
   const int64_t used = static_cast<int64_t>(seq.ids.size());
   const int64_t K = static_cast<int64_t>(seq.markers.size());
   const int64_t S = static_cast<int64_t>(seq.slots.size());
@@ -388,22 +423,48 @@ bool Reranker::run(Sequence seq, std::vector<float>* logits, std::vector<float>*
     in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, qtype.data(), 1, s_q, 1));
     in_names.push_back("qtype");
   }
-  std::vector<const char*> out_names{"logits"};
+  std::vector<const char*> out_names;
+  if (logits) out_names.push_back("logits");
   if (char_logits && slots_input_) out_names.push_back("char_logits");
+  if (encoded && memory_output_) {
+    out_names.push_back("memory");
+    out_names.push_back("slot_vec");
+  }
+  if (out_names.empty()) return false;
   std::unique_lock<std::mutex> gpu_lock;
   if (gpu_) gpu_lock = std::unique_lock<std::mutex>(gpu_run_mutex_);
   auto out = session_->Run(Ort::RunOptions{nullptr}, in_names.data(), in.data(), in.size(), out_names.data(),
                            out_names.size());
+  size_t next = 0;
   if (logits) {
-    const float* l = out[0].GetTensorData<float>();
+    const float* l = out[next++].GetTensorData<float>();
     logits->assign(l, l + K);
   }
   if (char_logits && slots_input_) {
-    const auto shape = out[1].GetTensorTypeAndShapeInfo().GetShape();  // (1, slots, chars)
+    const Ort::Value& v = out[next++];
+    const auto shape = v.GetTensorTypeAndShapeInfo().GetShape();  // (1, slots, chars)
     const size_t C = shape.size() == 3 ? static_cast<size_t>(shape[2]) : 0;
-    const float* c = out[1].GetTensorData<float>();
+    const float* c = v.GetTensorData<float>();
     char_logits->assign(c, c + static_cast<size_t>(S) * C);
     if (chars) *chars = C;
+  }
+  if (encoded && memory_output_) {
+    const Ort::Value& m = out[next++];
+    const auto mshape = m.GetTensorTypeAndShapeInfo().GetShape();  // (1, L, width)
+    const Ort::Value& sv = out[next++];
+    const auto sshape = sv.GetTensorTypeAndShapeInfo().GetShape();  // (1, slots, width)
+    if (mshape.size() != 3 || sshape.size() != 3 || mshape[1] != L || sshape[1] < S) return false;
+    encoded->length = L;
+    encoded->width = mshape[2];
+    encoded->slots = S;
+    const float* md = m.GetTensorData<float>();
+    encoded->memory.assign(md, md + static_cast<size_t>(L * mshape[2]));
+    encoded->mask = att;
+    const float* sd = sv.GetTensorData<float>();
+    encoded->slot_vec.assign(sd, sd + static_cast<size_t>(S * sshape[2]));
+    encoded->unit_ids.clear();
+    for (int64_t j = 0; j < S; ++j)
+      encoded->unit_ids.push_back(seq.units[static_cast<size_t>(seq.slots[static_cast<size_t>(j)])]);
   }
   return true;
 }
@@ -412,7 +473,7 @@ std::vector<float> Reranker::score(const Sequence& seq) const {
   const size_t K = seq.markers.size();
   if (K == 0) return {};
   std::vector<float> p;
-  if (!run(seq, &p, nullptr, nullptr) || p.size() != K) return {};
+  if (!run(seq, &p, nullptr, nullptr, nullptr) || p.size() != K) return {};
   float mx = *std::max_element(p.begin(), p.end());
   float sum = 0;
   for (auto& v : p) sum += (v = std::exp(v - mx));
@@ -420,12 +481,9 @@ std::vector<float> Reranker::score(const Sequence& seq) const {
   return p;
 }
 
-std::vector<std::vector<float>> Reranker::continuation(const std::string& context,
-                                                       const std::vector<Unit>& units) const {
-  if (!vocab_ || units.empty() || units.size() > static_cast<size_t>(vocab_->max_slots())) return {};
+Sequence Reranker::continuation_sequence(const std::string& context, const std::vector<Unit>& units) const {
   const auto& tok = *tok_;
-  // p2c_common.encode: [CLS] 已输入的上文: context [SEP] [MASK] x slots [SEP]; a long context
-  // keeps the prefix and the text nearest the caret.
+  // A long context keeps the prefix and the text nearest the caret.
   Sequence seq;
   auto ctx = tok.encode(vocab_->context_prefix() + context);
   const size_t max_ctx = static_cast<size_t>(vocab_->max_context_tokens());
@@ -439,28 +497,70 @@ std::vector<std::vector<float>> Reranker::continuation(const std::string& contex
   seq.ids.insert(seq.ids.end(), ctx.begin(), ctx.end());
   seq.ids.push_back(tok.sep_id());
   append_slots(seq, units);
+  return seq;
+}
 
+std::vector<std::vector<float>> Reranker::continuation(const std::string& context,
+                                                       const std::vector<Unit>& units) const {
+  if (!vocab_ || units.empty() || units.size() > static_cast<size_t>(vocab_->max_slots())) return {};
+  const Sequence seq = continuation_sequence(context, units);
   std::vector<float> raw;
   size_t C = 0;
-  if (!run(seq, nullptr, &raw, &C) || C == 0) return {};
+  if (!run(seq, nullptr, &raw, &C, nullptr) || C == 0) return {};
   std::vector<std::vector<float>> out(seq.slots.size());
   for (size_t j = 0; j < seq.slots.size(); ++j) {
-    const float* x = raw.data() + j * C;
-    const std::vector<uint8_t>& ok = vocab_->allowed(seq.units[static_cast<size_t>(seq.slots[j])]);
     // ln softmax over the characters the unit can spell (the others are never predicted).
-    float mx = -1e30f;
-    for (size_t k = 0; k < C; ++k)
-      if (ok[k] && x[k] > mx) mx = x[k];
-    double sum = 0.0;
-    for (size_t k = 0; k < C; ++k)
-      if (ok[k]) sum += std::exp(static_cast<double>(x[k] - mx));
-    const float lse = mx + static_cast<float>(std::log((std::max)(sum, 1e-30)));
-    std::vector<float>& lp = out[j];
-    lp.assign(C, -1e4f);
-    for (size_t k = 0; k < C; ++k)
-      if (ok[k]) lp[k] = x[k] - lse;
+    masked_ln_softmax(raw.data() + j * C, C, vocab_->allowed(seq.units[static_cast<size_t>(seq.slots[j])]), out[j]);
   }
   return out;
+}
+
+std::shared_ptr<const Encoded> Reranker::encode(const std::string& context, const std::vector<Unit>& units) const {
+  if (!decoder_ || !vocab_ || units.empty() || units.size() > static_cast<size_t>(vocab_->max_slots())) return nullptr;
+  const Sequence seq = continuation_sequence(context, units);
+  auto encoded = std::make_shared<Encoded>();
+  if (!run(seq, nullptr, nullptr, nullptr, encoded.get())) return nullptr;
+  return encoded;
+}
+
+std::vector<std::vector<float>> Reranker::decode(const Encoded& enc, const std::vector<std::vector<int>>& prefixes,
+                                                 size_t slot) const {
+  if (!decoder_ || !vocab_ || prefixes.empty() || static_cast<int64_t>(slot) >= enc.slots || enc.width == 0) return {};
+  const int64_t B = static_cast<int64_t>(prefixes.size()), L = enc.length, d = enc.width;
+  const int64_t T = static_cast<int64_t>(slot) + 1;
+  // The reading repeated for every prefix (the decoder graph wants matching batches).
+  std::vector<float> memory(static_cast<size_t>(B * L * d)), slot_vec(static_cast<size_t>(B * T * d));
+  std::vector<int64_t> mask(static_cast<size_t>(B * L)), prev(static_cast<size_t>(B * T), -1);
+  for (int64_t b = 0; b < B; ++b) {
+    std::copy(enc.memory.begin(), enc.memory.end(), memory.begin() + static_cast<std::ptrdiff_t>(b * L * d));
+    std::copy(enc.mask.begin(), enc.mask.end(), mask.begin() + static_cast<std::ptrdiff_t>(b * L));
+    std::copy(enc.slot_vec.begin(), enc.slot_vec.begin() + static_cast<std::ptrdiff_t>(T * d),
+              slot_vec.begin() + static_cast<std::ptrdiff_t>(b * T * d));
+    const std::vector<int>& p = prefixes[static_cast<size_t>(b)];
+    for (int64_t t = 1; t < T; ++t) {
+      if (static_cast<size_t>(t - 1) < p.size()) prev[static_cast<size_t>(b * T + t)] = p[static_cast<size_t>(t - 1)];
+    }
+  }
+  const int64_t s_mem[3] = {B, L, d}, s_mask[2] = {B, L}, s_slot[3] = {B, T, d}, s_prev[2] = {B, T};
+  std::vector<Ort::Value> in;
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, memory.data(), memory.size(), s_mem, 3));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, mask.data(), mask.size(), s_mask, 2));
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, slot_vec.data(), slot_vec.size(), s_slot, 3));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, prev.data(), prev.size(), s_prev, 2));
+  const char* in_names[4] = {"memory", "memory_mask", "slot_vec", "prev"};
+  const char* out_names[1] = {"char_logits"};
+  auto out = decoder_->Run(Ort::RunOptions{nullptr}, in_names, in.data(), in.size(), out_names, 1);
+  const auto shape = out[0].GetTensorTypeAndShapeInfo().GetShape();  // (B, T, chars)
+  if (shape.size() != 3 || shape[0] != B || shape[1] != T) return {};
+  const size_t C = static_cast<size_t>(shape[2]);
+  const float* data = out[0].GetTensorData<float>();
+  const std::vector<uint8_t>& ok = vocab_->allowed(enc.unit_ids[slot]);
+  std::vector<std::vector<float>> result(static_cast<size_t>(B));
+  for (int64_t b = 0; b < B; ++b) {
+    masked_ln_softmax(data + static_cast<size_t>(b * T + static_cast<int64_t>(slot)) * C, C, ok,
+                      result[static_cast<size_t>(b)]);
+  }
+  return result;
 }
 
 }  // namespace laya

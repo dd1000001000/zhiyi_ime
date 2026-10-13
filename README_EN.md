@@ -4,6 +4,22 @@
 
 **English** | [中文](README.md)
 
+## About Zhiyu (this fork)
+
+Zhiyu IME is an **independent fork** of Zhiyi IME: the update check and the language-pack / translator / voice model downloads point at **this repository's** releases, and the manifests are signed with this repository's own key (`update/include/cxxime/update.h` for the URLs, `update/src/update_public_key.inc` for the public key). Apart from the name and version, it matches upstream.
+
+**Publishing an update** (maintainers):
+
+1. Create and keep a signing key (once; never commit the private key):
+   `python scripts/update_signing.py generate --write-inc`, then rebuild.
+2. Name the installer `zhiyu-v<version>-setup.exe`.
+3. Build and sign the update manifest:
+   `python scripts/make_release.py --version <version> --installer <path>`
+4. Create a release tagged **`v<version>`** in this repository and upload the installer, `latest.json` and `latest.json.sig`.
+5. The model manifests (`glossary.json` / `translator.json` / `voice.json`) work the same way: point `url` / `sha256` at this repository's assets, re-sign with `python scripts/update_signing.py sign <manifest>` and upload to the matching tag (`glossary` / `translator` / `voice`).
+
+> After the signing key changes, an upstream build cannot be updated by this repository — the first switch is a manual install.
+
 [![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/17)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![CMake](https://img.shields.io/badge/CMake-3.15%2B-064F8C?style=flat-square&logo=cmake&logoColor=white)](https://cmake.org)

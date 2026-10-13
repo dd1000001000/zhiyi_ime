@@ -27,10 +27,10 @@ bool is_lower_hex(const std::string& text, size_t length) {
     return true;
 }
 
-// zhiyi-v<version>-setup.exe: no path separators or other surprises in a file name the
+// zhiyu-v<version>-setup.exe: no path separators or other surprises in a file name the
 // installer is saved under.
 bool is_installer_name(const std::string& file, const std::string& version) {
-    return file == "zhiyi-v" + version + "-setup.exe";
+    return file == "zhiyu-v" + version + "-setup.exe";
 }
 
 bool is_release_version(const std::string& version) {

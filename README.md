@@ -4,6 +4,22 @@
 
 [English](README_EN.md) | **中文**
 
+## 关于知语（这个 fork）
+
+知语（Zhiyu IME）是知意输入法的一个**独立分支**：更新检查、语言包 / 翻译模型 / 语音模型的下载，都指向**本仓库**的 Release；清单签名用本仓库自己的密钥（`update/include/cxxime/update.h` 里的地址 + `update/src/update_public_key.inc` 里的公钥）。除品牌名与版本号外，实现与上游基本一致。
+
+**自己发布一个更新**（维护者）：
+
+1. 生成并保管签名密钥（只需一次，私钥**不要**提交）：
+   `python scripts/update_signing.py generate --write-inc`，然后重新构建。
+2. 把安装器命名为 `zhiyu-v<版本>-setup.exe`。
+3. 生成并签名更新清单：
+   `python scripts/make_release.py --version <版本> --installer <安装器路径>`
+4. 在本仓库建 **tag `v<版本>`** 的 Release，上传安装器、`latest.json`、`latest.json.sig`。
+5. 模型清单（`glossary.json` / `translator.json` / `voice.json`）同理：把 `url` / `sha256` 指向本仓库的资产，用 `python scripts/update_signing.py sign <清单>` 重签，上传到对应的 tag（`glossary` / `translator` / `voice`）。
+
+> 注意：换了签名公钥后，**上游版本无法被本仓库的更新覆盖**，第一次要手动安装一次本版本。
+
 [![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/17)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![CMake](https://img.shields.io/badge/CMake-3.15%2B-064F8C?style=flat-square&logo=cmake&logoColor=white)](https://cmake.org)

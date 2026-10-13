@@ -22,7 +22,7 @@ namespace settings {
 
 constexpr WORD kKeyCaptureChanged = 0x4B43;  // WM_COMMAND notification code
 
-// `allow_tap`: a modifier tapped alone (Shift, Ctrl, Alt) is accepted; otherwise only combinations.
+// `allow_tap`: a modifier tapped alone (Shift, Ctrl) is accepted; otherwise only combinations.
 HWND create_key_capture(int id, int x, int y, int width, int height, HWND parent, bool allow_tap);
 void key_capture_set(HWND control, const KeyChoice& choice);
 KeyChoice key_capture_get(HWND control);

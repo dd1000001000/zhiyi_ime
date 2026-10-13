@@ -70,11 +70,12 @@
 
 - **左键**点击按键框后按下新的按键（Esc 取消），**右键**点击清空（不使用这个切换键）。
 - 录入时按键先交给按键框，其他程序的全局热键、知意的“打开/关闭输入法”热键和输入法都不会先拿走它，所以被其他程序占用的组合也能录到（录到后提示“已被其他程序占用”），录入时也不会触发那个程序。Win 组合键、Alt+Tab、Alt+Esc、Ctrl+Esc 照常切换窗口，录入随之取消。
-- 每个切换键都可以是单独轻按 Shift、Ctrl 或 Alt（同一个键只能给一项），或者组合键：Ctrl / Alt 组合、Shift + Space 或 F1–F11。
+- 每个切换键都可以是单独轻按 Shift 或 Ctrl（同一个键只能给一项），或者组合键：Ctrl / Alt 组合、Shift + Space 或 F1–F11。
   轻按修饰键默认不分左右（任意一侧都算）。点按键框右侧的箭头（或按 Alt + ↓），可以选“只认左 Ctrl”“只认右 Ctrl”这样只认一侧，
   同一个修饰键只能给一项：某一项用了右 Ctrl，左 Ctrl 也不能再给别的切换键。
   很多新笔记本没有右 Ctrl（换成了 Copilot 键）。按住一个修饰键时再按另一个（如 Ctrl + Shift 切换键盘布局）不算轻按。
-  配置文件里是 `ascii_composer.switch_key` 的 `Shift_L` `Shift_R` `Control_L` `Control_R` `Alt_L` `Alt_R`：中英切换为 `code`，另外四项为 `toggle_style` `toggle_punct` `toggle_shape` `toggle_voice`；左右两侧同值表示不区分，只写一侧表示只认该侧。
+  配置文件里是 `ascii_composer.switch_key` 的 `Shift_L` `Shift_R` `Control_L` `Control_R`：中英切换为 `code`，另外四项为 `toggle_style` `toggle_punct` `toggle_shape` `toggle_voice`；左右两侧同值表示不区分，只写一侧表示只认该侧。
+  不能设成单独轻按 Alt：Windows 不把 Alt 键交给输入法，设了也不会触发。
 - 不能和其他切换键重复，也不能用复制、粘贴等常用快捷键；重复时保留原来的设置。
 - 按键框下方的提示：灰色“已接管系统的××热键”表示和 Windows 输入法热键相同，由知意输入法处理；
   黄色“已被其他程序占用，可能无效”表示其他程序注册了这个全局热键。
@@ -237,14 +238,14 @@
 | `voice.language` | `auto` | 识别语言：`auto` `zh` `en` `yue` |
 | `voice.itn` | true | 数字和日期写成阿拉伯数字 |
 | `voice.max_seconds` | 60 | 一次最长录音秒数（5–300），到时自动结束并识别 |
-| `shortcuts.voice_input` | `disabled` | 语音输入快捷键（组合键；单独轻按 Shift / Ctrl / Alt 见 `ascii_composer.switch_key` 的 `toggle_voice`） |
+| `shortcuts.voice_input` | `disabled` | 语音输入快捷键（组合键；单独轻按 Shift / Ctrl 见 `ascii_composer.switch_key` 的 `toggle_voice`） |
 | `learning.digits_type_translation` | false | 学习模式下 1～9 打出翻译、Ctrl+1～9 打出候选本身（默认相反）；没有翻译时都不打字 |
 | `style.render_backend` | d2d | 候选窗口渲染：d2d 或 gdi |
 | `theme` | moon_light | 候选窗口配色（`moon_light` / `moon_dark`；`themes.json` 中还有其他预设） |
 | `ui.language` | auto | 界面语言：auto、zh-CN、en-US |
 | `shortcuts.ascii_toggle` / `english_style` / `punct_toggle` / `shape_toggle` | 见“按键” | 切换键，如 `Ctrl+Space`；`disabled` 表示不用 |
 | `shortcuts.page_up` / `page_down` | `""` | 有候选时翻到上一页 / 下一页的键：`-` `,` `[` / `=` `.` `]`，`""` 表示不用（见“按键”的候选翻页） |
-| `ascii_composer.switch_key` | Shift 切换 | 单独轻按 Shift / Ctrl / Alt 的行为（`code`、`clear`、`set_ascii_mode`、`noop` 等，见 [组合输入](ascii-composer.md)）；`..._L` / `..._R` 两侧同值表示不区分左右，只写一侧表示只认该侧 |
+| `ascii_composer.switch_key` | Shift 切换 | 单独轻按 Shift / Ctrl 的行为（`code`、`clear`、`set_ascii_mode`、`noop` 等，见 [组合输入](ascii-composer.md)）；`..._L` / `..._R` 两侧同值表示不区分左右，只写一侧表示只认该侧 |
 | `english.word_mode` | true | 英文模式默认单词联想 |
 | `english.correction` | true | 英文拼写纠错 |
 | `english.mixed_in_chinese` | true | 中文模式下提供完整的英文单词 |

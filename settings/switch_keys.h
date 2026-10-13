@@ -2,7 +2,8 @@
 //
 // The five switch keys of Settings > Keys (中英切换, 输入方式切换, 中英文标点, 全角/半角, 语音输入)
 // and how they are stored: a combination in shortcuts.*, or a modifier tapped alone in
-// ascii_composer.switch_key (Shift_L / Shift_R / Control_L / Control_R / Alt_L / Alt_R).
+// ascii_composer.switch_key (Shift_L / Shift_R / Control_L / Control_R). A tapped Alt is not
+// offered: Windows does not hand Alt keys to input methods (TSF passes no system keys).
 #ifndef CXXIME_SETTINGS_SWITCH_KEYS_H_
 #define CXXIME_SETTINGS_SWITCH_KEYS_H_
 
@@ -17,8 +18,8 @@ namespace settings {
 struct KeyChoice {
     enum class Kind { kNone, kTap, kCombo };
     Kind kind = Kind::kNone;
-    // A modifier tapped alone: the generic VK_SHIFT / VK_CONTROL / VK_MENU for either side, or the
-    // specific VK_LSHIFT / VK_RSHIFT / VK_LCONTROL / VK_RCONTROL / VK_LMENU / VK_RMENU for one side.
+    // A modifier tapped alone: the generic VK_SHIFT / VK_CONTROL for either side, or the specific
+    // VK_LSHIFT / VK_RSHIFT / VK_LCONTROL / VK_RCONTROL for one side.
     uint32_t tap_key = 0;
     KeyboardShortcut combo;   // kCombo
 
@@ -29,7 +30,7 @@ struct KeyChoice {
     }
 };
 
-// A tapped modifier: which one (the generic VK_SHIFT / VK_CONTROL / VK_MENU, 0 for any other key)
+// A tapped modifier: which one (the generic VK_SHIFT / VK_CONTROL, 0 for any other key)
 // and which side it stands for.
 enum class TapSide { kEither, kLeft, kRight };
 uint32_t tap_family(uint32_t vk);

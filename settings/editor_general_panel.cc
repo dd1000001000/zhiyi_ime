@@ -267,8 +267,7 @@ void EditorApp::create_keys_panel(HWND panel) {
         HWND* box;
         const char* hint;
     };
-    // Each takes a modifier tapped alone (Shift, Ctrl or Alt; the box's arrow picks one side), or
-    // a combination.
+    // Each takes Shift or Ctrl tapped alone (the box's arrow picks one side), or a combination.
     const Row rows[] = {
         {"keys.switch", kSwitchKeyId, &hSwitchKey_, "keys.switch_hint"},
         {"keys.style", kStyleKeyId, &hStyleKey_, "keys.style_hint"},

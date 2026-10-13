@@ -27,7 +27,6 @@ struct TapKeys {
 constexpr TapKeys kTapKeys[] = {
     {"Shift_L", "Shift_R", VK_SHIFT, VK_LSHIFT, VK_RSHIFT},
     {"Control_L", "Control_R", VK_CONTROL, VK_LCONTROL, VK_RCONTROL},
-    {"Alt_L", "Alt_R", VK_MENU, VK_LMENU, VK_RMENU},
 };
 
 const TapKeys* tap_keys_of(uint32_t vk) {
@@ -114,6 +113,10 @@ void apply_switch_key_choices(Config& config, const KeyChoice (&choices)[kSwitch
         config.ascii_switch_key[keys.left] = "noop";
         config.ascii_switch_key[keys.right] = "noop";
     }
+    // A tapped Alt never reaches the input method: none is kept (1.5.3 builds before the release
+    // could write one).
+    config.ascii_switch_key["Alt_L"] = "noop";
+    config.ascii_switch_key["Alt_R"] = "noop";
     for (int slot = 0; slot < kSwitchKeyCount; ++slot) {
         const KeyChoice& choice = choices[slot];
         *combos[slot] = choice.kind == KeyChoice::Kind::kCombo ? choice.combo : KeyboardShortcut{};

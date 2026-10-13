@@ -67,7 +67,6 @@ __pycache__/
 /scripts/RELEASING.md
 /scripts/package.py
 /scripts/install_payload.py
-/scripts/update_signing.py
 /scripts/verify_package.py
 /scripts/package_checks/
 /scripts/zhiyi-setup.nsi

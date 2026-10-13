@@ -19,7 +19,7 @@ DEST = os.path.join(ROOT, "models", "laya")
 FILES = ["laya.int8g.onnx", "laya_decoder.int8.onnx", "tokenizer.json", "rl_agent_config.json",
          "unified_vocab.json"]
 ASSET = "laya-zhen-unified-dec-int8g.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-unified-dec/{ASSET}"
+URL = f"https://github.com/w3c0929/zhiyi_ime/releases/download/model-zhen-unified-dec/{ASSET}"
 # SHA-256 of the two graphs: the decoder model (1.5.4). The unified model of 1.4 (mmBERT-small,
 # 22 layers, width 384: word choice among the candidates, reading the typed pinyin as slots) with
 # its one-shot continuation head replaced by a two-layer decoder (laya_decoder.int8.onnx) that

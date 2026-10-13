@@ -19,7 +19,9 @@ constexpr int kProjectLinkId = 5002;
 constexpr int kUpstreamLinkId = 5003;
 constexpr int kGlossaryLinkId = 5006;
 constexpr UINT kCopyLinkCommand = 1;
-constexpr wchar_t kProjectUrl[] = L"https://github.com/dd1000001000/zhiyi_ime";
+// This build: w3c0929's fork of zhiyi_ime (forked from dd1000001000/zhiyi_ime, whose upstream is
+// deanxyuan/cxx-ime — the original 知意输入法 author, kept in kUpstreamUrl for attribution).
+constexpr wchar_t kProjectUrl[] = L"https://github.com/w3c0929/zhiyi_ime";
 constexpr wchar_t kUpstreamUrl[] = L"https://github.com/deanxyuan/cxx-ime";
 // The learning-mode word lists, open to corrections.
 constexpr wchar_t kGlossaryUrl[] = L"https://github.com/dd1000001000/zhiyi-glossary";

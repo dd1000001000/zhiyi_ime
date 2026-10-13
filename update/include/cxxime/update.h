@@ -24,11 +24,11 @@ namespace cxxime {
 namespace update {
 
 inline constexpr char kReleaseBase[] =
-    "https://github.com/dd1000001000/zhiyi_ime/releases/latest/download/";
+    "https://github.com/w3c0929/zhiyi_ime/releases/latest/download/";
 inline constexpr char kDownloadPrefix[] =
-    "https://github.com/dd1000001000/zhiyi_ime/releases/download/";
+    "https://github.com/w3c0929/zhiyi_ime/releases/download/";
 inline constexpr wchar_t kReleasesPage[] =
-    L"https://github.com/dd1000001000/zhiyi_ime/releases/latest";
+    L"https://github.com/w3c0929/zhiyi_ime/releases/latest";
 // Development only: another base URL for latest.json and the installers (e.g. a local server,
 // http allowed on 127.0.0.1 / localhost). The signature is still checked with the built-in key.
 inline constexpr wchar_t kTestBaseVariable[] = L"ZHIYI_UPDATE_TEST_BASE";

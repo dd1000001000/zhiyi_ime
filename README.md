@@ -1,17 +1,19 @@
-# 知意输入法（Zhiyi IME）
+# 知语输入法（Zhiyu IME）
+
+> 本版本由 [w3c0929](https://github.com/w3c0929) 维护,基于 [知意输入法（Zhiyi IME）](https://github.com/dd1000001000/zhiyi_ime) 修改。
 
 [English](README_EN.md) | **中文**
 
 [![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/17)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![CMake](https://img.shields.io/badge/CMake-3.15%2B-064F8C?style=flat-square&logo=cmake&logoColor=white)](https://cmake.org)
-[![Windows CI](https://img.shields.io/github/actions/workflow/status/dd1000001000/zhiyi_ime/windows-ci.yml?branch=main&label=Windows%20CI&style=flat-square)](https://github.com/dd1000001000/zhiyi_ime/actions/workflows/windows-ci.yml)
-[![Release](https://img.shields.io/github/v/release/dd1000001000/zhiyi_ime?style=flat-square)](https://github.com/dd1000001000/zhiyi_ime/releases/latest)
-[![License](https://img.shields.io/github/license/dd1000001000/zhiyi_ime?style=flat-square)](LICENSE)
+[![Windows CI](https://img.shields.io/github/actions/workflow/status/w3c0929/zhiyi_ime/windows-ci.yml?branch=main&label=Windows%20CI&style=flat-square)](https://github.com/w3c0929/zhiyi_ime/actions/workflows/windows-ci.yml)
+[![Release](https://img.shields.io/github/v/release/w3c0929/zhiyi_ime?style=flat-square)](https://github.com/w3c0929/zhiyi_ime/releases/latest)
+[![License](https://img.shields.io/github/license/w3c0929/zhiyi_ime?style=flat-square)](LICENSE)
 
 > 轻量 · 开源 · 懂上文 —— 根据光标前的文字推荐候选的 Windows 中英文输入法
 
-<a href="docs/media/zhiyi-intro.mp4"><img src="docs/media/zhiyi-intro-preview.webp" alt="知意输入法宣传视频" width="100%"></a>
+<a href="docs/media/zhiyi-intro.mp4"><img src="docs/media/zhiyi-intro-preview.webp" alt="知语输入法宣传视频" width="100%"></a>
 
 <p align="center"><a href="docs/media/zhiyi-intro.mp4">▶ 观看宣传视频：四个人，四段前文（1 分 58 秒 · 中文配音 · 中英字幕）</a></p>
 
@@ -38,11 +40,11 @@
 - **自由设置切换键**：中英切换、输入方式、中英文标点、全角/半角都可以设置成自己习惯的按键，
   并提示与系统或其他程序快捷键的冲突
 - **任务栏快速切换**：右键任务栏上的“中/英”可以切换中英文、全拼/首字母/五笔/双拼、标点、全角等，
-  也可以“退出”后台服务（再次切换到知意输入法时自动启动）
+  也可以“退出”后台服务（再次切换到知语输入法时自动启动）
 - **候选窗口**：竖排（默认）或横排，浅色 / 深色主题，三档字号；中英文界面
 - **自学习**：常用的词自动往前排，刚上屏就按退格可以撤销这次学习
 - **备份与迁移**：把所有设置、词库和学习记录导出成一个文件，换电脑或重装后导入；备份不完整或损坏时什么都不导入
-- **开机启动可选**：可以不在开机时启动后台服务，第一次切换到知意输入法时再启动
+- **开机启动可选**：可以不在开机时启动后台服务，第一次切换到知语输入法时再启动
 - **自动更新**：打开设置时检查新版本，一键下载、校验并安装；语言包也能单独检查更新
 - **隐私**：可选的用户体验改进计划，默认关闭，记录只保存在本机，详见[隐私说明](docs/privacy.md)
 
@@ -64,21 +66,21 @@
 
 **系统要求**：Windows 10 / 11（64 位）。
 
-1. 从 [Releases](https://github.com/dd1000001000/zhiyi_ime/releases/latest) 下载最新的
+1. 从 [Releases](https://github.com/w3c0929/zhiyi_ime/releases/latest) 下载最新的
    `zhiyi-v版本号-setup.exe`，双击运行并按提示安装（需要管理员权限）。
-2. 安装完成后按 `Win + 空格` 切换到“知意输入法”。也可以在“设置 > 时间和语言 > 语言和区域”中
+2. 安装完成后按 `Win + 空格` 切换到“知语输入法”。也可以在“设置 > 时间和语言 > 语言和区域”中
    把它设为默认输入法。
 3. 打开设置：右键任务栏上的“中/英”，选择“设置…”。
 
 - **更新**：有新版本时，打开设置会提醒你，在“更新”页点“立即更新”即可。已经打开的程序要重新打开
   才会用上新版本。
 - **换电脑或重装**：在设置的“词库”页“导出…”备份，到新电脑上“导入…”。
-- **卸载**：在“设置 > 应用 > 已安装的应用”中卸载“知意输入法”，可以选择是否保留个人数据
+- **卸载**：在“设置 > 应用 > 已安装的应用”中卸载“知语输入法”，可以选择是否保留个人数据
   （位于 `%USERPROFILE%\zhiyi\`，包括设置、学习记录和下载的语言包）。
 
 ## 致谢
 
-知意输入法基于 [CxxIME](https://github.com/deanxyuan/cxx-ime) 修改而来，感谢以下项目：
+知语输入法由 [w3c0929](https://github.com/w3c0929) 基于 [知意输入法（Zhiyi IME）](https://github.com/dd1000001000/zhiyi_ime) 修改，后者又基于 [CxxIME](https://github.com/deanxyuan/cxx-ime)。感谢以下项目：
 
 - [CxxIME](https://github.com/deanxyuan/cxx-ime)：输入法框架、拼音引擎、候选窗与设置程序（Apache License 2.0）
 - [rime-ice（雾凇拼音）](https://github.com/iDvel/rime-ice)：中文拼音词库与英文词表（GPL-3.0）
@@ -95,5 +97,5 @@
 学习模式的语言包由大语言模型（GLM、Gemma）离线生成后经自动检查和人工修订，词表按 GPL-3.0 公开在
 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary)。
 
-知意输入法按 [GPL-3.0-only](LICENSE) 发布，各组件的完整声明见 [NOTICE](NOTICE) 和
+知语输入法按 [GPL-3.0-only](LICENSE) 发布，各组件的完整声明见 [NOTICE](NOTICE) 和
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)。开发与构建说明见 [docs/development.md](docs/development.md)。

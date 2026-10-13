@@ -1,18 +1,20 @@
-# Zhiyi IME (知意输入法)
+# Zhiyu IME (知语输入法)
+
+> Maintained by [w3c0929](https://github.com/w3c0929), based on [Zhiyi IME](https://github.com/dd1000001000/zhiyi_ime).
 
 **English** | [中文](README.md)
 
 [![C++](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/17)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?style=flat-square&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![CMake](https://img.shields.io/badge/CMake-3.15%2B-064F8C?style=flat-square&logo=cmake&logoColor=white)](https://cmake.org)
-[![Windows CI](https://img.shields.io/github/actions/workflow/status/dd1000001000/zhiyi_ime/windows-ci.yml?branch=main&label=Windows%20CI&style=flat-square)](https://github.com/dd1000001000/zhiyi_ime/actions/workflows/windows-ci.yml)
-[![Release](https://img.shields.io/github/v/release/dd1000001000/zhiyi_ime?style=flat-square)](https://github.com/dd1000001000/zhiyi_ime/releases/latest)
-[![License](https://img.shields.io/github/license/dd1000001000/zhiyi_ime?style=flat-square)](LICENSE)
+[![Windows CI](https://img.shields.io/github/actions/workflow/status/w3c0929/zhiyi_ime/windows-ci.yml?branch=main&label=Windows%20CI&style=flat-square)](https://github.com/w3c0929/zhiyi_ime/actions/workflows/windows-ci.yml)
+[![Release](https://img.shields.io/github/v/release/w3c0929/zhiyi_ime?style=flat-square)](https://github.com/w3c0929/zhiyi_ime/releases/latest)
+[![License](https://img.shields.io/github/license/w3c0929/zhiyi_ime?style=flat-square)](LICENSE)
 
 > Lightweight · Open source · Context-aware — a Windows Chinese/English input method that picks
 > candidates by the text before the caret
 
-<a href="docs/media/zhiyi-intro.mp4"><img src="docs/media/zhiyi-intro-preview.webp" alt="Zhiyi IME intro video" width="100%"></a>
+<a href="docs/media/zhiyi-intro.mp4"><img src="docs/media/zhiyi-intro-preview.webp" alt="Zhiyu IME intro video" width="100%"></a>
 
 <p align="center"><a href="docs/media/zhiyi-intro.mp4">▶ Watch the intro video: four people, four stories (1:58 · Chinese voices · Chinese and English subtitles)</a></p>
 
@@ -53,7 +55,7 @@
   warnings about conflicts with Windows or other programs.
 - **Taskbar menu**: right-click the 中/英 indicator to switch Chinese/English, full pinyin / initials /
   Wubi / shuangpin, punctuation, full width and more, or to exit the background service (it starts again when you
-  switch to Zhiyi IME).
+  switch to Zhiyu IME).
 - **Candidate window**: vertical (default) or horizontal, light and dark themes, three font sizes;
   Chinese and English interface.
 - **Self-learning**: words you use move up; Backspace right after a commit undoes what it learned.
@@ -61,7 +63,7 @@
   import it on another computer or after reinstalling; nothing is imported from an incomplete or
   damaged backup.
 - **Optional start at sign-in**: the background service can start the first time you switch to
-  Zhiyi IME instead.
+  Zhiyu IME instead.
 - **Automatic updates**: Settings checks for a new version when it opens and installs it in one click;
   language packs have their own update check.
 - **Privacy**: an optional user experience program, off by default, with records kept on your computer
@@ -86,9 +88,9 @@ Candidates the learning-mode language packs lack are translated by a model on yo
 **Requirements**: Windows 10 / 11 (64-bit).
 
 1. Download the latest `zhiyi-v<version>-setup.exe` from
-   [Releases](https://github.com/dd1000001000/zhiyi_ime/releases/latest) and run it (administrator
+   [Releases](https://github.com/w3c0929/zhiyi_ime/releases/latest) and run it (administrator
    approval is needed).
-2. Press `Win + Space` to switch to Zhiyi IME, or make it the default input method in Windows Settings
+2. Press `Win + Space` to switch to Zhiyu IME, or make it the default input method in Windows Settings
    > Time & language > Language & region.
 3. To open Settings, right-click 中/英 on the taskbar and choose Settings….
 
@@ -96,12 +98,12 @@ Candidates the learning-mode language packs lack are translated by a model on yo
   Programs already open use the new version after they are reopened.
 - **Moving to another computer or reinstalling**: Export… on the Dictionary page of Settings, then
   Import… on the new computer.
-- **Uninstalling**: uninstall Zhiyi IME in Windows Settings > Apps > Installed apps; you can keep your
+- **Uninstalling**: uninstall Zhiyu IME in Windows Settings > Apps > Installed apps; you can keep your
   personal data (settings, learned words and downloaded language packs in `%USERPROFILE%\zhiyi\`).
 
 ## Credits
 
-Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime). Thanks to:
+Zhiyu IME is maintained by [w3c0929](https://github.com/w3c0929); it is a modified version of [Zhiyi IME](https://github.com/dd1000001000/zhiyi_ime), itself a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime). Thanks to:
 
 - [CxxIME](https://github.com/deanxyuan/cxx-ime): the input method framework, pinyin engine,
   candidate window and settings app (Apache License 2.0)
@@ -121,6 +123,6 @@ The learning-mode language packs were generated offline by large language models
 checked automatically and corrected by hand; the word lists are open under GPL-3.0 at
 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary).
 
-Zhiyi IME is licensed under [GPL-3.0-only](LICENSE); full notices are in [NOTICE](NOTICE) and
+Zhiyu IME is licensed under [GPL-3.0-only](LICENSE); full notices are in [NOTICE](NOTICE) and
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt). Development and build notes:
 [docs/development.md](docs/development.md).

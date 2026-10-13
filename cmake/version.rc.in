@@ -23,13 +23,13 @@ BEGIN
     BEGIN
         BLOCK "080404B0"
         BEGIN
-            VALUE "CompanyName", "知意输入法\0"
+            VALUE "CompanyName", "Zhiyu IME\0"
             VALUE "FileDescription", "@CXXIME_FILE_DESCRIPTION@\0"
             VALUE "FileVersion", "@CXXIME_VERSION_NUMERIC_DOTTED@\0"
             VALUE "InternalName", "@target@\0"
-            VALUE "LegalCopyright", "Copyright (c) 2026 知意输入法 Contributors, GPL-3.0; based on CxxIME (c) 2026 CxxIME Contributors, Apache-2.0\0"
+            VALUE "LegalCopyright", "Copyright (c) 2026 Zhiyu IME Contributors, GPL-3.0; based on zhiyi_ime (c) 2026 Zhiyi IME Contributors and CxxIME (c) 2026 CxxIME Contributors, Apache-2.0\0"
             VALUE "OriginalFilename", "@CXXIME_ORIGINAL_FILENAME@\0"
-            VALUE "ProductName", "知意输入法 (Zhiyi IME)\0"
+            VALUE "ProductName", "Zhiyu IME (知语输入法)\0"
             VALUE "ProductVersion", "@CXXIME_VERSION@\0"
         END
     END

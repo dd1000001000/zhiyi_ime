@@ -1,14 +1,16 @@
-知意输入法 (Zhiyi IME)
-Copyright (c) 2026 知意输入法 Contributors
+知语输入法 (Zhiyu IME)
+Copyright (c) 2026 知语输入法 Contributors
 
-知意输入法 is free software, distributed under the GNU General Public License,
+知语输入法 is free software, distributed under the GNU General Public License,
 version 3 only (GPL-3.0-only); see LICENSE.
 
-This product is a modified version of CxxIME
+This product is maintained by w3c0929. It is a modified version of 知意输入法 / Zhiyi IME
+(https://github.com/dd1000001000/zhiyi_ime), Copyright (c) 2026 Zhiyi IME Contributors
+(GPL-3.0-only), which is itself a modified version of CxxIME
 (https://github.com/deanxyuan/cxx-ime), Copyright (c) 2026 CxxIME Contributors,
 licensed under the Apache License, Version 2.0 (data/licenses/Apache-2.0.txt).
 The original copyright and license notices are retained in the source files taken
-from CxxIME; files added by 知意输入法 carry a GPL-3.0-only notice.
+from CxxIME and Zhiyi IME; files added by 知语输入法 carry a GPL-3.0-only notice.
 
 Changes made to CxxIME (2026-10):
 - Laya context reranking: a Laya decision model (fine-tuned, then distilled into

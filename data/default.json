@@ -1,8 +1,8 @@
 {
     "schema": {
-        "name": "Zhiyi IME",
+        "name": "Zhiyu IME",
         "version": "1.0",
-        "description": "Zhiyi IME default configuration"
+        "description": "Zhiyu IME default configuration"
     },
     "engine": {
         "page_size": 7,

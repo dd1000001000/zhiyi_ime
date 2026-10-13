@@ -581,12 +581,18 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
     const bool swapped_keys = learning_keys && config->digits_type_translation;
     const bool zero_picks = !SymbolProcessor::is_active(context_) &&
                             context_.selectable_candidate_count() >= 10;
-    const int digit_index = event.keycode >= '1' && event.keycode <= '9'
-                                ? static_cast<int>(event.keycode - '1')
-                                : event.keycode == '0' ? 9 : -1;
+    // Ctrl+number on the numeric keypad is Ctrl+number too (#20); a plain keypad number stays a
+    // literal number (below).
+    const uint32_t digit_key = event.is_ctrl() && event.keycode >= VK_NUMPAD0 &&
+                                       event.keycode <= VK_NUMPAD9
+                                   ? '0' + (event.keycode - VK_NUMPAD0)
+                                   : event.keycode;
+    const int digit_index = digit_key >= '1' && digit_key <= '9'
+                                ? static_cast<int>(digit_key - '1')
+                                : digit_key == '0' ? 9 : -1;
     const bool digit_picks = digit_index >= 0 &&
                              digit_index < context_.selectable_candidate_count() &&
-                             (event.keycode != '0' || zero_picks);
+                             (digit_key != '0' || zero_picks);
     // A plain number past the page is typed as a number (below); Ctrl+0..9 is ours either way.
     const bool learning_digit =
         learning_keys && !picking_by_ctrl_digit_ && !event.is_key_up && !event.is_alt() &&
@@ -603,6 +609,7 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         }
         // The candidate itself, as the number picks it otherwise.
         KeyEvent plain = event;
+        plain.keycode = digit_key;
         plain.modifiers &= ~kKeyModifierControl;
         picking_by_ctrl_digit_ = true;
         const ProcessResult result = process_key(plain, opts, visible_candidate_count);

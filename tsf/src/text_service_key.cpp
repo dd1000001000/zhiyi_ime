@@ -580,9 +580,7 @@ bool TextService::_take_translation_key(UINT message, const KBDLLHOOKSTRUCT& key
         if (_translationKeyDown == 0) _remove_translation_key_hook();  // typing has ended
         return false;
     }
-    const bool digit = (key.vkCode >= '0' && key.vkCode <= '9') ||
-                       (key.vkCode >= VK_NUMPAD0 && key.vkCode <= VK_NUMPAD9);  // #20
-    if (!down || !digit || !key_held(VK_CONTROL) ||
+    if (!down || key.vkCode < '0' || key.vkCode > '9' || !key_held(VK_CONTROL) ||
         key_held(VK_MENU) || key_held(VK_SHIFT) || key_held(VK_LWIN) || key_held(VK_RWIN) ||
         !focus_in_this_thread()) {
         return false;

@@ -3,7 +3,7 @@
   python scripts/fetch_model.py            # download the release asset and verify it
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ for a release upload
 
-The model (laya.int8g.onnx ~84 MB and laya_decoder.int8.onnx ~20 MB) is too large for git; it is
+The model (laya.int8g.onnx ~84 MB and laya_decoder.int8.onnx ~17 MB) is too large for git; it is
 published as a GitHub release asset. The training code and data are not published.
 """
 import argparse

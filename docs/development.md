@@ -61,7 +61,7 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
   引擎的排序可以通过排位先验加回来：
   得分 = log P(模型) + `laya.rank_prior_weight`（默认 0，英文 0.2）× log P(正确词排在第 r 位)，
   先验按训练数据统计。中文默认不加先验：加 0.4 时总体首选准确率高约 1.4 个点，但正确词排在后面时
-  更容易被第一个候选压住；旧版本配置里保存的 0.4 读取时按 0 处理（只在配置格式 1.1 之前的文件上做一次）。模型词向量表只保留中英文用到的 8.2 万个 token（1.2 的模型文件 85 MB，加上组句头的统一模型 92 MB，1.5.4 的解码器模型 84 MB 加解码器 20 MB；1.1 的 mmBERT-base 模型为 194 MB）。
+  更容易被第一个候选压住；旧版本配置里保存的 0.4 读取时按 0 处理（只在配置格式 1.1 之前的文件上做一次）。模型词向量表只保留中英文用到的 8.2 万个 token（1.2 的模型文件 85 MB，加上组句头的统一模型 92 MB，1.5.4 的解码器模型 84 MB 加解码器 17 MB；1.1 的 mmBERT-base 模型为 194 MB）。
   长拼音组句（统一模型，`laya.continuation`，默认开）：从 `laya.continuation_min_syllables`（4）个音节起，模型读已打的音节、给每个音节上的每个字打分，
   引擎组句时每个词的分数 = ln P(模型给这几个字) + `laya.continuation_weight`（0.5）× 引擎的词分数；每种切分（如 xian / xi'an，最多 `laya.continuation_paths` 种）
   一次模型调用，简拼的各种读法共用一次。模型在后台算，按键从不等它（`server/src/continuation_worker.cc`）：

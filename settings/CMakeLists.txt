@@ -27,6 +27,8 @@ add_executable(cxxime-settings WIN32
     i18n.h
     key_capture.cc
     key_capture.h
+    switch_keys.cc
+    switch_keys.h
     settings.manifest
     settings.rc
 )

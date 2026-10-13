@@ -212,12 +212,6 @@ private:
     HWND hPunctKey_ = nullptr;
     HWND hShapeKey_ = nullptr;
     HWND hVoiceKey_ = nullptr;
-    // "Tell the left and right modifier apart" checks, one per box (box order).
-    HWND hSwitchKeySide_ = nullptr;
-    HWND hStyleKeySide_ = nullptr;
-    HWND hPunctKeySide_ = nullptr;
-    HWND hShapeKeySide_ = nullptr;
-    HWND hVoiceKeySide_ = nullptr;
     HWND hPageUpKey_ = nullptr;  // shortcuts.page_up / page_down: none or a symbol
     HWND hPageDownKey_ = nullptr;
 

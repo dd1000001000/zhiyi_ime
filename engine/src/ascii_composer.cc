@@ -135,7 +135,8 @@ bool AsciiComposer::process_key(uint32_t key_code, bool is_key_up, Context& ctx,
 
         if (is_key_up) {
             CXXIME_LOG(L"AsciiComposer::process_key: modifier key up, shift_pressed_=%d", shift_pressed_);
-            if (shift_pressed_ || ctrl_pressed_ || alt_pressed_ || win_pressed_) {
+            if ((shift_pressed_ || ctrl_pressed_ || alt_pressed_ || win_pressed_) &&
+                key_code == tap_key_) {
                 const AsciiModeSwitchStyle style = get_binding(key_code);
                 if (style == AsciiModeSwitchStyle::TOGGLE_STYLE ||
                     style == AsciiModeSwitchStyle::TOGGLE_PUNCT ||
@@ -167,6 +168,14 @@ bool AsciiComposer::process_key(uint32_t key_code, bool is_key_up, Context& ctx,
                 if (is_ctrl)  ctrl_pressed_ = true;
                 if (is_alt)   alt_pressed_ = true;
                 if (is_win)   win_pressed_ = true;
+                tap_key_ = key_code;
+            } else if (key_code != tap_key_) {
+                // A second modifier while the first is held (Ctrl held and Shift pressed, or left
+                // Ctrl held and right Ctrl pressed): a combination, neither key is a tap.
+                shift_pressed_ = false;
+                ctrl_pressed_ = false;
+                alt_pressed_ = false;
+                win_pressed_ = false;
             }
         }
         return false;

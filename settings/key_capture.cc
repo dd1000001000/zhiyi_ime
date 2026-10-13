@@ -37,9 +37,7 @@ struct State {
     // The key presses of one capture: modifiers seen, and whether another key came with them.
     uint32_t modifiers_seen = 0;
     bool other_key_seen = false;
-    // A tapped modifier may stay generic (either side) or keep its side (see key_capture.h).
-    bool distinguish_side = false;
-    uint32_t captured_modifier_vk = 0;  // the last modifier pressed, with its side
+    bool arrow_hover = false;  // the mouse is over the side arrow
 };
 
 State* state_of(HWND window) {
@@ -81,92 +79,40 @@ uint32_t generic_modifier_vk(uint32_t bit) {
     }
 }
 
-// A modifier key as the window message reports it, with its side from the scan code (right Shift,
-// 0x36) or the extended flag (right Ctrl / right Alt). Any other key passes unchanged.
-uint32_t modifier_vk_with_side(UINT vk, LPARAM lparam) {
-    const uint32_t flags = static_cast<uint32_t>(lparam);
-    const bool extended = (flags & (1u << 24)) != 0;
-    const uint32_t scan = (flags >> 16) & 0xFF;
-    switch (vk) {
-    case VK_SHIFT:
-        return scan == 0x36 ? VK_RSHIFT : VK_LSHIFT;
-    case VK_CONTROL:
-        return extended ? VK_RCONTROL : VK_LCONTROL;
-    case VK_MENU:
-        return extended ? VK_RMENU : VK_LMENU;
-    default:
-        return vk;
-    }
-}
-
-// The modifier family of a tap key (the generic VK) and its side (0 either, 1 left, 2 right).
-uint32_t modifier_family(uint32_t vk) {
-    switch (vk) {
-    case VK_SHIFT:
-    case VK_LSHIFT:
-    case VK_RSHIFT:
-        return VK_SHIFT;
-    case VK_CONTROL:
-    case VK_LCONTROL:
-    case VK_RCONTROL:
-        return VK_CONTROL;
-    case VK_MENU:
-    case VK_LMENU:
-    case VK_RMENU:
-        return VK_MENU;
-    default:
-        return 0;
-    }
-}
-
-uint32_t modifier_side(uint32_t vk) {
-    switch (vk) {
-    case VK_LSHIFT:
-    case VK_LCONTROL:
-    case VK_LMENU:
-        return 1;
-    case VK_RSHIFT:
-    case VK_RCONTROL:
-    case VK_RMENU:
-        return 2;
-    default:
-        return 0;
-    }
-}
-
-// Two tapped modifiers overlap when they share a family and either is side-agnostic or both are
-// the same side. Left Ctrl and right Ctrl do not overlap; Ctrl and left Ctrl do.
-bool tap_keys_overlap(uint32_t left, uint32_t right) {
-    const uint32_t family = modifier_family(left);
-    if (family == 0 || family != modifier_family(right)) return family == modifier_family(right);
-    const uint32_t left_side = modifier_side(left);
-    const uint32_t right_side = modifier_side(right);
-    return left_side == 0 || right_side == 0 || left_side == right_side;
-}
-
 // "Ctrl", "Right Ctrl" / "右 Ctrl" for a tapped modifier key.
 std::wstring tapped_modifier_text(uint32_t vk) {
     const wchar_t* mod = nullptr;
-    const wchar_t* side = nullptr;
-    switch (vk) {
-    case VK_CONTROL: mod = tr("keys.mod_ctrl"); break;
-    case VK_LCONTROL: mod = tr("keys.mod_ctrl"); side = tr("keys.side_left"); break;
-    case VK_RCONTROL: mod = tr("keys.mod_ctrl"); side = tr("keys.side_right"); break;
+    switch (tap_family(vk)) {
     case VK_SHIFT: mod = tr("keys.mod_shift"); break;
-    case VK_LSHIFT: mod = tr("keys.mod_shift"); side = tr("keys.side_left"); break;
-    case VK_RSHIFT: mod = tr("keys.mod_shift"); side = tr("keys.side_right"); break;
+    case VK_CONTROL: mod = tr("keys.mod_ctrl"); break;
     case VK_MENU: mod = tr("keys.mod_alt"); break;
-    case VK_LMENU: mod = tr("keys.mod_alt"); side = tr("keys.side_left"); break;
-    case VK_RMENU: mod = tr("keys.mod_alt"); side = tr("keys.side_right"); break;
     default: return {};
     }
     std::wstring text;
-    if (side) {
-        text += side;
-        text += L' ';
+    switch (tap_side(vk)) {
+    case TapSide::kLeft: text = std::wstring(tr("keys.side_left")) + L' '; break;
+    case TapSide::kRight: text = std::wstring(tr("keys.side_right")) + L' '; break;
+    case TapSide::kEither: break;
     }
-    text += mod;
-    return text;
+    return text + mod;
+}
+
+// The arrow at the right end of a box holding a tapped modifier: picks the side.
+bool shows_arrow(const State* state) {
+    return state->allow_tap && !state->capturing && state->notice.empty() &&
+           state->choice.kind == KeyChoice::Kind::kTap;
+}
+
+RECT arrow_rect(HWND window) {
+    RECT rect;
+    GetClientRect(window, &rect);
+    return {rect.right - S(28), rect.top + 1, rect.right - 1, rect.bottom - 1};
+}
+
+bool over_arrow(HWND window, const State* state, LPARAM lparam) {
+    const POINT point = {static_cast<short>(LOWORD(lparam)), static_cast<short>(HIWORD(lparam))};
+    const RECT arrow = arrow_rect(window);
+    return shows_arrow(state) && PtInRect(&arrow, point);
 }
 
 uint32_t modifiers_down() {
@@ -291,7 +237,6 @@ void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam,
     if ((lparam & (1 << 30)) != 0) return;  // auto-repeat
     if (const uint32_t bit = modifier_bit(vk)) {
         state->modifiers_seen |= bit;
-        state->captured_modifier_vk = modifier_vk_with_side(vk, lparam);
         return;
     }
     if (vk == VK_LWIN || vk == VK_RWIN || vk == VK_CAPITAL || vk == VK_NUMLOCK ||
@@ -326,14 +271,11 @@ void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam,
 void on_key_up(HWND window, State* state, UINT vk) {
     const uint32_t bit = modifier_bit(vk);
     if (bit == 0) return;
-    // A modifier pressed and released alone: a tap. Shift, Ctrl and Alt all qualify, each with its
-    // side when this box tells the two apart.
+    // A modifier pressed and released alone: a tap of Shift, Ctrl or Alt. It is taken as either
+    // side, whichever was pressed; the arrow picks one side (show_side_menu).
     if (!state->other_key_seen && state->modifiers_seen == bit) {
         if (state->allow_tap) {
-            uint32_t tap_vk =
-                state->distinguish_side ? state->captured_modifier_vk : generic_modifier_vk(bit);
-            if (tap_vk == 0) tap_vk = generic_modifier_vk(bit);
-            accept(window, state, KeyChoice::tap(tap_vk));
+            accept(window, state, KeyChoice::tap(generic_modifier_vk(bit)));
             return;
         }
         reject(window, state, tr("keys.need_combo"));
@@ -342,6 +284,36 @@ void on_key_up(HWND window, State* state, UINT vk) {
         state->modifiers_seen = 0;
         state->other_key_seen = false;
     }
+}
+
+// The arrow's menu: either side, only the left one, only the right one.
+void show_side_menu(HWND window, State* state) {
+    const uint32_t family = tap_family(state->choice.tap_key);
+    if (family == 0) return;
+    auto only = [](uint32_t vk) {
+        std::wstring text = tr("keys.side_only");
+        const size_t at = text.find(L"{0}");
+        if (at != std::wstring::npos) text.replace(at, 3, tapped_modifier_text(vk));
+        return text;
+    };
+    const std::wstring left = only(tap_key_on_side(family, TapSide::kLeft));
+    const std::wstring right = only(tap_key_on_side(family, TapSide::kRight));
+    HMENU menu = CreatePopupMenu();
+    AppendMenuW(menu, MF_STRING, 1, tr("keys.side_either"));
+    AppendMenuW(menu, MF_STRING, 2, left.c_str());
+    AppendMenuW(menu, MF_STRING, 3, right.c_str());
+    // Menu ids follow TapSide: 1 either, 2 left, 3 right.
+    CheckMenuRadioItem(menu, 1, 3, 1 + static_cast<UINT>(tap_side(state->choice.tap_key)),
+                       MF_BYCOMMAND);
+    RECT box;
+    GetWindowRect(window, &box);
+    const UINT command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTALIGN | TPM_TOPALIGN |
+                                                  TPM_NONOTIFY | TPM_LEFTBUTTON,
+                                        box.right, box.bottom, 0, window, nullptr);
+    DestroyMenu(menu);
+    if (command < 1 || command > 3) return;
+    const uint32_t vk = tap_key_on_side(family, static_cast<TapSide>(command - 1));
+    if (vk != state->choice.tap_key) accept(window, state, KeyChoice::tap(vk));
 }
 
 void paint(HWND window, State* state) {
@@ -391,7 +363,10 @@ void paint(HWND window, State* state) {
     HGDIOBJ old_font = SelectObject(dc, get_font());
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, color);
-    RECT text_rect = {rect.left + S(8), rect.top, rect.right - S(6), rect.bottom};
+    const bool arrow = shows_arrow(state);
+    const RECT arrow_area = arrow_rect(window);
+    const LONG text_right = arrow ? arrow_area.left : rect.right - S(6);
+    RECT text_rect = {rect.left + S(8), rect.top, text_right, rect.bottom};
     DrawTextW(dc, text.c_str(), -1, &text_rect,
               DT_SINGLELINE | DT_VCENTER | DT_LEFT | DT_END_ELLIPSIS | DT_NOPREFIX);
     if (show_note) {
@@ -405,13 +380,31 @@ void paint(HWND window, State* state) {
         HFONT small = CreateFontIndirectW(&font);
         SelectObject(dc, small);
         SetTextColor(dc, warning ? (dark ? RGB(240, 190, 90) : RGB(150, 98, 0)) : colors.hint);
-        RECT note_rect = {measured.right + S(10), rect.top, rect.right - S(6), rect.bottom};
+        RECT note_rect = {measured.right + S(10), rect.top, text_right, rect.bottom};
         DrawTextW(dc, state->note.c_str(), -1, &note_rect,
                   DT_SINGLELINE | DT_VCENTER | DT_LEFT | DT_END_ELLIPSIS | DT_NOPREFIX);
         SelectObject(dc, get_font());
         DeleteObject(small);
     }
     SelectObject(dc, old_font);
+    if (arrow) {
+        if (state->arrow_hover) {
+            HBRUSH hover = CreateSolidBrush(dark ? RGB(62, 62, 62) : RGB(229, 229, 229));
+            FillRect(dc, &arrow_area, hover);
+            DeleteObject(hover);
+        }
+        const int cx = (arrow_area.left + arrow_area.right) / 2;
+        const int cy = (arrow_area.top + arrow_area.bottom) / 2;
+        const int half = (std::max)(3, S(4));
+        const POINT chevron[] = {{cx - half, cy - half / 2},
+                                 {cx, cy + half / 2},
+                                 {cx + half + 1, cy - half / 2 - 1}};
+        HPEN pen = CreatePen(PS_SOLID, (std::max)(1, S(1)), colors.text);
+        HGDIOBJ old_pen = SelectObject(dc, pen);
+        Polyline(dc, chevron, 3);
+        SelectObject(dc, old_pen);
+        DeleteObject(pen);
+    }
     if (focused && !state->capturing) {
         RECT focus = {rect.left + 3, rect.top + 3, rect.right - 3, rect.bottom - 3};
         SetTextColor(dc, colors.text);  // the dotted line takes the text color
@@ -454,7 +447,11 @@ LRESULT CALLBACK key_capture_proc(HWND window, UINT message, WPARAM wparam, LPAR
         return DLGC_WANTARROWS;
     case WM_LBUTTONDOWN:
         SetFocus(window);
-        if (state) start_capture(window, state);
+        if (state && over_arrow(window, state, lparam)) {
+            show_side_menu(window, state);
+        } else if (state) {
+            start_capture(window, state);
+        }
         return 0;
     case WM_RBUTTONUP:
         if (state) {
@@ -465,16 +462,23 @@ LRESULT CALLBACK key_capture_proc(HWND window, UINT message, WPARAM wparam, LPAR
     case WM_CONTEXTMENU:
         return 0;  // right click clears instead
     case WM_MOUSEMOVE:
-        if (state && !state->hover) {
-            state->hover = true;
-            TRACKMOUSEEVENT track = {sizeof(track), TME_LEAVE, window, 0};
-            TrackMouseEvent(&track);
-            InvalidateRect(window, nullptr, TRUE);
+        if (state) {
+            const bool arrow_hover = over_arrow(window, state, lparam);
+            if (!state->hover || arrow_hover != state->arrow_hover) {
+                if (!state->hover) {
+                    TRACKMOUSEEVENT track = {sizeof(track), TME_LEAVE, window, 0};
+                    TrackMouseEvent(&track);
+                }
+                state->hover = true;
+                state->arrow_hover = arrow_hover;
+                InvalidateRect(window, nullptr, TRUE);
+            }
         }
         return 0;
     case WM_MOUSELEAVE:
         if (state) {
             state->hover = false;
+            state->arrow_hover = false;
             InvalidateRect(window, nullptr, TRUE);
         }
         return 0;
@@ -495,7 +499,13 @@ LRESULT CALLBACK key_capture_proc(HWND window, UINT message, WPARAM wparam, LPAR
             on_key_down(window, state, static_cast<UINT>(wparam), lparam);
             return 0;
         }
-        // Keyboard use without a mouse: Space / Enter start, Delete / Backspace clear.
+        // Keyboard use without a mouse: Space / Enter start, Delete / Backspace clear, Alt+Down
+        // or F4 picks the side of a tapped modifier.
+        if (shows_arrow(state) && ((message == WM_SYSKEYDOWN && wparam == VK_DOWN) ||
+                                   (message == WM_KEYDOWN && wparam == VK_F4))) {
+            show_side_menu(window, state);
+            return 0;
+        }
         if (message == WM_KEYDOWN && (wparam == VK_SPACE || wparam == VK_RETURN)) {
             start_capture(window, state);
             return 0;
@@ -561,31 +571,8 @@ void key_capture_set(HWND control, const KeyChoice& choice) {
         state->choice = choice;
         state->capturing = false;
         state->message = nullptr;
-        if (choice.kind == KeyChoice::Kind::kTap) {
-            state->distinguish_side = modifier_side(choice.tap_key) != 0;
-            state->captured_modifier_vk = choice.tap_key;
-        }
         InvalidateRect(control, nullptr, TRUE);
     }
-}
-
-void key_capture_set_distinguish(HWND control, bool distinguish) {
-    State* state = state_of(control);
-    if (!state) return;
-    state->distinguish_side = distinguish;
-    if (state->choice.kind == KeyChoice::Kind::kTap) {
-        const uint32_t source =
-            state->captured_modifier_vk ? state->captured_modifier_vk : state->choice.tap_key;
-        const uint32_t tap_vk =
-            distinguish ? source : generic_modifier_vk(modifier_bit(source));
-        if (tap_vk != 0) state->choice = KeyChoice::tap(tap_vk);
-    }
-    InvalidateRect(control, nullptr, TRUE);
-}
-
-bool key_capture_get_distinguish(HWND control) {
-    const State* state = state_of(control);
-    return state && state->distinguish_side;
 }
 
 void key_capture_set_note(HWND control, KeyNote kind, const std::wstring& text) {

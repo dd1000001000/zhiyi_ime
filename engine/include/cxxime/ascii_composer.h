@@ -86,6 +86,7 @@ private:
     bool ctrl_pressed_ = false;
     bool alt_pressed_ = false;
     bool win_pressed_ = false;
+    uint32_t tap_key_ = 0;  // the modifier that set the flag above; only its key-up is a tap
     AsciiModeSwitchStyle tap_toggle_ = AsciiModeSwitchStyle::NOOP;
 
 };

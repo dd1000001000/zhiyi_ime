@@ -52,11 +52,6 @@ enum ControlId {
     kPunctKeyId,
     kShapeKeyId,
     kVoiceKeyId,
-    kSwitchKeySideId,  // "distinguish left/right" checks (5, in box order)
-    kStyleKeySideId,
-    kPunctKeySideId,
-    kShapeKeySideId,
-    kVoiceKeySideId,
     kRestoreKeysId,
     kPageUpKeyId,
     kPageDownKeyId,
@@ -107,65 +102,6 @@ constexpr int kMinPageSize = 3;
 constexpr int kMaxPageSize = 10;
 
 
-// The switch_key action of one modifier key (ascii_composer.switch_key), "noop" when unset.
-std::string tap_key_action(const Config& config, const char* key) {
-    const auto found = config.ascii_switch_key.find(key);
-    return found != config.ascii_switch_key.end() ? found->second : "noop";
-}
-
-// The switch keys in box order (中英切换, 输入方式切换, 中英文标点, 全角/半角, 语音输入): the
-// switch_key action of a tapped modifier for each.
-constexpr int kSwitchKeyCount = 5;
-constexpr const char* kTapActions[kSwitchKeyCount] = {"code", "toggle_style", "toggle_punct",
-                                                      "toggle_shape", "toggle_voice"};
-
-bool is_toggle_action(const std::string& action) {
-    for (int slot = 1; slot < kSwitchKeyCount; ++slot) {
-        if (action == kTapActions[slot]) return true;
-    }
-    return false;
-}
-
-// A tapped modifier: its left/right switch_key names, the generic VK (either side) and the two
-// side VKs.
-struct TapKeys {
-    const char* left;
-    const char* right;
-    uint32_t any_vk;
-    uint32_t left_vk;
-    uint32_t right_vk;
-};
-constexpr TapKeys kTapKeys[] = {
-    {"Shift_L", "Shift_R", VK_SHIFT, VK_LSHIFT, VK_RSHIFT},
-    {"Control_L", "Control_R", VK_CONTROL, VK_LCONTROL, VK_RCONTROL},
-    {"Alt_L", "Alt_R", VK_MENU, VK_LMENU, VK_RMENU},
-};
-
-// A switch key: its combination (shortcuts.*), else a tapped modifier (Shift, Ctrl or Alt — both
-// sides alike, or one side when the box tells them apart), else none. Any action but the four
-// others taps the Chinese/English switch (set_ascii_mode, clear ...).
-KeyChoice switch_key_choice(const Config& config, int slot) {
-    const KeyboardShortcut* combos[] = {&config.ascii_toggle_shortcut,
-                                        &config.english_style_shortcut,
-                                        &config.punct_toggle_shortcut,
-                                        &config.shape_toggle_shortcut,
-                                        &config.voice_input_shortcut};
-    if (combos[slot]->enabled()) return KeyChoice::of(*combos[slot]);
-    for (const TapKeys& keys : kTapKeys) {
-        const std::string left = tap_key_action(config, keys.left);
-        const std::string right = tap_key_action(config, keys.right);
-        if (left == "noop" && right == "noop") continue;
-        const std::string action = left != "noop" ? left : right;
-        const uint32_t vk = left == right      ? keys.any_vk
-                            : left != "noop"   ? keys.left_vk
-                                               : keys.right_vk;
-        if (slot == 0 ? !is_toggle_action(action) : action == kTapActions[slot]) {
-            return KeyChoice::tap(vk);
-        }
-    }
-    return KeyChoice::none();
-}
-
 // "中英切换:" -> "中英切换" for messages.
 std::wstring label_name(const char* key) {
     std::wstring name = tr(key);
@@ -174,36 +110,6 @@ std::wstring label_name(const char* key) {
         name.pop_back();
     }
     return name;
-}
-
-// The five boxes (box order) into the config: combinations to shortcuts.*, a tapped modifier to
-// its switch_key names ("code" for the Chinese/English switch: the keys typed so far are
-// committed as letters, then the mode switches). One side alone when the box tells the sides
-// apart, both when it does not.
-void apply_switch_key_choices(Config& config, const KeyChoice (&choices)[kSwitchKeyCount]) {
-    KeyboardShortcut* combos[] = {&config.ascii_toggle_shortcut, &config.english_style_shortcut,
-                                  &config.punct_toggle_shortcut, &config.shape_toggle_shortcut,
-                                  &config.voice_input_shortcut};
-    for (const TapKeys& keys : kTapKeys) {
-        config.ascii_switch_key[keys.left] = "noop";
-        config.ascii_switch_key[keys.right] = "noop";
-    }
-    for (int slot = 0; slot < kSwitchKeyCount; ++slot) {
-        const KeyChoice& choice = choices[slot];
-        *combos[slot] = choice.kind == KeyChoice::Kind::kCombo ? choice.combo : KeyboardShortcut{};
-        if (choice.kind != KeyChoice::Kind::kTap) continue;
-        const char* action = kTapActions[slot];
-        for (const TapKeys& keys : kTapKeys) {
-            if (choice.tap_key == keys.any_vk) {
-                config.ascii_switch_key[keys.left] = action;
-                config.ascii_switch_key[keys.right] = action;
-            } else if (choice.tap_key == keys.left_vk) {
-                config.ascii_switch_key[keys.left] = action;
-            } else if (choice.tap_key == keys.right_vk) {
-                config.ascii_switch_key[keys.right] = action;
-            }
-        }
-    }
 }
 
 } // namespace
@@ -354,32 +260,25 @@ void EditorApp::create_keys_panel(HWND panel) {
     // One label column for both cards, so the page key boxes line up with the switch keys.
     const int labels = label_width({"keys.switch", "keys.style", "keys.punct", "keys.shape",
                                     "keys.voice", "keys.page_up", "keys.page_down"});
-    const int box_width = S(270);
-    const int side_width = S(150);
-    const int side_gap = S(16);
+    const int box_width = S(340);
     struct Row {
         const char* label;
         int id;
         HWND* box;
-        int side_id;
-        HWND* side;
         const char* hint;
     };
-    // Each takes a modifier tapped alone (Shift, Ctrl or Alt; the check tells left from right), or
+    // Each takes a modifier tapped alone (Shift, Ctrl or Alt; the box's arrow picks one side), or
     // a combination.
     const Row rows[] = {
-        {"keys.switch", kSwitchKeyId, &hSwitchKey_, kSwitchKeySideId, &hSwitchKeySide_,
-         "keys.switch_hint"},
-        {"keys.style", kStyleKeyId, &hStyleKey_, kStyleKeySideId, &hStyleKeySide_, "keys.style_hint"},
-        {"keys.punct", kPunctKeyId, &hPunctKey_, kPunctKeySideId, &hPunctKeySide_, nullptr},
-        {"keys.shape", kShapeKeyId, &hShapeKey_, kShapeKeySideId, &hShapeKeySide_, nullptr},
-        {"keys.voice", kVoiceKeyId, &hVoiceKey_, kVoiceKeySideId, &hVoiceKeySide_, "keys.voice_hint"},
+        {"keys.switch", kSwitchKeyId, &hSwitchKey_, "keys.switch_hint"},
+        {"keys.style", kStyleKeyId, &hStyleKey_, "keys.style_hint"},
+        {"keys.punct", kPunctKeyId, &hPunctKey_, nullptr},
+        {"keys.shape", kShapeKeyId, &hShapeKey_, nullptr},
+        {"keys.voice", kVoiceKeyId, &hVoiceKey_, "keys.voice_hint"},
     };
     for (const Row& row : rows) {
         const int x = make_aligned_label(tr(row.label), x0, labels, y, panel);
         *row.box = create_key_capture(row.id, x, y, box_width, kCtrlH, panel, true);
-        *row.side = make_check(row.side_id, tr("keys.distinguish_side"), x + box_width + side_gap,
-                               y, side_width, panel);
         y += kRowH;
         if (row.hint) {
             make_hint(tr(row.hint), x, y - S(6), S(380), panel);
@@ -620,11 +519,8 @@ bool EditorApp::read_controls(bool report_errors) {
 
 void EditorApp::set_switch_key_boxes(const Config& config) {
     const HWND boxes[] = {hSwitchKey_, hStyleKey_, hPunctKey_, hShapeKey_, hVoiceKey_};
-    const HWND checks[] = {hSwitchKeySide_, hStyleKeySide_, hPunctKeySide_, hShapeKeySide_,
-                           hVoiceKeySide_};
     for (int i = 0; i < kSwitchKeyCount; ++i) {
         key_capture_set(boxes[i], switch_key_choice(config, i));
-        if (checks[i]) set_check(checks[i], key_capture_get_distinguish(boxes[i]));
     }
     update_switch_key_notes();
     show_voice_key();
@@ -767,20 +663,6 @@ bool EditorApp::handle_command(int control_id, int notification) {
         if (notification == kKeyCaptureChanged) {
             update_switch_key_notes();
             show_voice_key();
-        }
-        return true;
-    case kSwitchKeySideId:
-    case kStyleKeySideId:
-    case kPunctKeySideId:
-    case kShapeKeySideId:
-    case kVoiceKeySideId:
-        if (notification == BN_CLICKED) {
-            const HWND boxes[] = {hSwitchKey_, hStyleKey_, hPunctKey_, hShapeKey_, hVoiceKey_};
-            const HWND checks[] = {hSwitchKeySide_, hStyleKeySide_, hPunctKeySide_,
-                                   hShapeKeySide_, hVoiceKeySide_};
-            const int index = control_id - kSwitchKeySideId;
-            key_capture_set_distinguish(boxes[index], get_check(checks[index]));
-            update_switch_key_notes();
         }
         return true;
     default:

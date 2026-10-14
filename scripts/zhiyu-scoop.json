@@ -1,32 +1,26 @@
 {
     "version": "1.6.0",
-    "description": "知语输入法 / Zhiyu IME - 懂上文的 Windows 中英文输入法",
+    "description": "知语输入法 - from github",
     "homepage": "https://github.com/w3c0929/zhiyi_ime",
     "license": "GPL-3.0",
-    "notes": [
-        "系统注册已完成；若输入法未即时生效：新打开的窗口通常直接可用（旧窗口需重开），任务栏等系统组件需重启 ctfmon（taskkill /f /im ctfmon.exe）或重新启动资源管理器，仍无效再注销或重启。"
-    ],
     "checkver": {
         "github": "https://github.com/w3c0929/zhiyi_ime"
     },
     "url": "https://github.com/w3c0929/zhiyi_ime/releases/download/v1.6.0/zhiyu-v1.6.0-setup.exe",
-    "hash": "sha256:PUT-YOUR-SETUP-SHA256-HERE",
     "autoupdate": {
-        "url": "https://github.com/w3c0929/zhiyi_ime/releases/download/v$version/zhiyu-v$version-setup.exe",
-        "hash": {
-            "url": "https://github.com/w3c0929/zhiyi_ime/releases/download/v$version/latest.json",
-            "jsonpath": "$.sha256"
-        }
+        "url": "https://github.com/w3c0929/zhiyi_ime/releases/download/v$version/zhiyu-v$version-setup.exe"
     },
+    "hash": "sha256:889877f19ee8f8b281b57f44dd182ca14d07f34e61769166e65fa46be60ad0e9",
     "installer": {
         "script": [
             "New-Item -ItemType Directory -Force $persist_dir | Out-Null",
-            "if (Test-Path \"$persist_dir\\zhiyuime.busy\") { Remove-Item \"$persist_dir\\zhiyuime.busy\" -Recurse -Force -ErrorAction SilentlyContinue }",
-            "if (Test-Path \"$persist_dir\\zhiyuime\") { Rename-Item \"$persist_dir\\zhiyuime\" \"zhiyuime.busy\" -Force }",
+            "Get-ChildItem $persist_dir -Directory -Filter 'zhiyuime.busy-*' -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue",
+            "if (Test-Path \"$persist_dir\\zhiyuime\") { Remove-Item \"$persist_dir\\zhiyuime\" -Recurse -Force -ErrorAction SilentlyContinue }",
+            "if (Test-Path \"$persist_dir\\zhiyuime\") { Rename-Item \"$persist_dir\\zhiyuime\" \"zhiyuime.busy-$(Get-Date -Format yyyyMMddHHmmss)\" -Force }",
             "$p = Start-Process \"$dir\\$fname\" -ArgumentList '/S',\"/D=$persist_dir\\zhiyuime\" -Verb RunAs -PassThru",
             "$p.WaitForExit()",
-            "if ($p.ExitCode -ne 0) { throw \"知语输入法安装失败（$($p.ExitCode)）\" }",
-            "if (Test-Path \"$persist_dir\\zhiyuime.busy\") { Remove-Item \"$persist_dir\\zhiyuime.busy\" -Recurse -Force -ErrorAction SilentlyContinue }"
+            "if ($p.ExitCode -ne 0) { throw \"zhiyuime 安装失败（$($p.ExitCode)）\" }",
+            "Get-ChildItem $persist_dir -Directory -Filter 'zhiyuime.busy-*' -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"
         ]
     },
     "post_uninstall": [
@@ -37,7 +31,10 @@
         "       Where-Object { ($_.InstallLocation -like '*zhiyuime*') -or ($_.InstallBaseLocation -like '*zhiyuime*') -or ($_.DisplayIcon -like '*zhiyuime*') } | Select-Object -First 1",
         "  $exe = if ($k -and $k.InstallLocation) { Get-ChildItem $k.InstallLocation -Filter 'unins*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object { $_.FullName } }",
         "  if ($exe) { Start-Process $exe -Wait -ArgumentList '/S' -Verb RunAs }",
-        "  else { Write-Host '[卸载] 未找到卸载器，可能需手动清理（Program Files / 注册表）' }",
+        "  else { Write-Host '[卸载] 未在 $dir 或注册表中找到卸载器，可能需手动清理（Program Files / 注册表）' }",
         "}"
+    ],
+    "notes": [
+        "系统注册已完成；若输入法未即时生效：新打开的窗口通常直接可用（旧窗口需重开），任务栏等系统组件需重启 ctfmon（taskkill /f /im ctfmon.exe）或重新启动资源管理器，仍无效再注销或重启。"
     ]
 }

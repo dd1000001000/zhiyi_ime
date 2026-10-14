@@ -56,6 +56,28 @@ def overlay_builds(reference, out_dir, build_x64, build_x86):
     return written
 
 
+# Text data the repository owns (ui strings, default config, themes, ...): the reference's copy
+# is the upstream brand. Overwrite these with the repo's. Only the text config is listed — the
+# repository also holds the dictionary *sources* (*.dict.db.zip) and build helpers, which must
+# not go into the installer (they are already-compressed build inputs and just bloat it); the
+# built .bin/.idx and the model folders stay from the reference.
+DATA_OVERLAY = ("default.json", "ui.zh-CN.json", "ui.en-US.json", "themes.json",
+                "punctuation.json", "symbols.json", "settings_presets.json",
+                "english.words.tsv")
+
+
+def overlay_repo_data(out_dir):
+    source_dir = os.path.join(ROOT, "data")
+    target_dir = os.path.join(out_dir, "data")
+    written = []
+    for name in DATA_OVERLAY:
+        source = os.path.join(source_dir, name)
+        if os.path.isfile(source):
+            shutil.copy2(source, os.path.join(target_dir, name))
+            written.append(name)
+    return written
+
+
 def main():
     parser = argparse.ArgumentParser(description="Assemble a release folder and zip.")
     parser.add_argument("--reference", required=True, help="an installed copy to take data from")
@@ -75,6 +97,9 @@ def main():
     print("overwriting built programs:")
     for name in overlay_builds(args.reference, out_dir, args.build, args.x86_build):
         print(f"  {name}")
+    print("overwriting repository data:")
+    for name in overlay_repo_data(out_dir):
+        print(f"  data\\{name}")
 
     archive = os.path.join(args.out, f"zhiyu-v{args.version}")
     shutil.make_archive(archive, "zip", args.out, f"zhiyu-v{args.version}")

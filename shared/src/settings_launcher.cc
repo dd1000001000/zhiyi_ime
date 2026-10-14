@@ -14,8 +14,8 @@ namespace cxxime {
 namespace {
 
 constexpr wchar_t kInstallRegistryKey[] =
-    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ZhiyiIME";
-constexpr wchar_t kInstallerMutexName[] = L"Global\\ZhiyiIME.Installation";
+    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ZhiyuIME";
+constexpr wchar_t kInstallerMutexName[] = L"Global\\ZhiyuIME.Installation";
 
 class InstallationExclusion {
 public:

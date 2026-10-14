@@ -319,7 +319,7 @@ def prepare_dictionary_bundle(
     wubi_source = find_source(data_dir, "wubi86")
     if pinyin_source is None or wubi_source is None:
         raise RuntimeError("pinyin and wubi86 source dictionaries are required")
-    with tempfile.TemporaryDirectory(prefix="zhiyi_prep_") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="zhiyu_prep_") as tmpdir:
         pinyin_db = os.path.join(tmpdir, "pinyin.dict.db")
         wubi_db = os.path.join(tmpdir, "wubi86.dict.db")
         symbols = os.path.join(tmpdir, "symbols.json")
@@ -361,7 +361,7 @@ def prepare_dictionary_bundle(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Prepare dictionary binaries for ZhiyiIME packaging"
+        description="Prepare dictionary binaries for ZhiyuIME packaging"
     )
     parser.add_argument(
         "--data-dir", required=True,

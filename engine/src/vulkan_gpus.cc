@@ -101,7 +101,7 @@ std::vector<GpuAdapter> list_translator_gpus(std::uint64_t min_memory_mb) {
         GetProcAddress(loader, "vkGetPhysicalDeviceMemoryProperties"));
     VkInstance instance = nullptr;
     if (create && destroy && enumerate && properties && memory) {
-        VkApplicationInfo app = {kStructureTypeApplicationInfo, nullptr, "zhiyi", 1, nullptr, 0,
+        VkApplicationInfo app = {kStructureTypeApplicationInfo, nullptr, "zhiyu", 1, nullptr, 0,
                                  kApiVersion10};
         VkInstanceCreateInfo info = {kStructureTypeInstanceCreateInfo, nullptr, 0, &app, 0, nullptr,
                                      0, nullptr};

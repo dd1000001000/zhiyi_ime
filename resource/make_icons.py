@@ -1,6 +1,6 @@
-"""Draws the 知意输入法 (Zhiyi IME) icons.
+"""Draws the 知语输入法 (Zhiyi IME) icons.
 
-  zhiyi.ico     app / installer icon: blue rounded square, white "知", gold four-point sparkle
+  zhiyu.ico     app / installer icon: blue rounded square, white "知", gold four-point sparkle
                 (the same mark the candidate window puts on the Laya recommendation)
   icon_zh.ico   language bar / tray: 中      icon_en.ico: 英      icon_c.ico: A (Caps Lock)
 
@@ -82,7 +82,7 @@ def save_ico(path, images):
 
 
 def main():
-    save_ico(os.path.join(HERE, "zhiyi.ico"), [app_icon(s) for s in APP_SIZES])
+    save_ico(os.path.join(HERE, "zhiyu.ico"), [app_icon(s) for s in APP_SIZES])
     for name, text, font, scale in (("icon_zh.ico", "中", "msyhbd.ttc", 0.92),
                                     ("icon_en.ico", "英", "msyhbd.ttc", 0.92),
                                     ("icon_c.ico", "A", "segoeuib.ttf", 0.95)):

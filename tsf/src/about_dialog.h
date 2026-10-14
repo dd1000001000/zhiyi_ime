@@ -23,7 +23,7 @@ static LRESULT CALLBACK AboutWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
 }
 
 inline void show_about_dialog(HWND parent = nullptr) {
-    HWND existing = FindWindowW(L"ZhiyiIMEAboutClass", nullptr);
+    HWND existing = FindWindowW(L"ZhiyuIMEAboutClass", nullptr);
     if (existing) {
         SetForegroundWindow(existing);
         return;
@@ -39,12 +39,12 @@ inline void show_about_dialog(HWND parent = nullptr) {
     wc.hInstance = GetModuleHandle(nullptr);
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    wc.lpszClassName = L"ZhiyiIMEAboutClass";
+    wc.lpszClassName = L"ZhiyuIMEAboutClass";
     RegisterClassExW(&wc);
 
     // Chinese for a Chinese Windows display language, English otherwise.
     const bool zh = PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_CHINESE;
-    HWND hwnd = CreateWindowExW(WS_EX_TOPMOST, L"ZhiyiIMEAboutClass", zh ? L"关于知意输入法" : L"About Zhiyi IME",
+    HWND hwnd = CreateWindowExW(WS_EX_TOPMOST, L"ZhiyuIMEAboutClass", zh ? L"关于知语输入法" : L"About Zhiyu IME",
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
         x, y, w, h, parent, nullptr, GetModuleHandle(nullptr), nullptr);
     if (!hwnd) return;
@@ -68,7 +68,7 @@ inline void show_about_dialog(HWND parent = nullptr) {
         SendMessageW(h, WM_SETFONT, (WPARAM)font, TRUE);
     };
 
-    label(zh ? L"知意输入法" : L"Zhiyi IME", 16, 24, hBold);
+    label(zh ? L"知语输入法" : L"Zhiyu IME", 16, 24, hBold);
     label(zh ? L"版本 " CXXIME_VERSION_WSTRING L" · GPL-3.0"
              : L"Version " CXXIME_VERSION_WSTRING L" · GPL-3.0", 44, 20, hFont);
     label(zh ? L"轻量 · 开源 · 懂上文的中英文输入法"

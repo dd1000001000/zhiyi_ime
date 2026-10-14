@@ -161,7 +161,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
     }
     _fTestKeyDownPending = *pfEaten != FALSE;
 
-    OutputDebugStringA("[ZhiyiIME] OnTestKeyDown\n");
+    OutputDebugStringA("[ZhiyuIME] OnTestKeyDown\n");
     CXXIME_LOG(L"OnTestKeyDown: vk=%u, eaten=%d, sessionId=%u", (unsigned int)wParam, *pfEaten, _sessionId);
     return S_OK;
 }
@@ -523,11 +523,11 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext* pic, REFGUID rguid, BOOL* p
                 break;
             }
             if (_apply_switch_key(slot)) {
-                OutputDebugStringA("[ZhiyiIME] switch: preserved key applied\n");
+                OutputDebugStringA("[ZhiyuIME] switch: preserved key applied\n");
                 *pfEaten = TRUE;
                 break;
             }
-            OutputDebugStringA("[ZhiyiIME] switch: preserved key not applied\n");
+            OutputDebugStringA("[ZhiyuIME] switch: preserved key not applied\n");
             _switchKeyTicks[slot] = 0;
             BOOL eaten = FALSE;
             *pfEaten = _ProcessKeyEvent(pic, _preservedSwitchKeys[i].virtual_key, 0, &eaten)

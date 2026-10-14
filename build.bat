@@ -12,7 +12,7 @@ if "%1"=="clean" (
     exit /b 0
 )
 
-echo === Zhiyi IME Build (%CONFIG%) ===
+echo === Zhiyu IME Build (%CONFIG%) ===
 
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 cd /d "%BUILD_DIR%"
@@ -33,9 +33,9 @@ if errorlevel 1 (
 
 echo.
 echo === Build succeeded (%CONFIG%) ===
-echo Output: %BUILD_DIR%\server\%CONFIG%\zhiyi-server.exe
-echo         %BUILD_DIR%\tsf\%CONFIG%\zhiyi_tsf_x64.dll
-echo         %BUILD_DIR%\resource\%CONFIG%\zhiyi-resources.dll
+echo Output: %BUILD_DIR%\server\%CONFIG%\zhiyu-server.exe
+echo         %BUILD_DIR%\tsf\%CONFIG%\zhiyu_tsf_x64.dll
+echo         %BUILD_DIR%\resource\%CONFIG%\zhiyu-resources.dll
 echo         %BUILD_DIR%\test\%CONFIG%\cxxime-test.exe
 
 endlocal

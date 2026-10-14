@@ -45,7 +45,7 @@ HWND local_candidate_window(const cxxime::UiPresentationSnapshot& snapshot) {
     }
     wchar_t class_name[64] = {};
     if (!GetClassNameW(candidate, class_name, 64) ||
-        lstrcmpW(class_name, L"ZhiyiIMECandidateWindow") != 0) {
+        lstrcmpW(class_name, L"ZhiyuIMECandidateWindow") != 0) {
         return nullptr;
     }
     const HWND owner = GetWindow(candidate, GW_OWNER);

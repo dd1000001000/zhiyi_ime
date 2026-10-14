@@ -47,7 +47,7 @@ DEFINE_GUID(c_guidPreservedKeyShape, 0x0cd763b2, 0x1490, 0x4859, 0xb8, 0x23, 0x7
 // {6B3E1F52-9C4A-4D7B-8E25-A1C9F04D7B36}
 DEFINE_GUID(c_guidPreservedKeyVoice, 0x6b3e1f52, 0x9c4a, 0x4d7b, 0x8e, 0x25, 0xa1, 0xc9, 0xf0, 0x4d, 0x7b, 0x36);
 
-#define TEXTSERVICE_DESC L"知意输入法"
+#define TEXTSERVICE_DESC L"知语输入法"
 #define TEXTSERVICE_MODEL L"Apartment"
 #define TEXTSERVICE_ICON_INDEX 0
 

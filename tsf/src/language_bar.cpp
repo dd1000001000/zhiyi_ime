@@ -134,8 +134,8 @@ STDMETHODIMP CLangBarItemButton::Show(BOOL fShow) {
 STDMETHODIMP CLangBarItemButton::GetTooltipString(BSTR* pbstrToolTip) {
     if (!pbstrToolTip)
         return E_INVALIDARG;
-    // Every state at a glance, e.g. "知意 - 中文 · 全拼 · 半角 · 中文标点".
-    const std::wstring tip = std::wstring(_menu_chinese ? L"知意 - " : L"Zhiyi - ") +
+    // Every state at a glance, e.g. "知语 - 中文 · 全拼 · 半角 · 中文标点".
+    const std::wstring tip = std::wstring(_menu_chinese ? L"知语 - " : L"Zhiyu - ") +
                              cxxime::ime_status_summary(_status, _menu_chinese);
     *pbstrToolTip = SysAllocString(tip.c_str());
     return S_OK;

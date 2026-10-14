@@ -1,20 +1,20 @@
 # 路径解析
 
-知意输入法的数据文件分布在两个位置：安装目录（只读共享数据）和用户目录（可写用户数据）。
+知语输入法的数据文件分布在两个位置：安装目录（只读共享数据）和用户目录（可写用户数据）。
 
 ## 目录布局
 
-### 安装基目录 `%ProgramFiles%\ZhiyiIME\`
+### 安装基目录 `%ProgramFiles%\ZhiyuIME\`
 
 当前分支采用**多版本安装**布局：安装基目录下每个版本独占一个子目录，升级/降级不再覆盖旧版本目录，而是安装到新版本目录并把新版本注册为活动版本；旧版本保留到系统重启清理。
 
 ```
-C:\Program Files\ZhiyiIME\             安装基目录（首次安装时选择，默认 Program Files）
+C:\Program Files\ZhiyuIME\             安装基目录（首次安装时选择，默认 Program Files）
 ├── <版本号>.<8位十六进制>\         活动版本目录（如 0.7.6.77048fc8\），每个版本自包含完整程序与 data\
-│   ├── zhiyi_tsf_x64.dll / zhiyi_tsf_x86.dll
-│   ├── zhiyi_ime_x64.ime / zhiyi_ime_x86.ime
-│   ├── zhiyi-server.exe / zhiyi-settings.exe
-│   ├── zhiyi-resources.dll
+│   ├── zhiyu_tsf_x64.dll / zhiyu_tsf_x86.dll
+│   ├── zhiyu_ime_x64.ime / zhiyu_ime_x86.ime
+│   ├── zhiyu-server.exe / zhiyu-settings.exe
+│   ├── zhiyu-resources.dll
 │   ├── onnxruntime.dll / onnxruntime_providers_shared.dll   Laya 推理
 │   ├── DirectML.dll                                         显卡推理（只在设置里选了显卡时加载）
 │   ├── vcruntime140*.dll / msvcp140*.dll                    VC++ 运行时（随程序放置）
@@ -34,24 +34,24 @@ C:\Program Files\ZhiyiIME\             安装基目录（首次安装时选择�
 │       └── pinyin.reverse.idx / wubi86.reverse.idx
 ├── maintenance\install-state.json  生命周期状态（活动 / 待清理版本）
 ├── update\                         安装暂存目录（stage）
-├── .zhiyi-backup\                 安装备份/回滚目录
-└── .zhiyi-install-* / .zhiyi-runtime / .zhiyi-ime-*.pending  安装事务与系统 IME 更新标记
+├── .zhiyu-backup\                 安装备份/回滚目录
+└── .zhiyu-install-* / .zhiyu-runtime / .zhiyu-ime-*.pending  安装事务与系统 IME 更新标记
 ```
 
 同一个版本升级时使用 `<version>.next` 临时目录完成替换，避免与已注册的活动版本目录冲突。安装状态通过注册表记录：
 
-| 注册表值（`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyiIME`） | 含义 |
+| 注册表值（`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyuIME`） | 含义 |
 |------|------|
 | `InstallLocation` | 活动版本目录（当前生效的程序 + data） |
 | `InstallBaseLocation` | 安装基目录 |
 | `PreviousInstallLocation` | 待清理的上一版本目录（存在时阻塞新的安装） |
 
-`data_dir()` 与活动版本无关——每个版本目录内的 exe 都按自身目录解析 `data\`，登录自启动的 `ZhiyiIMEServer` 指向当前活动版本的 `zhiyi-server.exe`。
+`data_dir()` 与活动版本无关——每个版本目录内的 exe 都按自身目录解析 `data\`，登录自启动的 `ZhiyuIMEServer` 指向当前活动版本的 `zhiyu-server.exe`。
 
-### 用户目录 `%USERPROFILE%\zhiyi\`
+### 用户目录 `%USERPROFILE%\zhiyu\`
 
 ```
-C:\Users\<username>\zhiyi\
+C:\Users\<username>\zhiyu\
 ├── default.json              用户配置覆盖（可选）
 ├── themes.json               用户主题覆盖（可选）
 ├── punctuation.json          标点映射覆盖（可选）
@@ -94,26 +94,26 @@ NSIS 安装到 Program Files  →  优先级 3
 ### 数据位置（设置 > 常规）
 
 用户可以在“常规”页把所有数据放到别的文件夹（如 D 盘）。所选文件夹记在注册表
-`HKCU\Software\ZhiyiIME` 的 `DataDirectory`（UTF-16 路径，不在数据文件夹里，否则启动时找不到）：
+`HKCU\Software\ZhiyuIME` 的 `DataDirectory`（UTF-16 路径，不在数据文件夹里，否则启动时找不到）：
 
 | | 默认 | 选了文件夹后 |
 |---|---|---|
-| `user_data_dir()` 用户数据 | `%USERPROFILE%\zhiyi\` | `<所选文件夹>\zhiyi\` |
-| `local_data_dir()` 本机缓存与下载的模型 | `%LOCALAPPDATA%\zhiyi\` | `<所选文件夹>\zhiyi\local\` |
+| `user_data_dir()` 用户数据 | `%USERPROFILE%\zhiyu\` | `<所选文件夹>\zhiyu\` |
+| `local_data_dir()` 本机缓存与下载的模型 | `%LOCALAPPDATA%\zhiyu\` | `<所选文件夹>\zhiyu\local\` |
 
 所选文件夹不存在（移动硬盘未连接）时两者都回到默认位置，设置里会提示。开发诊断日志（未打包时）跟随
-`user_data_dir()`。设置程序移动数据时持有互斥量 `Local\ZhiyiIME.DataMove`，`zhiyi-server` 启动时等它释放再加载。
+`user_data_dir()`。设置程序移动数据时持有互斥量 `Local\ZhiyuIME.DataMove`，`zhiyu-server` 启动时等它释放再加载。
 
 ### 本机缓存 `local_data_dir()\laya-cache\`
 
 ```
-C:\Users\<username>\AppData\Local\zhiyi\laya-cache\
+C:\Users\<username>\AppData\Local\zhiyu\laya-cache\
 └── <key>\                    key = 模型文件 + tokenizer.json + ONNX Runtime 版本 + CPU 型号的哈希
     ├── laya.onnx             优化后的图（权重引用 laya.data）
     ├── laya.data             权重，按本机 CPU 预打包（约 125 MB）
     └── tokenizer.bin         分词器的紧凑镜像（排好序的词表与 merges，约 13 MB）
-C:\Users\<username>\AppData\Local\zhiyi\laya-gpu.json   显卡测速结果（按显卡、驱动版本和模型），设置程序写入
-C:\Users\<username>\AppData\Local\zhiyi\translator\    离线翻译模型与运行库（学习模式，设置程序下载）
+C:\Users\<username>\AppData\Local\zhiyu\laya-gpu.json   显卡测速结果（按显卡、驱动版本和模型），设置程序写入
+C:\Users\<username>\AppData\Local\zhiyu\translator\    离线翻译模型与运行库（学习模式，设置程序下载）
 ```
 
 Laya 模型的本机缓存（`laya.cache`，见 [设置指南](settings-guide.md)），两部分：
@@ -128,7 +128,7 @@ key 不匹配的旧缓存会在下次启动时删除；缓存写不进去或损�
 
 ### user_data_dir()
 
-用户可写目录。默认 `%USERPROFILE%\zhiyi\`（CSIDL_PROFILE + `\zhiyi\`），选了数据位置时为 `<所选文件夹>\zhiyi\`（见上）。
+用户可写目录。默认 `%USERPROFILE%\zhiyu\`（CSIDL_PROFILE + `\zhiyu\`），选了数据位置时为 `<所选文件夹>\zhiyu\`（见上）。
 
 首次调用时通过 `CreateDirectoryW` 自动创建。
 
@@ -154,7 +154,7 @@ cxxime::set_data_dir("");             // 清除覆盖，恢复默认回退链
 
 服务端从词典清单（`dictionary_manifest.json`）取拼写表：全拼用角色 `pinyin_spellings`（`pinyin.spellings.bin`），
 设置中所选的双拼方案（`engine.shuangpin_scheme`：`microsoft_shuangpin`、`xiaohe_shuangpin`、`ziranma_shuangpin`、
-`sogou_shuangpin`）用角色 `pinyin_spellings_<方案名>_shuangpin`（`pinyin.<方案名>-shuangpin.spellings.bin`，即
+`sogou_shuangpin`、`abc_shuangpin`）用角色 `pinyin_spellings_<方案名>_shuangpin`（`pinyin.<方案名>-shuangpin.spellings.bin`，即
 `PinyinSchemeDescriptor.spelling_filename`），两份同时载入，按拼音方式选用；双拼表缺失时双拼按全拼处理。自带资源的
 `Engine::initialize(dict_path)`（测试与工具）按主词典路径推导：同目录下的 `pinyin.spellings.bin`，以及存在时的所选双拼表。
 五份拼写表共用同一个 `pinyin.dict.bin`，换双拼方案只重新载入那份拼写表，不重新加载主词典。

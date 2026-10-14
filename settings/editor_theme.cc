@@ -31,9 +31,9 @@ HBRUSH g_window_brush = nullptr;
 HBRUSH g_card_brush = nullptr;
 HBRUSH g_control_brush = nullptr;
 
-constexpr wchar_t kPrimaryProp[] = L"ZhiyiPrimaryButton";
-constexpr wchar_t kSelectedProp[] = L"ZhiyiSelectedButton";
-constexpr wchar_t kHoverProp[] = L"ZhiyiButtonHover";
+constexpr wchar_t kPrimaryProp[] = L"ZhiyuPrimaryButton";
+constexpr wchar_t kSelectedProp[] = L"ZhiyuSelectedButton";
+constexpr wchar_t kHoverProp[] = L"ZhiyuButtonHover";
 
 // Hover for the hand-drawn buttons: repaint on enter and leave.
 LRESULT CALLBACK ButtonHoverProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam,

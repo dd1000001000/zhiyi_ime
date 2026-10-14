@@ -24,9 +24,9 @@ constexpr std::uint64_t kMaxManifestSize = 1024ULL * 1024ULL;
 constexpr DWORD kMoveFileDelayUntilReboot = 0x4;
 
 constexpr const wchar_t* kLifecycleControlFiles[] = {
-    L".zhiyi-install-complete",          L".zhiyi-install-transaction",
-    L".zhiyi-install-transaction.tmp",   L".zhiyi-uninstall-transaction",
-    L".zhiyi-uninstall-transaction.tmp",
+    L".zhiyu-install-complete",          L".zhiyu-install-transaction",
+    L".zhiyu-install-transaction.tmp",   L".zhiyu-uninstall-transaction",
+    L".zhiyu-uninstall-transaction.tmp",
 };
 
 bool read_file(const std::wstring& path, std::string* contents, unsigned long* error_code) {
@@ -114,7 +114,7 @@ bool load_manifest(const std::wstring& directory, std::vector<std::wstring>* fil
     }
     try {
         const nlohmann::json manifest = nlohmann::json::parse(contents);
-        if (!manifest.is_object() || manifest.value("format", "") != "zhiyi-install-manifest" ||
+        if (!manifest.is_object() || manifest.value("format", "") != "zhiyu-install-manifest" ||
             manifest.value("version", 0u) != 1 || !manifest.contains("files") ||
             !manifest["files"].is_array() || manifest["files"].size() > 256) {
             throw std::runtime_error("invalid install manifest");

@@ -9,7 +9,7 @@
 #define CXXIME_LOG(fmt, ...)                                                                       \
     do {                                                                                           \
         wchar_t _buf[512];                                                                        \
-        _snwprintf_s(_buf, _countof(_buf), _TRUNCATE, L"[ZhiyiIME] " fmt L"\n", __VA_ARGS__);       \
+        _snwprintf_s(_buf, _countof(_buf), _TRUNCATE, L"[ZhiyuIME] " fmt L"\n", __VA_ARGS__);       \
         OutputDebugStringW(_buf);                                                                  \
     } while (0)
 #else

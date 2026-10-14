@@ -149,7 +149,7 @@ text<TAB>code<TAB>frequency                   （3 列，旧格式）
 text<TAB>code<TAB>frequency<TAB>syllables     （4 列，新格式）
 ```
 
-文件：`%USERPROFILE%\zhiyi\user_pinyin.tsv`、`%USERPROFILE%\zhiyi\user_wubi.tsv`。
+文件：`%USERPROFILE%\zhiyu\user_pinyin.tsv`、`%USERPROFILE%\zhiyu\user_wubi.tsv`。
 
 ## 候选偏好
 
@@ -221,7 +221,7 @@ dee_now = dee × exp((sequence − 当前 tick) / 200)
   整句多第 9 列 `s`；读取时兼容 6 列（1.0.8 以前，权重按次数折算）和 7 列；保存时已遗忘的条目不再写出
 - `save_if_due(delay)` 按最近更新时间合并落盘（服务端默认 1500ms）；`save()` 立即写盘
 - `freeze()` 后拒绝记录/删除/清空，但允许保存既有数据
-- 文件：`%USERPROFILE%\zhiyi\learning_pinyin.tsv`、`%USERPROFILE%\zhiyi\learning_wubi.tsv`
+- 文件：`%USERPROFILE%\zhiyu\learning_pinyin.tsv`、`%USERPROFILE%\zhiyu\learning_wubi.tsv`
 
 ## 手动候选顺序（固定排序）
 
@@ -250,7 +250,7 @@ struct ManualCandidateOrderEntry {
 
 - 文件头 `# cxxime-candidate-order format=1` + 每行 5 列 TSV：`input_code<TAB>text<TAB>candidate_code<TAB>syllables<TAB>position`（position 从 1 开始）；
 - 写盘采用原子替换；写盘失败时内存状态保持不变；
-- 文件：`%USERPROFILE%\zhiyi\candidate_order_pinyin.tsv`、`%USERPROFILE%\zhiyi\candidate_order_wubi.tsv`。
+- 文件：`%USERPROFILE%\zhiyu\candidate_order_pinyin.tsv`、`%USERPROFILE%\zhiyu\candidate_order_wubi.tsv`。
 
 ### 查询与修改接口
 
@@ -296,7 +296,7 @@ std::uint64_t manual_candidate_order_version() const;
    - 五笔：文件没给编码时按五笔 86 组词规则由各字的全码（五笔词典里该字最长的编码）算出；五笔词典已有这个词时不导入五笔部分。
    - 词频：两字 `kWordListTwoCharacterFrequency`（1000），三字以上 `kWordListLongWordFrequency`（500），单字 100；
      文件有权重（多数词都有）时按名次在一半到两倍之间分配。英文按 100 × Zipf，默认 400，按名次 300–500。
-3. `write_word_list` / `load_word_list`：知意自己的格式，首行 `# zhiyi-wordlist format=1`，接 `# language=`、`# name=`，
+3. `write_word_list` / `load_word_list`：知语自己的格式，首行 `# zhiyi-wordlist format=1`，接 `# language=`、`# name=`，
    中文每行 `词<TAB>音节<TAB>五笔<TAB>词频<TAB>g?`（`g`：读音是推出来的），英文每行 `词<TAB>分数`。
 
 ### 存放与应用（`server/src/word_list_service.cc`）

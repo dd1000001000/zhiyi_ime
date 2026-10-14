@@ -4,7 +4,7 @@
 
 The DirectML build also contains the CPU execution provider; the GPU is only used when
 laya.device names a graphics card. The engine links onnxruntime.lib from there and the build
-copies onnxruntime.dll and DirectML.dll next to zhiyi-server.exe.
+copies onnxruntime.dll and DirectML.dll next to zhiyu-server.exe.
   - ONNX Runtime: NuGet package Microsoft.ML.OnnxRuntime.DirectML (MIT). Its DirectML builds
     stop at 1.24.4.
   - DirectML.dll 1.15.4 (the version that ONNX Runtime 1.24.4 requires; Microsoft DirectML

@@ -2,7 +2,7 @@
 //
 // The settings program's requests about the user's word lists (word_list.h): list them, look at
 // a file before importing it, import it, enable or disable a list, remove one, and see the words
-// whose pinyin was worked out. The server keeps the lists (%USERPROFILE%\zhiyi\wordlists) and
+// whose pinyin was worked out. The server keeps the lists (%USERPROFILE%\zhiyu\wordlists) and
 // applies them to the dictionaries.
 #ifndef CXXIME_WORD_LIST_CONTROL_H_
 #define CXXIME_WORD_LIST_CONTROL_H_

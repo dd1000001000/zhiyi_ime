@@ -5,6 +5,13 @@ build-package/
 build-package-x86/
 dist/
 
+# Local release artifacts (built here, uploaded as release assets, never committed)
+build-x64/
+build-x86/
+/scripts/latest.json
+/scripts/latest.json.sig
+/scripts/*-setup.exe
+
 # Raw dictionary databases (too large for git; committed as .zip)
 data/*.dict.db
 data/pinyin.dict.db.bak
@@ -46,7 +53,7 @@ CLAUDE.md
 Thumbs.db
 Desktop.ini
 
-# ---- 知意输入法 ----
+# ---- 知语输入法 ----
 # ONNX Runtime binaries: python scripts/fetch_onnxruntime.py
 third_party/onnxruntime/
 # Model files (see README): python scripts/fetch_model.py

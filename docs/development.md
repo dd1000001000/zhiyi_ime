@@ -32,7 +32,7 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 - 英文词表 `data\english.words.tsv` 已随仓库提供，可用 `data\tools\build_english_dictionary.py` 重新生成。
 
 已安装的输入法模块（TSF DLL）由各程序在启动时加载，测试新版本前要重新打开目标程序；可以用
-`Get-Process | ForEach-Object { $_.Modules } | Where-Object ModuleName -like 'zhiyi_tsf*'` 查看各进程加载的版本。
+`Get-Process | ForEach-Object { $_.Modules } | Where-Object ModuleName -like 'zhiyu_tsf*'` 查看各进程加载的版本。
 
 ## 发布
 
@@ -87,7 +87,7 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 
 测试集上的首选准确率（int8 模型，CPU）：
 
-| | 只按词频排序 | 知意输入法 |
+| | 只按词频排序 | 知语输入法 |
 |---|---|---|
 | 中文，输入法实际候选（1898 条：全拼、末音节不完整、简拼、混打） | 63.0% | 77.6% |
 | 其中正确词在候选里的（1646 条） | 72.3% | 89.2% |
@@ -97,10 +97,10 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 
 ## 源码约定
 
-- 知意输入法整体按 GPL-3.0-only 发布；来自 CxxIME 的源文件保留 Apache License 2.0 声明，新文件使用
+- 知语输入法整体按 GPL-3.0-only 发布；来自 CxxIME 的源文件保留 Apache License 2.0 声明，新文件使用
   `// Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.`
 - 内部命名空间、宏与 CMake 目标沿用 CxxIME 的 `cxxime` / `CXXIME_`，便于合并上游；对外的文件名、注册标识与
-  数据目录使用 `zhiyi` / `ZhiyiIME`。改动列表见 [NOTICE](../NOTICE)。
+  数据目录使用 `zhiyu` / `ZhiyuIME`。改动列表见 [NOTICE](../NOTICE)。
 
 ## 文档索引
 

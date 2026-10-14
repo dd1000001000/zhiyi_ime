@@ -55,10 +55,11 @@ enum class ImeStatusFlag : uint32_t {
     // Chinese pinyin style: initials only (set) or full pinyin (clear).
     PINYIN_INITIALS = 1u << 5,
     // Chinese pinyin style: shuangpin (PINYIN_INITIALS clear), in the scheme numbered by the
-    // two SHUANGPIN_SCHEME bits (0 Microsoft, 1 Xiaohe, 2 Ziranma, 3 Sogou).
+    // three SHUANGPIN_SCHEME bits (0 Microsoft, 1 Xiaohe, 2 Ziranma, 3 Sogou, 4 Smart ABC).
     SHUANGPIN = 1u << 6,
     SHUANGPIN_SCHEME_LOW = 1u << 7,
     SHUANGPIN_SCHEME_HIGH = 1u << 8,
+    SHUANGPIN_SCHEME_TOP = 1u << 9,
 };
 
 constexpr uint32_t ime_status_flag(ImeStatusFlag flag) noexcept {
@@ -145,15 +146,17 @@ struct ImeStatus {
         set_flag(ImeStatusFlag::SHUANGPIN, style == PinyinStyle::kShuangpin);
     }
 
-    // The shuangpin scheme (0-3, see SHUANGPIN), shown in the taskbar menu.
+    // The shuangpin scheme (0-4, see SHUANGPIN), shown in the taskbar menu.
     uint32_t shuangpin_scheme() const noexcept {
         return (has_flag(ImeStatusFlag::SHUANGPIN_SCHEME_LOW) ? 1u : 0u) |
-               (has_flag(ImeStatusFlag::SHUANGPIN_SCHEME_HIGH) ? 2u : 0u);
+               (has_flag(ImeStatusFlag::SHUANGPIN_SCHEME_HIGH) ? 2u : 0u) |
+               (has_flag(ImeStatusFlag::SHUANGPIN_SCHEME_TOP) ? 4u : 0u);
     }
 
     void set_shuangpin_scheme(uint32_t index) noexcept {
         set_flag(ImeStatusFlag::SHUANGPIN_SCHEME_LOW, (index & 1u) != 0);
         set_flag(ImeStatusFlag::SHUANGPIN_SCHEME_HIGH, (index & 2u) != 0);
+        set_flag(ImeStatusFlag::SHUANGPIN_SCHEME_TOP, (index & 4u) != 0);
     }
 };
 

@@ -1,14 +1,14 @@
-# 知意输入法架构总览
+# 知语输入法架构总览
 
-描述知意输入法的总体架构、模块划分、技术选型与数据架构现状。面向维护者与开发者，专题细节见文末相关文档。
-知意输入法基于 CxxIME 修改而来，本文中引擎、IPC、词典等基础架构沿用 CxxIME 的设计。
+描述知语输入法的总体架构、模块划分、技术选型与数据架构现状。面向维护者与开发者，专题细节见文末相关文档。
+知语输入法基于 CxxIME 修改而来，本文中引擎、IPC、词典等基础架构沿用 CxxIME 的设计。
 
 **关键指标（现状）：**
 
 | 指标 | 数值 | 说明 |
 |------|------|------|
 | 安装包 | ~120 MB | 单文件安装器，含词典、Laya 模型（int8，词表裁剪后解压约 92 MB）与 ONNX Runtime |
-| Server 内存 | 私有提交 ~50–70 MB | 词典、Laya 模型权重（按本机 CPU 预打包）和分词器镜像都是只读映射的共享页：首次启动在 `%LOCALAPPDATA%\zhiyi\laya-cache` 生成约 140 MB 缓存（见 [路径解析](path-resolution.md)）；引擎 + 模型实测私有 44–66 MB，1.0.5 为 477 MB |
+| Server 内存 | 私有提交 ~50–70 MB | 词典、Laya 模型权重（按本机 CPU 预打包）和分词器镜像都是只读映射的共享页：首次启动在 `%LOCALAPPDATA%\zhiyu\laya-cache` 生成约 140 MB 缓存（见 [路径解析](path-resolution.md)）；引擎 + 模型实测私有 44–66 MB，1.0.5 为 477 MB |
 | 上文推荐 | 每次约 12 ms（CPU）/ 约 6 ms（RTX 5070 Ti） | Laya 模型在 CPU 上推理（4 线程），或在设置里选的独立显卡上（DirectML）；结果按上文缓存 |
 | IPC 往返延迟 | < 1 ms | 实测 preedit 平均 ~50 µs（见 [IPC 架构设计](ipc-architecture.md)） |
 | 启动 | 词典只读映射 + 整体预取 | 文件支持的共享页，不计入私有内存；启动时 `PrefetchVirtualMemory` 一次读入 |
@@ -19,8 +19,8 @@
 
 Windows TSF 中英文输入法：中文拼音或五笔 86，英文单词联想 / 逐字母输入；用本地运行的 Laya 模型按上文
 挑选首选候选。客户端（TSF DLL）/ 服务端（后台进程）分离，仅支持 64 位 Windows 10/11。以 TSF 输入处理器为主，
-同时提供 IMM 兼容模块（`zhiyi_ime_<arch>.ime`）供传统应用使用。中文输入方式为全拼、首字母、五笔和双拼（微软、小鹤、
-自然码、搜狗四种方案，与全拼共用词库）；CxxIME 的拼音五笔混输模式不再提供。
+同时提供 IMM 兼容模块（`zhiyu_ime_<arch>.ime`）供传统应用使用。中文输入方式为全拼、首字母、五笔和双拼（微软、小鹤、
+自然码、搜狗、智能ABC五种方案，与全拼共用词库）；CxxIME 的拼音五笔混输模式不再提供。
 
 **设计原则：**
 
@@ -35,7 +35,7 @@ Windows TSF 中英文输入法：中文拼音或五笔 86，英文单词联想 /
 
 ```
 ┌──────────────────────┐    Named Pipe (IOCP)    ┌───────────────────────────┐
-│  TSF DLL (x64/x86)   │  ◄════════════════════► │     zhiyi-server.exe     │
+│  TSF DLL (x64/x86)   │  ◄════════════════════► │     zhiyu-server.exe     │
 │  ┌────────────────┐  │                         │  ┌─────────────────────┐  │
 │  │ KeyEventSink   │  │                         │  │ SharedResources     │  │
 │  │ EditSession    │  │                         │  │ 词典/拼写/配置/标点   │  │
@@ -50,7 +50,7 @@ Windows TSF 中英文输入法：中文拼音或五笔 86，英文单词联想 /
           ▲                                      └───────────────────────────┘
           │ IPC（按键 / 编辑会话 / 状态）                      ▲
 ┌──────────────────────┐                                     │
-│ zhiyi-settings.exe  │─────────────────────────────────────┘
+│ zhiyu-settings.exe  │─────────────────────────────────────┘
 │ 配置编辑 / 用户数据管理 │   控制通道（配置快照、用户配置与词库写入、备份）
 └──────────────────────┘
 ```
@@ -131,7 +131,7 @@ ITfThreadFocusSink          — 线程焦点通知
 
 ### 3.5 IPC 层
 
-Named Pipe（每用户 `\\.\pipe\<username>\ZhiyiIME`），Server 端 IOCP 线程池（2-4 worker），Client 端同步 I/O。固定结构体 + memcpy 序列化。
+Named Pipe（每用户 `\\.\pipe\<username>\ZhiyuIME`），Server 端 IOCP 线程池（2-4 worker），Client 端同步 I/O。固定结构体 + memcpy 序列化。
 
 协议定义见 `shared/include/cxxime/ipc_protocol.h`（`IPCCommand` / `IPCRequest` / `IPCResponse` / `ImeStatus`），涵盖会话、按键、候选、状态切换、用户词典管理与重载命令。架构细节见 [IPC 架构设计](ipc-architecture.md)。
 
@@ -146,7 +146,7 @@ JSON 配置（`default.json` + `themes.json`），设置编辑器（Win32 原生
 | 技术领域 | 选型 | 理由 |
 |----------|------|------|
 | 引擎 | 自研（C++17） | 按需实现拼音/五笔，无需完整输入法框架 |
-| 输入处理器 | TSF + IMM 兼容模块 | TSF 为主；`zhiyi_ime_<arch>.ime` 覆盖传统 IMM 应用 |
+| 输入处理器 | TSF + IMM 兼容模块 | TSF 为主；`zhiyu_ime_<arch>.ime` 覆盖传统 IMM 应用 |
 | 序列化 | 固定结构体 + memcpy | 简单高效 |
 | IPC | Named Pipe + IOCP | 零外部依赖，< 1ms 往返 |
 | 词典 | 只读映射的二进制词典 + DAT-16 Top-N 索引 | 启动时整体预取，Darts trie O(k) 查找，运行时无 SQLite |

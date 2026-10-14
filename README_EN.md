@@ -59,8 +59,8 @@ Zhiyu IME is an **independent fork** of Zhiyi IME: the update check and the lang
   and downloaded models can move to another drive with one click on the General page.
 - **Full pinyin, initials, Wubi, shuangpin**: full pinyin also accepts initials and a mix of both
   (`wsyige` → 我是一个); in initials mode each letter is one character (`zgr` → 中国人); shuangpin
-  comes in the Microsoft, Xiaohe, Ziranma and Sogou schemes and shares the dictionary and learning
-  records with full pinyin. While typing, the style switch key (Ctrl+Space by default) cycles the
+  comes in the Microsoft, Xiaohe, Ziranma, Sogou and Smart ABC schemes and shares the dictionary
+  and learning records with full pinyin. While typing, the style switch key (Ctrl+Space by default) cycles the
   four; the input box always shows the keys as typed.
 - **Fuzzy pinyin**: z=zh, c=ch, s=sh, n=l, an=ang, en=eng, in=ing, each pair on or off; words found
   through a fuzzy pair show their correct pinyin.
@@ -103,7 +103,7 @@ Candidates the learning-mode language packs lack are translated by a model on yo
 
 **Requirements**: Windows 10 / 11 (64-bit).
 
-1. Download the latest `zhiyi-v<version>-setup.exe` from
+1. Download the latest `zhiyu-v<version>-setup.exe` from
    [Releases](https://github.com/w3c0929/zhiyi_ime/releases/latest) and run it (administrator
    approval is needed).
 2. Press `Win + Space` to switch to Zhiyu IME, or make it the default input method in Windows Settings
@@ -115,7 +115,7 @@ Candidates the learning-mode language packs lack are translated by a model on yo
 - **Moving to another computer or reinstalling**: Export… on the Dictionary page of Settings, then
   Import… on the new computer.
 - **Uninstalling**: uninstall Zhiyu IME in Windows Settings > Apps > Installed apps; you can keep your
-  personal data (settings, learned words and downloaded language packs in `%USERPROFILE%\zhiyi\`).
+  personal data (settings, learned words and downloaded language packs in `%USERPROFILE%\zhiyu\`).
 
 ## Credits
 

@@ -21,6 +21,8 @@ const std::vector<PinyinSchemeDescriptor> kBuiltInPinyinSchemes = {
      "pinyin_spellings_ziranma_shuangpin", "pinyin.ziranma-shuangpin.spellings.bin", "ni'hk"},
     {"sogou_shuangpin", L"搜狗双拼", PinyinSchemeKind::kShuangpin,
      "pinyin_spellings_sogou_shuangpin", "pinyin.sogou-shuangpin.spellings.bin", "ni'hk"},
+    {"abc_shuangpin", L"智能ABC双拼", PinyinSchemeKind::kShuangpin,
+     "pinyin_spellings_abc_shuangpin", "pinyin.abc-shuangpin.spellings.bin", "ni'hk"},
 };
 
 } // namespace

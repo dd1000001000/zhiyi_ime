@@ -85,7 +85,7 @@ def sign(key_path, manifests):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sign zhiyi_ime release manifests (ECDSA P-256).")
+    parser = argparse.ArgumentParser(description="Sign zhiyu_ime release manifests (ECDSA P-256).")
     sub = parser.add_subparsers(dest="command", required=True)
 
     generate_parser = sub.add_parser("generate", help="create a signing key")

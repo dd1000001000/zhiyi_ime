@@ -2,10 +2,10 @@
 //
 // "Data location" on the General page (docs/settings-guide.md): every file the input method
 // writes (user data, caches, downloaded models) can live in a folder the user picks instead of
-// drive C. The choice is in the registry (data_path.h); the data goes to <folder>\zhiyi\, the
-// machine-specific part to <folder>\zhiyi\local\.
+// drive C. The choice is in the registry (data_path.h); the data goes to <folder>\zhiyu\, the
+// machine-specific part to <folder>\zhiyu\local\.
 //
-// Moving: zhiyi-server is closed (it saves its data on the way out) and held off with
+// Moving: zhiyu-server is closed (it saves its data on the way out) and held off with
 // kDataMoveMutex, the files are copied and compared by size, the registry value is switched,
 // the old copies are deleted, and the server is started again. On a failure before the switch
 // nothing changes (the partial copy is removed).
@@ -68,7 +68,7 @@ DataPlaces places_for(const std::wstring& folder) {
         return {with_slash(utf8_to_wstr(default_user_data_dir())),
                 with_slash(utf8_to_wstr(default_local_data_dir()))};
     }
-    const std::wstring user = with_slash(folder) + L"zhiyi\\";
+    const std::wstring user = with_slash(folder) + L"zhiyu\\";
     return {user, user + L"local\\"};
 }
 
@@ -79,9 +79,9 @@ bool server_running() {
     return true;
 }
 
-// Asks zhiyi-server to exit (it saves its data first) and waits until it has.
+// Asks zhiyu-server to exit (it saves its data first) and waits until it has.
 bool stop_server() {
-    for (HWND window = nullptr; (window = FindWindowExW(nullptr, window, L"ZhiyiIMEServerClass",
+    for (HWND window = nullptr; (window = FindWindowExW(nullptr, window, L"ZhiyuIMEServerClass",
                                                         nullptr)) != nullptr;) {
         PostMessageW(window, WM_CLOSE, 0, 0);
     }
@@ -93,7 +93,7 @@ bool stop_server() {
 }
 
 // Something the input method keeps there already.
-bool has_zhiyi_data(const std::wstring& user_dir) {
+bool has_zhiyu_data(const std::wstring& user_dir) {
     for (const wchar_t* name : {L"default.json", L"learning_pinyin.tsv", L"user_pinyin.tsv",
                                 L"learning_english.json"}) {
         if (GetFileAttributesW((user_dir + name).c_str()) != INVALID_FILE_ATTRIBUTES) return true;
@@ -140,7 +140,7 @@ std::wstring pick_folder(HWND owner) {
     return path;
 }
 
-// The installed program (C:\Program Files\ZhiyiIME\<version>\ -> its base folder).
+// The installed program (C:\Program Files\ZhiyuIME\<version>\ -> its base folder).
 std::wstring install_base() {
     wchar_t buf[MAX_PATH * 2] = {};
     const DWORD n = GetModuleFileNameW(nullptr, buf, static_cast<DWORD>(std::size(buf)));
@@ -175,7 +175,7 @@ void EditorApp::show_data_folder() {
     if (!hDataFolder_) return;
     const std::wstring chosen = utf8_to_wstr(chosen_data_folder());
     const bool unavailable = chosen_data_folder_unavailable();
-    const std::wstring shown = unavailable ? with_slash(chosen) + L"zhiyi\\"
+    const std::wstring shown = unavailable ? with_slash(chosen) + L"zhiyu\\"
                                            : utf8_to_wstr(user_data_dir());
     SetWindowTextW(hDataFolder_, shown.c_str());
     if (!data_moving_) {
@@ -212,7 +212,7 @@ void EditorApp::choose_data_folder(bool to_default) {
     // Writable?
     std::error_code error;
     fs::create_directories(to.user, error);
-    const std::wstring probe = to.user + L".zhiyi-write-test";
+    const std::wstring probe = to.user + L".zhiyu-write-test";
     HANDLE file = CreateFileW(probe.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
                               FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
     if (file == INVALID_HANDLE_VALUE) {
@@ -224,7 +224,7 @@ void EditorApp::choose_data_folder(bool to_default) {
 
     // Data there already (a reinstall): use it, or replace it with the current data.
     bool use_existing = false;
-    if (has_zhiyi_data(to.user)) {
+    if (has_zhiyu_data(to.user)) {
         const int answer = MessageBoxW(hwnd_, fill(tr("general.data_existing"), {to.user}).c_str(),
                                        tr("window.title"), MB_YESNOCANCEL | MB_ICONQUESTION);
         if (answer == IDCANCEL) return;

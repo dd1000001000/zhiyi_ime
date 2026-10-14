@@ -107,7 +107,7 @@ void fft(std::vector<std::complex<double>>& a) {
 std::string ort_error(const Ort::Exception& e) { return std::string("onnxruntime: ") + e.what(); }
 
 Ort::Env& ort_env() {
-    static Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "zhiyi-voice");
+    static Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "zhiyu-voice");
     return env;
 }
 

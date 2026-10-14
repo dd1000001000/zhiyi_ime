@@ -8,7 +8,7 @@ folders, the runtime DLLs (onnxruntime, DirectML, the MSVC runtimes) and the lic
 installed copy. So this copies the reference installation, overwrites it with the freshly built
 programs, and zips the result into dist/zhiyu-v<version>.zip.
 
-It does not build the NSIS setup.exe: upstream's zhiyi-setup.nsi is not published here. Either
+It does not build the NSIS setup.exe: upstream's zhiyu-setup.nsi is not published here. Either
 point makensis at your own installer script over the produced folder, or ship the zip. After the
 setup.exe exists, run scripts/make_release.py to build and sign latest.json.
 """
@@ -22,23 +22,23 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Built programs, relative to the build tree; both architectures where they exist.
 BUILT = {
     "x64": [
-        (r"server\Release\zhiyi-server.exe", "zhiyi-server.exe"),
-        (r"settings\Release\zhiyi-settings.exe", "zhiyi-settings.exe"),
-        (r"tsf\Release\zhiyi_tsf_x64.dll", "zhiyi_tsf_x64.dll"),
-        (r"legacy_ime\Release\zhiyi_ime_x64.ime", "zhiyi_ime_x64.ime"),
-        (r"resource\Release\zhiyi-resources.dll", "zhiyi-resources.dll"),
-        (r"installer\Release\zhiyi-installer-helper.exe", "zhiyi-installer-helper.exe"),
+        (r"server\Release\zhiyu-server.exe", "zhiyu-server.exe"),
+        (r"settings\Release\zhiyu-settings.exe", "zhiyu-settings.exe"),
+        (r"tsf\Release\zhiyu_tsf_x64.dll", "zhiyu_tsf_x64.dll"),
+        (r"legacy_ime\Release\zhiyu_ime_x64.ime", "zhiyu_ime_x64.ime"),
+        (r"resource\Release\zhiyu-resources.dll", "zhiyu-resources.dll"),
+        (r"installer\Release\zhiyu-installer-helper.exe", "zhiyu-installer-helper.exe"),
     ],
     "x86": [
-        (r"tsf\Release\zhiyi_tsf_x86.dll", "zhiyi_tsf_x86.dll"),
-        (r"legacy_ime\Release\zhiyi_ime_x86.ime", "zhiyi_ime_x86.ime"),
+        (r"tsf\Release\zhiyu_tsf_x86.dll", "zhiyu_tsf_x86.dll"),
+        (r"legacy_ime\Release\zhiyu_ime_x86.ime", "zhiyu_ime_x86.ime"),
     ],
 }
 
 
 def copy_reference(reference, out_dir):
     shutil.copytree(reference, out_dir, dirs_exist_ok=True, ignore=shutil.ignore_patterns(
-        "*.replaced", "uninstall.exe", "install-manifest.json", ".zhiyi-install-complete"))
+        "*.replaced", "uninstall.exe", "install-manifest.json", ".zhiyu-install-complete"))
 
 
 def overlay_builds(reference, out_dir, build_x64, build_x86):

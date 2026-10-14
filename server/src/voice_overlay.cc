@@ -20,7 +20,7 @@ constexpr UINT_PTR kAnimationTimer = 1;
 constexpr UINT_PTR kHideTimer = 2;
 constexpr UINT kFrameMs = 33;
 constexpr UINT kMessageMs = 2200;
-constexpr wchar_t kClassName[] = L"ZhiyiIMEVoiceWindow";
+constexpr wchar_t kClassName[] = L"ZhiyuIMEVoiceWindow";
 
 // Sizes in DIPs.
 constexpr float kShadow = 10.0f;      // room around the bar for its shadow
@@ -206,7 +206,7 @@ void VoiceOverlay::Impl::run() {
     RegisterClassExW(&wc);
     hwnd = factory && dwrite
                ? CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
-                                 kClassName, L"Zhiyi IME Voice", WS_POPUP, 0, 0, 0, 0, nullptr,
+                                 kClassName, L"Zhiyu IME Voice", WS_POPUP, 0, 0, 0, 0, nullptr,
                                  nullptr, wc.hInstance, this)
                : nullptr;
     {

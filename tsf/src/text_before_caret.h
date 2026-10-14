@@ -3,8 +3,8 @@
 // Reads the text before the caret of an input box, for the context the recommendation model
 // uses (sent to the server with SET_CONTEXT when a composition starts).
 
-#ifndef ZHIYI_TSF_TEXT_BEFORE_CARET_H_
-#define ZHIYI_TSF_TEXT_BEFORE_CARET_H_
+#ifndef ZHIYU_TSF_TEXT_BEFORE_CARET_H_
+#define ZHIYU_TSF_TEXT_BEFORE_CARET_H_
 
 #include "pch.h"
 
@@ -31,4 +31,4 @@ TextBeforeCaret read_text_before_caret(ITfContext* context, TfClientId client_id
 TextBeforeCaret read_selection_text(ITfContext* context, TfClientId client_id, size_t max_chars,
                                     std::wstring* text);
 
-#endif  // ZHIYI_TSF_TEXT_BEFORE_CARET_H_
+#endif  // ZHIYU_TSF_TEXT_BEFORE_CARET_H_

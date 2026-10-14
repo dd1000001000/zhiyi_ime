@@ -2,13 +2,13 @@
 ;
 ;   makensis /DVERSION=1.6.0 /DSRCDIR=..\dist\zhiyu-v1.6.0 scripts\zhiyu-setup.nsi
 ;
-; Mirrors the upstream model (its zhiyi-setup.nsi is not published):
+; Mirrors the upstream model (its zhiyu-setup.nsi is not published):
 ;   * the installer is silent-capable: `/S` and `/D=<root>` (NSIS built-ins). scoop installs it
-;     as  Start-Process setup.exe '/S', "/D=$persist_dir\zhiyiime"  — see scripts/zhiyu-scoop.json.
+;     as  Start-Process setup.exe '/S', "/D=$persist_dir\zhiyuime"  — see scripts/zhiyu-scoop.json.
 ;   * <root>  holds  <root>\<version>\  (the program files) and  <root>\uninstall.exe.
 ;   * the 64-bit and 32-bit TSF DLLs are registered with regsvr32 (they export DllRegisterServer,
 ;     tsf/src/dllmain.cpp + register.cpp); the background server is started.
-;   * the uninstall entry carries an InstallLocation containing "zhiyiime" (scoop looks it up),
+;   * the uninstall entry carries an InstallLocation containing "zhiyuime" (scoop looks it up),
 ;     and the uninstaller is named uninstall.exe (matches scoop's unins*.exe).
 ;
 ; The helper's transactional lifecycle (lifecycle-prepare / -commit / -gc, installer/src/main.cc)
@@ -31,13 +31,13 @@ Unicode true
 !define APP_NAME "知语输入法"
 !define APP_NAME_EN "Zhiyu IME"
 !define COMPANY "Zhiyu IME"
-!define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyiIME"
+!define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ZhiyuIME"
 
 Name "${APP_NAME} ${VERSION}"
 OutFile "zhiyu-v${VERSION}-setup.exe"
 ; /D from the command line overrides this (scoop passes the persist directory).
 InstallDir "$LOCALAPPDATA\ZhiyuIME"
-InstallDirRegKey HKCU "Software\ZhiyiIME" "InstallDir"
+InstallDirRegKey HKCU "Software\ZhiyuIME" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
@@ -52,16 +52,16 @@ SetCompressor /SOLID lzma
 Var AppDir  ; <root>\<version>
 
 !macro RegisterTsf
-  ExecWait '"$SYSDIR\regsvr32.exe" /s "$AppDir\zhiyi_tsf_x64.dll"'
+  ExecWait '"$SYSDIR\regsvr32.exe" /s "$AppDir\zhiyu_tsf_x64.dll"'
   ${If} ${RunningX64}
-    ExecWait '"$WINDIR\SysWOW64\regsvr32.exe" /s "$AppDir\zhiyi_tsf_x86.dll"'
+    ExecWait '"$WINDIR\SysWOW64\regsvr32.exe" /s "$AppDir\zhiyu_tsf_x86.dll"'
   ${EndIf}
 !macroend
 
 !macro UnregisterTsf
-  ExecWait '"$SYSDIR\regsvr32.exe" /s /u "$AppDir\zhiyi_tsf_x64.dll"'
+  ExecWait '"$SYSDIR\regsvr32.exe" /s /u "$AppDir\zhiyu_tsf_x64.dll"'
   ${If} ${RunningX64}
-    ExecWait '"$WINDIR\SysWOW64\regsvr32.exe" /s /u "$AppDir\zhiyi_tsf_x86.dll"'
+    ExecWait '"$WINDIR\SysWOW64\regsvr32.exe" /s /u "$AppDir\zhiyu_tsf_x86.dll"'
   ${EndIf}
 !macroend
 
@@ -77,15 +77,15 @@ Section "Install"
   File /r "${SRCDIR}\*.*"
 
   ; A marker the settings program and the helper look for.
-  FileOpen $0 "$AppDir\.zhiyi-install-complete" w
+  FileOpen $0 "$AppDir\.zhiyu-install-complete" w
   FileClose $0
 
   !insertmacro RegisterTsf
 
-  IfFileExists "$AppDir\zhiyi-server.exe" 0 +2
-    Exec '"$AppDir\zhiyi-server.exe"'
+  IfFileExists "$AppDir\zhiyu-server.exe" 0 +2
+    Exec '"$AppDir\zhiyu-server.exe"'
 
-  WriteRegStr HKCU "Software\ZhiyiIME" "InstallDir" "$INSTDIR"
+  WriteRegStr HKCU "Software\ZhiyuIME" "InstallDir" "$INSTDIR"
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayName" "${APP_NAME} (${APP_NAME_EN})"
   WriteRegStr HKCU "${UNINST_KEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "${UNINST_KEY}" "Publisher" "${COMPANY}"
@@ -98,15 +98,15 @@ SectionEnd
 
 Section "Uninstall"
   StrCpy $AppDir "$INSTDIR\${VERSION}"
-  IfFileExists "$AppDir\zhiyi-installer-helper.exe" 0 +2
-    ExecWait '"$AppDir\zhiyi-installer-helper.exe" force-stop-server "$AppDir"'
+  IfFileExists "$AppDir\zhiyu-installer-helper.exe" 0 +2
+    ExecWait '"$AppDir\zhiyu-installer-helper.exe" force-stop-server "$AppDir"'
 
   !insertmacro UnregisterTsf
 
   RMDir /r "$INSTDIR"
 
   DeleteRegKey HKCU "${UNINST_KEY}"
-  ; The user's data (%USERPROFILE%\zhiyi) is kept on purpose; remove it by hand if you want.
+  ; The user's data (%USERPROFILE%\zhiyu) is kept on purpose; remove it by hand if you want.
 SectionEnd
 
 Function .onInit

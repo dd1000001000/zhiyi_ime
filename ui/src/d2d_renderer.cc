@@ -261,7 +261,7 @@ HRESULT D2DRenderer::render(HDC hdc, const RECT& rect, const RenderContext& ctx)
         if (!ctx.preedit.empty() && ctx.preedit_rect.right > ctx.preedit_rect.left) {
             draw_preedit(ctx);
         } else {
-            render_target_->DrawText(L"知意输入法", 5, fmt_left_, D2D1::RectF(0,0,sz.width,sz.height), preedit_brush_);
+            render_target_->DrawText(L"知语输入法", 5, fmt_left_, D2D1::RectF(0,0,sz.width,sz.height), preedit_brush_);
         }
         draw_preedit_separator();
         draw_border();

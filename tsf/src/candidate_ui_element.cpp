@@ -71,7 +71,7 @@ STDMETHODIMP_(ULONG) CandidateUIElement::Release() {
 STDMETHODIMP CandidateUIElement::GetDescription(BSTR* pbstrDescription) {
     if (!pbstrDescription)
         return E_INVALIDARG;
-    *pbstrDescription = SysAllocString(L"Zhiyi IME Candidate List");
+    *pbstrDescription = SysAllocString(L"Zhiyu IME Candidate List");
     return *pbstrDescription ? S_OK : E_OUTOFMEMORY;
 }
 

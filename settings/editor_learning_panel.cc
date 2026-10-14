@@ -36,7 +36,7 @@ constexpr UINT kPackProgressMessage = WM_APP + 51;    // wParam pack index; lPar
 constexpr UINT kPackDownloadedMessage = WM_APP + 52;  // wParam pack index; lParam result
 
 constexpr int kRows = 7;  // targets per direction
-constexpr wchar_t kPackListClass[] = L"ZhiyiPackList";
+constexpr wchar_t kPackListClass[] = L"ZhiyuPackList";
 
 struct PackDownloadResult {
     update::Status status = update::Status::kNetwork;

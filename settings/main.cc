@@ -48,7 +48,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int) {
 
     // One settings window: a second start (e.g. the installer's finish page after an update,
     // which also opens settings itself) brings the open one forward instead.
-    HANDLE instance = CreateMutexW(nullptr, FALSE, L"Local\\ZhiyiIME.Settings.Instance");
+    HANDLE instance = CreateMutexW(nullptr, FALSE, L"Local\\ZhiyuIME.Settings.Instance");
     if (instance && GetLastError() == ERROR_ALREADY_EXISTS) {
         for (int attempt = 0; attempt < 30; ++attempt) {
             HWND existing = FindWindowW(cxxime::kSettingsWindowClass, nullptr);

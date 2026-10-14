@@ -381,7 +381,7 @@ void EditorApp::refresh_config() {
 
 bool EditorApp::read_config_files(Config& config, bool report_errors) {
     config = {};
-    // Defaults from the program directory, then %USERPROFILE%\zhiyi\default.json.
+    // Defaults from the program directory, then %USERPROFILE%\zhiyu\default.json.
     const std::string default_path = cxxime::data_path("default.json");
     const std::string user_path = cxxime::user_data_path("default.json");
     const std::string themes_path = cxxime::data_path("themes.json");
@@ -491,7 +491,7 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         a->ui_language_ = resolve_ui_language(a->config_.ui_language);
         load_ui_strings(a->ui_language_);
-        // Saving goes through zhiyi-server; it is not running when startup.autostart is off or
+        // Saving goes through zhiyu-server; it is not running when startup.autostart is off or
         // after Exit in the taskbar menu, so start it while the page is read.
         start_server_on_demand();
         a->init_update();  // may open the Updates page

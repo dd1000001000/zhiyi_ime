@@ -85,7 +85,7 @@ public:
         std::wstring path(parts.lpszUrlPath, parts.dwUrlPathLength);
         path.append(parts.lpszExtraInfo, parts.dwExtraInfoLength);
 
-        const std::wstring agent = L"ZhiyiIME-Update/" CXXIME_VERSION_WSTRING;
+        const std::wstring agent = L"ZhiyuIME-Update/" CXXIME_VERSION_WSTRING;
         session_.handle = WinHttpOpen(agent.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                                       WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         if (!session_.handle) {  // before Windows 8.1

@@ -2,9 +2,9 @@
 
 [English](privacy.en.md)
 
-知意输入法的用户体验改进计划分两档，**默认都不开启**，只有你在安装程序或“设置 > 隐私”中勾选后才会记录。
+知语输入法的用户体验改进计划分两档，**默认都不开启**，只有你在安装程序或“设置 > 隐私”中勾选后才会记录。
 
-| 档位 | 选项 | 配置项（`%USERPROFILE%\zhiyi\default.json`） |
+| 档位 | 选项 | 配置项（`%USERPROFILE%\zhiyu\default.json`） |
 |---|---|---|
 | 第一档 | 加入用户体验改进计划 | `privacy.experience_program` |
 | 第二档 | 允许收集您的输入信息 | `privacy.collect_input` |
@@ -13,11 +13,11 @@
 - **所有记录只保存在你的电脑上，不会自动上传。** 只有你自己把文件发给别人（例如用
   `collect_diagnostics.ps1 -IncludeLogs` 打包后发给开发者）时，别人才能看到。
 - 取消勾选后立即停止记录，已有的记录会保留；“设置 > 隐私”中的“删除所有记录”会一次删除两档的全部记录。
-- 记录由后台服务 `zhiyi-server.exe` 写入，实现见 `engine/src/experience_log.cc`。
+- 记录由后台服务 `zhiyu-server.exe` 写入，实现见 `engine/src/experience_log.cc`。
 
 ## 第一档：基本信息
 
-文件：`%USERPROFILE%\zhiyi\logs\experience.jsonl`，每行一条 JSON 记录；超过 1 MB 时改名为
+文件：`%USERPROFILE%\zhiyu\logs\experience.jsonl`，每行一条 JSON 记录；超过 1 MB 时改名为
 `experience.1.jsonl`（只保留这一份旧文件）。每条记录都有 `t`（UTC 时间）和 `event`（记录类型）。
 
 | 记录 | 何时写入 | 内容 |
@@ -30,7 +30,7 @@
 
 ## 第二档：输入信息
 
-文件：`%USERPROFILE%\zhiyi\logs\input-YYYYMMDD.jsonl`（每天一个文件，日期为 UTC）。只保留最近
+文件：`%USERPROFILE%\zhiyu\logs\input-YYYYMMDD.jsonl`（每天一个文件，日期为 UTC）。只保留最近
 7 天，所有文件合计不超过 10 MB，超出时先删除最早的文件。
 
 ### `input`：每次输入一条
@@ -48,7 +48,7 @@
 | `candidates` | 上屏前显示的那一页候选词，以及哪个是推荐词 |
 | `picked` | 选了第几个候选（从 0 开始；-1 表示不是从候选里选的） |
 | `committed` | 上屏的文字（取消时为空） |
-| `laya_context` | 交给推荐模型的上文：这次输入开始时光标前的文字（中文最多 128 个字，英文最多 192 个字符）。它从输入框读取，可能包含不是用知意输入法打的字，例如粘贴的内容或输入框里原有的内容；程序不允许读取时，是之前用知意输入法上屏的文字 |
+| `laya_context` | 交给推荐模型的上文：这次输入开始时光标前的文字（中文最多 128 个字，英文最多 192 个字符）。它从输入框读取，可能包含不是用知语输入法打的字，例如粘贴的内容或输入框里原有的内容；程序不允许读取时，是之前用知语输入法上屏的文字 |
 | `duration_ms` | 这次输入用了多少毫秒 |
 
 ### `stats`：每 30 分钟一条使用统计

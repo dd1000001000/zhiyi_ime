@@ -60,7 +60,7 @@ target_link_libraries(cxxime-settings PRIVATE
     imm32.lib
 )
 
-set_target_properties(cxxime-settings PROPERTIES OUTPUT_NAME "zhiyi-settings")
+set_target_properties(cxxime-settings PROPERTIES OUTPUT_NAME "zhiyu-settings")
 # The graphics card speed test (editor_gpu.cc) loads the model: ONNX Runtime next to the
 # executable, as in the installed folder.
 if(LAYA_ORT_RUNTIME_FILES)
@@ -70,7 +70,7 @@ if(LAYA_ORT_RUNTIME_FILES)
 endif()
 cxxime_add_version_resource(
     cxxime-settings
-    "知意输入法 设置"
-    "zhiyi-settings.exe"
+    "知语输入法 设置"
+    "zhiyu-settings.exe"
     VFT_APP
 )

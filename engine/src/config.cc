@@ -662,9 +662,9 @@ bool Config::load_themes(const std::string& path) {
 
 static nlohmann::json build_config_json(const Config& config, bool include_diagnostics) {
     nlohmann::json j;
-    j["schema"]["name"] = "知意输入法";
+    j["schema"]["name"] = "知语输入法";
     j["schema"]["version"] = "1.1";  // 1.1: laya.rank_prior_weight no longer 0.4 by default
-    j["schema"]["description"] = "Zhiyi IME default configuration";
+    j["schema"]["description"] = "Zhiyu IME default configuration";
 
     j["engine"]["page_size"] = config.page_size;
     j["engine"]["input_style"] = input_style_name(config.input_mode, config.pinyin_style);

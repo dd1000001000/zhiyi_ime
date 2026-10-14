@@ -103,7 +103,7 @@ std::wstring fill(std::wstring text, std::initializer_list<std::wstring> values)
 
 std::wstring mb(std::uint64_t bytes) { return std::to_wstring((bytes + (1 << 19)) >> 20); }
 
-// The model server of an installed version may be running (zhiyi-server starts it): end it so
+// The model server of an installed version may be running (zhiyu-server starts it): end it so
 // its files can be deleted.
 void end_model_servers(const fs::path& under) {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);

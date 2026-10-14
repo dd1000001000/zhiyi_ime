@@ -198,7 +198,7 @@ void GdiRenderer::render(HDC hdc, const RECT& clip, const RenderContext& ctx) {
         } else {
             SetBkMode(target_dc, TRANSPARENT);
             SetTextColor(target_dc, preedit_color_);
-            DrawTextW(target_dc, L"知意输入法", -1, const_cast<RECT*>(&clip), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextW(target_dc, L"知语输入法", -1, const_cast<RECT*>(&clip), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         }
         if (!ctx.preedit.empty() && ctx.preedit_rect.right > ctx.preedit_rect.left)
             draw_preedit_separator(target_dc, clip, ctx, margin);

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
 // Learning mode glossaries (docs/learning-mode.md): one language pack per direction and target
-// language, %USERPROFILE%\zhiyi\glossary\<source>-<target>.gloss, mapped read-only.
+// language, %USERPROFILE%\zhiyu\glossary\<source>-<target>.gloss, mapped read-only.
 //
 // File layout (little-endian):
 //   0   "ZYGLOSS\0"
@@ -124,7 +124,7 @@ std::string candidate_gloss(const std::string& chinese_target, const std::string
 // zh ja ko fr de es ru).
 const std::vector<std::string>& glossary_targets(const std::string& source);
 std::string glossary_pack_id(const std::string& source, const std::string& target);
-std::string glossary_directory();  // %USERPROFILE%\zhiyi\glossary
+std::string glossary_directory();  // %USERPROFILE%\zhiyu\glossary
 std::string glossary_pack_path(const std::string& source, const std::string& target);
 
 } // namespace cxxime

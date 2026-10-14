@@ -11,13 +11,13 @@ ONNX Runtime、VC++ 运行时与运行时词典。
 
 1. 检查占用旧版本文件的应用（Restart Manager + 安装锁报告），停止后台服务
 2. 将程序和出厂数据解压到同卷暂存目录（`<基目录>\update\`），再用 `Rename` 原子切换为新的版本目录
-   `<基目录>\<版本号>.<8位十六进制>\`（默认基目录 `C:\Program Files\ZhiyiIME`）
-3. 注册 TSF、写入安装信息与自启动项 `ZhiyiIMEServer`（`zhiyi-server.exe --autostart`：设置里关闭了“开机时自动启动”时
+   `<基目录>\<版本号>.<8位十六进制>\`（默认基目录 `C:\Program Files\ZhiyuIME`）
+3. 注册 TSF、写入安装信息与自启动项 `ZhiyuIMEServer`（`zhiyu-server.exe --autostart`：设置里关闭了“开机时自动启动”时
    立即退出，由输入法在切换到它时启动），写入所选界面语言与隐私选项，启动后台服务
-4. 把 `zhiyi_ime_x64.ime` / `zhiyi_ime_x86.ime` 复制为系统模块 `%WINDIR%\Sysnative\zhiyi.ime` 与
-   `%WINDIR%\SysWOW64\zhiyi.ime`（被占用时改为重启后替换）
+4. 把 `zhiyu_ime_x64.ime` / `zhiyu_ime_x86.ime` 复制为系统模块 `%WINDIR%\Sysnative\zhiyu.ime` 与
+   `%WINDIR%\SysWOW64\zhiyu.ime`（被占用时改为重启后替换）
 5. 提交生命周期状态（`InstallLocation` 指向新版本，旧版本进入待清理列表），创建开始菜单快捷方式
-   （知意输入法设置、Collect Diagnostics、卸载）
+   （知语输入法设置、Collect Diagnostics、卸载）
 
 ### 更新模式
 
@@ -27,12 +27,12 @@ ONNX Runtime、VC++ 运行时与运行时词典。
 
 ### 命令行安装
 
-`zhiyi-v<版本>-setup.exe /S /D=D:\Apps\ZhiyiIME` 静默安装到指定的基目录（`/D=` 必须是最后一个参数，路径不加引号，
-空格照写）；不带 `/D=` 时用默认基目录。指定的目录和在“安装目录”页选的一样要检查：必须是本地磁盘上空的或只有知意输入法
+`zhiyu-v<版本>-setup.exe /S /D=D:\Apps\ZhiyuIME` 静默安装到指定的基目录（`/D=` 必须是最后一个参数，路径不加引号，
+空格照写）；不带 `/D=` 时用默认基目录。指定的目录和在“安装目录”页选的一样要检查：必须是本地磁盘上空的或只有知语输入法
 文件的目录，安装时会收紧它的权限。已经安装过时 `/D=` 不起作用，沿用注册表记录的位置。
 
 程序文件在基目录下随机命名的版本目录里，自带签名更新，并要注册 TSF 和系统 IME 模块，所以不适合交给 scoop 这类按自己的
-目录管理版本的包管理器：不要为 `zhiyi-server.exe` 建 shim，也不要让包管理器自己升级或删除目录，卸载用开始菜单或
+目录管理版本的包管理器：不要为 `zhiyu-server.exe` 建 shim，也不要让包管理器自己升级或删除目录，卸载用开始菜单或
 “已安装的应用”里的卸载程序。
 
 ### 多版本安装
@@ -45,24 +45,24 @@ ONNX Runtime、VC++ 运行时与运行时词典。
 - 暂存与新版本目录切换：程序先解压到 `<基目录>\update\`，再用 `Rename` 原子切换到目标版本目录；
 - 旧版本清理：无进程占用时在安装提交阶段删除；仍被占用时在安装完成页提示"部分应用仍使用上一版本，重新打开后即可切换"，并在后续安装或系统重启后清理。
 
-安装器使用 `Global\ZhiyiIME.Installation` 命名互斥锁保证同一时间只有一个安装/卸载进程。切换程序目录前，安装器将旧程序状态、64 位和 32 位 TSF 模块的实际注册状态、系统 IMM 模块和安装注册表状态写入持久事务文件，不会根据 DLL 是否存在推断 TSF 是否已注册。TSF 注册、系统 IMM 模块复制或安装信息写入失败时，会按事务文件恢复原状态；安装提交成功后才删除事务数据和待清理版本。
+安装器使用 `Global\ZhiyuIME.Installation` 命名互斥锁保证同一时间只有一个安装/卸载进程。切换程序目录前，安装器将旧程序状态、64 位和 32 位 TSF 模块的实际注册状态、系统 IMM 模块和安装注册表状态写入持久事务文件，不会根据 DLL 是否存在推断 TSF 是否已注册。TSF 注册、系统 IMM 模块复制或安装信息写入失败时，会按事务文件恢复原状态；安装提交成功后才删除事务数据和待清理版本。
 
 如果安装进程异常终止，下次运行安装器会先停止服务端、检查暂存目录和备份目录的文件占用，再恢复未提交的安装或清理已经提交的备份。恢复未完成时不会继续覆盖文件。
 
 覆盖安装会沿用注册表记录的活动版本目录。安装程序不会覆盖
-`%USERPROFILE%\zhiyi\default.json` 和用户数据（用户词库、选词偏好与手动候选顺序）。
+`%USERPROFILE%\zhiyu\default.json` 和用户数据（用户词库、选词偏好与手动候选顺序）。
 
-如果有应用正在使用知意输入法，安装器会列出 Restart Manager 检测到的进程，要求关闭后
+如果有应用正在使用知语输入法，安装器会列出 Restart Manager 检测到的进程，要求关闭后
 重试。仅切换到其他输入法不能保证 TSF DLL 已从宿主进程卸载；Windows 系统进程仍占用文件时，
 需要注销或重启后再运行安装器。安装阶段不使用重启后延迟覆盖，避免新旧模块混装。
 
-安装完成后按 `Win+Space` 切换到知意输入法。已经打开的程序继续使用它们启动时加载的版本，重新打开后才用上新版本；若输入法列表里没有知意输入法，注销后重新登录。
+安装完成后按 `Win+Space` 切换到知语输入法。已经打开的程序继续使用它们启动时加载的版本，重新打开后才用上新版本；若输入法列表里没有知语输入法，注销后重新登录。
 
 ## 卸载
 
-- **推荐：** Windows 设置 → 应用 → 已安装的应用 → 知意输入法 → 卸载
-- 或开始菜单 → 知意输入法 → 卸载
-- 或控制面板 → 添加/删除程序 → 知意输入法
+- **推荐：** Windows 设置 → 应用 → 已安装的应用 → 知语输入法 → 卸载
+- 或开始菜单 → 知语输入法 → 卸载
+- 或控制面板 → 添加/删除程序 → 知语输入法
 
 卸载流程（NSIS `Section Uninstall`）：释放输入处理器 → 停止服务端 → 检查文件占用 →
 校验生命周期状态 → 创建卸载事务 → 准备系统 IMM 模块移除 → 反注册 TSF DLL →
@@ -70,7 +70,7 @@ ONNX Runtime、VC++ 运行时与运行时词典。
 （勾选时）删除用户数据目录 → 删除快捷方式与基目录。
 
 默认卸载只删除程序文件、开始菜单快捷方式、TSF 注册项、自启动项和卸载项。用户目录
-`%USERPROFILE%\zhiyi\` 下的配置、用户词库、选词偏好与手动候选顺序会保留，便于重新安装或升级后继续使用；卸载向导提供"删除用户配置和词库数据"复选框，勾选后才会删除用户目录。
+`%USERPROFILE%\zhiyu\` 下的配置、用户词库、选词偏好与手动候选顺序会保留，便于重新安装或升级后继续使用；卸载向导提供"删除用户配置和词库数据"复选框，勾选后才会删除用户目录。
 
 多版本布局下，卸载活动版本的同时会清理生命周期状态、待清理版本与 `<基目录>\update\` 残留。若 TSF DLL 或系统 IME 模块仍被占用，卸载进入**延期卸载**流程：相关文件与注册表项带 `/REBOOTOK` 标记，重启后由系统完成删除；卸载中断后可再次运行卸载器继续处理。
 
@@ -87,15 +87,15 @@ ONNX Runtime、VC++ 运行时与运行时词典。
 
 ## 诊断包
 
-开始菜单提供 "知意输入法 → Collect Diagnostics" 入口。诊断导出不会修改系统状态，默认收集：
+开始菜单提供 "知语输入法 → Collect Diagnostics" 入口。诊断导出不会修改系统状态，默认收集：
 
 - 版本、系统、PowerShell、当前用户等环境信息
 - 安装目录、出厂数据目录、用户目录、日志目录
 - 关键程序文件和数据文件的大小、时间戳、SHA256
 - 日志文件清单和 trace-summary.txt 近期错误/慢路径摘要
 - `logs\problems.log`（设置没能保存等失败的原因，不含输入内容，见[隐私说明](privacy.md)）
-- 知意输入法注册表卸载项、TIP 注册项、键盘预加载状态
-- `zhiyi-server.exe`、`zhiyi-settings.exe` 的运行状态，以及 `zhiyi_tsf_x64.dll` / `zhiyi_tsf_x86.dll` 与系统 `zhiyi.ime` 模块的文件信息
+- 知语输入法注册表卸载项、TIP 注册项、键盘预加载状态
+- `zhiyu-server.exe`、`zhiyu-settings.exe` 的运行状态，以及 `zhiyu_tsf_x64.dll` / `zhiyu_tsf_x86.dll` 与系统 `zhiyu.ime` 模块的文件信息
 
 默认不会复制日志、用户配置或用户数据（词库与偏好）。需要进一步排查时，可在安装目录运行：
 
@@ -108,17 +108,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File collect_diagnostics.ps1 -Inc
 
 ## 程序与数据目录
 
-每个版本安装在独立的版本目录里，用户数据在 `%USERPROFILE%\zhiyi\`，跨版本共享，覆盖安装和更新都不会覆盖。
+每个版本安装在独立的版本目录里，用户数据在 `%USERPROFILE%\zhiyu\`，跨版本共享，覆盖安装和更新都不会覆盖。
 两处目录的完整结构见 [路径解析](path-resolution.md)。
 
 ## 命令行参数
 
-### zhiyi-server.exe
+### zhiyu-server.exe
 
 ```
-zhiyi-server.exe --data "D:\MyData\知意输入法"    # 指定数据目录
-zhiyi-server.exe --dict "D:\dict\pinyin.dict.bin"   # 指定词典路径
-zhiyi-server.exe --config "D:\config.json"          # 指定配置文件
+zhiyu-server.exe --data "D:\MyData\知语输入法"    # 指定数据目录
+zhiyu-server.exe --dict "D:\dict\pinyin.dict.bin"   # 指定词典路径
+zhiyu-server.exe --config "D:\config.json"          # 指定配置文件
 ```
 
 | 参数 | 说明 |
@@ -129,28 +129,28 @@ zhiyi-server.exe --config "D:\config.json"          # 指定配置文件
 
 ## 设置程序
 
-从开始菜单的“知意输入法设置”或任务栏“中/英”的右键菜单打开 `zhiyi-settings.exe`，各页面与配置项见
+从开始菜单的“知语输入法设置”或任务栏“中/英”的右键菜单打开 `zhiyu-settings.exe`，各页面与配置项见
 [设置指南](settings-guide.md)。
 
 ## 常见问题
 
-### 安装后输入法列表里找不到知意输入法
+### 安装后输入法列表里找不到知语输入法
 
 1. 注销并重新登录
 2. 检查 `regsvr32` 是否成功：手动运行以下命令注册 x64 和 x86 两个架构的 DLL（路径为活动版本目录）：
    ```cmd
-   regsvr32 "C:\Program Files\ZhiyiIME\<版本号>.<8位十六进制>\zhiyi_tsf_x64.dll"
-   regsvr32 "C:\Program Files\ZhiyiIME\<版本号>.<8位十六进制>\zhiyi_tsf_x86.dll"
+   regsvr32 "C:\Program Files\ZhiyuIME\<版本号>.<8位十六进制>\zhiyu_tsf_x64.dll"
+   regsvr32 "C:\Program Files\ZhiyuIME\<版本号>.<8位十六进制>\zhiyu_tsf_x86.dll"
    ```
 3. 在"设置 → 时间和语言 → 语言和区域 → 中文(简体)"中添加输入法
 
 ### 服务端启动后立即退出
 
-通常是词典文件缺失。检查 `C:\Program Files\ZhiyiIME\<版本号>.<8位十六进制>\data\pinyin.dict.bin` 是否存在。若缺失，重新安装。双拼方案用 `engine.shuangpin_scheme` 选（`engine.pinyin_scheme` 始终是全拼，旧配置里写成双拼方案的会自动改为 `engine.shuangpin_scheme`）。
+通常是词典文件缺失。检查 `C:\Program Files\ZhiyuIME\<版本号>.<8位十六进制>\data\pinyin.dict.bin` 是否存在。若缺失，重新安装。双拼方案用 `engine.shuangpin_scheme` 选（`engine.pinyin_scheme` 始终是全拼，旧配置里写成双拼方案的会自动改为 `engine.shuangpin_scheme`）。
 
 ### 切换输入法后打字无反应
 
-先确认该程序是在安装或更新之后打开的（旧程序仍用旧版本）。Debug 构建的详细日志和 Release 构建的切换键日志（`[ZhiyiIME] switch:`）可以用 [DebugView](https://learn.microsoft.com/en-us/sysinternals/downloads/debugview) 查看；也可以在配置文件中把 `diagnostics.trace_mode` 设为 `normal`，日志写在 `%USERPROFILE%\zhiyi\logs\`。
+先确认该程序是在安装或更新之后打开的（旧程序仍用旧版本）。Debug 构建的详细日志和 Release 构建的切换键日志（`[ZhiyuIME] switch:`）可以用 [DebugView](https://learn.microsoft.com/en-us/sysinternals/downloads/debugview) 查看；也可以在配置文件中把 `diagnostics.trace_mode` 设为 `normal`，日志写在 `%USERPROFILE%\zhiyu\logs\`。
 
 ### 覆盖安装后配置丢失
 

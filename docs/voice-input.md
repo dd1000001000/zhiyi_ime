@@ -69,8 +69,8 @@ Silero VAD 为 MIT 许可；许可证全文随模型下载（`LICENSE-SenseVoice
 - **按键**（`engine.cc`）：语音快捷键（`shortcuts.voice_input`，或 `ascii_composer.switch_key` 里的 `toggle_voice`）
   让引擎提出“开始/结束录音”的请求，正在打的拼音先按原样上屏；录音和识别期间（`Engine::set_voice_capture`）
   除单独的修饰键外，所有按键都被引擎吃掉，快捷键表示结束，Esc 表示放弃。
-- **录音和识别**（`server/src/voice_service.cc`）：zhiyi-server 用 WASAPI 共享模式打开默认麦克风，由 Windows
-  转成 16 kHz 单声道（`voice_recorder.cc`）；识别用知意自带的 ONNX Runtime（和推荐模型同一份，CPU 或 DirectML），
+- **录音和识别**（`server/src/voice_service.cc`）：zhiyu-server 用 WASAPI 共享模式打开默认麦克风，由 Windows
+  转成 16 kHz 单声道（`voice_recorder.cc`）；识别用知语自带的 ONNX Runtime（和推荐模型同一份，CPU 或 DirectML），
   前处理（Kaldi 滤波器组、7 帧拼接）和 CTC 解码在 `engine/src/voice_recognizer.cc`。
 - **语音条**（`voice_overlay.cc`）：server 里一个不抢焦点的置顶分层窗口，软件绘制（Direct2D），跟随候选窗口的主题。
 - **文字**（`tsf/src/text_service_voice.cpp`）：快捷键的回应说开始录音后，输入法组件每 100 毫秒问一次

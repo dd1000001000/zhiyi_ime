@@ -10,7 +10,7 @@ namespace cxxime_tsf {
 
 namespace {
 
-constexpr wchar_t kResourceDllName[] = L"zhiyi-resources.dll";
+constexpr wchar_t kResourceDllName[] = L"zhiyu-resources.dll";
 
 HMODULE load_resource_module() {
     wchar_t path[MAX_PATH] = {};
@@ -39,7 +39,7 @@ bool ui_language_is_chinese() {
 }
 
 const wchar_t* localized_display_name() {
-    return ui_language_is_chinese() ? L"知意输入法" : L"Zhiyi IME";
+    return ui_language_is_chinese() ? L"知语输入法" : L"Zhiyu IME";
 }
 
 bool get_resource_dll_path(wchar_t* path, DWORD path_chars) {

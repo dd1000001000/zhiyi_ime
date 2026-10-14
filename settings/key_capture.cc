@@ -18,7 +18,7 @@ namespace settings {
 
 namespace {
 
-constexpr wchar_t kClassName[] = L"ZhiyiKeyCapture";
+constexpr wchar_t kClassName[] = L"ZhiyuKeyCapture";
 constexpr UINT_PTR kNoticeTimer = 1;
 constexpr UINT kNoticeMs = 2500;
 constexpr UINT_PTR kDoubleTimer = 2;

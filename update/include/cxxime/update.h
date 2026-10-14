@@ -35,7 +35,7 @@ inline constexpr wchar_t kTestBaseVariable[] = L"ZHIYI_UPDATE_TEST_BASE";
 
 struct Manifest {
     std::string version;
-    std::string file;  // installer file name, e.g. zhiyi-v0.6.3-setup.exe
+    std::string file;  // installer file name, e.g. zhiyu-v0.6.3-setup.exe
     std::string url;
     std::uint64_t size = 0;
     std::string sha256;  // lowercase hex
@@ -47,7 +47,7 @@ struct Manifest {
 };
 
 // Parses latest.json. False when a field is missing or unsafe: the installer must be a file
-// named like zhiyi-v<version>-setup.exe under `download_prefix`.
+// named like zhiyu-v<version>-setup.exe under `download_prefix`.
 bool parse_manifest(const std::string& text, const std::string& download_prefix,
                     Manifest* manifest);
 
@@ -93,7 +93,7 @@ Status download_installer(const Manifest& manifest, const std::wstring& director
 bool launch_installer(const std::wstring& path, const std::string& sha256, HWND owner,
                       DWORD* error);
 
-// %USERPROFILE%\zhiyi\updates (created).
+// %USERPROFILE%\zhiyu\updates (created).
 std::wstring download_directory();
 // Deletes downloaded installers except `keep` (a file name; empty: all).
 void clean_downloads(const std::wstring& directory, const std::wstring& keep = {});
@@ -208,7 +208,7 @@ struct VoiceCheckResult {
 // Downloads and verifies voice.json (blocking; run on a worker thread).
 VoiceCheckResult check_voice();
 
-// %USERPROFILE%\zhiyi\update-state.json: a version the user skipped, and the version being
+// %USERPROFILE%\zhiyu\update-state.json: a version the user skipped, and the version being
 // installed (so the next settings start can say it was updated).
 struct State {
     std::string skipped_version;

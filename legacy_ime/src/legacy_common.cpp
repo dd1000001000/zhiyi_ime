@@ -11,9 +11,9 @@ namespace cxxime_legacy {
 namespace {
 
 constexpr wchar_t kInstallRegistryKey[] =
-    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ZhiyiIME";
-constexpr wchar_t kServerExeName[] = L"zhiyi-server.exe";
-constexpr wchar_t kSettingsExeName[] = L"zhiyi-settings.exe";
+    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ZhiyuIME";
+constexpr wchar_t kServerExeName[] = L"zhiyu-server.exe";
+constexpr wchar_t kSettingsExeName[] = L"zhiyu-settings.exe";
 
 std::wstring query_install_dir_with_view(REGSAM view) {
     HKEY key = nullptr;

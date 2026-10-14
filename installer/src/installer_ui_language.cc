@@ -47,7 +47,7 @@ std::string language_of(const nlohmann::json& config) {
 }
 
 bool write_config(const std::wstring& path, const nlohmann::json& config) {
-    // %USERPROFILE%\zhiyi may not exist yet on a first install.
+    // %USERPROFILE%\zhiyu may not exist yet on a first install.
     const size_t slash = path.find_last_of(L"\\/");
     if (slash != std::wstring::npos) CreateDirectoryW(path.substr(0, slash).c_str(), nullptr);
     const std::wstring temp = path + L".installer.tmp";

@@ -31,7 +31,7 @@ enum class ImeMenuCommand : uint32_t {
     kEnglishWords = 11,  // English mode: word completion (else letter by letter)
     kChinesePunct = 12,
     kFullShape = 13,
-    kExit = 14,  // closes zhiyi-server; switching to the input method again starts it
+    kExit = 14,  // closes zhiyu-server; switching to the input method again starts it
     kShuangpin = 15,  // in the scheme chosen in settings (engine.shuangpin_scheme)
 };
 
@@ -68,8 +68,10 @@ inline bool ime_menu_uses_chinese(const std::string& ui_language) {
 // ImeStatus::shuangpin_scheme(): the scheme's name.
 inline const wchar_t* shuangpin_scheme_name(uint32_t index, bool chinese) {
     static constexpr const wchar_t* kNames[][2] = {
-        {L"微软", L"Microsoft"}, {L"小鹤", L"Xiaohe"}, {L"自然码", L"Ziranma"}, {L"搜狗", L"Sogou"}};
-    return kNames[index & 3u][chinese ? 0 : 1];
+        {L"微软", L"Microsoft"}, {L"小鹤", L"Xiaohe"}, {L"自然码", L"Ziranma"},
+        {L"搜狗", L"Sogou"}, {L"智能ABC", L"Smart ABC"}};
+    constexpr uint32_t kCount = sizeof(kNames) / sizeof(kNames[0]);
+    return kNames[index < kCount ? index : 1u][chinese ? 0 : 1];  // unknown: the default
 }
 
 // "双拼（小鹤）": the shuangpin item names the scheme.

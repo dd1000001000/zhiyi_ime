@@ -33,7 +33,7 @@ std::string normalize_pinyin_scheme_id(std::string_view id);
 // Shuangpin (engine.shuangpin_scheme): the scheme `id` names, or the default one.
 inline constexpr const char* kDefaultShuangpinScheme = "xiaohe_shuangpin";
 const PinyinSchemeDescriptor& resolve_shuangpin_scheme(std::string_view id);
-// 0 Microsoft, 1 Xiaohe, 2 Ziranma, 3 Sogou (ImeStatus::shuangpin_scheme()).
+// 0 Microsoft, 1 Xiaohe, 2 Ziranma, 3 Sogou, 4 Smart ABC (ImeStatus::shuangpin_scheme()).
 uint32_t shuangpin_scheme_index(std::string_view id);
 
 } // namespace cxxime

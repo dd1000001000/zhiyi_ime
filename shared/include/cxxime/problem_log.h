@@ -15,7 +15,7 @@ namespace cxxime {
 constexpr wchar_t kProblemLogName[] = L"problems.log";
 constexpr std::uint64_t kProblemLogMaxBytes = 256 * 1024;
 
-// "2026-10-11 14:30:05 zhiyi-server.exe [config] <message>" appended to problems.log.
+// "2026-10-11 14:30:05 zhiyu-server.exe [config] <message>" appended to problems.log.
 void log_problem(const char* area, const std::string& message);
 // The same, in `directory` (tests).
 void log_problem_to(const std::wstring& directory, const char* area, const std::string& message);

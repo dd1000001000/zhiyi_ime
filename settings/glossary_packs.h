@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
 // Installed learning-mode language packs (docs/learning-mode.md). The IME loads packs only from
-// %USERPROFILE%\zhiyi\glossary; the installer's built-in packs (data\glossary) are copied there
+// %USERPROFILE%\zhiyu\glossary; the installer's built-in packs (data\glossary) are copied there
 // once, and again when the installer brings a newer version, unless the user removed them
 // (glossary\state.json).
 #ifndef CXXIME_SETTINGS_GLOSSARY_PACKS_H_

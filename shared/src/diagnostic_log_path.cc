@@ -59,7 +59,7 @@ std::wstring resolve_diagnostic_log_directory() {
             if (!create_directory(root)) {
                 return {};
             }
-            root += L"\\zhiyi";
+            root += L"\\zhiyu";
             if (!create_directory(root)) {
                 return {};
             }
@@ -70,7 +70,7 @@ std::wstring resolve_diagnostic_log_directory() {
         return {};
     }
 
-    // In the user data directory (%USERPROFILE%\zhiyi\ or the chosen data folder).
+    // In the user data directory (%USERPROFILE%\zhiyu\ or the chosen data folder).
     const std::string user_dir = user_data_dir();
     if (user_dir.empty()) {
         return {};

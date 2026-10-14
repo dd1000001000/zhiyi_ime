@@ -35,7 +35,7 @@ namespace {
 
 constexpr int kBackupTimeoutMs = 60000;  // a large user lexicon takes a while to merge
 constexpr int kServerStartWaitMs = 15000;
-constexpr wchar_t kBackupExtension[] = L".zhiyi-backup";
+constexpr wchar_t kBackupExtension[] = L".zhiyu-backup";
 
 // The control pipe exists once the server has loaded and listens.
 bool server_listening() {
@@ -43,7 +43,7 @@ bool server_listening() {
     return WaitNamedPipeW(pipe.c_str(), 1) || GetLastError() == ERROR_SEM_TIMEOUT;
 }
 
-// %USERPROFILE%\zhiyi\backup-state.json: the folder the last export went to.
+// %USERPROFILE%\zhiyu\backup-state.json: the folder the last export went to.
 std::wstring backup_state_path() {
     return utf8_to_wstr(user_data_path("backup-state.json"));
 }
@@ -92,7 +92,7 @@ std::wstring pick_path(HWND owner, bool folder, const std::wstring& start) {
     dialog->SetTitle(tr(folder ? "backup.pick_folder" : "backup.pick_file"));
     if (!folder) {
         const std::wstring backups = tr("backup.file_type");
-        const COMDLG_FILTERSPEC filters[] = {{backups.c_str(), L"*.zhiyi-backup"},
+        const COMDLG_FILTERSPEC filters[] = {{backups.c_str(), L"*.zhiyu-backup"},
                                              {tr("backup.all_files"), L"*.*"}};
         dialog->SetFileTypes(2, filters);
     }
@@ -116,7 +116,7 @@ std::wstring pick_path(HWND owner, bool folder, const std::wstring& start) {
     return path;
 }
 
-// 知意输入法备份-20261007-1430.zhiyi-backup, with " (2)" and so on when it exists.
+// 知语输入法备份-20261007-1430.zhiyu-backup, with " (2)" and so on when it exists.
 std::wstring new_backup_path(const std::wstring& folder) {
     SYSTEMTIME now = {};
     GetLocalTime(&now);

@@ -1,0 +1,153 @@
+{
+    "scheme_id": "abc_shuangpin",
+    "speller": {
+        "type": "shuangpin",
+        "alphabet": "abcdefghijklmnopqrstuvwxyz",
+        "initials": {
+            "zh": "a",
+            "ch": "e",
+            "sh": "v",
+            "b": "b",
+            "p": "p",
+            "m": "m",
+            "f": "f",
+            "d": "d",
+            "t": "t",
+            "n": "n",
+            "l": "l",
+            "g": "g",
+            "k": "k",
+            "h": "h",
+            "j": "j",
+            "q": "q",
+            "x": "x",
+            "r": "r",
+            "z": "z",
+            "c": "c",
+            "s": "s",
+            "y": "y",
+            "w": "w"
+        },
+        "finals": {
+            "a": "a",
+            "ai": "l",
+            "an": "j",
+            "ang": "h",
+            "ao": "k",
+            "e": "e",
+            "ei": "q",
+            "en": "f",
+            "eng": "g",
+            "i": "i",
+            "ia": "d",
+            "ian": "w",
+            "iang": "t",
+            "iao": "z",
+            "ie": "x",
+            "in": "c",
+            "ing": "y",
+            "iong": "s",
+            "iu": "r",
+            "o": "o",
+            "ong": "s",
+            "ou": "b",
+            "u": "u",
+            "ua": "d",
+            "uai": "c",
+            "uan": "p",
+            "uang": "t",
+            "ue": "m",
+            "ui": "m",
+            "un": "n",
+            "uo": "o",
+            "v": "v",
+            "van": "p",
+            "ve": "m",
+            "vn": "n"
+        },
+        "zero_initials": {
+            "a": "oa",
+            "ai": "ol",
+            "an": "oj",
+            "ang": "oh",
+            "ao": "ok",
+            "e": "oe",
+            "ei": "oq",
+            "en": "of",
+            "eng": "og",
+            "er": "or",
+            "o": "oo",
+            "ou": "ob"
+        },
+        "final_aliases_by_initial": {
+            "j": {"uan": "van", "ue": "ve", "un": "vn"},
+            "q": {"uan": "van", "ue": "ve", "un": "vn"},
+            "x": {"uan": "van", "ue": "ve", "un": "vn"},
+            "y": {"uan": "van", "ue": "ve", "un": "vn"}
+        },
+        "passthrough_syllables": ["f", "g", "i", "l", "n", "r", "u", "v"],
+        "ignored_syllables": ["0", "1"],
+        "expected_collisions": {
+            "lm": ["lue", "lve"],
+            "nm": ["nue", "nve"]
+        },
+        "fuzzy_groups": [
+            {
+                "name": "z_zh",
+                "bit": 1,
+                "rules": [
+                    "fuzz/^zh/z/",
+                    "fuzz/^z([^h]|$)/zh$1/"
+                ]
+            },
+            {
+                "name": "c_ch",
+                "bit": 2,
+                "rules": [
+                    "fuzz/^ch/c/",
+                    "fuzz/^c([^h]|$)/ch$1/"
+                ]
+            },
+            {
+                "name": "s_sh",
+                "bit": 4,
+                "rules": [
+                    "fuzz/^sh/s/",
+                    "fuzz/^s([^h]|$)/sh$1/"
+                ]
+            },
+            {
+                "name": "n_l",
+                "bit": 8,
+                "rules": [
+                    "fuzz/^n/l/",
+                    "fuzz/^l/n/"
+                ]
+            },
+            {
+                "name": "an_ang",
+                "bit": 16,
+                "rules": [
+                    "fuzz/ang$/an/",
+                    "fuzz/an$/ang/"
+                ]
+            },
+            {
+                "name": "en_eng",
+                "bit": 32,
+                "rules": [
+                    "fuzz/eng$/en/",
+                    "fuzz/en$/eng/"
+                ]
+            },
+            {
+                "name": "in_ing",
+                "bit": 64,
+                "rules": [
+                    "fuzz/ing$/in/",
+                    "fuzz/in$/ing/"
+                ]
+            }
+        ]
+    }
+}

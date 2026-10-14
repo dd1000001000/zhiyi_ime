@@ -305,7 +305,7 @@ void clean_downloads(const std::wstring& directory, const std::wstring& keep) {
     std::error_code error;
     for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
         const std::wstring name = entry.path().filename().wstring();
-        if (!entry.is_regular_file(error) || name.rfind(L"zhiyi-v", 0) != 0) continue;
+        if (!entry.is_regular_file(error) || name.rfind(L"zhiyu-v", 0) != 0) continue;
         if (!keep.empty() && (name == keep || name == keep + L".part")) continue;
         std::filesystem::remove(entry.path(), error);
     }
@@ -318,7 +318,7 @@ void clean_installed_downloads(const std::wstring& directory, const std::string&
         if (!entry.is_regular_file(error)) continue;
         if (name.size() > 5 && name.compare(name.size() - 5, 5, L".part") == 0)
             name.resize(name.size() - 5);
-        const std::wstring prefix = L"zhiyi-v", suffix = L"-setup.exe";
+        const std::wstring prefix = L"zhiyu-v", suffix = L"-setup.exe";
         if (name.size() <= prefix.size() + suffix.size() || name.rfind(prefix, 0) != 0 ||
             name.compare(name.size() - suffix.size(), suffix.size(), suffix) != 0)
             continue;

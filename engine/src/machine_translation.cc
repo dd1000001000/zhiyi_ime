@@ -348,7 +348,7 @@ struct LlamaServer::Impl {
 };
 
 LlamaServer::LlamaServer() : impl_(new Impl) {
-    impl_->http.session = WinHttpOpen(L"ZhiyiIME", WINHTTP_ACCESS_TYPE_NO_PROXY,
+    impl_->http.session = WinHttpOpen(L"ZhiyuIME", WINHTTP_ACCESS_TYPE_NO_PROXY,
                                       WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 }
 

@@ -12,7 +12,7 @@
 // Each version has its own folder, so an update is installed while the model server may still
 // run the previous one; Settings deletes old folders once they are not in use.
 //
-// zhiyi-server runs runtime\llama-server.exe on the chosen graphics card or the CPU while
+// zhiyu-server runs runtime\llama-server.exe on the chosen graphics card or the CPU while
 // candidates need translating (machine_translator.cc).
 #ifndef CXXIME_TRANSLATOR_FILES_H_
 #define CXXIME_TRANSLATOR_FILES_H_

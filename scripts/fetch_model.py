@@ -1,4 +1,4 @@
-"""Downloads the Laya model used by 知意输入法 into models/laya/.
+"""Downloads the Laya model used by 知语输入法 into models/laya/.
 
   python scripts/fetch_model.py            # download the release asset and verify it
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ for a release upload

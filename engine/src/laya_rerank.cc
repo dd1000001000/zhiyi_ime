@@ -40,7 +40,7 @@ namespace {
 // Always-on (also in Release): the model is the one component most likely to be missing or
 // broken on a user's machine. View with DebugView / a debugger.
 void laya_log(const std::wstring& message) {
-    OutputDebugStringW((L"[ZhiyiIME][laya] " + message + L"\n").c_str());
+    OutputDebugStringW((L"[ZhiyuIME][laya] " + message + L"\n").c_str());
 }
 
 // A generation of continuation scores: about 40 syllable paths of 8 syllables (a composition
@@ -81,7 +81,7 @@ std::string resolve_model_dir(const std::string& dir) {
     return laya::wide_to_utf8(p.lexically_normal().wstring());
 }
 
-// <local data>\laya-cache (%LOCALAPPDATA%\zhiyi\ or the chosen data folder's local\):
+// <local data>\laya-cache (%LOCALAPPDATA%\zhiyu\ or the chosen data folder's local\):
 // machine-specific (the packed layout depends on the CPU), so not in what users back up.
 std::string laya_cache_dir() { return local_data_path("laya-cache"); }
 

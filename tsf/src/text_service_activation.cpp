@@ -430,7 +430,7 @@ void TextService::_send_text_before_caret(ITfContext* context) {
     if (read == TextBeforeCaret::kPrivate) text.clear();  // a password: no context at all
     if (read != TextBeforeCaret::kUnavailable) flags |= cxxime::kContextTextRead;
     char line[128];
-    snprintf(line, sizeof(line), "[ZhiyiIME] context: %s, %u chars%s\n",
+    snprintf(line, sizeof(line), "[ZhiyuIME] context: %s, %u chars%s\n",
              read == TextBeforeCaret::kRead ? "read" : read == TextBeforeCaret::kPrivate ? "private" : "unavailable",
              static_cast<unsigned>(text.size()), (flags & cxxime::kContextNewInputBox) ? ", new input box" : "");
     OutputDebugStringA(line);  // lengths only, never the text

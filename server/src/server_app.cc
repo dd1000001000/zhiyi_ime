@@ -104,7 +104,7 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
         msg += utf8_to_wide(themes);
         msg += L"\n错误代码: ";
         msg += std::to_wstring(config_error);
-        MessageBoxW(nullptr, msg.c_str(), L"Zhiyi IME Server", MB_OK | MB_ICONERROR);
+        MessageBoxW(nullptr, msg.c_str(), L"Zhiyu IME Server", MB_OK | MB_ICONERROR);
         return false;
     }
     if (!session_mgr_.initialize(resolved_dict, initial_config)) {
@@ -120,7 +120,7 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
         msg += L"\nUser data dir: ";
         std::string udd = cxxime::user_data_dir();
         msg += utf8_to_wide(udd);
-        MessageBoxW(nullptr, msg.c_str(), L"Zhiyi IME Server", MB_OK | MB_ICONERROR);
+        MessageBoxW(nullptr, msg.c_str(), L"Zhiyu IME Server", MB_OK | MB_ICONERROR);
         return false;
     }
 
@@ -128,12 +128,12 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
     wc.cbSize = sizeof(wc);
     wc.lpfnWndProc = WndProc;
     wc.hInstance = GetModuleHandle(nullptr);
-    wc.lpszClassName = L"ZhiyiIMEServerClass";
+    wc.lpszClassName = L"ZhiyuIMEServerClass";
     RegisterClassExW(&wc);
 
     // A hidden top-level window receives session shutdown broadcasts; HWND_MESSAGE does not.
-    hwnd_ = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, L"ZhiyiIMEServerClass",
-                            L"Zhiyi IME Server", WS_POPUP, 0, 0, 0, 0, nullptr, nullptr,
+    hwnd_ = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, L"ZhiyuIMEServerClass",
+                            L"Zhiyu IME Server", WS_POPUP, 0, 0, 0, 0, nullptr, nullptr,
                             GetModuleHandle(nullptr), this);
     if (!hwnd_)
         return false;
@@ -175,7 +175,7 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
                 session_mgr_.cancel_prepared_config();
                 SendMessageW(config_window, kCancelConfigMessage, 0, 0);
             })) {
-        MessageBoxW(nullptr, L"Failed to start config writer.", L"Zhiyi IME Server",
+        MessageBoxW(nullptr, L"Failed to start config writer.", L"Zhiyu IME Server",
                     MB_OK | MB_ICONERROR);
         return false;
     }
@@ -213,7 +213,7 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
             })) {
         config_writer_.stop();
         MessageBoxW(nullptr, L"Failed to start config control server.",
-                    L"Zhiyi IME Server", MB_OK | MB_ICONERROR);
+                    L"Zhiyu IME Server", MB_OK | MB_ICONERROR);
         return false;
     }
 
@@ -249,7 +249,7 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
         session_mgr_.set_config_patch_handler({});
         config_writer_.stop();
         control_server_.stop();
-        MessageBoxW(nullptr, L"Failed to start IPC server.", L"Zhiyi IME Server", MB_OK | MB_ICONERROR);
+        MessageBoxW(nullptr, L"Failed to start IPC server.", L"Zhiyu IME Server", MB_OK | MB_ICONERROR);
         return false;
     }
 

@@ -14,8 +14,8 @@ namespace cxxime {
 namespace {
 
 constexpr wchar_t kInstallRegistryKey[] =
-    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ZhiyiIME";
-constexpr wchar_t kInstallerMutexName[] = L"Global\\ZhiyiIME.Installation";
+    L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ZhiyuIME";
+constexpr wchar_t kInstallerMutexName[] = L"Global\\ZhiyuIME.Installation";
 
 bool mutex_exists(const wchar_t* name) {
     HANDLE mutex = OpenMutexW(SYNCHRONIZE, FALSE, name);
@@ -75,7 +75,7 @@ std::wstring registered_server_path() {
     }
     // The programs are installed side by side.
     const std::wstring path =
-        settings_path.substr(0, settings_path.find_last_of(L'\\') + 1) + L"zhiyi-server.exe";
+        settings_path.substr(0, settings_path.find_last_of(L'\\') + 1) + L"zhiyu-server.exe";
     const DWORD attributes = GetFileAttributesW(path.c_str());
     if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
         return {};

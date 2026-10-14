@@ -226,12 +226,12 @@ bool CandidateWindow::create(HWND owner, const Config& config) {
     wc.cbSize = sizeof(wc);
     wc.lpfnWndProc = WndProc;
     wc.hInstance = GetModuleHandle(nullptr);
-    wc.lpszClassName = L"ZhiyiIMECandidateWindow";
+    wc.lpszClassName = L"ZhiyuIMECandidateWindow";
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     RegisterClassExW(&wc);
     ScopedDpiAwarenessContext dpi_context(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     hwnd_ = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-                            L"ZhiyiIMECandidateWindow", L"", WS_POPUP, 0, 0, 300, 30,
+                            L"ZhiyuIMECandidateWindow", L"", WS_POPUP, 0, 0, 300, 30,
                             owner, nullptr, GetModuleHandle(nullptr), this);
     if (hwnd_) {
         SetWindowLongPtrW(hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));

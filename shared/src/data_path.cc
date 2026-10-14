@@ -75,7 +75,7 @@ std::string data_path(const char* filename) { return data_dir() + filename; }
 
 namespace {
 
-constexpr wchar_t kRegistryKey[] = L"Software\\ZhiyiIME";
+constexpr wchar_t kRegistryKey[] = L"Software\\ZhiyuIME";
 constexpr wchar_t kRegistryValue[] = L"DataDirectory";
 
 std::string to_utf8(const std::wstring& text) {
@@ -124,13 +124,13 @@ std::wstring chosen_folder_wide() {
     return folder;
 }
 
-// <chosen folder>\zhiyi\ when the folder exists (and the zhiyi folder can be made), else empty.
+// <chosen folder>\zhiyu\ when the folder exists (and the zhiyu folder can be made), else empty.
 std::wstring chosen_data_root() {
     const std::wstring folder = chosen_folder_wide();
     if (folder.empty() || !is_directory(folder)) return {};
     std::wstring root = folder;
     if (root.back() != L'\\') root += L'\\';
-    root += L"zhiyi\\";
+    root += L"zhiyu\\";
     CreateDirectoryW(root.c_str(), nullptr);
     return is_directory(root) ? root : std::wstring();
 }
@@ -159,10 +159,10 @@ bool chosen_data_folder_unavailable() {
     return !chosen_folder_wide().empty() && chosen_data_root().empty();
 }
 
-std::string default_user_data_dir() { return ensure_dir(known_folder(CSIDL_PROFILE, L"\\zhiyi\\")); }
+std::string default_user_data_dir() { return ensure_dir(known_folder(CSIDL_PROFILE, L"\\zhiyu\\")); }
 
 std::string default_local_data_dir() {
-    return ensure_dir(known_folder(CSIDL_LOCAL_APPDATA, L"\\zhiyi\\"));
+    return ensure_dir(known_folder(CSIDL_LOCAL_APPDATA, L"\\zhiyu\\"));
 }
 
 std::string user_data_dir() {

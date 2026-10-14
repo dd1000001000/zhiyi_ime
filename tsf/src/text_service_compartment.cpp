@@ -37,7 +37,7 @@ void debug_switch(const char* format, ...) {
     _vsnprintf_s(text, sizeof(text), _TRUNCATE, format, args);
     va_end(args);
     char line[300];
-    _snprintf_s(line, sizeof(line), _TRUNCATE, "[ZhiyiIME] switch: %s\n", text);
+    _snprintf_s(line, sizeof(line), _TRUNCATE, "[ZhiyuIME] switch: %s\n", text);
     OutputDebugStringA(line);
 }
 

@@ -66,7 +66,7 @@ struct Config {
     // The base spelling table: full pinyin (a shuangpin id here is read as shuangpin_scheme).
     std::string pinyin_scheme = "full_pinyin";
     // engine.shuangpin_scheme: microsoft_shuangpin | xiaohe_shuangpin | ziranma_shuangpin |
-    // sogou_shuangpin.
+    // sogou_shuangpin | abc_shuangpin.
     std::string shuangpin_scheme = "xiaohe_shuangpin";
     bool wubi_auto_commit = true;  // Auto-commit the only candidate at four codes.
     bool wubi_commit_first_on_fifth_key = true;  // Commit the first choice before code 5.
@@ -81,7 +81,7 @@ struct Config {
     // update.notify: the settings program checks GitHub for a new version when it opens and
     // offers to install it (settings/update_page; the Update page can always check by hand).
     bool update_notify = true;
-    // startup.autostart: zhiyi-server starts when the user signs in (the installer's Run entry
+    // startup.autostart: zhiyu-server starts when the user signs in (the installer's Run entry
     // passes --autostart and the server exits at once when this is off); otherwise the input
     // method starts it the first time it is switched to.
     bool autostart = true;

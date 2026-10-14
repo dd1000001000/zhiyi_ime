@@ -75,10 +75,10 @@ else()
     message(STATUS "Laya model not found in ${LAYA_MODEL_SOURCE_DIR}; reranking stays off until it is installed")
 endif()
 
-set_target_properties(cxxime-server PROPERTIES OUTPUT_NAME "zhiyi-server")
+set_target_properties(cxxime-server PROPERTIES OUTPUT_NAME "zhiyu-server")
 cxxime_add_version_resource(
     cxxime-server
-    "知意输入法 后台服务"
-    "zhiyi-server.exe"
+    "知语输入法 后台服务"
+    "zhiyu-server.exe"
     VFT_APP
 )

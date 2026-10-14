@@ -33,7 +33,7 @@ void log_problem_to(const std::wstring& directory, const char* area, const std::
     const std::wstring path = directory + L"\\" + kProblemLogName;
 
     // One writer at a time across the server, settings and the input hosts.
-    HANDLE mutex = CreateMutexW(nullptr, FALSE, L"Local\\ZhiyiIME.ProblemLog");
+    HANDLE mutex = CreateMutexW(nullptr, FALSE, L"Local\\ZhiyuIME.ProblemLog");
     if (mutex) WaitForSingleObject(mutex, 2000);
 
     WIN32_FILE_ATTRIBUTE_DATA attributes = {};

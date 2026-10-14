@@ -175,7 +175,7 @@ TSF 层（`tsf/src/text_service.cpp`）拥有独立于 QueryTrace 的追踪系�
 
 ### 日志路径与格式
 
-文件写入 `%USERPROFILE%\zhiyi\logs\tsf-<pid>-trace.jsonl`，每行一个 JSON 事件：
+文件写入 `%USERPROFILE%\zhiyu\logs\tsf-<pid>-trace.jsonl`，每行一个 JSON 事件：
 
 ```json
 {"event":"ipc_session","detail":"ready","session":1,"focused":true,"chinese":true,"caps":false,"fg":"Notepad"}

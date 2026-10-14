@@ -2,10 +2,10 @@
 
 [中文](privacy.md)
 
-Zhiyi IME's user experience improvement program has two tiers. **Both are off by default**; nothing
+Zhiyu IME's user experience improvement program has two tiers. **Both are off by default**; nothing
 is recorded unless you check them in the installer or in Settings > Privacy.
 
-| Tier | Option | Setting (`%USERPROFILE%\zhiyi\default.json`) |
+| Tier | Option | Setting (`%USERPROFILE%\zhiyu\default.json`) |
 |---|---|---|
 | 1 | Join the user experience improvement program | `privacy.experience_program` |
 | 2 | Allow collecting your input | `privacy.collect_input` |
@@ -17,12 +17,12 @@ is recorded unless you check them in the installer or in Settings > Privacy.
   developers).
 - Unchecking stops recording at once and keeps the existing records; "Delete all records" in
   Settings > Privacy deletes the records of both tiers.
-- The records are written by the background service `zhiyi-server.exe`; see
+- The records are written by the background service `zhiyu-server.exe`; see
   `engine/src/experience_log.cc`.
 
 ## Tier 1: basic information
 
-File: `%USERPROFILE%\zhiyi\logs\experience.jsonl`, one JSON record per line; at 1 MB it is renamed
+File: `%USERPROFILE%\zhiyu\logs\experience.jsonl`, one JSON record per line; at 1 MB it is renamed
 to `experience.1.jsonl` (only that one old file is kept). Every record has `t` (UTC time) and
 `event` (the record type).
 
@@ -36,7 +36,7 @@ Tier 1 does **not** include anything you type, any keys, the programs you use, o
 
 ## Tier 2: input
 
-Files: `%USERPROFILE%\zhiyi\logs\input-YYYYMMDD.jsonl` (one per UTC day). Only the last 7 days are
+Files: `%USERPROFILE%\zhiyu\logs\input-YYYYMMDD.jsonl` (one per UTC day). Only the last 7 days are
 kept, and 10 MB in all at most: the oldest files are deleted first.
 
 ### `input`: one record per input
@@ -55,7 +55,7 @@ cancel:
 | `candidates` | the page of candidates shown before the commit, and which one was recommended |
 | `picked` | the position picked (from 0; -1 when not picked from the candidates) |
 | `committed` | the committed text (empty when cancelled) |
-| `laya_context` | the context given to the recommendation model: the text before the caret when this input started (up to 128 Chinese / 192 English characters). It is read from the input box, so it may contain text not typed with Zhiyi IME, such as pasted text or what the box already held; where the program does not allow reading it, the text committed with Zhiyi IME before |
+| `laya_context` | the context given to the recommendation model: the text before the caret when this input started (up to 128 Chinese / 192 English characters). It is read from the input box, so it may contain text not typed with Zhiyu IME, such as pasted text or what the box already held; where the program does not allow reading it, the text committed with Zhiyu IME before |
 | `duration_ms` | how long the input took, in milliseconds |
 
 ### `stats`: usage statistics every 30 minutes

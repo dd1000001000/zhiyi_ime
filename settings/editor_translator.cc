@@ -257,10 +257,13 @@ MtInstalled install(const update::TranslatorManifest& manifest, const std::atomi
         result.status = update::Status::kDisk;
         return result;
     }
-    // Older versions and the downloads go (a version still in use stays until next time).
+    // Older versions and the downloads go. zhiyi-server may still run the previous model: it is
+    // ended, and zhiyi-server starts the new one for its next page (machine_translator.cc).
     fs::remove_all(downloads, error);
     for (const auto& entry : fs::directory_iterator(root, error)) {
-        if (entry.is_directory() && entry.path() != final_dir) fs::remove_all(entry.path(), error);
+        if (!entry.is_directory() || entry.path() == final_dir) continue;
+        end_model_servers(entry.path() / L"");
+        fs::remove_all(entry.path(), error);
     }
     result.status = update::Status::kOk;
     return result;

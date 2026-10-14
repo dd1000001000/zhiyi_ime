@@ -4,9 +4,10 @@
 // local_data_dir() (data_path.h):
 //
 //   translator\translator.json      what is installed: {"version": N, "dir": "v<N>",
-//                                     "model": "<file>.gguf", "prompt": "zhiyi-mt-1" (v2)}
+//                                     "model": "<file>.gguf", "prompt": "zhiyi-mt-1" (v2, v3)}
 //   translator\v<N>\<model>.gguf    v1: Hy-MT2-1.8B, Q4_K_M; v2: the model distilled from
-//                                   Hy-MT2-7B (LMT-60-0.6B fine-tuned), Q4_K_M
+//                                   Hy-MT2-7B (LMT-60-0.6B fine-tuned), Q4_K_M; v3: the same with
+//                                   20 of LMT-60's 28 layers, 9 languages (bench/mt9)
 //   translator\v<N>\runtime\        llama.cpp (Vulkan build): llama-server.exe and its DLLs
 //
 // Each version has its own folder, so an update is installed while the model server may still

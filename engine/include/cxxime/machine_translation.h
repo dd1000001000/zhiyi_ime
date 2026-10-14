@@ -23,7 +23,7 @@ inline constexpr char kCpuDevice[] = "cpu";
 
 // How a model is asked (translator.json "prompt"; the model was trained on it):
 //   ""            Hy-MT2-1.8B (translator v1): its own Chinese template, through the chat API
-//   "zhiyi-mt-1"  the distilled model (v2): student_prompt(), raw through /completion
+//   "zhiyi-mt-1"  the distilled models (v2, v3): student_prompt(), raw through /completion
 inline constexpr char kStudentPrompt[] = "zhiyi-mt-1";
 
 struct InstalledModel {

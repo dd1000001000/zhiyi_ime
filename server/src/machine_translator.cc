@@ -97,12 +97,25 @@ void MachineTranslator::run() {
         }
         idle_seconds = page.idle_seconds;
         if (page.items.empty()) continue;
+        // Settings > Learning may have installed another version meanwhile (an update): it
+        // replaces the running model, and what the old one answered is forgotten.
+        cxxime::mt::InstalledModel installed;
+        const bool have = cxxime::mt::find_installed(&installed);
+        if (have && installed.model != model_) {
+            if (server.running()) {
+                CXXIME_LOG(L"%s", L"MachineTranslator: another model installed, reloading");
+                server.stop();
+            }
+            if (!model_.empty()) {
+                std::lock_guard<std::mutex> lock(mutex_);
+                cache_.clear();
+            }
+            model_ = installed.model;
+        }
         if (!server.running() || server.device() != page.device) {
-            cxxime::mt::InstalledModel installed;
             std::string error = "the model is not installed";
             const auto started = now_ms();
-            if (!cxxime::mt::find_installed(&installed) ||
-                !server.start(installed, page.device, &error)) {
+            if (!have || !server.start(installed, page.device, &error)) {
                 CXXIME_LOG(L"MachineTranslator: cannot start on %S: %S", page.device.c_str(), error.c_str());
                 std::lock_guard<std::mutex> lock(mutex_);
                 failed_device_ = page.device;

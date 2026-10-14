@@ -25,7 +25,7 @@ Changes made to CxxIME (2026-10):
   switches the input states (tsf/src/language_bar.cpp, shared/include/cxxime/ime_menu.h).
 - Relicensed the combined work under GPL-3.0-only.
 - The models trained by 知意输入法 (the Laya recommendation model in models/laya/ and the
-  offline translation model v2) are distributed under GPL-3.0-only as well.
+  offline translation models v2 and v3) are distributed under GPL-3.0-only as well.
 - Renamed to 知意输入法 / Zhiyi IME with new text service and UI GUIDs, pipe, mutex,
   window class, registry, file and data directory names, and new icons.
 - Fixed an out-of-bounds read in SpellingsIndex::load and the node count written by

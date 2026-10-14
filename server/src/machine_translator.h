@@ -6,7 +6,8 @@
 // they arrive (the callback updates the candidate window) and remembered for the next pages.
 // Only the latest page is translated; the model is loaded on the first request and unloaded
 // after learning.translator_idle_seconds without one, so nothing is loaded while the
-// translations or this option are off.
+// translations or this option are off. A model updated in Settings is loaded on the next page
+// that needs translating, and the old model's translations are forgotten.
 #ifndef CXXIME_SERVER_MACHINE_TRANSLATOR_H_
 #define CXXIME_SERVER_MACHINE_TRANSLATOR_H_
 
@@ -61,6 +62,7 @@ private:
     Page page_;
     Callback callback_;
     std::unordered_map<std::string, std::string> cache_;  // target \x1F text -> translation
+    std::wstring model_;  // run() only: the .gguf the cached translations came from
     std::string failed_device_;  // the model could not start there; not tried again for a while
     long long failed_at_ms_ = 0;
 };

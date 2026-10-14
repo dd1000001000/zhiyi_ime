@@ -33,7 +33,7 @@
   Learning page in Settings. The word lists are open at
   [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary): corrections welcome. Phrases,
   rare words and short sentences the packs lack can be translated by a downloadable on-device model
-  (about 0.4 GB, distilled from Tencent Hy-MT2-7B) on a graphics card or the CPU (about 0.3 s a page
+  (about 0.3 GB, distilled from Tencent Hy-MT2-7B) on a graphics card or the CPU (about 0.3 s a page
   on the CPU): a page at once, filled in as it arrives, offline. While typing, hold Ctrl and press
   1-9 to type that candidate's translation (its first sense) instead of the candidate: `xianzai`
   then Ctrl+1 types `now`; a candidate without a translation types nothing.
@@ -77,9 +77,9 @@ How often the right word comes first, and how fast and how large each model is, 
 
 ## Offline translation model
 
-Candidates the learning-mode language packs lack are translated by a model on your computer. From 1.3.0 it is Zhiyi v2: [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) distilled from Tencent [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B)'s translations of about 1.15 million IME candidates (short words, sentences typed in one go and English words, with the text before the caret). Compared with Hy-MT2 1.8B used before, it is about as accurate (better from Chinese into English, a little worse from Chinese into the other languages), a third of the download, faster on the graphics card with less video memory, and it runs on the CPU too (about 0.3 s a page), so computers without a dedicated graphics card can use it.
+Candidates the learning-mode language packs lack are translated by a model on your computer, now Zhiyi v3: [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) with 8 of its 28 layers removed, distilled from Tencent [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B)'s translations of about 2.75 million IME candidates and sentences (in 9 languages: Chinese, English, Japanese, Korean, French, German, Spanish, Russian and Vietnamese, with the text before the caret). On three open test sets its COMET-22 is 8-11 points above Zhiyi v2 used before and close to the original LMT-60 (1-2 points lower on FLORES-200 and NTREX-128, 1.4 higher on WMT24++); answers not in the target language fall from about 6% with v2 to under 0.1% on FLORES-200 and NTREX-128. The download is about 0.32 GB (v2: about 0.4 GB), a page takes about 70 ms on the graphics card and about 0.3 s on the CPU, both faster than v2, with less video memory and memory.
 
-<img src="docs/media/translator.en-US.svg" alt="Offline translation models: (a) all (b) Chinese to English (c) Chinese to other languages (d) English to other languages (e) GPU time (f) CPU time (g) video memory (h) memory (i) download size" width="100%">
+<img src="docs/media/translator.en-US.svg" alt="Offline translation models: (a)(b)(c) COMET-22 on FLORES-200, WMT24++ and NTREX-128 (d)(e)(f) answers not in the target language (g) GPU time (h) video memory (i) download size (j) CPU time (k) memory" width="100%">
 
 ## Installation
 
@@ -122,6 +122,6 @@ The learning-mode language packs were generated offline by large language models
 checked automatically and corrected by hand; the word lists are open under GPL-3.0 at
 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary).
 
-Zhiyi IME is licensed under [GPL-3.0-only](LICENSE). The models Zhiyi trained itself (the recommendation model and offline translation model v2) are licensed under GPL-3.0-only too; the voice models (SenseVoice-Small, Silero VAD) and the llama.cpp runtime are not Zhiyi's and keep their own licenses, which come with the download; full notices are in [NOTICE](NOTICE) and
+Zhiyi IME is licensed under [GPL-3.0-only](LICENSE). The models Zhiyi trained itself (the recommendation model and offline translation models v2 and v3) are licensed under GPL-3.0-only too; the voice models (SenseVoice-Small, Silero VAD) and the llama.cpp runtime are not Zhiyi's and keep their own licenses, which come with the download; full notices are in [NOTICE](NOTICE) and
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt). Development and build notes:
 [docs/development.md](docs/development.md).

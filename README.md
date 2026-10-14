@@ -24,7 +24,7 @@
   打字时顺便学外语。中文候选可以翻成英、日、韩、法、德、西、俄语，英文候选可以翻成中、日、韩、法、德、西、俄语；
   多音字按读音分别翻译。翻译来自离线语言包（中文约 4 万词、英文约 2 万词），只在本机查表。安装包自带中 → 英、
   英 → 中，其余在设置的“学习”页按需下载。词表公开在 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary)，
-  欢迎纠错。词表里没有的词组、生僻词和短句，可以下载本机翻译模型（从腾讯 Hy-MT2-7B 蒸馏，约 0.4 GB）翻译，
+  欢迎纠错。词表里没有的词组、生僻词和短句，可以下载本机翻译模型（从腾讯 Hy-MT2-7B 蒸馏，约 0.3 GB）翻译，
   显卡或 CPU 都能运行（CPU 上一页约 0.3 秒），一页的词同时翻、随后补上，不联网。
   打字时按住 Ctrl 再按 1～9，打出的是那个候选的翻译（第一个意思）而不是候选本身，如 `xianzai` 按 Ctrl+1
   打出 `now`；没有翻译的候选不打字
@@ -56,9 +56,9 @@
 
 ## 离线翻译模型
 
-学习模式里语言包查不到的候选由本机的翻译模型翻译。1.3.0 起换成知意 v2：以 [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) 为底座，用腾讯 [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B) 对约 115 万条输入法候选（短词、一口气打出的整句、英文词，带光标前的上文）的译文蒸馏而来。和之前用的 Hy-MT2 1.8B 相比，准确率相近（中译英更好，中文译成日韩法德西俄稍差），下载只有约三分之一，显卡上更快、显存更少，并且可以在 CPU 上运行（一页约 0.3 秒），没有独立显卡的电脑也能用。
+学习模式里语言包查不到的候选由本机的翻译模型翻译，现在用的是知意 v3：从 [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) 的 28 层中去掉 8 层，用腾讯 [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B) 对约 275 万条输入法候选和句子（中、英、日、韩、法、德、西、俄、越 9 种语言，带光标前的上文）的译文蒸馏而来。在三个开源测试集上，COMET-22 比之前用的知意 v2 高 8–11 分，和 LMT-60 原版相近（FLORES-200、NTREX-128 低 1–2 分，WMT24++ 高 1.4 分）；输出不是目标语言的比例在 FLORES-200 和 NTREX-128 上从 v2 的约 6% 降到 0.1% 以下。下载约 0.32 GB（v2 约 0.4 GB），显卡上一页约 70 毫秒、CPU 上一页约 0.3 秒，都比 v2 快，显存和内存也更少。
 
-<img src="docs/media/translator.zh-CN.svg" alt="离线翻译模型对比：(a) 全部 (b) 中译英 (c) 中文译其他语言 (d) 英文译其他语言 (e) 显卡耗时 (f) CPU 耗时 (g) 显存 (h) 内存 (i) 下载大小" width="100%">
+<img src="docs/media/translator.zh-CN.svg" alt="离线翻译模型对比：(a)(b)(c) FLORES-200、WMT24++、NTREX-128 的 COMET-22 (d)(e)(f) 不是目标语言的比例 (g) 显卡耗时 (h) 显存 (i) 下载大小 (j) CPU 耗时 (k) 内存" width="100%">
 
 ## 安装说明
 
@@ -96,5 +96,5 @@
 学习模式的语言包由大语言模型（GLM、Gemma）离线生成后经自动检查和人工修订，词表按 GPL-3.0 公开在
 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary)。
 
-知意输入法按 [GPL-3.0-only](LICENSE) 发布。知意自己训练的模型（上文推荐模型、离线翻译模型 v2）同样按 GPL-3.0-only 发布；语音模型（SenseVoice-Small、Silero VAD）和 llama.cpp 运行库不是知意训练的，保持各自的许可，许可证随下载附带。各组件的完整声明见 [NOTICE](NOTICE) 和
+知意输入法按 [GPL-3.0-only](LICENSE) 发布。知意自己训练的模型（上文推荐模型、离线翻译模型 v2、v3）同样按 GPL-3.0-only 发布；语音模型（SenseVoice-Small、Silero VAD）和 llama.cpp 运行库不是知意训练的，保持各自的许可，许可证随下载附带。各组件的完整声明见 [NOTICE](NOTICE) 和
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)。开发与构建说明见 [docs/development.md](docs/development.md)。

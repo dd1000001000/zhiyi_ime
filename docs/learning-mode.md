@@ -182,7 +182,7 @@ value  1–3 个义项：{词性 u8, 译文 UTF-8 \0}，以词性 0xFF 结尾
 - **模型**（第 2 版）：从腾讯 Hy-MT2-7B 蒸馏出的小模型，Q4_K_M 量化（397 MB），由 llama.cpp 的 `llama-server.exe`
   （Vulkan 版，MIT）运行。底座是 NiuTrans 的 [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B)（Apache-2.0），
   用 Hy-MT2-7B（Apache-2.0）对约 115 万条“语言包查不到的候选 + 上文”的译文全参数微调：短词、一口气打出的整句
-  （`woshiyigeren` 一页里的“我是一个人”“卧室一个人”…）和英文词，中文译成 7 种语言、英文译成 7 种语言。
+  （`woshiyigeren` 一页里的“我是一个人”“卧室一个人”…）和英文词，中文译成 7 种语言、英文译成 7 种语言。模型本身按 GPL-3.0-only 发布。
   在语言包查不到的测试候选上和第 1 版（Hy-MT2-1.8B，1.13 GB）准确率相近（README 的对比图），体积约三分之一。
   模型和运行库都不在安装包里，在“学习”页点“下载”时从本仓库的 `translator` 发布下载（签名清单 `translator.json`
   + 模型 + 运行库压缩包，校验签名和 SHA-256），放在本机数据目录的 `translator\v<版本>\`

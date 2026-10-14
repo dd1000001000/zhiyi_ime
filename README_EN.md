@@ -112,6 +112,7 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B) (Tencent Hunyuan): the first offline translation model (1.8B) and the teacher it was distilled from (7B) (Apache-2.0)
 - [llama.cpp](https://github.com/ggml-org/llama.cpp): the offline translation runtime (MIT, downloaded with the model)
 - [LCCC](https://github.com/thu-coai/CDial-GPT) (MIT) and the Chinese part of [C4](https://huggingface.co/datasets/allenai/c4) (ODC-BY): part of the distillation text
+- [SkyPile-150B](https://huggingface.co/datasets/Skywork/SkyPile-150B) (Skywork, Skywork Community License): about 70% of the training text for long-pinyin composition since 1.5.4
 - [wordfreq](https://github.com/rspeer/wordfreq): English word frequencies (CC BY-SA 4.0)
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime): model inference (MIT)
 - [DirectML](https://github.com/microsoft/DirectML): inference on graphics cards (Microsoft DirectML
@@ -121,6 +122,6 @@ The learning-mode language packs were generated offline by large language models
 checked automatically and corrected by hand; the word lists are open under GPL-3.0 at
 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary).
 
-Zhiyi IME is licensed under [GPL-3.0-only](LICENSE); full notices are in [NOTICE](NOTICE) and
+Zhiyi IME is licensed under [GPL-3.0-only](LICENSE). The models Zhiyi trained itself (the recommendation model and offline translation model v2) are licensed under GPL-3.0-only too; the voice models (SenseVoice-Small, Silero VAD) and the llama.cpp runtime are not Zhiyi's and keep their own licenses, which come with the download; full notices are in [NOTICE](NOTICE) and
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt). Development and build notes:
 [docs/development.md](docs/development.md).

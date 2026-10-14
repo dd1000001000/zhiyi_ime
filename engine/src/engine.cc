@@ -1418,7 +1418,10 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
         }
     }
     if (request.scheme == CompositionScheme::kPinyin && page_index == 0 && page_offset == 0) {
-        add_english_candidates(request.input, page_size, result);
+        // The next page's query (translate_after_visible_anchor) asks for more than a page and
+        // continues after the last candidate shown: it keeps that many (issue #21).
+        add_english_candidates(request.input, candidate_limit > 0 ? candidate_limit : page_size,
+                               result);
         // Nothing matched (neither pinyin nor an English word): offer the typed text itself.
         const std::string& input = request.input;
         // Only for a completed query: a failed or degraded one keeps the engine's retry and
@@ -1474,7 +1477,7 @@ void Engine::add_english_candidates(const std::string& input, int page_size,
                            : 0;
     result.entries.insert(result.entries.begin() + static_cast<std::ptrdiff_t>(pos),
                           make_text_candidate_entry(std::move(c), input.size(), input));
-    // Keep the requested page size; Chinese candidates pushed out reappear on the next page
+    // Keep the requested count; Chinese candidates pushed out reappear on the next page
     // (paging re-queries page 0 and continues after the last visible candidate).
     if (page_size > 0 && static_cast<int>(result.entries.size()) > page_size)
         result.entries.resize(static_cast<size_t>(page_size));

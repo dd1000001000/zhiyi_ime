@@ -51,6 +51,10 @@ class UnifiedVocab {
   const std::string& context_prefix() const { return context_prefix_; }
   // The decoder graph beside the model (export_unified_dec.py), "" for a continuation head.
   const std::string& decoder_file() const { return decoder_file_; }
+  // The same decoder as two graphs that keep a KV cache (export_unified_dec_kv.py): the
+  // memory's cross-attention keys / values, and one character given the earlier ones'. "" without.
+  const std::string& decoder_memory_file() const { return decoder_memory_file_; }
+  const std::string& decoder_step_file() const { return decoder_step_file_; }
 
  private:
   std::unordered_map<std::string, int64_t> units_;  // "f:zhong" -> row
@@ -64,6 +68,8 @@ class UnifiedVocab {
   int max_context_tokens_ = 160;
   std::string context_prefix_;
   std::string decoder_file_;
+  std::string decoder_memory_file_;
+  std::string decoder_step_file_;
   mutable std::mutex mu_;
   mutable std::unordered_map<int64_t, std::vector<uint8_t>> allowed_;
 };

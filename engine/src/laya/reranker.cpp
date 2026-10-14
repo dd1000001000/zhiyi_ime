@@ -266,6 +266,17 @@ Reranker::Reranker(const RerankerOptions& opt) {
       if (std::filesystem::exists(std::filesystem::path(decoder_path), dec_ec)) {
         decoder_ = std::make_unique<Ort::Session>(*env_, decoder_path.c_str(), session_options(opt));
         load_note_ += "; decoder " + vocab_->decoder_file();
+        const std::string& memory_file = vocab_->decoder_memory_file();
+        const std::string& step_file = vocab_->decoder_step_file();
+        const std::wstring memory_path = utf8_to_wide(opt.model_dir + "/" + memory_file);
+        const std::wstring step_path = utf8_to_wide(opt.model_dir + "/" + step_file);
+        if (!memory_file.empty() && !step_file.empty() &&
+            std::filesystem::exists(std::filesystem::path(memory_path), dec_ec) &&
+            std::filesystem::exists(std::filesystem::path(step_path), dec_ec)) {
+          decoder_memory_ = std::make_unique<Ort::Session>(*env_, memory_path.c_str(), session_options(opt));
+          decoder_step_ = std::make_unique<Ort::Session>(*env_, step_path.c_str(), session_options(opt));
+          load_note_ += " (KV cache: " + memory_file + ", " + step_file + ")";
+        }
       } else {
         load_note_ += "; decoder file missing: " + vocab_->decoder_file();
       }
@@ -523,9 +534,106 @@ std::shared_ptr<const Encoded> Reranker::encode(const std::string& context, cons
   return encoded;
 }
 
+namespace {
+
+// The first n characters of a path, as a cache key.
+std::string path_key(const std::vector<int>& chars, size_t n) {
+  return std::string(reinterpret_cast<const char*>(chars.data()), n * sizeof(int));
+}
+
+}  // namespace
+
+std::vector<std::vector<float>> Reranker::decode_cached(const Encoded& enc,
+                                                       const std::vector<std::vector<int>>& prefixes, size_t slot,
+                                                       DecoderCache& cache) const {
+  const int64_t B = static_cast<int64_t>(prefixes.size()), L = enc.length, d = enc.width;
+  const int64_t t = static_cast<int64_t>(slot);
+  for (const auto& p : prefixes) {
+    if (p.size() < slot) return {};
+  }
+  if (cache.cross_shape.empty()) {
+    const int64_t s_mem[3] = {1, L, d};
+    Ort::Value in = Ort::Value::CreateTensor<float>(*mem_, const_cast<float*>(enc.memory.data()),
+                                                    enc.memory.size(), s_mem, 3);
+    const char* in_names[1] = {"memory"};
+    const char* out_names[2] = {"cross_k", "cross_v"};
+    auto out = decoder_memory_->Run(Ort::RunOptions{nullptr}, in_names, &in, 1, out_names, 2);
+    const auto info = out[0].GetTensorTypeAndShapeInfo();
+    if (info.GetShape().size() != 4) return {};
+    const size_t n = info.GetElementCount();
+    cache.cross_k.assign(out[0].GetTensorData<float>(), out[0].GetTensorData<float>() + n);
+    cache.cross_v.assign(out[1].GetTensorData<float>(), out[1].GetTensorData<float>() + n);
+    cache.cross_shape = info.GetShape();
+  }
+  if (t == 0) {
+    cache.paths.clear();
+    cache.positions = 0;
+  }
+  if (cache.positions != t) return {};  // not the slot after the last call's
+  const int64_t NL = cache.cross_shape[0], H = cache.cross_shape[1], dh = cache.cross_shape[3];
+  const size_t row = static_cast<size_t>(NL * H * t * dh);
+  std::vector<float> past_k(static_cast<size_t>(B) * row), past_v(static_cast<size_t>(B) * row);
+  std::vector<int64_t> prev(static_cast<size_t>(B), -1);
+  for (int64_t b = 0; b < B; ++b) {
+    if (t == 0) break;
+    const std::vector<int>& p = prefixes[static_cast<size_t>(b)];
+    const auto it = cache.paths.find(path_key(p, slot - 1));
+    if (it == cache.paths.end() || it->second.first.size() != row) return {};
+    std::copy(it->second.first.begin(), it->second.first.end(), past_k.begin() + static_cast<std::ptrdiff_t>(b * row));
+    std::copy(it->second.second.begin(), it->second.second.end(), past_v.begin() + static_cast<std::ptrdiff_t>(b * row));
+    prev[static_cast<size_t>(b)] = p[slot - 1];
+  }
+  float empty = 0.0f;  // the first slot has no keys before it: a tensor of 0 elements
+  const int64_t s_mask[2] = {1, L}, s_slot[2] = {1, d}, s_prev[1] = {B}, s_past[5] = {B, NL, H, t, dh};
+  std::vector<Ort::Value> in;
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, cache.cross_k.data(), cache.cross_k.size(),
+                                               cache.cross_shape.data(), 4));
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, cache.cross_v.data(), cache.cross_v.size(),
+                                               cache.cross_shape.data(), 4));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, const_cast<int64_t*>(enc.mask.data()), enc.mask.size(),
+                                                 s_mask, 2));
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, const_cast<float*>(enc.slot_vec.data()) + t * d,
+                                               static_cast<size_t>(d), s_slot, 2));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, prev.data(), prev.size(), s_prev, 1));
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, past_k.empty() ? &empty : past_k.data(), past_k.size(),
+                                               s_past, 5));
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, past_v.empty() ? &empty : past_v.data(), past_v.size(),
+                                               s_past, 5));
+  const char* in_names[7] = {"cross_k", "cross_v", "memory_mask", "slot_vec", "prev", "past_k", "past_v"};
+  const char* out_names[3] = {"char_logits", "present_k", "present_v"};
+  auto out = decoder_step_->Run(Ort::RunOptions{nullptr}, in_names, in.data(), in.size(), out_names, 3);
+  const auto shape = out[0].GetTensorTypeAndShapeInfo().GetShape();  // (B, chars)
+  const auto present = out[1].GetTensorTypeAndShapeInfo().GetShape();  // (B, layers, heads, t + 1, head_dim)
+  if (shape.size() != 2 || shape[0] != B || present.size() != 5 || present[3] != t + 1) return {};
+  const size_t C = static_cast<size_t>(shape[1]);
+  const size_t next_row = static_cast<size_t>(NL * H * (t + 1) * dh);
+  const float* data = out[0].GetTensorData<float>();
+  const float* pk = out[1].GetTensorData<float>();
+  const float* pv = out[2].GetTensorData<float>();
+  std::unordered_map<std::string, std::pair<std::vector<float>, std::vector<float>>> paths;
+  const std::vector<uint8_t>& ok = vocab_->allowed(enc.unit_ids[slot]);
+  std::vector<std::vector<float>> result(static_cast<size_t>(B));
+  for (int64_t b = 0; b < B; ++b) {
+    auto& kept = paths[path_key(prefixes[static_cast<size_t>(b)], slot)];
+    if (kept.first.empty()) {
+      kept.first.assign(pk + b * next_row, pk + (b + 1) * next_row);
+      kept.second.assign(pv + b * next_row, pv + (b + 1) * next_row);
+    }
+    masked_ln_softmax(data + static_cast<size_t>(b) * C, C, ok, result[static_cast<size_t>(b)]);
+  }
+  cache.paths = std::move(paths);
+  cache.positions = t + 1;
+  return result;
+}
+
 std::vector<std::vector<float>> Reranker::decode(const Encoded& enc, const std::vector<std::vector<int>>& prefixes,
-                                                 size_t slot) const {
+                                                 size_t slot, DecoderCache* cache) const {
   if (!decoder_ || !vocab_ || prefixes.empty() || static_cast<int64_t>(slot) >= enc.slots || enc.width == 0) return {};
+  if (cache && has_decoder_cache()) {
+    auto result = decode_cached(enc, prefixes, slot, *cache);
+    if (result.size() == prefixes.size()) return result;
+    cache->positions = -1;  // out of step: the rest of this reading without the cache
+  }
   const int64_t B = static_cast<int64_t>(prefixes.size()), L = enc.length, d = enc.width;
   const int64_t T = static_cast<int64_t>(slot) + 1;
   // The reading repeated for every prefix (the decoder graph wants matching batches).

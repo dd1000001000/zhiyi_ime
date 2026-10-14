@@ -227,6 +227,10 @@ struct Config {
         // ln P there (continuation_weight's part).
         int decoder_beam = 16;
         double decoder_weight = 0.3;
+        // A decoder model with its KV cache graphs (decoder_memory / decoder_step in
+        // unified_vocab.json): each character is computed from what the earlier ones kept
+        // instead of reading all of them again. Off: the whole decoder every character.
+        bool decoder_cache = true;
         // Typed segmentations (xian / xi'an) the model reads per key: one model call each; the
         // readings of an abbreviation ("g" as guo, gong, ge...) share a call.
         int continuation_paths = 4;

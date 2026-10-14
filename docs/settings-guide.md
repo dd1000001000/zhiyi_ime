@@ -267,6 +267,7 @@
 | `laya.continuation_rerank` | false | 模型组出的整句再交给选词头重排；关时模型的第一句放在第一个并加星标，这一页不再重排 |
 | `laya.decoder_beam` | 16 | 解码器模型（1.5.4 起）逐字组句时同时保留的路径数；每写一个字所有路径一起算一次 |
 | `laya.decoder_weight` | 0.3 | 解码器模型组句时每个词的分数 = 各字 ln P(模型) 之和 + 权重 × 引擎的词分数（`laya.continuation_weight` 只用于组句头模型） |
+| `laya.decoder_cache` | true | 模型目录里有解码器的 KV 缓存图（`laya_decoder_memory` / `laya_decoder_step`）时使用：每写一个字只算新字，前面字算过的结果留着复用；关掉则每个字都把前面的字重算一遍。首选不变，长句快一半左右 |
 | `privacy.experience_program` / `collect_input` | false / false | 用户体验改进计划两档 |
 | `update.notify` | true | 打开设置时检查更新 |
 | `startup.autostart` | true | 登录时启动后台服务；false = 第一次切换到知意输入法时再启动 |

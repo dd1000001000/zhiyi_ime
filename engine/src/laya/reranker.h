@@ -15,6 +15,8 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "slots.h"
@@ -55,6 +57,18 @@ struct Encoded {
   }
 };
 inline size_t cache_bytes(const Encoded& e) { return e.bytes(); }
+
+// The KV cache of one reading (decode with the step graphs): the memory's cross-attention keys
+// and values, computed on the first call, and the self-attention keys and values of every path
+// the last call wrote, by its characters. The next call reads them instead of every earlier
+// character again. One thread at a time.
+struct DecoderCache {
+  std::vector<int64_t> cross_shape;  // (layers, heads, length, head_dim); empty before the first call
+  std::vector<float> cross_k, cross_v;
+  int64_t positions = 0;  // slots each path below holds
+  // a path's characters -> its keys, values (layers, heads, positions, head_dim)
+  std::unordered_map<std::string, std::pair<std::vector<float>, std::vector<float>>> paths;
+};
 
 struct RerankerOptions {
   std::string model_dir;                  // 含 tokenizer.json, rl_agent_config.json
@@ -112,10 +126,12 @@ class Reranker {
   // ... then, for each prefix (the characters chosen at the slots before `slot`, as indices into
   // vocab()->chars(), -1 for one the model does not write), ln P over the characters at `slot`
   // (-1e4 for those its unit cannot spell). One decoder call for all the prefixes. Empty when
-  // the model fails.
+  // the model fails. With a cache (has_decoder_cache) and the slots written in order from 0,
+  // only the new character is computed; otherwise every earlier one is read again.
   std::vector<std::vector<float>> decode(const Encoded& encoded, const std::vector<std::vector<int>>& prefixes,
-                                         size_t slot) const;
+                                         size_t slot, DecoderCache* cache = nullptr) const;
   bool has_decoder() const { return decoder_ != nullptr; }
+  bool has_decoder_cache() const { return decoder_memory_ && decoder_step_; }
 
   bool has_slots() const { return vocab_ != nullptr; }  // a unified model
   const UnifiedVocab* vocab() const { return vocab_.get(); }
@@ -129,12 +145,16 @@ class Reranker {
   Sequence continuation_sequence(const std::string& context, const std::vector<Unit>& units) const;
   bool run(Sequence seq, std::vector<float>* logits, std::vector<float>* char_logits,
            size_t* chars, Encoded* encoded) const;
+  std::vector<std::vector<float>> decode_cached(const Encoded& encoded, const std::vector<std::vector<int>>& prefixes,
+                                                size_t slot, DecoderCache& cache) const;
 
   std::unique_ptr<BpeTokenizer> tok_;
   std::unique_ptr<UnifiedVocab> vocab_;
   std::unique_ptr<Ort::Env> env_;
   std::unique_ptr<Ort::Session> session_;
   std::unique_ptr<Ort::Session> decoder_;  // a decoder model's second graph (the CPU)
+  std::unique_ptr<Ort::Session> decoder_memory_;  // ... and its KV cache graphs, when there
+  std::unique_ptr<Ort::Session> decoder_step_;
   std::string load_note_;
   std::unique_ptr<Ort::MemoryInfo> mem_;
   std::vector<int64_t> head_ids_;  // "choice question: <instructions>" 只编码一次

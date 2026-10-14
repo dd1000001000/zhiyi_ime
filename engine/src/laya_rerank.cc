@@ -539,12 +539,14 @@ public:
           context_(std::move(context)),
           weight_(lc.decoder_weight),
           beam_(static_cast<size_t>((std::max)(1, lc.decoder_beam))),
+          use_cache_(lc.decoder_cache && model_->has_decoder_cache()),
           min_syllables_(static_cast<size_t>((std::max)(1, lc.continuation_min_syllables))),
           max_calls_(static_cast<size_t>((std::max)(1, lc.continuation_paths))),
           background_(background) {}
 
     bool prepare(const CompositionPath& path, const std::string& input) override {
         current_ = nullptr;
+        current_cache_ = nullptr;
         ln_p_.clear();
         if (!path.syllables || path.syllables->size() < min_syllables_ ||
             path.syllables->size() > static_cast<size_t>(model_->vocab()->max_slots())) {
@@ -572,6 +574,7 @@ public:
         }
         if (!it->second || it->second->slots != static_cast<int64_t>(path.syllables->size())) return false;
         current_ = it->second;
+        if (use_cache_) current_cache_ = &kv_[key];
         scored_ = true;
         return true;
     }
@@ -588,7 +591,7 @@ public:
             for (const std::string& c : laya::utf8_chars(prefixes[i])) ids[i].push_back(vocab.char_index(c));
         }
         try {
-            ln_p_ = model_->decode(*current_, ids, slot);
+            ln_p_ = model_->decode(*current_, ids, slot, current_cache_);
         } catch (const std::exception& e) {
             laya_log(L"decode failed: " + laya::utf8_to_wide(e.what()));
             ln_p_.clear();
@@ -636,7 +639,10 @@ private:
     size_t max_calls_;
     bool background_;
     bool scored_ = false;
+    bool use_cache_;
     std::unordered_map<std::string, EncodedPtr> cache_;  // the paths this translation read
+    std::unordered_map<std::string, laya::DecoderCache> kv_;  // ... and their KV caches
+    laya::DecoderCache* current_cache_ = nullptr;
     std::vector<std::vector<laya::Unit>> missing_;
     std::unordered_set<std::string> missing_keys_;
     EncodedPtr current_;

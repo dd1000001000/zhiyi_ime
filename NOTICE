@@ -16,6 +16,9 @@ Changes made to CxxIME (2026-10):
   first candidate for pinyin homophones and English completions from the preceding text;
   the pick is marked with a sparkle in the candidate window
   (engine/src/laya_rerank.cc, engine/src/laya/, ui/src/sparkle.h).
+- A word n-gram next to that choice (engine/src/laya/ngram.h): Youmo IME's pinyin language
+  model (LGPL-2.1-or-later, based on libime's) with science text mixed in, in ngram/zh.ngram,
+  distributed under LGPL-2.1-or-later as its base.
 - English word list and English word mode with completion, digit selection and case
   matching; exact English words offered in Chinese mode
   (engine/src/english_lexicon.cc, engine/src/engine.cc).

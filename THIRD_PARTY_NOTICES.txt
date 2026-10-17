@@ -243,6 +243,22 @@ https://huggingface.co/datasets/allenai/soda, CC BY 4.0; Tatoeba, https://tatoeb
 CC BY 2.0 FR; and the English portion of C4 (ODC-BY 1.0).
 
 
+Word n-gram (ngram/zh.ngram)
+----------------------------
+
+License: LGPL-2.1-or-later (as its base)
+
+A word trigram model scored next to the word choice. Its base is the pinyin language model
+of Youmo IME, https://github.com/Sraw/youmo-ime (LGPL-2.1-or-later), which mixes libime's
+lm_sc.arpa, https://github.com/fcitx/libime (LGPL-2.1-or-later), with n-grams counted on
+web pages of FineWeb-2 (Penedo et al., 2025), https://huggingface.co/datasets/HuggingFaceFW/fineweb-2,
+ODC-By 1.0, and of Common Crawl, https://commoncrawl.org (its terms of use). 知意输入法 mixed
+in n-grams counted on CSL, the Chinese Scientific Literature dataset (Li et al., COLING 2022),
+https://github.com/ydli-ai/CSL, Apache License 2.0, and on the science and technology pages of
+SkyPile-150B (Skywork Community License), the Chinese portion of C4 (ODC-BY 1.0) and FineWeb-2
+(ODC-By 1.0), then pruned it by relative entropy to 4 million bigrams and trigrams.
+
+
 Voice input models (downloaded separately, not in the installer)
 ----------------------------------------------------------------
 

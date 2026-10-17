@@ -1,10 +1,11 @@
-"""Downloads the Laya model used by 知意输入法 into models/laya/.
+"""Downloads the Laya model used by 知意输入法 into models/laya/, and the word n-gram next to it into
+models/ngram/.
 
-  python scripts/fetch_model.py            # download the release asset and verify it
-  python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ for a release upload
+  python scripts/fetch_model.py            # download the release assets and verify them
+  python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ and models/ngram/ for release uploads
 
-The model (laya.int8g.onnx ~96 MB) is too large for git; it is published as a GitHub release
-asset. The training code and data are not published.
+The model (laya.int8g.onnx ~96 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
+published as a GitHub release asset. The training code and data are not published.
 """
 import argparse
 import hashlib
@@ -30,6 +31,16 @@ URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-l
 # models' pruned vocabulary plus 30387 tokens of the new training text.
 ONNX_SHA256 = "4aa1e0a3a8496d0970b3cf5c5c3bf8b06338a4f0d12f8831721082f48b32b714"
 
+# The word n-gram scored next to the word choice (laya.ngram, engine/src/laya/ngram.h), ng1017: Youmo
+# IME's pinyin language model (LGPL-2.1-or-later, on libime's) with science text mixed in (CSL
+# abstracts and science pages of SkyPile, C4, FineWeb-2), pruned by relative entropy to 4M bigrams
+# and 4M trigrams. LGPL-2.1-or-later as its base.
+NGRAM_DEST = os.path.join(ROOT, "models", "ngram")
+NGRAM_FILE = "zh.ngram"
+NGRAM_ASSET = "zhiyi-ngram-zh-1017.zip"
+NGRAM_URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/ngram-zh-1017/{NGRAM_ASSET}"
+NGRAM_SHA256 = "0a9e5c151d7dc90665358b3f6ab10436520457a26e9cfe1fa2054d6c046f72cd"
+
 
 def sha256(path):
     h = hashlib.sha256()
@@ -46,6 +57,10 @@ def pack():
         for f in FILES:
             z.write(os.path.join(DEST, f), f)
     print(f"{out}\nlaya.int8g.onnx sha256 {sha256(os.path.join(DEST, 'laya.int8g.onnx'))}")
+    out = os.path.join(ROOT, "build", NGRAM_ASSET)
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        z.write(os.path.join(NGRAM_DEST, NGRAM_FILE), NGRAM_FILE)
+    print(f"{out}\n{NGRAM_FILE} sha256 {sha256(os.path.join(NGRAM_DEST, NGRAM_FILE))}")
 
 
 def matches():
@@ -54,13 +69,32 @@ def matches():
     return sha256(os.path.join(DEST, "laya.int8g.onnx")) == ONNX_SHA256
 
 
+def fetch_ngram():
+    path = os.path.join(NGRAM_DEST, NGRAM_FILE)
+    if os.path.exists(path) and sha256(path) == NGRAM_SHA256:
+        print(f"n-gram already in {NGRAM_DEST}")
+        return 0
+    print(f"downloading {NGRAM_URL}")
+    with urllib.request.urlopen(NGRAM_URL, timeout=600) as r:
+        data = r.read()
+    os.makedirs(NGRAM_DEST, exist_ok=True)
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        with open(path, "wb") as dst:
+            dst.write(z.read(NGRAM_FILE))
+    if sha256(path) != NGRAM_SHA256:
+        print("checksum mismatch for the n-gram", file=sys.stderr)
+        return 1
+    print(f"n-gram -> {NGRAM_DEST}")
+    return 0
+
+
 def fetch():
     for f in OLD_FILES:
         if os.path.exists(os.path.join(DEST, f)):
             os.remove(os.path.join(DEST, f))
     if matches():
         print(f"model already in {DEST}")
-        return 0
+        return fetch_ngram()
     print(f"downloading {URL}")
     with urllib.request.urlopen(URL, timeout=600) as r:
         data = r.read()
@@ -73,7 +107,7 @@ def fetch():
         print("checksum mismatch for the model files", file=sys.stderr)
         return 1
     print(f"model -> {DEST}")
-    return 0
+    return fetch_ngram()
 
 
 def main():

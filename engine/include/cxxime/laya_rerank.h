@@ -39,6 +39,7 @@ struct LayaRerankStats {
     long long reordered = 0;
     double last_ms = 0.0;
     bool on_gpu = false;  // the model runs on the graphics card named by laya.device
+    bool ngram_ready = false;  // laya.ngram loaded with the model
 };
 
 struct LayaGpuTest {

@@ -239,8 +239,22 @@ struct Config {
         // make no work that the next key throws away.
         int continuation_delay_ms = 100;
         // The model's sentences then also go through the word choice (as sentences did before):
-        // off, the lattice order stands and its first sentence is recommended.
-        bool continuation_rerank = false;
+        // off, the lattice order stands and its first sentence is recommended. On since the
+        // Long-L18 choice head (bench long_ngram.py / eval_long_e2e.py, long_test typed in full
+        // 61.8 -> 68.7%, partial 30.6 -> 35.4, mixed 16.5 -> 20.4).
+        bool continuation_rerank = true;
+        // A word trigram model next to the word choice (engine/src/laya/ngram.h): each whole-input
+        // candidate's score gains ngram_weight * ln P(candidate | the text before it). Relative to
+        // the server executable's directory; "" or a missing file turns it off. The shipped model
+        // (bench ngram_prune.py: Youmo IME's with science text mixed in, 4M bigrams and trigrams,
+        // 79 MB), weight tuned on choice2 dev; end to end with continuation_rerank (bench
+        // e2e_choice2.py, new test set): Chinese words 86.2 -> 87.6%, long input 67.2 -> 74.5%.
+        std::string ngram = "ngram/zh.ngram";
+        double ngram_weight = 1.0;
+        // With the n-gram loaded the pinyin word choice runs with nothing before the caret too
+        // (the model alone has nothing to go on there; with the n-gram, bench neutral set rows
+        // without context 72.2 -> 80.6).
+        bool ngram_without_context = true;
     };
     LayaConfig laya;
     int laya_candidate_count() const {

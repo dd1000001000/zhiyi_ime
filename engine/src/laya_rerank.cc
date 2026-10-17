@@ -29,6 +29,7 @@
 #include <cxxime/translation_result.h>
 
 #include "laya/continuation_cache.h"
+#include "laya/ngram.h"
 #include "laya/reranker.h"
 #include "laya/slots.h"
 #include "laya/text_util.h"
@@ -51,6 +52,8 @@ constexpr size_t kContinuationCacheBytes = 8u << 20;
 struct State {
     std::mutex mu;
     std::shared_ptr<laya::Reranker> model;
+    // The word n-gram next to it (laya.ngram), loaded with the model; nullptr when off or missing.
+    std::shared_ptr<const laya::Ngram> ngram;
     std::string model_key;
     bool loading = false;
     bool failed = false;
@@ -130,16 +133,24 @@ std::shared_ptr<laya::Reranker> load_on_gpu(laya::RerankerOptions opt, const std
     }
 }
 
+// laya.ngram as a path ("" when off).
+std::string ngram_path(const Config& config) {
+    return config.laya.ngram.empty() ? std::string() : resolve_model_dir(config.laya.ngram);
+}
+
 // Returns the shared model, starting a background load on first use. nullptr until ready.
 std::shared_ptr<laya::Reranker> get_model(const Config& config) {
     laya::RerankerOptions opt = model_options(config);
     const std::string device = config.laya.device;
-    const std::string key = opt.model_dir + "|" + opt.onnx_file + "|" + device;
+    const std::string ngram_file = ngram_path(config);
+    const std::string key = opt.model_dir + "|" + opt.onnx_file + "|" + device + "|" + ngram_file;
     State& s = state();
     std::lock_guard<std::mutex> lk(s.mu);
     if (s.model_key != key) {  // first use, or the configured model or device changed
         s.model_key = key;
         s.model.reset();
+        s.ngram.reset();
+        s.stats.ngram_ready = false;
         s.failed = false;
         s.cache.clear();
         s.continuation.clear();
@@ -155,7 +166,7 @@ std::shared_ptr<laya::Reranker> get_model(const Config& config) {
         return nullptr;
     }
     s.loading = true;
-    std::thread([opt, key, device] {
+    std::thread([opt, key, device, ngram_file] {
         std::shared_ptr<laya::Reranker> model;
         auto t0 = std::chrono::steady_clock::now();
         // A card that is missing or fails falls back to the CPU.
@@ -170,11 +181,26 @@ std::shared_ptr<laya::Reranker> get_model(const Config& config) {
             laya_log(L"failed to load model from " + laya::utf8_to_wide(opt.model_dir) + L": " +
                      laya::utf8_to_wide(e.what()));
         }
+        // The n-gram (a mapped file: a few hundred ms at most) before the model counts as ready, so
+        // the first page has both.
+        std::shared_ptr<laya::Ngram> ngram;
+        if (model && !ngram_file.empty()) {
+            ngram = std::make_shared<laya::Ngram>();
+            if (ngram->open(ngram_file)) {
+                laya_log(L"n-gram loaded from " + laya::utf8_to_wide(ngram_file) + L" (" +
+                         std::to_wstring(ngram->bytes() >> 20) + L" MB)");
+            } else {
+                laya_log(L"no n-gram: " + laya::utf8_to_wide(ngram_file) + L" missing or not a .ngram file");
+                ngram.reset();
+            }
+        }
         State& st = state();
         std::lock_guard<std::mutex> lk(st.mu);
         if (st.model_key != key) return;  // configuration changed while loading
         st.loading = false;
         st.model = model;
+        st.ngram = ngram;
+        st.stats.ngram_ready = static_cast<bool>(ngram);
         st.failed = !model;
         st.stats.model_ready = static_cast<bool>(model);
         st.stats.model_failed = !model;
@@ -699,7 +725,16 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
                        TranslationResult& result, const std::string& model_pinyin,
                        const LayaApplyOptions& options) {
     const auto& lc = config.laya;
-    if (!lc.enable || result.entries.size() < 2 || !has_context(context)) return false;
+    if (!lc.enable || result.entries.size() < 2) return false;
+    // The word n-gram, for pinyin (options.slots; Wubi was not measured with it): with it the
+    // choice also runs with nothing before the caret (laya.ngram_without_context).
+    std::shared_ptr<const laya::Ngram> ngram;
+    if (options.slots && lc.ngram_weight > 0) {
+        State& s = state();
+        std::lock_guard<std::mutex> lk(s.mu);
+        ngram = s.ngram;
+    }
+    if (!has_context(context) && !(ngram && lc.ngram_without_context)) return false;
 
     // Sentences the model composed in its own lattice (laya.continuation): when the first
     // candidate for the whole input is one (no dictionary word leads, as 眼科医院 would), it goes
@@ -756,7 +791,8 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     const std::string ctx = laya::utf8_tail(context, static_cast<size_t>((std::max)(0, lc.context_chars)));
     std::vector<std::string> texts;
     std::string key = ctx + '\x1f' + pinyin + '\x1f' + std::to_string(lc.rank_prior_weight) + '\x1f' +
-                      (sentences ? std::to_string(lc.sentence_score_weight) : std::string());
+                      (sentences ? std::to_string(lc.sentence_score_weight) : std::string()) + '' +
+                      (ngram ? std::to_string(lc.ngram_weight) : std::string());
     for (size_t i : idx) {
         texts.push_back(result.entries[i].candidate.text);
         key += '\x1f' + texts.back();
@@ -813,11 +849,15 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
                               : std::vector<laya::Unit>();
             std::vector<float> p = model->score(ctx, texts, units);
             if (p.size() != texts.size()) return false;
+            // ln P(candidate | the text before it) by the n-gram (bench sci_combo.py: added to
+            // the choice logits, lam tuned on choice2 dev).
+            const std::vector<double> ng = ngram ? ngram->score(ctx, texts) : std::vector<double>(texts.size(), 0.0);
             std::vector<double> mixed(p.size());
             for (size_t i = 0; i < p.size(); ++i)
                 mixed[i] = std::log((std::max)(p[i], 1e-9f)) +
                            lc.rank_prior_weight * rank_prior(kRankPriorZh, i) +
-                           (sentences ? lc.sentence_score_weight * composed[i] : 0.0);
+                           (sentences ? lc.sentence_score_weight * composed[i] : 0.0) +
+                           (ngram ? lc.ngram_weight * ng[i] : 0.0);
             order.resize(p.size());
             std::iota(order.begin(), order.end(), size_t{0});
             std::stable_sort(order.begin(), order.end(),

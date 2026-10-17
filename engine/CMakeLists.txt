@@ -77,6 +77,7 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         src/laya/text_util.cpp
         src/laya/tokenizer.cpp
         src/laya/slots.cpp
+        src/laya/ngram.cpp
         src/laya/reranker.cpp
         src/machine_translation.cc
         src/voice_recognizer.cc

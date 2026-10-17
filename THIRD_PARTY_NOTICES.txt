@@ -233,6 +233,15 @@ Part of the distillation text was drawn from:
 - SkyPile-150B (Wei et al., 2023, Skywork), https://huggingface.co/datasets/Skywork/SkyPile-150B,
   Skywork Community License (about 70% of the long-pinyin composition text since 1.5.4).
 
+The model in the installer since 1.5.9, Zhiyi 1.4V2-Long-L18 (release model-zhen-long-l18),
+and Zhiyi 1.4V2-Sim-L18 (release model-zhen-sim-l18: the same model without its continuation
+head, not in the installer) are 1.4V2 with 18 of its 22 encoder layers; their word choice was
+distilled from Qwen3.5-9B (Qwen team, Alibaba Cloud), https://huggingface.co/Qwen/Qwen3.5-9B,
+Apache License 2.0, fine-tuned with LoRA as the teacher; only the teacher's scores were used,
+none of its weights are in the models. The word-choice text also came from SODA (Kim et al., 2023),
+https://huggingface.co/datasets/allenai/soda, CC BY 4.0; Tatoeba, https://tatoeba.org,
+CC BY 2.0 FR; and the English portion of C4 (ODC-BY 1.0).
+
 
 Voice input models (downloaded separately, not in the installer)
 ----------------------------------------------------------------

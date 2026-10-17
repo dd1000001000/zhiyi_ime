@@ -655,7 +655,7 @@ std::unique_ptr<SpanScorer> LayaRerank::span_scorer(const Config& config, const 
     const auto& lc = config.laya;
     if (!lc.enable || !lc.continuation || !has_context(context)) return nullptr;
     std::shared_ptr<laya::Reranker> model = get_model(config);
-    if (!model || !model->has_slots()) return nullptr;
+    if (!model || !model->has_slots() || !model->has_continuation()) return nullptr;
     const std::string ctx = laya::utf8_tail(context, static_cast<size_t>((std::max)(0, lc.context_chars)));
     bool background = false;
     {
@@ -681,7 +681,7 @@ std::shared_ptr<const ContinuationWork> LayaRerank::take_continuation_work(SpanS
 
 bool LayaRerank::compute_continuation(const Config& config, const ContinuationWork& work) {
     std::shared_ptr<laya::Reranker> model = get_model(config);
-    if (!model || !model->has_slots()) return false;
+    if (!model || !model->has_slots() || !model->has_continuation()) return false;
     for (const auto& units : work.units) {
         const std::string key = continuation_key(work.context, units);
         if (model->has_decoder()) {

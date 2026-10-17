@@ -9,6 +9,8 @@
 // graph's input names say which one was loaded (has_slots()). A decoder model (bench
 // export_unified_dec.py) gives "memory" and "slot_vec" instead, what its decoder graph (a second
 // file, unified_vocab.json names it) reads to write one character at a time (encode / decode).
+// A unified model exported with the choice head only (export_unified.py --choice_only) has no
+// slot_pos input and no char_logits output: it has no continuation (has_continuation()).
 #pragma once
 
 #include <cstdint>
@@ -134,6 +136,8 @@ class Reranker {
   bool has_decoder_cache() const { return decoder_memory_ && decoder_step_; }
 
   bool has_slots() const { return vocab_ != nullptr; }  // a unified model
+  // The model composes: a continuation head (char_logits) or a decoder.
+  bool has_continuation() const { return char_logits_output_ || decoder_ != nullptr; }
   const UnifiedVocab* vocab() const { return vocab_.get(); }
   const BpeTokenizer& tokenizer() const { return *tok_; }
   const std::string& load_note() const { return load_note_; }  // how the model was loaded (log)
@@ -166,6 +170,8 @@ class Reranker {
   // continuation share the model); the CPU takes them together.
   mutable std::mutex gpu_run_mutex_;
   bool slots_input_ = false;  // the graph reads unit_ids / slot_pos
+  bool slot_pos_input_ = false;  // ... and slot_pos (not a choice-only unified model)
+  bool char_logits_output_ = false;  // the graph gives char_logits (a continuation head)
   bool memory_output_ = false;  // the graph gives memory / slot_vec (a decoder model)
 };
 

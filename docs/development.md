@@ -20,7 +20,7 @@ IMM 兼容模块）、构建脚本，以及生成运行时词典的工具（`dat
 
 ```cmd
 python scripts\fetch_onnxruntime.py   :: ONNX Runtime 1.24.4（DirectML 版）+ DirectML.dll -> third_party\onnxruntime\
-python scripts\fetch_model.py         :: Laya 模型（GitHub Release model-zhen-unified-dec）-> models\laya\
+python scripts\fetch_model.py         :: Laya 模型（GitHub Release model-zhen-long-l18）-> models\laya\
 build_laya.bat                        :: Ninja Release 构建，产物在 build\
 ```
 
@@ -45,11 +45,12 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 - [Laya](https://huggingface.co/convaiinnovations/laya) 结构的决策模型，编码器是 mmBERT-small（22 层、宽 384）。1.2.0 起由 1.1 的模型（mmBERT-base 上中英联合训练的 LoRA r64）蒸馏而来，训练样本 111 万条（原有的输入法实际候选样本，加上从 LCCC 和 C4 中文抽取、由输入法生成候选的样本）。导出为 int8 ONNX，在 CPU 上推理（默认 4 线程），每次约 10–20 ms；显卡上约 6 ms。
 - 1.4.0 起是“统一模型”：在 1.2 的模型上加第二个头（2 层），两个头一起训练、从更大的统一教师模型蒸馏。第一个头照旧在候选里选词；第二个头读已打的拼音（每个音节一个槽位，`unit_ids` / `slot_pos`，单位和字表在模型目录的 `unified_vocab.json`），给每个音节位置上的每个字打分，用于长拼音组句（见下文“长拼音组句”）。没有 `unified_vocab.json` 或模型没有第二个头时只选词。
 - 1.5.4 起第二个头换成解码器（2 层，带交叉注意力）：编码器读一遍上文和已打的拼音（`laya.int8g.onnx` 输出 `memory` / `slot_vec`），解码器（`laya_decoder.int8.onnx`，`unified_vocab.json` 的 `decoder` 字段指明）按顺序每次写一个字，每个字都看上文、全部音节和前面已经写下的字。组句部分用 315 万条长拼音样本重新训练（七成来自带真实上文的长篇网页文本 SkyPile-150B，三成对话），两个头都从更大的同结构教师模型蒸馏。引擎认出 `decoder` 字段就用解码器组句（见下文“长拼音组句”），没有时照旧用组句头，两种模型可以互换。
+- 1.5.9 起默认模型是知意 1.4V2-Long-L18：1.4V2 的统一模型去掉 4 个滑窗注意力层（22 层 → 18 层，第 7、10、13、16 层），用微调过的 Qwen3.5-9B 老师模型在约 170 万条输入法实际候选上蒸馏选词（0.3 × 交叉熵 + 0.7 × 老师 KL），组句头和 1.4V2 相同（一次给每个音节上的每个字打分）。选词序列换成“上文在前”：`[CLS] 上文最后 128 个词元 [SEP] 拼音槽位 [SEP] [MASK] 候选1 [MASK] 候选2 … [SEP]`，不带提示词，每个候选只写一次（最多 16 个词元），每页要算的词元少约四成；`unified_vocab.json` 的 `"choice_format": "ctx-first"`（及 `choice_context_tokens` / `choice_candidate_tokens`）告诉引擎用这种序列（`Reranker::build`），没有时照旧用 Laya 的提示词序列。词表在原来 8.2 万个 token 上加了新训练文本里出现至少 5 次的 30387 个（多为英文单词），模型 96 MB；CPU 上一页约 14 ms。只带选词头的模型（没有 `slot_pos` 输入和 `char_logits` 输出，如[知意 1.4V2-Sim-L18](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-sim-l18)）引擎也能读，只是长句不再由模型组句。
 - 模型只看上文和候选词，不看拼音或已打的字母（“猜词”提示词，模型目录的 `rl_agent_config.json` 中
   `"zhiyi_prompt": "guess"`）。训练时中文上文是上一句加本句，
   英文是最后 192 个字符；中文候选是输入法实际给出的第一页（全拼、末音节不完整、简拼和混打）。
-- 模型权重随 [Release model-zhen-unified-dec](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-unified-dec)
-  发布（`scripts/fetch_model.py`）；训练代码与训练、评测数据涉及第三方语料版权，不公开。
+- 模型权重随 [Release model-zhen-long-l18](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l18)
+  发布（1.5.4–1.5.8 的解码器模型：[model-zhen-unified-dec](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-unified-dec)）（`scripts/fetch_model.py`）；训练代码与训练、评测数据涉及第三方语料版权，不公开。
 - 上文：开始输入时，TSF 模块读取输入框里光标前（有选中文字时为选区之前）最多 256 个字（`SET_CONTEXT`），
   模型取其中最后 128 个字 / 192 个英文字符。程序不允许读取时，改用之前上屏的文字，换到另一个输入框时清空；
   密码框和标为私密的输入框不读取。实现见 `tsf/src/text_before_caret.cpp`。

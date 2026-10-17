@@ -90,6 +90,9 @@ UnifiedVocab::UnifiedVocab(const std::string& json_path) {
   max_slots_ = j.value("max_slots", max_slots_);
   max_context_tokens_ = j.value("max_context_tokens", max_context_tokens_);
   context_prefix_ = j.value("context_prefix", std::string(u8"已输入的上文: "));
+  context_first_ = j.value("choice_format", std::string()) == "ctx-first";
+  choice_context_tokens_ = j.value("choice_context_tokens", choice_context_tokens_);
+  choice_candidate_tokens_ = j.value("choice_candidate_tokens", choice_candidate_tokens_);
   decoder_file_ = j.value("decoder", std::string());
   decoder_memory_file_ = j.value("decoder_memory", std::string());
   decoder_step_file_ = j.value("decoder_step", std::string());

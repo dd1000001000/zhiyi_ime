@@ -3,9 +3,8 @@
   python scripts/fetch_model.py            # download the release asset and verify it
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ for a release upload
 
-The model (laya.int8g.onnx ~84 MB, laya_decoder.int8.onnx ~17 MB and its KV cache graphs
-laya_decoder_memory.int8.onnx / laya_decoder_step.int8.onnx ~17 MB) is too large for git; it is
-published as a GitHub release asset. The training code and data are not published.
+The model (laya.int8g.onnx ~96 MB) is too large for git; it is published as a GitHub release
+asset. The training code and data are not published.
 """
 import argparse
 import hashlib
@@ -17,27 +16,19 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEST = os.path.join(ROOT, "models", "laya")
-FILES = ["laya.int8g.onnx", "laya_decoder.int8.onnx", "laya_decoder_memory.int8.onnx", "laya_decoder_step.int8.onnx",
-         "tokenizer.json", "rl_agent_config.json", "unified_vocab.json"]
-ASSET = "laya-zhen-unified-dec-int8g.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-unified-dec/{ASSET}"
-# SHA-256 of the two graphs: the decoder model (1.5.4). The unified model of 1.4 (mmBERT-small,
-# 22 layers, width 384: word choice among the candidates, reading the typed pinyin as slots) with
-# its one-shot continuation head replaced by a two-layer decoder (laya_decoder.int8.onnx) that
-# writes long pinyin a character at a time, each character given the context, all the typed
-# syllables and the characters chosen before it; the engine runs it in a beam over the
-# dictionary's words. Trained from the 1.4 model on the same choice samples plus 3.15M
-# long-pinyin rows (long-form web text with real preceding context, and dialogues), both heads
-# distilled from a larger unified teacher. int8, the 1.2 model's pruned vocabulary;
-# unified_vocab.json lists the units and characters and names the decoder graph. The same decoder
-# also comes as two graphs that keep a KV cache (the memory's cross-attention keys and values, and
-# one character from what the earlier ones kept), so each character costs only its own work.
-ONNX_SHA256 = "31f1124f50fd9d1ea9cd5ea5ce71ed5008ed593fd440707e41d565cd9dbd3884"
-GRAPH_SHA256 = {
-    "laya_decoder.int8.onnx": "2ac3f7f9ddcb9d7a02ab520b7ebbc5dfe48f8f677cf44f80ddf8d269fb9eecec",
-    "laya_decoder_memory.int8.onnx": "da6e94df7b44fe0f77153a506e6e57dd06508859c6889f0118ffdb1e132bfa57",
-    "laya_decoder_step.int8.onnx": "9a650da4b653456d64a75a31da1ac5b8847f52c784baede9f84b555dbdc71bbc",
-}
+FILES = ["laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json", "unified_vocab.json"]
+# The decoder graphs of the 1.5.4-1.5.8 model: removed from models/laya (the packager ships them when present).
+OLD_FILES = ["laya_decoder.int8.onnx", "laya_decoder_memory.int8.onnx", "laya_decoder_step.int8.onnx"]
+ASSET = "laya-zhen-long-l18-int8g.zip"
+URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-long-l18/{ASSET}"
+# SHA-256 of the graph: 知意 1.4V2-Long-L18 (1.5.9). The unified model 1.4V2 (mmBERT-small,
+# width 384) with 18 of its 22 encoder layers (sliding-window layers 7, 10, 13, 16 removed); word
+# choice distilled from a fine-tuned Qwen3.5-9B teacher on 1.7M rows of the IME's real
+# candidates, in the ctx-first sequence (unified_vocab.json "choice_format": the context, then the
+# typed input as slots, then the candidates, no instructions); 1.4V2's one-shot continuation head
+# scores every character at every typed syllable for the sentence composition. int8, the earlier
+# models' pruned vocabulary plus 30387 tokens of the new training text.
+ONNX_SHA256 = "4aa1e0a3a8496d0970b3cf5c5c3bf8b06338a4f0d12f8831721082f48b32b714"
 
 
 def sha256(path):
@@ -60,11 +51,13 @@ def pack():
 def matches():
     if not all(os.path.exists(os.path.join(DEST, f)) for f in FILES):
         return False
-    return sha256(os.path.join(DEST, "laya.int8g.onnx")) == ONNX_SHA256 and all(
-        sha256(os.path.join(DEST, f)) == h for f, h in GRAPH_SHA256.items())
+    return sha256(os.path.join(DEST, "laya.int8g.onnx")) == ONNX_SHA256
 
 
 def fetch():
+    for f in OLD_FILES:
+        if os.path.exists(os.path.join(DEST, f)):
+            os.remove(os.path.join(DEST, f))
     if matches():
         print(f"model already in {DEST}")
         return 0

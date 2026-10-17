@@ -49,6 +49,13 @@ class UnifiedVocab {
   int max_slots() const { return max_slots_; }
   int max_context_tokens() const { return max_context_tokens_; }
   const std::string& context_prefix() const { return context_prefix_; }
+  // The word-choice sequence: false = Laya's (instructions, candidates " c: c", then the context
+  // and the slots); true = "ctx-first" (bench/qwen_teacher/student2.py): [CLS] the context's last
+  // choice_context_tokens [SEP] slots [SEP] [MASK] " c" ... [SEP], each candidate at most
+  // choice_candidate_tokens.
+  bool context_first() const { return context_first_; }
+  int choice_context_tokens() const { return choice_context_tokens_; }
+  int choice_candidate_tokens() const { return choice_candidate_tokens_; }
   // The decoder graph beside the model (export_unified_dec.py), "" for a continuation head.
   const std::string& decoder_file() const { return decoder_file_; }
   // The same decoder as two graphs that keep a KV cache (export_unified_dec_kv.py): the
@@ -67,6 +74,9 @@ class UnifiedVocab {
   int max_slots_ = 24;
   int max_context_tokens_ = 160;
   std::string context_prefix_;
+  bool context_first_ = false;
+  int choice_context_tokens_ = 128;
+  int choice_candidate_tokens_ = 16;
   std::string decoder_file_;
   std::string decoder_memory_file_;
   std::string decoder_step_file_;

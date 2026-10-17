@@ -54,6 +54,12 @@
 
 <img src="docs/media/compare.zh-CN.svg" alt="候选排序模型对比：(a) 中文实际候选 (b) 中文同音词 (c) 英文补全 (d) CPU 耗时 (e) 显卡耗时 (f) 内存 (g) 显存 (h) 模型文件 (i) 长句全拼 (j) 长句末字只打声母 (k)(l) 长句组句耗时（1.5.4 解码器与 1.5.6 KV 缓存）" width="100%">
 
+### 新选词测试集与知意 1.4V2-Sim-L18
+
+新做的选词测试集更接近实际打字：文本来自 SkyPile、LCCC 对话、C4 中英文、SODA 对话和 Tatoeba，带光标前的上文，按全拼、简拼、全拼和声母混打、英文只打前几个字母等方式输入，候选是输入法引擎的实际候选。知意 1.4V2-Sim-L18（[Release model-zhen-sim-l18](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-sim-l18)，GPL-3.0-only，不是默认模型）是 1.4V2 去掉 4 个滑窗注意力层（22 层 → 18 层），用微调过的 Qwen3.5-9B 老师模型（Apache-2.0）在约 170 万条这样的数据上蒸馏选词：候选放在上文之后，不再带提示词，候选只写一次，所以每页要算的词元少了约四成；组句头的结构和 1.4V2 相同。在输入法引擎里端到端（停顿后），它比 1.4V2 和 1.5.4 的首选正确率高：中文词和两个词 86.2%（1.4V2 / 1.5.4 都是 84.4%），长句 67.2%（66.2% / 66.5%），英文 90.2%（87.7%），全打声母 77.7%（69.8% / 71.9%），英文只打前几个字母 77.3%（71.4% / 71.7%）；CPU 上一页 14.6 ms，约为 1.4V2 的一半。它的选词输入格式和以前的模型不同，目前发布的知意输入法（1.5.8 及以前）还读不懂，要等之后的版本才能使用。
+
+<img src="docs/media/choice2.zh-CN.svg" alt="新选词测试集：(a) 中文词和两个词 (b) 中文长句 (c) 英文单词 (d) 中文全打声母 (e) 英文只打前几个字母 (f) CPU 每页耗时；只按词频、知意 1.4V2、1.5.4 与 1.4V2-Sim-L18" width="100%">
+
 ## 离线翻译模型
 
 学习模式里语言包查不到的候选由本机的翻译模型翻译，现在用的是知意 v3：从 [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) 的 28 层中去掉 8 层，用腾讯 [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B) 对约 275 万条输入法候选和句子（中、英、日、韩、法、德、西、俄、越 9 种语言，带光标前的上文）的译文蒸馏而来。在三个开源测试集上，COMET-22 比之前用的知意 v2 高 8–11 分，和 LMT-60 原版相近（FLORES-200、NTREX-128 低 1–2 分，WMT24++ 高 1.4 分）；输出不是目标语言的比例在 FLORES-200 和 NTREX-128 上从 v2 的约 6% 降到 0.1% 以下。下载约 0.32 GB（v2 约 0.4 GB），显卡上一页约 70 毫秒、CPU 上一页约 0.3 秒，都比 v2 快，显存和内存也更少。
@@ -86,10 +92,12 @@
 - [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small)：上文推荐模型的编码器 mmBERT-small（MIT）
 - [LMT-60](https://huggingface.co/NiuTrans/LMT-60-0.6B)（NiuTrans）：离线翻译模型的底座（Apache-2.0）
 - [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B)（腾讯混元）：离线翻译的第 1 版模型（1.8B）和蒸馏用的老师模型（7B）（Apache-2.0）
+- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B)（通义千问）：知意 1.4V2-Sim-L18 选词蒸馏用的老师模型，经 LoRA 微调（Apache-2.0）
 - [llama.cpp](https://github.com/ggml-org/llama.cpp)：离线翻译模型的运行库（MIT，随模型下载）
 - [LCCC](https://github.com/thu-coai/CDial-GPT)（MIT）与 [C4](https://huggingface.co/datasets/allenai/c4) 中文部分（ODC-BY）：模型蒸馏的部分语料
 - [Tatoeba](https://tatoeba.org)（CC BY 2.0 FR）与 [C4](https://huggingface.co/datasets/allenai/c4) 的英、日、韩、法、德、西、俄、越文部分（ODC-BY）：离线翻译模型 v3 的外语原文
-- [SkyPile-150B](https://huggingface.co/datasets/Skywork/SkyPile-150B)（昆仑万维天工 Skywork，Skywork Community License）：1.5.4 起长拼音组句部分的训练文本（约七成），以及离线翻译模型 v3 的中文句子
+- [SkyPile-150B](https://huggingface.co/datasets/Skywork/SkyPile-150B)（昆仑万维天工 Skywork，Skywork Community License）：1.5.4 起长拼音组句部分的训练文本（约七成），离线翻译模型 v3 的中文句子，以及 1.4V2-Sim-L18 选词数据的一部分
+- [SODA](https://huggingface.co/datasets/allenai/soda)（CC BY 4.0）、Tatoeba 与 C4 英文部分：1.4V2-Sim-L18 英文选词数据的文本
 - [wordfreq](https://github.com/rspeer/wordfreq)：英文词频（CC BY-SA 4.0）
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime)：模型推理（MIT）
 - [DirectML](https://github.com/microsoft/DirectML)：显卡推理（微软 DirectML 许可，可再分发）

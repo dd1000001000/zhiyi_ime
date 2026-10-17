@@ -75,6 +75,12 @@ How often the right word comes first, and how fast and how large each model is, 
 
 <img src="docs/media/compare.en-US.svg" alt="Candidate-ranking models: (a) real Chinese candidates (b) Chinese homophones (c) English completion (d) CPU time (e) GPU time (f) memory (g) video memory (h) model file (i) long input in full pinyin (j) long input, last syllable an initial (k) (l) composing long input (1.5.4 decoder, 1.5.6 KV cache)" width="100%">
 
+### New word-choice test set and Zhiyi 1.4V2-Sim-L18
+
+The new word-choice test set is closer to real typing: text from SkyPile, LCCC dialogues, Chinese and English C4, SODA dialogues and Tatoeba, with its preceding text, typed in full pinyin, initials, full pinyin mixed with initials, or the first letters of an English word; the candidates are the IME engine's own. Zhiyi 1.4V2-Sim-L18 ([release model-zhen-sim-l18](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-sim-l18), GPL-3.0-only, not the default) is 1.4V2 with 4 of its sliding-window attention layers removed (22 → 18), its word choice distilled on about 1.7M such rows from a fine-tuned Qwen3.5-9B teacher (Apache-2.0): the candidates come after the context, with no prompt, each written once, so a page has about 40% fewer tokens to compute; the composition head has 1.4V2's structure. End to end in the IME engine (after the pause) it puts the right word first more often than 1.4V2 and 1.5.4: Chinese words and word pairs 86.2% (1.4V2 / 1.5.4 both 84.4%), long input 67.2% (66.2% / 66.5%), English 90.2% (87.7%), initials only 77.7% (69.8% / 71.9%), English first letters only 77.3% (71.4% / 71.7%); 14.6 ms a page on the CPU, about half of 1.4V2's. Its word-choice input differs from the earlier models', and the released Zhiyi IME (1.5.8 and earlier) cannot read it yet: it needs a later version.
+
+<img src="docs/media/choice2.en-US.svg" alt="New word-choice test set: (a) Chinese words and word pairs (b) Chinese long input (c) English words (d) Chinese initials only (e) English first letters only (f) CPU time per page; frequency only, Zhiyi 1.4V2, 1.5.4 and 1.4V2-Sim-L18" width="100%">
+
 ## Offline translation model
 
 Candidates the learning-mode language packs lack are translated by a model on your computer, now Zhiyi v3: [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) with 8 of its 28 layers removed, distilled from Tencent [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B)'s translations of about 2.75 million IME candidates and sentences (in 9 languages: Chinese, English, Japanese, Korean, French, German, Spanish, Russian and Vietnamese, with the text before the caret). On three open test sets its COMET-22 is 8-11 points above Zhiyi v2 used before and close to the original LMT-60 (1-2 points lower on FLORES-200 and NTREX-128, 1.4 higher on WMT24++); answers not in the target language fall from about 6% with v2 to under 0.1% on FLORES-200 and NTREX-128. The download is about 0.32 GB (v2: about 0.4 GB), a page takes about 70 ms on the graphics card and about 0.3 s on the CPU, both faster than v2, with less video memory and memory.
@@ -110,10 +116,12 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small): the recommendation model's encoder, mmBERT-small (MIT)
 - [LMT-60](https://huggingface.co/NiuTrans/LMT-60-0.6B) (NiuTrans): the base of the offline translation model (Apache-2.0)
 - [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B) (Tencent Hunyuan): the first offline translation model (1.8B) and the teacher it was distilled from (7B) (Apache-2.0)
+- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B) (Qwen): the teacher Zhiyi 1.4V2-Sim-L18's word choice was distilled from, fine-tuned with LoRA (Apache-2.0)
 - [llama.cpp](https://github.com/ggml-org/llama.cpp): the offline translation runtime (MIT, downloaded with the model)
 - [LCCC](https://github.com/thu-coai/CDial-GPT) (MIT) and the Chinese part of [C4](https://huggingface.co/datasets/allenai/c4) (ODC-BY): part of the distillation text
 - [Tatoeba](https://tatoeba.org) (CC BY 2.0 FR) and the English, Japanese, Korean, French, German, Spanish, Russian and Vietnamese parts of [C4](https://huggingface.co/datasets/allenai/c4) (ODC-BY): the foreign-language source texts of offline translation model v3
-- [SkyPile-150B](https://huggingface.co/datasets/Skywork/SkyPile-150B) (Skywork, Skywork Community License): about 70% of the training text for long-pinyin composition since 1.5.4, and the Chinese sentences of offline translation model v3
+- [SkyPile-150B](https://huggingface.co/datasets/Skywork/SkyPile-150B) (Skywork, Skywork Community License): about 70% of the training text for long-pinyin composition since 1.5.4, the Chinese sentences of offline translation model v3, and part of 1.4V2-Sim-L18's word-choice data
+- [SODA](https://huggingface.co/datasets/allenai/soda) (CC BY 4.0), Tatoeba and the English part of C4: the text of 1.4V2-Sim-L18's English word-choice data
 - [wordfreq](https://github.com/rspeer/wordfreq): English word frequencies (CC BY-SA 4.0)
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime): model inference (MIT)
 - [DirectML](https://github.com/microsoft/DirectML): inference on graphics cards (Microsoft DirectML

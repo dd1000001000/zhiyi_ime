@@ -397,6 +397,9 @@ private:
     bool _ensure_ipc_session();
     bool _recreate_ipc_session_preserving_status();
     bool _heartbeat_ipc();
+    // Chinese/English, punctuation and width are shared by every program: on focus, show what
+    // another program may have switched since this one last had it.
+    void _refresh_shared_status();
     bool _refresh_input_indicator();
     void _schedule_input_indicator_refresh_retry();
     void _stop_input_indicator_refresh_retry();

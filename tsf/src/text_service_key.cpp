@@ -95,6 +95,7 @@ STDMETHODIMP TextService::OnSetFocus(BOOL fForeground) {
             _schedule_caps_lock_refresh();
             if (_sessionId && _client.ensure_connected()) {
                 _client.focus_in(_sessionId);
+                _refresh_shared_status();
                 _report_input_target();
             }
         } else {

@@ -2,8 +2,9 @@
 //
 // Modified by Zhiyi IME Contributors: the right-click menu of the taskbar 中/英 indicator
 // switches the input states (Chinese/English, input style: full pinyin / initials / Wubi /
-// shuangpin, English style, punctuation, full/half width) and can exit the background service;
-// the floating status window was removed. The shuangpin scheme is chosen in settings.
+// shuangpin, Chinese/English punctuation, half/full width; each a choice of one, shared by every
+// program) and can exit the background service; the floating status window was removed. The
+// shuangpin scheme is chosen in settings; the English style with the input style switch key.
 
 #ifndef CXXIME_IME_MENU_H_
 #define CXXIME_IME_MENU_H_
@@ -28,11 +29,13 @@ enum class ImeMenuCommand : uint32_t {
     kChinese = 8,
     kEnglish = 9,
     kPinyinInitials = 10,
-    kEnglishWords = 11,  // English mode: word completion (else letter by letter)
+    kEnglishWords = 11,  // English mode: word completion (else letter by letter); not in the menu
     kChinesePunct = 12,
     kFullShape = 13,
     kExit = 14,  // closes zhiyi-server; switching to the input method again starts it
     kShuangpin = 15,  // in the scheme chosen in settings (engine.shuangpin_scheme)
+    kEnglishPunct = 16,
+    kHalfShape = 17,
 };
 
 struct ImeMenuItem {
@@ -49,8 +52,9 @@ inline constexpr ImeMenuItem kImeMenuItems[] = {
     {ImeMenuCommand::kPinyinInitials, L"首字母", L"Pinyin initials", false},
     {ImeMenuCommand::kWubi, L"五笔", L"Wubi", false},
     {ImeMenuCommand::kShuangpin, L"双拼", L"Shuangpin", false},
-    {ImeMenuCommand::kEnglishWords, L"英文单词联想", L"English word completion", true},
-    {ImeMenuCommand::kChinesePunct, L"中文标点", L"Chinese punctuation", false},
+    {ImeMenuCommand::kChinesePunct, L"中文标点", L"Chinese punctuation", true},
+    {ImeMenuCommand::kEnglishPunct, L"英文标点", L"English punctuation", false},
+    {ImeMenuCommand::kHalfShape, L"半角", L"Half width", true},
     {ImeMenuCommand::kFullShape, L"全角", L"Full width", false},
     {ImeMenuCommand::kSettings, L"设置…", L"Settings…", true},
     {ImeMenuCommand::kAbout, L"关于", L"About", false},
@@ -99,6 +103,8 @@ inline bool ime_menu_command_checked(ImeMenuCommand command, const ImeStatus& st
     case ImeMenuCommand::kWubi: return status.input_mode == InputMode::WUBI;
     case ImeMenuCommand::kEnglishWords: return status.english_words();
     case ImeMenuCommand::kChinesePunct: return status.chinese_punct();
+    case ImeMenuCommand::kEnglishPunct: return !status.chinese_punct();
+    case ImeMenuCommand::kHalfShape: return !status.full_shape();
     case ImeMenuCommand::kFullShape: return status.full_shape();
     default: return false;
     }

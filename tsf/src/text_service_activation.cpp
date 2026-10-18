@@ -33,6 +33,18 @@ void TextService::_handle_ime_menu_command(cxxime::ImeMenuCommand command) {
             _sync_ime_status(response.ime_status);
         }
     };
+    // The state is shared by every program and may have changed in another one: the server's
+    // current state decides what a choice changes.
+    const bool state_command = command != cxxime::ImeMenuCommand::kDictionary &&
+                               command != cxxime::ImeMenuCommand::kSettings &&
+                               command != cxxime::ImeMenuCommand::kAbout &&
+                               command != cxxime::ImeMenuCommand::kExit;
+    if (state_command && _ensure_ipc_session() && _client.get_status(_sessionId, response) &&
+        response.status == cxxime::IPCStatus::OK) {
+        status = response.ime_status;
+        _sync_ime_status(status);
+    }
+    response = {};
     auto switch_mode = [&](cxxime::InputMode mode) {
         if (status.input_mode == mode) return true;
         response = {};
@@ -88,10 +100,17 @@ void TextService::_handle_ime_menu_command(cxxime::ImeMenuCommand command) {
         set_style(true, !status.english_words());
         break;
     case cxxime::ImeMenuCommand::kChinesePunct:
-        apply_status(_ensure_ipc_session() && _client.toggle_punct(_sessionId, response));
+    case cxxime::ImeMenuCommand::kEnglishPunct:
+        // A choice of one: the chosen item only switches when it is not already set.
+        if ((command == cxxime::ImeMenuCommand::kChinesePunct) != status.chinese_punct()) {
+            apply_status(_ensure_ipc_session() && _client.toggle_punct(_sessionId, response));
+        }
         break;
+    case cxxime::ImeMenuCommand::kHalfShape:
     case cxxime::ImeMenuCommand::kFullShape:
-        apply_status(_ensure_ipc_session() && _client.toggle_shape(_sessionId, response));
+        if ((command == cxxime::ImeMenuCommand::kFullShape) != status.full_shape()) {
+            apply_status(_ensure_ipc_session() && _client.toggle_shape(_sessionId, response));
+        }
         break;
     case cxxime::ImeMenuCommand::kDictionary:
     case cxxime::ImeMenuCommand::kSettings: {

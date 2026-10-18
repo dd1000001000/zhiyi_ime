@@ -324,6 +324,7 @@ STDMETHODIMP TextService::OnSetThreadFocus() {
     }
 
     if (_synchronize_effective_edit_target_from_thread_mgr("thread_focus")) {
+        _refresh_shared_status();
         _refresh_caps_lock_on_focus("thread_focus");
         _schedule_caps_lock_refresh();
     }

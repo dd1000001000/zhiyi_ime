@@ -134,6 +134,11 @@ bool valid_user_data_file_contents(const std::string& name, const std::string& c
     return file && valid_lexicon_data_file_contents(*file, contents);
 }
 
+// Chinese/English, punctuation and width (SessionManager::save_input_state).
+std::string input_state_path() {
+    return cxxime::user_data_path("input_state.json");
+}
+
 std::wstring utf8_path_to_wide(const std::string& path) {
     if (path.empty()) {
         return {};
@@ -715,9 +720,29 @@ void SessionManager::reset_global_state(const SharedResourceSnapshot& resources)
             static_cast<cxxime::InputMode>(resources.runtime->config().input_mode);
         state.english_words = resources.runtime->config().english.word_mode;
         state.pinyin_style = resources.runtime->config().pinyin_style;
+        // Not saved yet: what an older version's initial_state chose (else the defaults).
+        state.full_shape = resources.runtime->config().initial_full_shape;
+        state.chinese_punct = resources.runtime->config().initial_chinese_punct;
+    }
+    bool saved = false;
+    std::ifstream file(utf8_path_to_wide(input_state_path()), std::ios::binary);
+    if (file.is_open()) {
+        try {
+            const nlohmann::json j = nlohmann::json::parse(file);
+            auto read = [&j](const char* key, bool& value) {
+                if (j.contains(key) && j[key].is_boolean()) value = j[key].get<bool>();
+            };
+            read("chinese_mode", state.chinese_mode);
+            read("chinese_punct", state.chinese_punct);
+            read("full_shape", state.full_shape);
+            saved = true;
+        } catch (const nlohmann::json::exception&) {
+            cxxime::log_problem("input_state", "input_state.json is not valid JSON; defaults used");
+        }
     }
     std::lock_guard<std::mutex> lock(state_mutex_);
     global_state_ = state;
+    input_state_dirty_ = !saved;  // the first save writes the file
 }
 
 SessionManager::GlobalVisibleState SessionManager::snapshot_global_state() {
@@ -727,7 +752,58 @@ SessionManager::GlobalVisibleState SessionManager::snapshot_global_state() {
 
 void SessionManager::commit_global_state(GlobalVisibleState next) {
     std::lock_guard<std::mutex> lock(state_mutex_);
+    if (next.chinese_mode != global_state_.chinese_mode ||
+        next.chinese_punct != global_state_.chinese_punct ||
+        next.full_shape != global_state_.full_shape) {
+        input_state_dirty_ = true;
+    }
     global_state_ = next;
+}
+
+bool SessionManager::save_input_state() {
+    GlobalVisibleState state;
+    {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        if (!input_state_dirty_) return true;
+        input_state_dirty_ = false;
+        state = global_state_;
+    }
+    nlohmann::json j;
+    j["chinese_mode"] = state.chinese_mode;
+    j["chinese_punct"] = state.chinese_punct;
+    j["full_shape"] = state.full_shape;
+    const std::wstring path = utf8_path_to_wide(input_state_path());
+    const std::wstring temporary = path + L".tmp";
+    const std::string contents = j.dump(4);
+    bool written = false;
+    HANDLE file = CreateFileW(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                              FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file != INVALID_HANDLE_VALUE) {
+        DWORD size = 0;
+        written = WriteFile(file, contents.data(), static_cast<DWORD>(contents.size()), &size,
+                            nullptr) &&
+                  size == contents.size() && FlushFileBuffers(file);
+        CloseHandle(file);
+        written = written && MoveFileExW(temporary.c_str(), path.c_str(),
+                                         MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+        if (!written) DeleteFileW(temporary.c_str());
+    }
+    if (!written) {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        input_state_dirty_ = true;  // tried again next time
+        return false;
+    }
+    return true;
+}
+
+void SessionManager::drop_legacy_initial_state() {
+    const auto resources = shared_.snapshot();
+    if (config_patch_handler_ && resources.runtime &&
+        resources.runtime->config().legacy_initial_state) {
+        nlohmann::json patch;
+        patch["initial_state"] = nullptr;
+        config_patch_handler_(patch.dump());
+    }
 }
 
 void SessionManager::align_session_to_global(SessionEntry& entry) {
@@ -740,8 +816,8 @@ void SessionManager::align_session_to_global(SessionEntry& entry) {
         entry.engine->switch_mode(state.input_mode);
     }
     auto& ascii_composer = entry.engine->ascii_composer();
-    if (!ascii_composer.is_temporary_ascii() || !entry.base_chinese_mode) {
-        ascii_composer.set_ascii_mode(!entry.base_chinese_mode);
+    if (!ascii_composer.is_temporary_ascii() || !state.chinese_mode) {
+        ascii_composer.set_ascii_mode(!state.chinese_mode);
     }
     entry.engine->ascii_composer().sync_caps_lock(state.caps_lock,
                                                   entry.engine->context());
@@ -751,10 +827,10 @@ void SessionManager::align_session_to_global(SessionEntry& entry) {
     entry.ime_status.set_shuangpin_scheme(cxxime::shuangpin_scheme_index(
         entry.resources.runtime ? entry.resources.runtime->config().shuangpin_scheme
                                 : cxxime::kDefaultShuangpinScheme));
-    entry.ime_status.set_chinese_mode(state.caps_lock ? false : entry.base_chinese_mode);
+    entry.ime_status.set_chinese_mode(state.caps_lock ? false : state.chinese_mode);
     entry.ime_status.set_caps_lock(state.caps_lock);
-    entry.ime_status.set_full_shape(entry.full_shape);
-    entry.ime_status.set_chinese_punct(entry.chinese_punct);
+    entry.ime_status.set_full_shape(state.full_shape);
+    entry.ime_status.set_chinese_punct(state.chinese_punct);
     entry.ime_status.input_mode = entry.engine->mode();
     entry.ime_status.revision = same_visible_status(previous, entry.ime_status)
         ? previous.revision
@@ -781,8 +857,6 @@ uint32_t SessionManager::create_session(uint64_t client_capabilities) {
     entry->engine = std::move(engine);
     entry->last_activity = std::chrono::steady_clock::now();
     entry->resources = std::move(resources);
-    entry->full_shape = entry->resources.runtime->config().initial_full_shape;
-    entry->chinese_punct = entry->resources.runtime->config().initial_chinese_punct;
     entry->client_capabilities =
         client_capabilities & (cxxime::kClientCapabilitySegmentedSelection |
                                cxxime::kClientCapabilitySegmentedPreeditPresentation |
@@ -792,9 +866,7 @@ uint32_t SessionManager::create_session(uint64_t client_capabilities) {
         (entry->client_capabilities & cxxime::kClientCapabilitySegmentedSelection) != 0;
     entry->candidate_revision = segmented_selection ? 1 : 0;
     entry->engine->set_partial_selection_enabled(segmented_selection);
-    entry->ime_status.set_full_shape(entry->full_shape);
-    entry->ime_status.set_chinese_punct(entry->chinese_punct);
-    align_session_to_global(*entry);
+    align_session_to_global(*entry);  // a new program takes the current shared state
     sessions_[id] = entry;
     return id;
 }
@@ -1433,7 +1505,9 @@ std::pair<cxxime::IPCStatus, cxxime::ImeStatus> SessionManager::toggle_chinese(u
     if (!entry) return {cxxime::IPCStatus::ERR_INVALID_SESSION, {}};
     std::lock_guard<std::mutex> lock(entry->mutex);
     const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
-    entry->base_chinese_mode = !entry->base_chinese_mode;
+    GlobalVisibleState state = snapshot_global_state();
+    state.chinese_mode = !state.chinese_mode;
+    commit_global_state(state);
     align_session_to_global(*entry);
     advance_candidate_revision(*entry, candidate_state_before);
     return {cxxime::IPCStatus::OK, entry->ime_status};
@@ -1453,13 +1527,15 @@ ProcessKeyResult SessionManager::set_chinese_mode(uint32_t id, bool chinese_mode
     result.result = cxxime::ProcessResult::ACCEPTED;
     const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
 
-    const bool mode_changed = entry->base_chinese_mode != chinese_mode;
+    GlobalVisibleState state = snapshot_global_state();
+    const bool mode_changed = state.chinese_mode != chinese_mode;
     if (mode_changed && entry->engine->context().is_composing()) {
         result.commit_text = entry->engine->commit_raw_composition();
         result.result = cxxime::ProcessResult::COMMITTED;
     }
 
-    entry->base_chinese_mode = chinese_mode;
+    state.chinese_mode = chinese_mode;
+    commit_global_state(state);
     align_session_to_global(*entry);
     advance_candidate_revision(*entry, candidate_state_before);
     fill_session_presentation(*entry, result);
@@ -1471,7 +1547,9 @@ std::pair<cxxime::IPCStatus, cxxime::ImeStatus> SessionManager::toggle_shape(uin
     if (!entry) return {cxxime::IPCStatus::ERR_INVALID_SESSION, {}};
     std::lock_guard<std::mutex> lock(entry->mutex);
     const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
-    entry->full_shape = !entry->full_shape;
+    GlobalVisibleState state = snapshot_global_state();
+    state.full_shape = !state.full_shape;
+    commit_global_state(state);
     align_session_to_global(*entry);
     advance_candidate_revision(*entry, candidate_state_before);
     return {cxxime::IPCStatus::OK, entry->ime_status};
@@ -1482,7 +1560,9 @@ std::pair<cxxime::IPCStatus, cxxime::ImeStatus> SessionManager::toggle_punct(uin
     if (!entry) return {cxxime::IPCStatus::ERR_INVALID_SESSION, {}};
     std::lock_guard<std::mutex> lock(entry->mutex);
     const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
-    entry->chinese_punct = !entry->chinese_punct;
+    GlobalVisibleState state = snapshot_global_state();
+    state.chinese_punct = !state.chinese_punct;
+    commit_global_state(state);
     align_session_to_global(*entry);
     advance_candidate_revision(*entry, candidate_state_before);
     return {cxxime::IPCStatus::OK, entry->ime_status};
@@ -1573,7 +1653,9 @@ cxxime::IPCStatus SessionManager::sync_ascii_mode(uint32_t id, bool ascii_mode) 
     if (!entry) return cxxime::IPCStatus::ERR_INVALID_SESSION;
     std::lock_guard<std::mutex> lock(entry->mutex);
     const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
-    entry->base_chinese_mode = !ascii_mode;
+    GlobalVisibleState state = snapshot_global_state();
+    state.chinese_mode = !ascii_mode;
+    commit_global_state(state);
     align_session_to_global(*entry);
     advance_candidate_revision(*entry, candidate_state_before);
     return cxxime::IPCStatus::OK;
@@ -1808,7 +1890,7 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
         if (pick) experience.record_pick(*pick);
     }
 
-    // 5. Publish shared mode changes and retain this session's base language mode.
+    // 5. Publish shared mode changes, the language mode among them.
     const bool temporary_ascii = engine.ascii_composer().is_temporary_ascii();
     bool new_ascii = engine.ascii_composer().is_ascii_mode();
     GlobalVisibleState state = snapshot_global_state();
@@ -1817,8 +1899,9 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
         state.caps_lock = event.is_caps_lock();
         shared_state_changed = true;
     }
-    if (!state.caps_lock && !temporary_ascii) {
-        s.base_chinese_mode = !new_ascii;
+    if (!state.caps_lock && !temporary_ascii && state.chinese_mode == new_ascii) {
+        state.chinese_mode = !new_ascii;
+        shared_state_changed = true;
     }
 
     // 6. Populate the return value. A Wubi fifth-key commit can start the next
@@ -1831,14 +1914,16 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
 
     // Handle toggle results and return updated ImeStatus.
     if (result == cxxime::ProcessResult::TOGGLE_SHAPE) {
-        s.full_shape = !s.full_shape;
+        state.full_shape = !state.full_shape;
+        shared_state_changed = true;
     } else if (result == cxxime::ProcessResult::TOGGLE_PUNCT) {
         // In English mode, the punctuation switch also switches to Chinese mode
-        if (!state.caps_lock && !s.base_chinese_mode) {
-            s.base_chinese_mode = true;
+        if (!state.caps_lock && !state.chinese_mode) {
+            state.chinese_mode = true;
             engine.ascii_composer().set_ascii_mode(false);
         }
-        s.chinese_punct = !s.chinese_punct;
+        state.chinese_punct = !state.chinese_punct;
+        shared_state_changed = true;
     } else if (result == cxxime::ProcessResult::SWITCH_INPUT_MODE) {
         engine.switch_mode(next_input_mode(engine.mode()));
         state.input_mode = engine.mode();

@@ -17,10 +17,6 @@
         "fuzzy_pinyin": true,
         "fuzzy_groups": ["en_eng", "in_ing"]
     },
-    "initial_state": {
-        "full_shape": false,
-        "chinese_punct": true
-    },
     "style": {
         "font_face": "Microsoft YaHei UI",
         "font_point": 14,

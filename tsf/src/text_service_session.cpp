@@ -120,7 +120,6 @@ bool TextService::_recreate_ipc_session_preserving_status() {
             desired_status = _lastImeStatus;
         }
     }
-    bool desired_chinese_mode = has_desired_status ? desired_status.chinese_mode() : _chinese_mode;
     bool input_allows_input = _query_input_focus_from_thread_mgr();
     bool physical_caps_lock = false;
 
@@ -146,16 +145,7 @@ bool TextService::_recreate_ipc_session_preserving_status() {
         _sync_ime_status(synced_status);
     }
 
-    if (!synced_status.caps_lock() && synced_status.chinese_mode() != desired_chinese_mode) {
-        cxxime::IPCResponse mode_resp = {};
-        if (_client.set_chinese_mode(_sessionId, desired_chinese_mode, mode_resp) &&
-            mode_resp.status == cxxime::IPCStatus::OK) {
-            synced_status = mode_resp.ime_status;
-            _sync_ime_status(mode_resp.ime_status);
-        } else {
-            return false;
-        }
-    }
+    // Chinese/English, width and punctuation: the restarted server reads the saved state.
     if (has_desired_status && synced_status.input_mode != desired_status.input_mode) {
         cxxime::IPCResponse mode_resp = {};
         if (_client.switch_input_mode(_sessionId, desired_status.input_mode, mode_resp) &&
@@ -166,27 +156,17 @@ bool TextService::_recreate_ipc_session_preserving_status() {
             return false;
         }
     }
-    if (has_desired_status && synced_status.full_shape() != desired_status.full_shape()) {
-        cxxime::IPCResponse shape_resp = {};
-        if (_client.toggle_shape(_sessionId, shape_resp) &&
-            shape_resp.status == cxxime::IPCStatus::OK) {
-            synced_status = shape_resp.ime_status;
-            _sync_ime_status(shape_resp.ime_status);
-        } else {
-            return false;
-        }
-    }
-    if (has_desired_status && synced_status.chinese_punct() != desired_status.chinese_punct()) {
-        cxxime::IPCResponse punct_resp = {};
-        if (_client.toggle_punct(_sessionId, punct_resp) &&
-            punct_resp.status == cxxime::IPCStatus::OK) {
-            _sync_ime_status(punct_resp.ime_status);
-        } else {
-            return false;
-        }
-    }
     _enqueue_event_trace("ipc_session", "recreated", true);
     return true;
+}
+
+void TextService::_refresh_shared_status() {
+    if (!_activated || !_sessionId || !_client.is_connected())
+        return;
+    cxxime::IPCResponse response = {};
+    if (_client.get_status(_sessionId, response) && response.status == cxxime::IPCStatus::OK) {
+        _sync_ime_status(response.ime_status);
+    }
 }
 
 bool TextService::_heartbeat_ipc() {

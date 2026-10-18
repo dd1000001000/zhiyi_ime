@@ -118,9 +118,12 @@ struct Config {
     bool fuzzy_pinyin = false;
     uint8_t fuzzy_groups = 0x7F;
 
-    // Initial state for each newly created input session.
+    // Older versions' "initial_state" (width and punctuation a new session started with). The
+    // server now saves the current state in input_state.json and reads these only when that file
+    // does not exist yet; they are no longer written.
     bool initial_full_shape = false;
     bool initial_chinese_punct = true;
+    bool legacy_initial_state = false;  // "initial_state" was read (the server removes it)
 
     // style
     std::string font_name = "Microsoft YaHei UI";

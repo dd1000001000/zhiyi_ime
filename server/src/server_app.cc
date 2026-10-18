@@ -221,6 +221,7 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
             CXXIME_LOG(L"%s", L"config_write event=enqueue_internal result=0");
         }
     });
+    session_mgr_.drop_legacy_initial_state();
 
     // Voice input (voice_service.h): recording and the model run on threads of their own.
     VoiceService::Sessions voice_sessions;
@@ -307,7 +308,12 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
 
     diagnostic_log_maintenance_.start();
     if (!candidate_preference_saver_.start(
-            [this](bool force) { return session_mgr_.save_candidate_preferences(force); })) {
+            [this](bool force) {
+                if (!session_mgr_.save_input_state()) {
+                    CXXIME_LOG(L"%s", L"input_state save failed");
+                }
+                return session_mgr_.save_candidate_preferences(force);
+            })) {
         CXXIME_LOG(L"%s", L"candidate_preference save worker start failed");
         return false;
     }
@@ -336,6 +342,9 @@ void ServerApp::prepare_user_data_shutdown() {
         CXXIME_LOG(L"%s", L"candidate_preference shutdown flush failed");
     }
     candidate_preference_saver_.stop();
+    if (!session_mgr_.save_input_state()) {
+        CXXIME_LOG(L"%s", L"input_state shutdown save failed");
+    }
     user_data_shutdown_prepared_ = true;
 }
 

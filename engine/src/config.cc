@@ -297,6 +297,7 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         auto& initial = j["initial_state"];
         load_bool(initial, "full_shape", config.initial_full_shape);
         load_bool(initial, "chinese_punct", config.initial_chinese_punct);
+        config.legacy_initial_state = true;
     }
 
     if (j.contains("laya") && j["laya"].is_object()) {
@@ -679,9 +680,6 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     }
     j["engine"]["fuzzy_groups"] = groups;
     j["engine"]["max_pinyin_length"] = kMaxInputCodeLength;
-
-    j["initial_state"]["full_shape"] = config.initial_full_shape;
-    j["initial_state"]["chinese_punct"] = config.initial_chinese_punct;
 
     j["laya"]["enable"] = config.laya.enable;
     j["laya"]["model_dir"] = config.laya.model_dir;

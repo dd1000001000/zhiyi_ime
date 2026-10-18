@@ -113,9 +113,6 @@ struct SessionEntry {
     std::unique_ptr<cxxime::Engine> engine;
     std::chrono::steady_clock::time_point last_activity;
     cxxime::ImeStatus ime_status;
-    bool base_chinese_mode = true;
-    bool full_shape = false;
-    bool chinese_punct = true;
     bool closing = false;
     uint64_t client_capabilities = 0;
     uint64_t candidate_revision = 0;
@@ -279,6 +276,13 @@ public:
                          std::size_t* imported_count, std::size_t* skipped_count);
     bool freeze_and_save_candidate_preferences();
     bool close_english_learning();
+    // Chinese/English, punctuation and width (input_state.json in the user data folder): written
+    // when switched since the last call (the save worker calls it every second and at exit),
+    // read when the server starts.
+    bool save_input_state();
+    // The settings file still holds "initial_state" from an older version (its values went into
+    // input_state.json when that did not exist yet): remove it.
+    void drop_legacy_initial_state();
     // The dictionary the sessions use now (word lists are applied to it).
     std::shared_ptr<cxxime::Dict> dictionary(cxxime::UserDictKind kind) const {
         return shared_.dict_for_kind(kind);
@@ -291,6 +295,12 @@ private:
         bool english_words = true;  // English mode style (config english.word_mode)
         // Pinyin style (config engine.input_style with input_mode); kept while in Wubi mode.
         cxxime::PinyinStyle pinyin_style = cxxime::PinyinStyle::kFull;
+        // Chinese/English, full/half width and Chinese/English punctuation are shared by every
+        // program too (issue #23) and saved (save_input_state); a new install starts in Chinese
+        // with Chinese punctuation and half width.
+        bool chinese_mode = true;  // the switched language; Caps Lock and temporary ASCII aside
+        bool full_shape = false;
+        bool chinese_punct = true;
     };
 
     cxxime::Engine* get_engine(uint32_t id);
@@ -319,6 +329,7 @@ private:
     SharedResources shared_;
     std::unordered_map<uint32_t, std::shared_ptr<SessionEntry>> sessions_;
     GlobalVisibleState global_state_;
+    bool input_state_dirty_ = false;  // under state_mutex_: switched since save_input_state
     uint32_t next_id_ = 1;
     std::mutex mutex_;
     std::mutex state_mutex_;

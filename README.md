@@ -54,7 +54,9 @@
 
 ng1017+1.4V2-Long-L18 在 1.4V2-Long-L18 上加了一个词语 n-gram（三元语言模型）：底座是[幽默输入法](https://github.com/Sraw/youmo-ime)的拼音语言模型（[libime](https://github.com/fcitx/libime) 的模型混入 FineWeb-2 和 Common Crawl 的口语网页），用幽默的工具再混入约 1 亿字的科研文本（[CSL](https://github.com/ydli-ai/CSL) 论文摘要，以及 SkyPile、C4、FineWeb-2 里的科技页面），按相对熵剪枝到二元、三元各 400 万条（79 MB）。选词时每个整句候选加上它给的 ln P（权重在开发集上调），没有上文时也用模型和 n-gram 选词；组句头组出的长句也经过选词头排序（以前组句的第一句直接放在首位）。在输入法引擎里端到端：中文词和两个词 86.2% → 87.6%，长句 67.2% → 74.5%，英文、全打声母和英文只打前几个字母不变；旧测试集的长句全拼 61.8% → 69.0%，末字只打声母 30.6% → 36.6%，前面简拼、后面全拼 16.5% → 21.9%。代价：CPU 上没有上文的页要多算一次模型（中位数约 2 → 11 ms），长句页多一次选词（约 +10 ms），n-gram 文件 79 MB（映射，不读进内存）。
 
-<img src="docs/media/choice2.zh-CN.svg" alt="新选词测试集：(a) 中文词和两个词 (b) 中文长句 (c) 英文单词 (d) 中文全打声母 (e) 英文只打前几个字母 (f) CPU 每页耗时；只按词频、知意 1.4V2、1.5.4、1.4V2-Long-L18、1.4V2-Sim-L18 与 ng1017+1.4V2-Long-L18" width="100%">
+知意 1.4V2-Long-L12（[Release model-zhen-long-l12](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l12)，GPL-3.0-only，含 safetensors 版，暂未接入输入法）是 1.4V2 只保留 12 层编码器（22 层 → 12 层）的新模型。选词用微调过的 Qwen3.5-9B 老师在约 377 万条数据上蒸馏：1.4V2-Long-L18 的约 170 万条之外，新加约 172 万条 SkyPile、LCCC、C4、SODA 的文本，和约 35 万条 [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb)、[FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2)（ODC-By 1.0）的近年网页，中英文约 3:1。组句头由另一个微调过、按字写出所打汉字的 Qwen3.5-9B 老师蒸馏，用了约 431 万条组句数据，其中 220 万条带老师打分。加上 ng1017 后在输入法引擎里端到端（图中最后一行），它和 ng1017+1.4V2-Long-L18 打平：中文词和两个词 87.7%（87.6%），长句 74.9%（74.5%），英文 89.5%（90.2%），全打声母 76.3%（77.7%），英文只打前几个字母 75.7%（77.3%），差别都在抽样误差之内；CPU 上一页 10.4 ms（14.7 ms），快约三成，模型文件 84 MB（96 MB）。
+
+<img src="docs/media/choice2.zh-CN.svg" alt="新选词测试集：(a) 中文词和两个词 (b) 中文长句 (c) 英文单词 (d) 中文全打声母 (e) 英文只打前几个字母 (f) CPU 每页耗时；只按词频、知意 1.4V2、1.5.4、1.4V2-Long-L18、1.4V2-Sim-L18、ng1017+1.4V2-Long-L18 与 ng1017+1.4V2-Long-L12" width="100%">
 
 ## 离线翻译模型
 
@@ -94,8 +96,9 @@ ng1017+1.4V2-Long-L18 在 1.4V2-Long-L18 上加了一个词语 n-gram（三元�
 - [llama.cpp](https://github.com/ggml-org/llama.cpp)：离线翻译模型的运行库（MIT，随模型下载）
 - [LCCC](https://github.com/thu-coai/CDial-GPT)（MIT）与 [C4](https://huggingface.co/datasets/allenai/c4) 中文部分（ODC-BY）：模型蒸馏的部分语料
 - [Tatoeba](https://tatoeba.org)（CC BY 2.0 FR）与 [C4](https://huggingface.co/datasets/allenai/c4) 的英、日、韩、法、德、西、俄、越文部分（ODC-BY）：离线翻译模型 v3 的外语原文
-- [SkyPile-150B](https://huggingface.co/datasets/Skywork/SkyPile-150B)（昆仑万维天工 Skywork，Skywork Community License）：1.5.4 起长拼音组句部分的训练文本（约七成），离线翻译模型 v3 的中文句子，以及 1.4V2-Long-L18 / Sim-L18 选词数据的一部分
-- [SODA](https://huggingface.co/datasets/allenai/soda)（CC BY 4.0）、Tatoeba 与 C4 英文部分：1.4V2-Long-L18 / Sim-L18 英文选词数据的文本
+- [SkyPile-150B](https://huggingface.co/datasets/Skywork/SkyPile-150B)（昆仑万维天工 Skywork，Skywork Community License）：1.5.4 起长拼音组句部分的训练文本（约七成），离线翻译模型 v3 的中文句子，以及 1.4V2-Long-L18 / Sim-L18 / Long-L12 选词数据和 Long-L12 组句数据的一部分
+- [SODA](https://huggingface.co/datasets/allenai/soda)（CC BY 4.0）、Tatoeba 与 C4 英文部分：1.4V2-Long-L18 / Sim-L18 / Long-L12 英文选词数据的文本
+- [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb) 与 [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2)（ODC-By 1.0）：1.4V2-Long-L12 选词数据里的近年网页
 - [wordfreq](https://github.com/rspeer/wordfreq)：英文词频（CC BY-SA 4.0）
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime)：模型推理（MIT）
 - [DirectML](https://github.com/microsoft/DirectML)：显卡推理（微软 DirectML 许可，可再分发）

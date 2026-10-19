@@ -4,7 +4,7 @@ models/ngram/.
   python scripts/fetch_model.py            # download the release assets and verify them
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ and models/ngram/ for release uploads
 
-The model (laya.int8g.onnx ~96 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
+The model (laya.int8g.onnx ~84 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
 published as a GitHub release asset. The training code and data are not published.
 """
 import argparse
@@ -20,16 +20,17 @@ DEST = os.path.join(ROOT, "models", "laya")
 FILES = ["laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json", "unified_vocab.json"]
 # The decoder graphs of the 1.5.4-1.5.8 model: removed from models/laya (the packager ships them when present).
 OLD_FILES = ["laya_decoder.int8.onnx", "laya_decoder_memory.int8.onnx", "laya_decoder_step.int8.onnx"]
-ASSET = "laya-zhen-long-l18-int8g.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-long-l18/{ASSET}"
-# SHA-256 of the graph: 知意 1.4V2-Long-L18 (1.5.9). The unified model 1.4V2 (mmBERT-small,
-# width 384) with 18 of its 22 encoder layers (sliding-window layers 7, 10, 13, 16 removed); word
-# choice distilled from a fine-tuned Qwen3.5-9B teacher on 1.7M rows of the IME's real
-# candidates, in the ctx-first sequence (unified_vocab.json "choice_format": the context, then the
-# typed input as slots, then the candidates, no instructions); 1.4V2's one-shot continuation head
-# scores every character at every typed syllable for the sentence composition. int8, the earlier
-# models' pruned vocabulary plus 30387 tokens of the new training text.
-ONNX_SHA256 = "4aa1e0a3a8496d0970b3cf5c5c3bf8b06338a4f0d12f8831721082f48b32b714"
+ASSET = "laya-zhen-long-l12-int8g.zip"
+URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-long-l12/{ASSET}"
+# SHA-256 of the graph: 知意 1.4V2-Long-L12 (1.5.12; 1.5.9-1.5.11 shipped 1.4V2-Long-L18 from
+# model-zhen-long-l18). The unified model 1.4V2 (mmBERT-small, width 384) with 12 of its 22 encoder
+# layers (0, 1, 2, 6, 7, 8, 12, 13, 14, 19, 20, 21); word choice distilled from a fine-tuned
+# Qwen3.5-9B teacher on 3.77M rows of the IME's real candidates, in the ctx-first sequence
+# (unified_vocab.json "choice_format": the context, then the typed input as slots, then the
+# candidates, no instructions); 1.4V2's one-shot continuation head, distilled from a second
+# Qwen3.5-9B teacher, scores every character at every typed syllable for the sentence composition.
+# int8, the vocabulary and tokenizer of 1.4V2-Long-L18.
+ONNX_SHA256 = "82d0fd05a5c2bff7898be518101d23dd03d0a5c4ecb8abaebcb397d42bebb529"
 
 # The word n-gram scored next to the word choice (laya.ngram, engine/src/laya/ngram.h), ng1017: Youmo
 # IME's pinyin language model (LGPL-2.1-or-later, on libime's) with science text mixed in (CSL

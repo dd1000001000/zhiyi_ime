@@ -156,7 +156,7 @@ cxxime::KeyboardShortcut TextService::_switch_key(int slot) const {
     case 1: return _config.english_style_shortcut;
     case 2: return _config.punct_toggle_shortcut;
     case 3: return _config.shape_toggle_shortcut;
-    case 4: return _config.voice_input_shortcut;
+    case 4: return _config.voice_enable ? _config.voice_input_shortcut : cxxime::KeyboardShortcut{};
     default: return {};
     }
 }
@@ -196,9 +196,12 @@ bool TextService::_claim_switch_key_press(int slot) {
 bool TextService::_run_held_switch_key() {
     const int slot = _held_switch_key();
     if (slot < 0) return false;
+    // The key event never comes: the press goes through the gestures here (its key-up is found by
+    // the gesture timer); the voice key is read there.
+    if (_feed_key_gesture(_switch_key(slot).virtual_key, false)) return true;
     const bool claimed = _claim_switch_key_press(slot);
     const bool applied =
-        claimed && (slot == 1 || slot == 4 ? _press_switch_key(slot) : _apply_switch_key(slot));
+        claimed && (slot == 1 ? _press_switch_key(slot) : _apply_switch_key(slot));
     if (claimed && !applied) {
         _switchKeyTicks[slot] = 0;  // not done: the key event may still do it
     }
@@ -268,8 +271,7 @@ bool TextService::_press_switch_key(int slot) {
     BOOL eaten = FALSE;
     _apply_engine_response(context, response, &eaten);
     if (context) context->Release();
-    cxxime_tsf::trace_activation_step("switch_key", slot == 1 ? "style_pressed" : "voice_pressed",
-                                      S_OK, false);
+    cxxime_tsf::trace_activation_step("switch_key", "style_pressed", S_OK, false);
     return true;
 }
 

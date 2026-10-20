@@ -52,21 +52,25 @@ void TextService::_poll_voice() {
         return;
     }
     _stop_voice_poll(false);
-    if (response.voice_state != cxxime::kVoiceDone) return;
+    if (response.voice_state != cxxime::kVoiceDone &&
+        response.voice_state != cxxime::kVoiceDoneCommit) {
+        return;
+    }
     const std::size_t length = strnlen_s(response.voice_text, sizeof(response.voice_text));
     const std::wstring text = utf8_to_wstring(std::string(response.voice_text, length).c_str());
-    if (!text.empty()) _show_voice_text(text);
+    if (!text.empty()) _show_voice_text(text, response.voice_state == cxxime::kVoiceDoneCommit);
 }
 
-void TextService::_show_voice_text(const std::wstring& text) {
+void TextService::_show_voice_text(const std::wstring& text, bool commit) {
     ITfContext* context = _current_edit_context_for_composition();
     if (!context) return;
     _hide_candidate_window("hide:voice_text");
     // Classic Win32 programs (Sublime Text) reach TSF through the IMM layer, and cancel a
     // composition, text and all, on a click or when they lose the focus; even text committed
-    // just before the click is gone (issue #14). There the text goes in at once.
-    if (context_is_imm_document(context)) {
-        _enqueue_event_trace("voice_text", "imm_insert");
+    // just before the click is gone (issue #14). There the text goes in at once, and so it does
+    // when recording ended by itself after a pause (voice.auto_stop_ms).
+    if (commit || context_is_imm_document(context)) {
+        _enqueue_event_trace("voice_text", commit ? "commit" : "imm_insert");
         if (_composition) _end_composition(context);
         insert_text(text, true);
         context->Release();

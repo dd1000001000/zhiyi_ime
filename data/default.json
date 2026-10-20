@@ -9,6 +9,7 @@
         "max_pinyin_length": 64,
         "pinyin_scheme": "full_pinyin",
         "wubi_auto_commit": true,
+        "auto_space": true,
         "wubi_commit_first_on_fifth_key": true,
         "wubi_restart_on_fifth_after_miss": true,
         "wubi_code_hint": false,
@@ -61,7 +62,8 @@
     "shortcuts": {
         "activate_ime": "disabled",
         "page_up": "",
-        "page_down": ""
+        "page_down": "",
+        "hold_ms": 400
     },
     "privacy": {
         "experience_program": false,
@@ -84,7 +86,9 @@
         "language": "auto",
         "itn": true,
         "max_seconds": 60,
-        "min_gpu_memory_mb": 1000
+        "min_gpu_memory_mb": 1000,
+        "key_mode": "tap",
+        "auto_stop_ms": 2000
     },
     "theme": "moon_light",
     "ui": {

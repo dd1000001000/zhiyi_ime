@@ -43,6 +43,7 @@ enum ControlId {
     kLanguageId,
     kPageSizeId,
     kEnglishCorrectionId,
+    kAutoSpaceId,
     kVerticalId,
     kHorizontalId,
     kAutostartId,
@@ -56,6 +57,7 @@ enum ControlId {
     kRestoreKeysId,
     kPageUpKeyId,
     kPageDownKeyId,
+    kVoiceKeyModeId,
     kLearningId = 1201,
     kClearLearningId,
     kExportBackupId,
@@ -177,6 +179,10 @@ void EditorApp::create_general_panel(HWND panel) {
     y += kRowH;
     make_hint(tr("general.english_correction_hint"), english_x, y - S(6), S(480), panel, 1);
     y += S(20);
+    hAutoSpace_ = make_check(kAutoSpaceId, tr("general.auto_space"), english_x, y, S(300), panel);
+    y += kRowH;
+    make_hint(tr("general.auto_space_hint"), english_x, y - S(6), S(480), panel);
+    y += S(40);
     const int laya_x = make_aligned_label(tr("general.laya"), x0, labels, y, panel);
     hLaya_ = make_check(kLayaId, tr("general.laya_enable"), laya_x, y, S(440), panel);
     y += kRowH;
@@ -278,10 +284,20 @@ void EditorApp::create_keys_panel(HWND panel) {
     };
     for (const Row& row : rows) {
         const int x = make_aligned_label(tr(row.label), x0, labels, y, panel);
-        *row.box = create_key_capture(row.id, x, y, box_width, kCtrlH, panel, true);
+        const bool voice = row.id == kVoiceKeyId;
+        // The voice key: pressed twice (to start, to stop) or held while speaking, beside it.
+        const int mode_width = S(112);
+        *row.box = create_key_capture(row.id, x, y, voice ? box_width - mode_width - S(8) : box_width,
+                                      kCtrlH, panel, true);
+        if (voice) {
+            hVoiceKeyMode_ = make_combo(kVoiceKeyModeId, x + box_width - mode_width, y, mode_width,
+                                        panel);
+            combo_add(hVoiceKeyMode_, tr("keys.voice_tap"));
+            combo_add(hVoiceKeyMode_, tr("keys.voice_hold"));
+        }
         y += kRowH;
         if (row.hint) {
-            make_hint(tr(row.hint), x, y - S(6), S(380), panel);
+            make_hint(tr(row.hint), x, y - S(6), voice ? S(460) : S(380), panel);
             y += kRowH;
         } else {
             y += S(8);
@@ -432,6 +448,7 @@ void EditorApp::populate_controls() {
     }
     combo_set_index(hLanguage_, language_index);
     set_check(hEnglishCorrection_, config_.english.correction);
+    set_check(hAutoSpace_, config_.auto_space);
     set_check(hAutostart_, config_.autostart);
     set_check(hLaya_, config_.laya.enable);
     populate_device();
@@ -439,6 +456,7 @@ void EditorApp::populate_controls() {
     set_switch_key_boxes(config_);
     combo_set_index(hPageUpKey_, page_key_index(kPageUpKeys, config_.page_up_key));
     combo_set_index(hPageDownKey_, page_key_index(kPageDownKeys, config_.page_down_key));
+    combo_set_index(hVoiceKeyMode_, config_.voice_key_mode == "hold" ? 1 : 0);
 
     set_check(hLearning_, config_.candidate_learning);
     set_check(hExperience_, config_.experience_program);
@@ -474,6 +492,7 @@ bool EditorApp::read_controls(bool report_errors) {
                         ? languages_[language_index - 1].code
                         : kAutoUiLanguage;
     c.english.correction = get_check(hEnglishCorrection_);
+    c.auto_space = get_check(hAutoSpace_);
     c.autostart = get_check(hAutostart_);
     c.laya.enable = get_check(hLaya_);
     c.laya.device = selected_device();
@@ -483,6 +502,7 @@ bool EditorApp::read_controls(bool report_errors) {
     apply_switch_key_choices(c, choices);
     c.page_up_key = kPageUpKeys[std::clamp(combo_index(hPageUpKey_), 0, 3)];
     c.page_down_key = kPageDownKeys[std::clamp(combo_index(hPageDownKey_), 0, 3)];
+    if (hVoiceKeyMode_) c.voice_key_mode = combo_index(hVoiceKeyMode_) == 1 ? "hold" : "tap";
     c.candidate_learning = get_check(hLearning_);
     c.experience_program = get_check(hExperience_);
     c.collect_input = c.experience_program && get_check(hCollectInput_);

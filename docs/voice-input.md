@@ -10,6 +10,14 @@
 3. 在输入框里按快捷键开始说话。屏幕下方（输入框所在的屏幕）出现语音条：左边是麦克风，中间的波形在有人说话时跳动、
    没人说话时是一条平线，右边是停止键。
 4. 再按一次快捷键，或者用鼠标点语音条上的停止键，结束说话。语音条显示“正在识别”，一般不到一秒。
+
+   说完停顿 2 秒没有人声，录音也会自动结束，识别出的文字直接上屏（配置项 `voice.auto_stop_ms`，
+   0 为不自动结束）；还没开口时至少等 5 秒。
+
+   在“设置 > 按键”语音输入快捷键右边选“长按”（`voice.key_mode`）后改为**按住快捷键说话**，松开就结束并识别。组合键按下就
+   开始录音，不到 0.4 秒（`shortcuts.hold_ms`）就松开算误按，悄悄放弃；单独的 Shift / Ctrl 按住到 0.4 秒才开始。按住 Ctrl
+   时又按了别的键（如 Ctrl+C），这次录音悄悄放弃，组合键照常起作用；按住时按了另一个切换键，先当语音键松开（结束并识别），
+   再切换。见 [快捷键的点按与长按](key-gestures.md)。
 5. 识别出的文字带下划线放进输入框：
    - **退格** 或 **Esc**：整段删除；
    - **回车**：确认（只确认，不换行，也不会在聊天软件里把消息发出去）；
@@ -66,9 +74,10 @@ Silero VAD 为 MIT 许可；许可证全文随模型下载（`LICENSE-SenseVoice
 
 ## 实现
 
-- **按键**（`engine.cc`）：语音快捷键（`shortcuts.voice_input`，或 `ascii_composer.switch_key` 里的 `toggle_voice`）
-  让引擎提出“开始/结束录音”的请求，正在打的拼音先按原样上屏；录音和识别期间（`Engine::set_voice_capture`）
-  除单独的修饰键外，所有按键都被引擎吃掉，快捷键表示结束，Esc 表示放弃。
+- **按键**：输入法组件判断语音快捷键（`shortcuts.voice_input`，或 `ascii_composer.switch_key` 里的 `toggle_voice`）
+  是点按还是长按（[快捷键的点按与长按](key-gestures.md)），发给引擎“开始 / 结束 / 放弃”（`kVoiceKeyPress` 等），
+  引擎提出录音请求，正在打的拼音先按原样上屏；录音和识别期间（`Engine::set_voice_capture`）除单独的修饰键和其他切换键外，
+  所有按键都被引擎吃掉，Esc 表示放弃。还在用旧输入法组件的程序由引擎自己认语音快捷键（`engine.cc`）。
 - **录音和识别**（`server/src/voice_service.cc`）：zhiyi-server 用 WASAPI 共享模式打开默认麦克风，由 Windows
   转成 16 kHz 单声道（`voice_recorder.cc`）；识别用知意自带的 ONNX Runtime（和推荐模型同一份，CPU 或 DirectML），
   前处理（Kaldi 滤波器组、7 帧拼接）和 CTC 解码在 `engine/src/voice_recognizer.cc`。

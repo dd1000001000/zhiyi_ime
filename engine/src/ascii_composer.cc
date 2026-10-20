@@ -65,6 +65,10 @@ void AsciiComposer::load_config(const Config& config) {
             continue;
 
         auto style = parse_style(value);
+        // Voice input off: a tapped voice key does nothing.
+        if (style == AsciiModeSwitchStyle::TOGGLE_VOICE && !config.voice_enable) {
+            style = AsciiModeSwitchStyle::NOOP;
+        }
 
         // CapsLock downgrade: inline_ascii / set_ascii_mode / unset_ascii_mode
         // are incompatible with CapsLock's toggle nature — downgrade to clear

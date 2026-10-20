@@ -495,6 +495,8 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
         // The voice key starts or stops recording; Esc while recording drops it.
         if (r.voice_request == cxxime::Engine::VoiceRequest::kToggle) {
             voice_.toggle(request.session_id);
+        } else if (r.voice_request == cxxime::Engine::VoiceRequest::kStop) {
+            voice_.finish(request.session_id);
         } else if (r.voice_request == cxxime::Engine::VoiceRequest::kCancel) {
             voice_.cancel(request.session_id);
         }
@@ -642,7 +644,8 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
     case cxxime::IPCCommand::VOICE_STATUS: {
         std::string text;
         response.voice_state = voice_.take_status(request.session_id, &text);
-        if (response.voice_state == cxxime::kVoiceDone &&
+        if ((response.voice_state == cxxime::kVoiceDone ||
+             response.voice_state == cxxime::kVoiceDoneCommit) &&
             !response_copy_field(response.voice_text, sizeof(response.voice_text), text)) {
             response.voice_state = cxxime::kVoiceIdle;
         }

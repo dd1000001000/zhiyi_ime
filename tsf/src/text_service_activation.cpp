@@ -459,6 +459,7 @@ void TextService::_send_text_before_caret(ITfContext* context) {
 
 void TextService::_register_switch_keys() {
     _unregister_switch_keys();
+    _configure_key_gestures();  // the shortcuts as read (also with no keystroke manager)
     if (!_threadMgr) return;
     ITfKeystrokeMgr* keystroke_mgr = nullptr;
     if (FAILED(_threadMgr->QueryInterface(IID_ITfKeystrokeMgr,
@@ -474,7 +475,7 @@ void TextService::_register_switch_keys() {
         {&c_guidPreservedKeyStyle, _config.english_style_shortcut, L"Input style"},
         {&c_guidPreservedKeyPunct, _config.punct_toggle_shortcut, L"Punctuation"},
         {&c_guidPreservedKeyShape, _config.shape_toggle_shortcut, L"Full/half width"},
-        {&c_guidPreservedKeyVoice, _config.voice_input_shortcut, L"Voice input"},
+        {&c_guidPreservedKeyVoice, _switch_key(4), L"Voice input"},  // none with voice input off
     };
     for (size_t i = 0; i < std::size(keys); ++i) {
         if (!keys[i].key.enabled()) continue;
@@ -516,6 +517,9 @@ void TextService::_unregister_switch_keys() {
         keystroke_mgr->Release();
     }
     for (auto& key : _preservedSwitchKeys) key = {};
+    _keyGestures.clear();
+    _voiceHoldArmed = false;
+    _update_key_gesture_timer();
 }
 
 bool TextService::_register_display_attribute_atom() {

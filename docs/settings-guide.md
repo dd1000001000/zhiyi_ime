@@ -32,6 +32,7 @@
 | 候选词数 | 每页 3–10 个，默认 7 |
 | 界面语言 | 跟随系统、简体中文或 English；设置程序与任务栏菜单使用这个语言 |
 | 英文单词 · 拼写纠错 | 打错时在候选里给出正确拼写，第一个候选仍是原文，不会自动替换 |
+| 英文单词 · 自动添加空格 | 默认勾选：英文等带空格的语言（`learning.space_languages`）的词，用数字、鼠标或回车上屏时在后面加一个空格；不勾时只上屏这个词。用空格或标点上屏时总是只跟那个符号（`hello` + 逗号 → `hello,`）。英文模式和中文模式里夹的英文候选、学习模式打出的翻译都一样（`engine.auto_space`） |
 | 推理设备 | 只在这台电脑有可用的独立显卡（Direct3D 12、自带显存 1 GB 以上，核显不算；门槛见配置项 `laya.min_gpu_memory_mb`）时出现：`CPU（型号）`（默认；多路 CPU 显示为 `CPU（2 × 型号）`），以及每块显卡 `GPU（型号）`（有几块时为 `GPU 1（型号）`、`GPU 2（型号）`，同型号的两块卡也分开列出）。选显卡时先在后台把推荐模型分别放到显卡和 CPU 上各跑一遍测速，下方显示两边的耗时；显卡比 CPU 慢时这行字变成黄色并建议改用 CPU，但选择保留，由用户决定。模型在这块卡上跑不起来时改回 CPU，这块卡以后不再列出（换了驱动会重新列出）。测速结果按显卡和驱动版本记在本机数据目录的 `laya-gpu.json`（见下面的“数据位置”）。显卡上约占 500 MB 显存和 200 MB 内存；显卡不在或加载失败时自动用 CPU |
 | 上文推荐 · 按上文推荐候选和组长句（中文和英文） | 默认勾选：本机的推荐模型读取光标前的文字，把最合适的候选排到第一位并标上星号，长拼音停顿后由模型组句；中文和英文一起开关（`laya.enable`）。不勾时候选按词频和学习记录排列，下次启动不再加载模型 |
 | 数据 · 数据位置 | 词库、学习记录、语言包、日志、推荐模型的缓存和下载的翻译模型存放的文件夹，默认 `%USERPROFILE%\zhiyi\`（本机缓存在 `%LOCALAPPDATA%\zhiyi\`）。“更改…”选一个文件夹（如 D 盘）后，数据放到 `<所选文件夹>\zhiyi\`，本机缓存放到其中的 `local\`：先关闭输入法后台，复制并逐个核对文件大小，再改用新位置、重启后台，最后删除原位置的数据。新位置已有知意的数据（如重装系统后）时可以选择沿用那里的数据。复制出错时什么都不改，原数据保持不变。“恢复默认”把数据搬回 C 盘。所选位置暂时无法访问（如移动硬盘未连接）时使用默认位置，这一行会提示 |
@@ -66,7 +67,7 @@
 | 输入方式切换 | Ctrl + Space | 中文：全拼 → 首字母 → 五笔 → 双拼 循环；英文：单词联想 / 逐字母 |
 | 中英文标点 | Ctrl + . | 中文标点 / 英文标点 |
 | 全角/半角 | Shift + Space | 全角 / 半角 |
-| 语音输入 | 不使用 | 开始说话 / 结束说话，见 [语音输入](voice-input.md) |
+| 语音输入 | 不使用 | 开始说话 / 结束说话；右边选“点按两次”（按一下开始、再按一下结束）或“长按”（按住说话、松开结束），见 [语音输入](voice-input.md) |
 
 - **左键**点击按键框后按下新的按键（Esc 取消），**右键**点击清空（不使用这个切换键）。
 - 录入时按键先交给按键框，其他程序的全局热键、知意的“打开/关闭输入法”热键和输入法都不会先拿走它，所以被其他程序占用的组合也能录到（录到后提示“已被其他程序占用”），录入时也不会触发那个程序。Win 组合键、Alt+Tab、Alt+Esc、Ctrl+Esc 照常切换窗口，录入随之取消。
@@ -219,6 +220,7 @@
 | `engine.input_style` | `full` | 中文输入方式：`full`（全拼）、`initials`（首字母）、`wubi`（五笔）、`shuangpin`（双拼）。旧版的 `engine.input_mode`（1 = 五笔）与 `engine.pinyin_initials` 照样读取，保存时换成这一项 |
 | `engine.shuangpin_scheme` | `xiaohe_shuangpin` | 双拼方案：`microsoft_shuangpin`、`xiaohe_shuangpin`、`ziranma_shuangpin`、`sogou_shuangpin`、`abc_shuangpin` |
 | `engine.page_size` | 7 | 每页候选数（3–10） |
+| `engine.auto_space` | true | 带空格的语言（`learning.space_languages`）的词用数字、鼠标或回车上屏时后面加一个空格；用空格或标点上屏时只跟那个符号 |
 | `engine.candidate_learning` | true | 自学习 |
 | `engine.fuzzy_pinyin` / `engine.fuzzy_groups` | true / `["en_eng","in_ing"]` | 模糊音开关与组合（`z_zh`、`c_ch`、`s_sh`、`n_l`、`an_ang`、`en_eng`、`in_ing`） |
 | `engine.wubi_code_hint` | false | 五笔候选后显示剩余编码 |
@@ -231,13 +233,15 @@
 | `learning.translator_min_gpu_memory_mb` | 1000 | “学习”页离线翻译列出的显卡至少要有这么多 MB 自带显存（Vulkan 的独立显卡；模型约占 1 GB） |
 | `learning.translator_context_chars` | 32 | 交给翻译模型的光标前文字（字数，0–256），帮助多义词选对意思 |
 | `learning.translator_idle_seconds` | 60 | 这么多秒没有要翻译的词就卸载翻译模型，释放显存 |
-| `learning.space_languages` | `["en", "ko", "fr", "de", "es", "ru"]` | Ctrl+1～9 打出这些语言的翻译时，光标前是英文等字母或数字就先补一个空格（`[]` = 都不补） |
+| `learning.space_languages` | `["en", "ko", "fr", "de", "es", "ru"]` | 带空格的语言：这些语言的词和学习模式打出的翻译按 `engine.auto_space` 在后面加空格（英文单词看 `en`；`[]` = 都不加），前面从不补空格 |
 | `voice.enable` | false | 语音输入（需要下载语音模型，见 [语音输入](voice-input.md)） |
 | `voice.device` | 空 | 语音识别在哪里运行：空 = CPU，或显卡名称（同推荐模型的 `laya.device`） |
 | `voice.min_gpu_memory_mb` | 1000 | “语音输入”页列出的显卡至少要有这么多 MB 自带显存（DirectML，不含核显） |
 | `voice.language` | `auto` | 识别语言：`auto` `zh` `en` `yue` |
 | `voice.itn` | true | 数字和日期写成阿拉伯数字 |
 | `voice.max_seconds` | 60 | 一次最长录音秒数（5–300），到时自动结束并识别 |
+| `voice.key_mode` | `tap` | 语音输入快捷键：`tap` 点按两次（按一下开始、再按一下结束），`hold` 长按（按住说话、松开结束） |
+| `voice.auto_stop_ms` | 2000 | `tap` 时说完停顿多少毫秒没有人声就自动结束并直接上屏；0 不自动结束，否则 500–10000（还没开口时至少等 5 秒） |
 | `shortcuts.voice_input` | `disabled` | 语音输入快捷键（组合键；单独轻按 Shift / Ctrl 见 `ascii_composer.switch_key` 的 `toggle_voice`） |
 | `learning.digits_type_translation` | false | 学习模式下 1～9 打出翻译、Ctrl+1～9 打出候选本身（默认相反）；没有翻译时都不打字 |
 | `style.render_backend` | d2d | 候选窗口渲染：d2d 或 gdi |
@@ -245,6 +249,7 @@
 | `ui.language` | auto | 界面语言：auto、zh-CN、en-US |
 | `shortcuts.ascii_toggle` / `english_style` / `punct_toggle` / `shape_toggle` | 见“按键” | 切换键，如 `Ctrl+Space`；`disabled` 表示不用 |
 | `shortcuts.page_up` / `page_down` | `""` | 有候选时翻到上一页 / 下一页的键：`-` `,` `[` / `=` `.` `]`，`""` 表示不用（见“按键”的候选翻页） |
+| `shortcuts.hold_ms` | 400 | 按住快捷键多久算长按（毫秒，100–2000；语音输入键按住说话，见 [快捷键的点按与长按](key-gestures.md)） |
 | `ascii_composer.switch_key` | Shift 切换 | 单独轻按 Shift / Ctrl 的行为（`code`、`clear`、`set_ascii_mode`、`noop` 等，见 [组合输入](ascii-composer.md)）；`..._L` / `..._R` 两侧同值表示不区分左右，只写一侧表示只认该侧 |
 | `english.word_mode` | true | 英文模式默认单词联想 |
 | `english.correction` | true | 英文拼写纠错 |

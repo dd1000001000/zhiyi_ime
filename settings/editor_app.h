@@ -189,6 +189,7 @@ private:
     HWND hPageSize_ = nullptr;
     HWND hLanguage_ = nullptr;
     HWND hEnglishCorrection_ = nullptr;
+    HWND hAutoSpace_ = nullptr;  // engine.auto_space
     HWND hAutostart_ = nullptr;  // startup.autostart
     HWND hLaya_ = nullptr;  // laya.enable (Chinese and English)
     // laya.device (editor_gpu.cc): only created when this computer has a card to offer
@@ -212,6 +213,7 @@ private:
     HWND hPunctKey_ = nullptr;
     HWND hShapeKey_ = nullptr;
     HWND hVoiceKey_ = nullptr;
+    HWND hVoiceKeyMode_ = nullptr;  // voice.key_mode: pressed twice / held
     HWND hPageUpKey_ = nullptr;  // shortcuts.page_up / page_down: none or a symbol
     HWND hPageDownKey_ = nullptr;
 

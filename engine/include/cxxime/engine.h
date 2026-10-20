@@ -97,9 +97,10 @@ public:
         return index;
     }
     // Voice input (docs/voice-input.md): the voice key asks the server to start or stop
-    // recording (kToggle; a composition is committed as typed first), Esc while recording to
-    // drop it (kCancel). The server reads the request after each key, once.
-    enum class VoiceRequest { kNone, kToggle, kCancel };
+    // recording (kToggle; a composition is committed as typed first), the end of a long press to
+    // stop and recognize (kStop), Esc while recording to drop it (kCancel). The server reads the
+    // request after each key, once.
+    enum class VoiceRequest { kNone, kToggle, kStop, kCancel };
     VoiceRequest take_voice_request() {
         const VoiceRequest request = voice_request_;
         voice_request_ = VoiceRequest::kNone;
@@ -110,9 +111,14 @@ public:
     // Shift or Ctrl), the voice key asks to stop and Esc to cancel.
     void set_voice_capture(bool capturing) { voice_capture_ = capturing; }
     bool voice_capture() const { return voice_capture_; }
+    // The client reads the voice key itself (kClientCapabilityVoiceKey) and sends
+    // kVoiceKeyPress / kVoiceKeyRelease / kVoiceKeyCancel; the voice shortcut and toggle_voice
+    // taps then do nothing here.
+    void set_voice_key_from_client(bool from_client);
     // Types `translation` in place of candidate `index` (text confirmed before it stays; input
-    // after it is typed on), after a space when `spaced` (its language writes spaces between
-    // words, learning.space_languages) and a word comes before it. Nothing happens (ACCEPTED)
+    // after it is typed on), with the space of engine.auto_space after it when `spaced` (its
+    // language writes spaces between words, learning.space_languages) and the input ends there
+    // (issue #28). Nothing happens (ACCEPTED)
     // without a translation; COMMITTED otherwise. Teaches nothing: the translation is not a
     // pick of the candidate.
     ProcessResult commit_translation(int index, const std::string& translation,
@@ -247,8 +253,12 @@ private:
     KeyboardShortcut voice_input_shortcut_;
     VoiceRequest voice_request_ = VoiceRequest::kNone;
     bool voice_capture_ = false;
+    bool voice_key_from_client_ = false;
     // The voice key outside recording: commits a composition as typed, asks for recording.
     ProcessResult request_voice_input();
+    // " " after an English word committed with a number, the mouse or Enter (engine.auto_space,
+    // English among learning.space_languages), else "" (issue #28).
+    std::string english_auto_space() const;
 
     std::shared_ptr<const EngineRuntimeState> runtime_;
 

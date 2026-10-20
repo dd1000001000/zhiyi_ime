@@ -198,7 +198,11 @@ void Engine::init_per_session(const Config& config) {
     ascii_toggle_shortcut_ = config.ascii_toggle_shortcut;
     punct_toggle_shortcut_ = config.punct_toggle_shortcut;
     shape_toggle_shortcut_ = config.shape_toggle_shortcut;
-    voice_input_shortcut_ = config.voice_input_shortcut;
+    // Voice input off: the voice key is not taken (the key reaches the program, no notice).
+    // Read by the client: not here either.
+    voice_input_shortcut_ = config.voice_enable && !voice_key_from_client_
+                                ? config.voice_input_shortcut
+                                : KeyboardShortcut{};
     english_word_mode_ = config.english.word_mode;
     pinyin_style_ = config.pinyin_style;
     // Start loading the Laya model in the background so it is ready by the first keystroke.
@@ -216,34 +220,6 @@ std::string tail_chars(const std::string& text, std::size_t max_chars) {
         if ((static_cast<unsigned char>(text[begin]) & 0xC0) != 0x80) ++chars;
     }
     return text.substr(begin);
-}
-
-// The first / last code point of UTF-8 `text` (0 when empty).
-char32_t first_code_point(const std::string& text) {
-    if (text.empty()) return 0;
-    const auto lead = static_cast<unsigned char>(text[0]);
-    const int length = lead < 0x80 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4;
-    char32_t code = length == 1 ? lead : lead & (0x7F >> length);
-    for (int i = 1; i < length && i < static_cast<int>(text.size()); ++i) {
-        code = (code << 6) | (static_cast<unsigned char>(text[i]) & 0x3F);
-    }
-    return code;
-}
-
-char32_t last_code_point(const std::string& text) {
-    std::size_t begin = text.size();
-    while (begin > 0 && (static_cast<unsigned char>(text[--begin]) & 0xC0) == 0x80) {
-    }
-    return first_code_point(text.substr(begin));
-}
-
-// A letter or digit that is not Chinese or Japanese (Latin, Cyrillic, Hangul), not punctuation
-// or a space: a word a translation is spaced from.
-bool spaced_word_char(char32_t c) {
-    if (c < 0x80) return std::isalnum(static_cast<int>(c)) != 0;
-    return c >= 0xC0 && c != 0xD7 && c != 0xF7 && !(c >= 0x2000 && c < 0x2C00) &&
-           !(c >= 0x2E80 && c < 0xA000) && !(c >= 0xF900 && c < 0xFB00) &&
-           !(c >= 0xFE30 && c < 0xFE50) && !(c >= 0xFF00 && c < 0xFFF0) && c < 0x20000;
 }
 
 // Appends, keeping a bounded tail (bytes); LayaRerank trims to config.laya.context_chars.
@@ -421,6 +397,19 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
                                   int visible_candidate_count) {
     CXXIME_LOG(L"Engine::process_key: vk=%u, is_key_up=%d, composing=%d",
                event.keycode, event.is_key_up, context_.is_composing());
+    // The voice key as the client read it (docs/key-gestures.md).
+    if (event.keycode == kVoiceKeyPress || event.keycode == kVoiceKeyRelease ||
+        event.keycode == kVoiceKeyCancel) {
+        if (event.is_key_up) return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+        if (event.keycode == kVoiceKeyPress) {
+            if (!voice_capture_) return request_voice_input();
+            voice_request_ = VoiceRequest::kToggle;
+        } else if (voice_capture_) {
+            voice_request_ = event.keycode == kVoiceKeyRelease ? VoiceRequest::kStop
+                                                               : VoiceRequest::kCancel;
+        }
+        return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
+    }
     const uint64_t input_revision_before = context_.preedit_revision();
     context_.visible_candidate_count = (std::max)(0, visible_candidate_count);
     context_.page_up_key = runtime_ ? runtime_->config().page_up_key : 0;
@@ -460,6 +449,7 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         return opts.chinese_mode ? ProcessResult::CYCLE_INPUT_STYLE
                                  : ProcessResult::TOGGLE_ENGLISH_STYLE;
     case AsciiModeSwitchStyle::TOGGLE_VOICE:
+        if (voice_key_from_client_) break;  // the client sent it already
         record_total_us(trace_, total_start, trace_enabled_);
         if (voice_capture_) {
             voice_request_ = VoiceRequest::kToggle;
@@ -470,8 +460,13 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
         break;
     }
 
-    // Recording (or turning it into text): nothing reaches the input box.
-    if (voice_capture_) {
+    // Recording (or turning it into text): nothing reaches the input box. The other switch
+    // keys still switch (pressed during a long press of the voice key, they end it first).
+    const bool switch_combination =
+        !event.is_key_up &&
+        (ascii_toggle_shortcut_.matches(event) || punct_toggle_shortcut_.matches(event) ||
+         shape_toggle_shortcut_.matches(event) || english_style_shortcut_.matches(event));
+    if (voice_capture_ && !switch_combination) {
         record_total_us(trace_, total_start, trace_enabled_);
         if (is_modifier_key(event.keycode)) return ProcessResult::REJECTED;
         if (event.is_key_up) {
@@ -884,11 +879,19 @@ ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& op
     }
     if (result == ProcessResult::CANDIDATE_SELECTED) {
         const std::optional<int> requested = context_.take_requested_candidate_selection();
+        const CandidateEntry* chosen = requested ? context_.candidate_entry(*requested) : nullptr;
+        const bool english_word = chosen && chosen->candidate.source == CandidateSource::kEnglish;
         if (!requested || !dispatch_candidate_selection(*requested, per_query_deadline)) {
             result = ProcessResult::ACCEPTED;
         } else {
             candidate_action_applied = context_.is_composing();
             result = context_.is_composing() ? ProcessResult::ACCEPTED : ProcessResult::COMMITTED;
+            // An English word picked by Space gets the space; by a number, the space of
+            // engine.auto_space (issue #28).
+            if (result == ProcessResult::COMMITTED && english_word) {
+                context_.committed_text += event.keycode == VK_SPACE ? std::string(" ")
+                                                                     : english_auto_space();
+            }
         }
     }
 
@@ -1237,10 +1240,13 @@ bool Engine::select_candidate(int index) {
     if (index < 0 || index >= context_.candidate_count()) {
         return false;
     }
+    const CandidateEntry* chosen = context_.candidate_entry(index);
+    const bool english_word = chosen && chosen->candidate.source == CandidateSource::kEnglish;
     if (!dispatch_candidate_selection(index, QueryDeadline::from_now(query_deadline_ms_))) {
         return false;
     }
     if (!context_.is_composing()) {
+        if (english_word) context_.committed_text += english_auto_space();  // issue #28
         apply_commit_learning_plan();
     }
     return true;
@@ -1256,13 +1262,14 @@ ProcessResult Engine::commit_translation(int index, const std::string& translati
     }
     std::string text;
     for (const auto& segment : context_.composition().converted_segments()) text += segment.text;
-    // "现在" then "now": no space; "I" then "now": a space, as between typed words.
-    if (spaced && spaced_word_char(last_code_point(live_laya_history() + text))) {
-        text += ' ';
-    }
     text += translation;
     const std::string rest = context_.active_input().substr(action->consumed_input_bytes);
     const bool english = english_composing_;
+    // The input ends here: a translation into a language written with spaces gets the space of
+    // engine.auto_space after it (issue #28).
+    if (spaced && (rest.empty() || english) && runtime_ && runtime_->config().auto_space) {
+        text += ' ';
+    }
     reset_composition_state();
     english_composing_ = false;
     if (!rest.empty() && !english &&
@@ -1646,6 +1653,17 @@ void Engine::learn_english_commit(const std::string& typed, const std::string& c
     }
 }
 
+std::string Engine::english_auto_space() const {
+    if (!runtime_ || !runtime_->config().auto_space) return {};
+    const auto& languages = runtime_->config().translation_space_languages;
+    return std::find(languages.begin(), languages.end(), "en") != languages.end() ? " " : "";
+}
+
+void Engine::set_voice_key_from_client(bool from_client) {
+    voice_key_from_client_ = from_client;
+    if (from_client) voice_input_shortcut_ = {};
+}
+
 ProcessResult Engine::request_voice_input() {
     voice_request_ = VoiceRequest::kToggle;
     if (!context_.is_composing()) return ProcessResult::INPUT_MODE_SHORTCUT_HANDLED;
@@ -1718,7 +1736,7 @@ std::optional<ProcessResult> Engine::process_english_key(const KeyEvent& event, 
         return ProcessResult::ACCEPTED;
     case VK_RETURN:
         learn_english_commit(typed, typed);
-        return commit_english(typed);
+        return commit_english(typed + english_auto_space());
     case VK_SPACE: {
         const int h = (std::max)(0, context_.translation().highlighted);
         const CandidateEntry* entry = context_.candidate_entry(h);
@@ -1773,14 +1791,19 @@ std::optional<ProcessResult> Engine::process_english_key(const KeyEvent& event, 
         const CandidateEntry* entry = context_.candidate_entry(digit);
         if (entry) {
             learn_english_commit(typed, entry->candidate.text);
-            return commit_english(entry->candidate.text);
+            return commit_english(entry->candidate.text + english_auto_space());
         }
     }
-    // Any other printable key (punctuation, 0, numpad, shifted digits): commit the typed text
-    // and the character, so ordinary English typing is never blocked.
+    // Any other printable key (punctuation, 0, numpad, shifted digits): the word and the
+    // character, so ordinary English typing is never blocked. A punctuation mark goes after the
+    // highlighted word, as Space does (the typed text unless the arrows moved; issue #28: no
+    // space then); a digit after the typed text ("mp3").
     if (auto ch = normalize_ascii_key(event)) {
-        learn_english_commit(typed, typed);
-        return commit_english(typed + *ch);
+        const int h = (std::max)(0, context_.translation().highlighted);
+        const CandidateEntry* entry = *ch >= '0' && *ch <= '9' ? nullptr : context_.candidate_entry(h);
+        const std::string word = entry ? entry->candidate.text : typed;
+        learn_english_commit(typed, word);
+        return commit_english(word + *ch);
     }
     return ProcessResult::ACCEPTED;  // other non-text keys are ignored while a word is open
 }

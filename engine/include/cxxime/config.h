@@ -69,6 +69,11 @@ struct Config {
     // sogou_shuangpin | abc_shuangpin.
     std::string shuangpin_scheme = "xiaohe_shuangpin";
     bool wubi_auto_commit = true;  // Auto-commit the only candidate at four codes.
+    // engine.auto_space (issue #28): a word of a language written with spaces
+    // (learning.space_languages; English words are "en") committed with a number, the mouse or
+    // Enter gets a space after it. Committed with Space or a punctuation mark it gets that
+    // mark either way.
+    bool auto_space = true;
     bool wubi_commit_first_on_fifth_key = true;  // Commit the first choice before code 5.
     bool wubi_restart_on_fifth_after_miss = true;
     bool wubi_code_hint = false;  // Show the shortest remaining Wubi code in candidates.
@@ -89,8 +94,8 @@ struct Config {
     // Chinese and English candidates; empty: none. A language pack must be installed.
     std::string chinese_gloss_target;  // en ja ko fr de es ru
     std::string english_gloss_target;  // zh ja ko fr de es ru
-    // learning.space_languages: Ctrl+1..9 types a translation into these languages with a space
-    // before it after a word (a letter or digit that is not Chinese or Japanese).
+    // learning.space_languages: languages written with spaces between words; their words and
+    // translations get the space of engine.auto_space after them.
     std::vector<std::string> translation_space_languages = {"en", "ko", "fr", "de", "es", "ru"};
     // learning.digits_type_translation: 1..9 type the translation and Ctrl+1..9 the candidate
     // itself (Ctrl+1..9 type the translation by default).
@@ -109,6 +114,12 @@ struct Config {
     std::string voice_language = "auto";  // voice.language: auto, zh, en or yue
     bool voice_itn = true;                // voice.itn: numbers and dates as digits ("3点")
     int voice_max_seconds = 60;           // voice.max_seconds: recording stops by itself after this
+    // voice.key_mode: "tap" (press to start, press again to stop) or "hold" (speak while the key
+    // is held, docs/key-gestures.md).
+    std::string voice_key_mode = "tap";
+    // voice.auto_stop_ms: with "tap", recording ends by itself after this long without speech
+    // (at least 5 s before any speech) and the text goes in at once; 0 never, else 500-10000.
+    int voice_auto_stop_ms = 2000;
     int voice_min_gpu_memory_mb = 1000;   // voice.min_gpu_memory_mb: cards offered
     // A "learning" section was read. User configs written before it hold style.layout
     // "horizontal" without the user having chosen it (there was no setting), so load_user keeps
@@ -166,6 +177,9 @@ struct Config {
     // file, and anything else found there) is none, the default.
     char page_up_key = 0;
     char page_down_key = 0;
+    // shortcuts.hold_ms: how long a shortcut is held before it is a long press (the voice key:
+    // speak while holding it), 100-2000 ms (docs/key-gestures.md).
+    int shortcut_hold_ms = 400;
 
 
     // Users control only trace_mode; rotation and thresholds remain package settings.

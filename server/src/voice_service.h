@@ -50,6 +50,8 @@ public:
 
     // The voice key of session `id`: starts recording, or ends it.
     void toggle(uint32_t id);
+    // The end of a long press of the voice key: session `id`'s recording ends and is recognized.
+    void finish(uint32_t id);
     // Esc while recording, or the client's VOICE_CANCEL.
     void cancel(uint32_t id);
     void focus_in(uint32_t id);   // another session's recording is dropped
@@ -68,6 +70,12 @@ private:
     void run();
     // Drops the recording of the owner (mutex_ held); returns the session to free.
     uint32_t drop_locked();
+    // Recording of session `id` ends and is recognized (mutex_ held); false when it is not
+    // recording.
+    bool finish_locked(uint32_t id);
+    // A pause of voice.auto_stop_ms ended recording `generation`: recognized, and the text goes
+    // in at once.
+    void finish_after_pause(uint64_t generation);
     void release_capture(uint32_t id);
     void begin_recording(uint64_t generation);
     void finish_recording(uint64_t generation);
@@ -84,6 +92,7 @@ private:
     uint32_t owner_ = 0;
     uint64_t generation_ = 0;
     std::string text_;
+    bool commit_ = false;  // the text goes in at once (ended by a pause)
     std::chrono::steady_clock::time_point done_at_{};
     std::shared_ptr<const cxxime::Config> config_;
 

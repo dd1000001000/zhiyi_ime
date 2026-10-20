@@ -342,6 +342,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(page_size);
     KEEP_PAGE_EDIT(ui_language);
     KEEP_PAGE_EDIT(english.correction);
+    KEEP_PAGE_EDIT(auto_space);
     KEEP_PAGE_EDIT(candidate_learning);
     KEEP_PAGE_EDIT(experience_program);
     KEEP_PAGE_EDIT(collect_input);
@@ -357,6 +358,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(voice_device);
     KEEP_PAGE_EDIT(voice_language);
     KEEP_PAGE_EDIT(voice_itn);
+    KEEP_PAGE_EDIT(voice_key_mode);
 #undef KEEP_PAGE_EDIT
     // The switch keys move together, so a merge never repeats a key.
     if (!(ui.ascii_switch_key == before.ascii_switch_key) ||

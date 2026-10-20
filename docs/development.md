@@ -113,6 +113,7 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 | [设置指南](settings-guide.md) | 设置程序、任务栏菜单、配置文件 |
 | [隐私说明](privacy.md)（[English](privacy.en.md)） | 用户体验改进计划记录的内容 |
 | [组合输入](ascii-composer.md) | 内联 ASCII、修饰键切换、符号输入 |
+| [快捷键的点按与长按](key-gestures.md) | 所有快捷键的按下、点按、长按与打断 |
 | [候选排序设计](candidate-ordering.md) | 手动固定 / 学习偏好 / 默认排序 / 分页 |
 | [候选词选词算法](candidate-selection.md) | 拼音与五笔的查询管道 |
 | [五笔候选质量排序](wubi-candidate-ranking.md) | 五笔默认排序与验收基线 |

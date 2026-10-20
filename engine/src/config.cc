@@ -260,6 +260,7 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_string(e, "shuangpin_scheme", config.shuangpin_scheme);
         config.shuangpin_scheme = resolve_shuangpin_scheme(config.shuangpin_scheme).id;
         load_bool(e, "wubi_auto_commit", config.wubi_auto_commit);
+        load_bool(e, "auto_space", config.auto_space);
         load_bool(e, "wubi_commit_first_on_fifth_key",
                   config.wubi_commit_first_on_fifth_key);
         load_bool(e, "wubi_restart_on_fifth_after_miss",
@@ -456,6 +457,12 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_string(voice, "language", config.voice_language);
         load_bool(voice, "itn", config.voice_itn);
         load_int(voice, "max_seconds", config.voice_max_seconds);
+        load_string(voice, "key_mode", config.voice_key_mode);
+        if (config.voice_key_mode != "hold") config.voice_key_mode = "tap";
+        load_int(voice, "auto_stop_ms", config.voice_auto_stop_ms);
+        if (config.voice_auto_stop_ms != 0) {
+            config.voice_auto_stop_ms = std::clamp(config.voice_auto_stop_ms, 500, 10000);
+        }
         load_int(voice, "min_gpu_memory_mb", config.voice_min_gpu_memory_mb);
         config.voice_min_gpu_memory_mb = std::clamp(config.voice_min_gpu_memory_mb, 0, 1 << 20);
         config.voice_max_seconds = (std::max)(5, (std::min)(config.voice_max_seconds, 300));
@@ -472,6 +479,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
                                is_valid_activate_ime_shortcut);
         load_page_key(shortcuts, "page_up", "-,[", config.page_up_key);
         load_page_key(shortcuts, "page_down", "=.]", config.page_down_key);
+        load_int(shortcuts, "hold_ms", config.shortcut_hold_ms);
+        config.shortcut_hold_ms = std::clamp(config.shortcut_hold_ms, 100, 2000);
         for (const auto& [key, value] :
              {std::pair{"english_style", &config.english_style_shortcut},
               std::pair{"ascii_toggle", &config.ascii_toggle_shortcut},
@@ -664,6 +673,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["engine"]["input_style"] = input_style_name(config.input_mode, config.pinyin_style);
     j["engine"]["pinyin_scheme"] = normalize_pinyin_scheme_id(config.pinyin_scheme);
     j["engine"]["wubi_auto_commit"] = config.wubi_auto_commit;
+    j["engine"]["auto_space"] = config.auto_space;
     j["engine"]["wubi_commit_first_on_fifth_key"] =
         config.wubi_commit_first_on_fifth_key;
     j["engine"]["wubi_restart_on_fifth_after_miss"] =
@@ -785,6 +795,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["shortcuts"]["voice_input"] = keyboard_shortcut_string(config.voice_input_shortcut);
     j["shortcuts"]["page_up"] = std::string(config.page_up_key ? 1 : 0, config.page_up_key);
     j["shortcuts"]["page_down"] = std::string(config.page_down_key ? 1 : 0, config.page_down_key);
+    j["shortcuts"]["hold_ms"] = config.shortcut_hold_ms;
     j["privacy"]["experience_program"] = config.experience_program;
     j["privacy"]["collect_input"] = config.collect_input && config.experience_program;
     j["update"]["notify"] = config.update_notify;
@@ -803,6 +814,8 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["voice"]["language"] = config.voice_language;
     j["voice"]["itn"] = config.voice_itn;
     j["voice"]["max_seconds"] = config.voice_max_seconds;
+    j["voice"]["key_mode"] = config.voice_key_mode;
+    j["voice"]["auto_stop_ms"] = config.voice_auto_stop_ms;
     j["voice"]["min_gpu_memory_mb"] = config.voice_min_gpu_memory_mb;
 
     return j;

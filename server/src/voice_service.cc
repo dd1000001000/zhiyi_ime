@@ -128,6 +128,7 @@ uint32_t VoiceService::drop_locked() {
     phase_ = Phase::kIdle;
     owner_ = 0;
     text_.clear();
+    commit_ = false;
     ++generation_;
     return owner;
 }
@@ -141,20 +142,34 @@ void VoiceService::release_capture(uint32_t id) {
     });
 }
 
+bool VoiceService::finish_locked(uint32_t id) {
+    if (owner_ != id || phase_ != Phase::kListening) return false;
+    phase_ = Phase::kRecognizing;
+    const uint64_t generation = generation_;
+    overlay_.show_recognizing();
+    tasks_.push_back([this, generation] { finish_recording(generation); });
+    wake_.notify_all();
+    return true;
+}
+
+void VoiceService::finish(uint32_t id) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    finish_locked(id);
+}
+
+void VoiceService::finish_after_pause(uint64_t generation) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (generation != generation_ || phase_ != Phase::kListening) return;
+    if (finish_locked(owner_)) commit_ = true;
+}
+
 void VoiceService::toggle(uint32_t id) {
     std::shared_ptr<const cxxime::Config> config;
     uint32_t dropped = 0;
     uint64_t generation = 0;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (owner_ == id && phase_ == Phase::kListening) {
-            phase_ = Phase::kRecognizing;
-            generation = generation_;
-            overlay_.show_recognizing();
-            tasks_.push_back([this, generation] { finish_recording(generation); });
-            wake_.notify_all();
-            return;
-        }
+        if (finish_locked(id)) return;
         if (owner_ == id && phase_ == Phase::kRecognizing) return;
         if (phase_ != Phase::kIdle) dropped = drop_locked();
         config = config_;
@@ -180,6 +195,7 @@ void VoiceService::toggle(uint32_t id) {
         phase_ = Phase::kListening;
         owner_ = id;
         text_.clear();
+        commit_ = false;
         generation = ++generation_;
         overlay_.show_listening();
         tasks_.push_back([this, generation] { begin_recording(generation); });
@@ -229,6 +245,7 @@ uint32_t VoiceService::state(uint32_t id) {
 uint32_t VoiceService::take_status(uint32_t id, std::string* text) {
     text->clear();
     uint32_t done = 0;
+    bool commit = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (owner_ != id || phase_ != Phase::kDone) {
@@ -238,9 +255,14 @@ uint32_t VoiceService::take_status(uint32_t id, std::string* text) {
                                                      : cxxime::kVoiceIdle;
         }
         *text = std::move(text_);
+        commit = commit_;
         done = drop_locked();
     }
     if (done && sessions_.set_capture) sessions_.set_capture(done, false);
+    if (commit && sessions_.capabilities &&
+        (sessions_.capabilities(id) & cxxime::kClientCapabilityVoiceKey) != 0) {
+        return cxxime::kVoiceDoneCommit;
+    }
     return cxxime::kVoiceDone;
 }
 
@@ -302,10 +324,15 @@ bool VoiceService::ensure_recognizer(std::string* error) {
 
 void VoiceService::begin_recording(uint64_t generation) {
     int max_seconds = 60;
+    int auto_stop_ms = 0;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (generation != generation_ || phase_ != Phase::kListening) return;
-        if (config_) max_seconds = config_->voice_max_seconds;
+        if (config_) {
+            max_seconds = config_->voice_max_seconds;
+            // Only pressed to start and to stop: held, the key's release ends it.
+            if (config_->voice_key_mode != "hold") auto_stop_ms = config_->voice_auto_stop_ms;
+        }
     }
     std::string error;
     if (!ensure_detector(&error)) {
@@ -314,7 +341,24 @@ void VoiceService::begin_recording(uint64_t generation) {
         return;
     }
     VoiceRecorder::Listener listener;
-    listener.level = [this](float level, bool speaking) { overlay_.add_level(level, speaking); };
+    // voice.auto_stop_ms without speech ends it (before any speech, at least kQuietBeforeSpeech:
+    // time to begin).
+    static constexpr std::chrono::milliseconds kQuietBeforeSpeech{5000};
+    using Clock = std::chrono::steady_clock;
+    listener.level = [this, generation, auto_stop_ms, started = Clock::now(),
+                      last_speech = Clock::time_point{}, ended = false](float level,
+                                                                        bool speaking) mutable {
+        overlay_.add_level(level, speaking);
+        if (auto_stop_ms <= 0 || ended) return;
+        const auto now = Clock::now();
+        if (speaking) last_speech = now;
+        const bool heard = last_speech != Clock::time_point{};
+        const auto quiet = (std::max)(std::chrono::milliseconds(auto_stop_ms),
+                                      heard ? std::chrono::milliseconds(0) : kQuietBeforeSpeech);
+        if (now - (heard ? last_speech : started) < quiet) return;
+        ended = true;
+        finish_after_pause(generation);
+    };
     listener.error = [this, generation](VoiceRecorder::Error e) {
         post([this, generation, e] { recording_failed(generation, e); });
     };

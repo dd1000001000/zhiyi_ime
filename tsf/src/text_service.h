@@ -18,12 +18,14 @@ class ReadingUIElement;
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <cxxime/config.h>
 #include <cxxime/control_protocol.h>
 #include <cxxime/ime_menu.h>
 #include <cxxime/ipc_client.h>
 #include <cxxime/ipc_protocol.h>
+#include <cxxime/key_gesture.h>
 #include <cxxime/host_trace.h>
 #include <cxxime/ui_channel.h>
 
@@ -281,16 +283,28 @@ private:
     // Chinese/English, punctuation or full/half width switched directly (no input box
     // needed); false for the style key or when the server did not answer.
     bool _apply_switch_key(int slot);
-    // The style key (slot 1) or the voice key (slot 4) taken by a system hotkey (Ctrl+Space by
-    // default for the style key): sent to the server as a whole press, so it does what the key
-    // does when it reaches the IME; false when the server did not answer.
+    // The style key (slot 1) taken by a system hotkey (Ctrl+Space by default): sent to the
+    // server as a whole press, so it does what the key does when it reaches the IME; false when
+    // the server did not answer.
     bool _press_switch_key(int slot);
+    // Shortcut presses, taps and long presses (text_service_gesture.cpp, docs/key-gestures.md).
+    // Every key down and up goes through _feed_key_gesture: true when it is the voice key
+    // combination, which the text service eats (the server hears it as kVoiceKey*).
+    void _configure_key_gestures();
+    bool _feed_key_gesture(uint32_t vk, bool up);
+    void _tick_key_gestures();
+    void _end_key_gestures();  // the input box lost the focus
+    void _update_key_gesture_timer();
+    void _handle_key_gestures(const std::vector<cxxime::Gesture>& gestures);
+    // kVoiceKeyPress / kVoiceKeyRelease / kVoiceKeyCancel to the server; the voice state after.
+    uint32_t _send_voice_key(uint32_t code);
     // Voice input (text_service_voice.cpp): asking the server where the recording is while it
     // records and recognizes, and the text it gives, shown underlined until a key decides.
     void _start_voice_poll();
     void _stop_voice_poll(bool cancel);
     void _poll_voice();
-    void _show_voice_text(const std::wstring& text);
+    // Underlined until a key decides; `commit`: in at once (recording ended by a pause).
+    void _show_voice_text(const std::wstring& text, bool commit);
     void _commit_voice_text(ITfContext* context);
     void _delete_voice_text(ITfContext* context);
     // A key while the voice text is shown: true when the key was used up (Backspace, Esc,
@@ -518,6 +532,9 @@ private:
     HWND _configWindow = nullptr;
     HHOOK _translationKeyHook = nullptr;
     bool _voicePolling = false;               // the server records or recognizes for us
+    cxxime::KeyGestureTracker _keyGestures;
+    bool _keyGestureTimer = false;
+    bool _voiceHoldArmed = false;  // the voice key's press started recording: a long press ends it
     std::uint64_t _voiceTargetGeneration = 0;  // the input box it is for (_uiTargetGeneration)
     bool _voiceComposition = false;           // the voice text is shown, underlined
     std::wstring _voiceText;

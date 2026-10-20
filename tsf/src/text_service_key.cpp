@@ -142,6 +142,11 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
         _fTestKeyDownPending = true;
         return S_OK;
     }
+    if (_feed_key_gesture(static_cast<uint32_t>(wParam), false)) {
+        *pfEaten = TRUE;  // the voice key: the text service reads it
+        _fTestKeyDownPending = true;
+        return S_OK;
+    }
     const int switch_slot = _held_switch_key();
     if (switch_slot >= 0 && wParam == _switch_key(switch_slot).virtual_key &&
         !_claim_switch_key_press(switch_slot)) {
@@ -165,6 +170,11 @@ STDMETHODIMP TextService::OnTestKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lPa
     _fTestKeyDownPending = false;
     if (_fTestKeyUpPending) {
         *pfEaten = TRUE;
+        return S_OK;
+    }
+    if (_feed_key_gesture(static_cast<uint32_t>(wParam), true)) {
+        *pfEaten = TRUE;
+        _fTestKeyUpPending = true;
         return S_OK;
     }
     if (wParam < _passThroughKeyUps.size() && _passThroughKeyUps.test(wParam)) {
@@ -193,6 +203,10 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lPara
         *pfEaten = TRUE;
         return S_OK;
     }
+    if (_feed_key_gesture(static_cast<uint32_t>(wParam), false)) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
     const int switch_slot = _held_switch_key();
     if (switch_slot >= 0 && wParam == _switch_key(switch_slot).virtual_key &&
         !_claim_switch_key_press(switch_slot)) {
@@ -210,6 +224,10 @@ STDMETHODIMP TextService::OnKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lParam,
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
     if (_fTestKeyUpPending) {
         _fTestKeyUpPending = false;
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+    if (_feed_key_gesture(static_cast<uint32_t>(wParam), true)) {
         *pfEaten = TRUE;
         return S_OK;
     }
@@ -497,6 +515,11 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext* pic, REFGUID rguid, BOOL* p
     for (size_t i = 0; i < std::size(keys); ++i) {
         if (IsEqualGUID(rguid, *keys[i]) && _preservedSwitchKeys[i].enabled()) {
             const int slot = static_cast<int>(i);
+            // Every shortcut press goes through the gestures; the voice key is read there.
+            if (_feed_key_gesture(_preservedSwitchKeys[i].virtual_key, false)) {
+                *pfEaten = TRUE;
+                break;
+            }
             if (!_claim_switch_key_press(slot)) {
                 *pfEaten = TRUE;  // already run for this press (a system hotkey)
                 break;
@@ -593,6 +616,7 @@ bool TextService::_take_translation_key(UINT message, const KBDLLHOOKSTRUCT& key
 
 void TextService::_process_translation_key(UINT vk, bool key_up) {
     _modifierOverride = 0x02 | (_is_caps_lock_on() ? 0x08u : 0u);  // Ctrl
+    _feed_key_gesture(vk, key_up);
     if (key_up) {
         _ProcessKeyUp(vk, 0);
     } else if (ITfContext* context = _current_edit_context_for_composition()) {

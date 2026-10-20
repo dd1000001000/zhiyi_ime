@@ -220,6 +220,9 @@ constexpr uint32_t kVoiceIdle = 0;        // nothing (never started, dropped, or
 constexpr uint32_t kVoiceListening = 1;   // recording
 constexpr uint32_t kVoiceRecognizing = 2; // turning the recording into text
 constexpr uint32_t kVoiceDone = 3;        // voice_text holds the text
+// As kVoiceDone, and the text goes in at once: recording ended by itself after a pause
+// (voice.auto_stop_ms). Only to clients with kClientCapabilityVoiceKey.
+constexpr uint32_t kVoiceDoneCommit = 4;
 constexpr std::size_t kVoiceTextCapacity = 2048;
 
 constexpr uint32_t kContextTextRead = 1u << 0;
@@ -242,6 +245,10 @@ constexpr uint64_t kClientCapabilityCandidateRefresh = 1ULL << 2;
 // Voice input (docs/voice-input.md): the client shows the text on UiCommandType::kVoiceResult
 // (VOICE_RESULT). Recording starts only for such clients.
 constexpr uint64_t kClientCapabilityVoiceInput = 1ULL << 3;
+// The client reads the voice key itself (tap or long press, docs/key-gestures.md) and sends
+// kVoiceKeyPress / kVoiceKeyRelease / kVoiceKeyCancel: the engine leaves the voice shortcut and
+// a tapped modifier bound to toggle_voice alone for its sessions.
+constexpr uint64_t kClientCapabilityVoiceKey = 1ULL << 4;
 
 enum class PreeditPresentationFlag : uint32_t {
     SyllableBoundaries = 1u << 0,

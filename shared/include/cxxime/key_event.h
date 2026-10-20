@@ -15,6 +15,13 @@ constexpr uint32_t kKeyModifierCapsLock = 0x08;
 constexpr uint32_t kShortcutModifierMask =
     kKeyModifierShift | kKeyModifierControl | kKeyModifierAlt;
 
+// Not keys: the voice key as the text service reads it (docs/key-gestures.md), sent as key
+// codes Windows leaves unassigned. Press starts recording (or stops it, as the voice key did);
+// release ends a long press (stops and recognizes); cancel drops the recording without a word.
+constexpr uint32_t kVoiceKeyPress = 0x97;
+constexpr uint32_t kVoiceKeyRelease = 0x98;
+constexpr uint32_t kVoiceKeyCancel = 0x99;
+
 struct KeyEvent {
     uint32_t keycode = 0;
     uint32_t modifiers = 0;

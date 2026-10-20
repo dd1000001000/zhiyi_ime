@@ -24,6 +24,9 @@ constexpr UINT_PTR TIMER_CXXIME_INPUT_INDICATOR_REFRESH = 0xC317;
 constexpr UINT_PTR TIMER_CXXIME_CONVERSION_SETTLE = 0xC318;
 // Voice input: where the server's recording is (TextService::_poll_voice).
 constexpr UINT_PTR TIMER_CXXIME_VOICE_POLL = 0xC319;
+// A shortcut is held: long presses begin, missing key-ups are found
+// (TextService::_tick_key_gestures).
+constexpr UINT_PTR TIMER_CXXIME_KEY_GESTURE = 0xC31A;
 
 struct ConfigSnapshot {
     cxxime::ConfigGeneration generation;

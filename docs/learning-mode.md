@@ -183,7 +183,7 @@ value  1–3 个义项：{词性 u8, 译文 UTF-8 \0}，以词性 0xFF 结尾
   （Vulkan 版，MIT）运行。底座是 NiuTrans 的 [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B)（Apache-2.0），
   去掉 28 层里的 8 层（剩 20 层），用 Hy-MT2-7B（Apache-2.0）对约 275 万条候选和句子的译文全参数蒸馏：中、英、日、韩、法、德、西、俄、越
   9 种语言两两互译，短词、一口气打出的整句（`woshiyigeren` 一页里的“我是一个人”“卧室一个人”…）、英文词和外语句子，
-  带光标前的上文（`bench/mt9/PLAN.md`）。模型权重按 Apache-2.0 发布（第 2 版为 GPL-3.0-only）。在 FLORES-200、WMT24++、NTREX-128 上
+  带光标前的上文（`bench/mt9/PLAN.md`）。模型权重按 Apache-2.0 发布（第 2 版也是；2026-10-20 前为 GPL-3.0-only）。在 FLORES-200、WMT24++、NTREX-128 上
   COMET-22 比第 2 版高 8–11 分，和 LMT-60 原版相近（README 的对比图）。
   第 2 版（1.3.0 起）是 28 层的 LMT-60-0.6B 对约 115 万条中文、英文候选的蒸馏（397 MB）；第 1 版是 Hy-MT2-1.8B（1.13 GB）。
   模型和运行库都不在安装包里，在“学习”页点“下载”时从本仓库的 `translator` 发布下载（签名清单 `translator.json`

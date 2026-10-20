@@ -85,6 +85,20 @@ Candidates the learning-mode language packs lack are translated by a model on yo
 
 <img src="docs/media/translator.en-US.svg" alt="Offline translation models: (a)(b)(c) COMET-22 on FLORES-200, WMT24++ and NTREX-128 (d)(e)(f) answers not in the target language (g) GPU time (h) video memory (i) download size (j) CPU time (k) memory" width="100%">
 
+Zhiyi v4 (`zhiyi-mt-v4-Q4_K_M.gguf` in [release translator](https://github.com/dd1000001000/zhiyi_ime/releases/tag/translator), Apache-2.0, with a safetensors version) is released; the IME still uses v3 for now. It has v3's structure (20 layers, a 0.32 GB download, the same speed) and more training data, about 3.6 million pairs: besides v3's 2.75 million, about 0.88 million new candidates and sentences aimed at v3's weak directions (between the other languages, English into French, German and Russian, and so on), translated by Hy-MT2-7B, with the items where the context decides the meaning translated by Tencent [Hy-MT2-30B-A3B](https://huggingface.co/tencent/Hy-MT2-30B-A3B) instead; and 33,000 pairs for about 1,100 ambiguous words (each word in several real contexts that point at different meanings, translated by Hy-MT2-30B-A3B). A 28-layer teacher was first trained from LMT-60 on these pairs; the 20-layer v4 then learned each answer token half from the teacher's output probabilities and half from the translation (the ambiguous words from the translation only), in three passes.
+
+Results (COMET-22 x100, averaged over the directions, all as Q4_K_M through llama.cpp, greedy; the IME set is 1,559 real IME candidates and sentences, Chinese and English sources into the other 8 languages, scored against Hy-MT2-7B's translations):
+
+| Model | FLORES-200 | WMT24++ | NTREX-128 | IME set | Off-target (FLORES / NTREX / WMT24++) |
+|---|---|---|---|---|---|
+| Hy-MT2-7B (teacher) | 87.9 | 85.8 | 85.8 | (reference) | 0.02% / 0.03% / 0.35% |
+| LMT-60-0.6B | 82.2 | 76.7 | 81.4 | | 0.26% / 0.21% / 0.90% |
+| Zhiyi v2 | 71.7 | 67.2 | 70.7 | | 6.37% / 5.76% / 1.07% |
+| Zhiyi v3 (in the IME now) | 81.5 | 78.1 | 79.2 | 78.2 | 0.04% / 0.07% / 0.62% |
+| **Zhiyi v4** | **84.0** | **80.5** | **81.7** | **80.1** | **0.02% / 0.03% / 0.35%** |
+
+FLORES-200 by group, v3 -> v4: into English 84.8 -> 85.7, into Chinese 83.9 -> 85.1, from Chinese 82.5 -> 84.8, from English 84.4 -> 86.9, among the other 7 languages 79.8 -> 82.9. IME set by group: Chinese into English short candidates 77.3 -> 80.1 and long sentences 77.8 -> 78.6, Chinese into the other languages short 75.8 -> 78.1 and long 75.0 -> 78.0, English into Chinese 85.4 -> 86.4, English into the other languages 83.0 -> 83.6. Ambiguous words: the 1,100 words of the training data, in contexts it was not trained on that call for the less common meaning, are right 81.5% of the time (53.8% without these pairs); ambiguous words it never saw (104 held out) are right 68.5% of the time, about as before (67.8%; Hy-MT2-30B-A3B: 93.9%), so the gain covers the words it learned.
+
 ## Installation
 
 **Requirements**: Windows 10 / 11 (64-bit).
@@ -113,7 +127,7 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [Laya](https://huggingface.co/convaiinnovations/laya): the recommendation model's architecture and the teacher it was distilled from (Apache-2.0)
 - [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small): the recommendation model's encoder, mmBERT-small (MIT)
 - [LMT-60](https://huggingface.co/NiuTrans/LMT-60-0.6B) (NiuTrans): the base of the offline translation model (Apache-2.0)
-- [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B) (Tencent Hunyuan): the first offline translation model (1.8B) and the teacher it was distilled from (7B) (Apache-2.0)
+- [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B) (Tencent Hunyuan): the first offline translation model (1.8B) and the teachers it was distilled from (7B, and [30B-A3B](https://huggingface.co/tencent/Hy-MT2-30B-A3B) from v4) (Apache-2.0)
 - [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B) (Qwen): the teachers Zhiyi 1.4V2-Long-L18's, Sim-L18's and Long-L12's word choice and Long-L12's composition head were distilled from, fine-tuned with LoRA (Apache-2.0)
 - [Youmo IME](https://github.com/Sraw/youmo-ime): the base of the word n-gram (its pinyin language model) and the tool that mixed it (LGPL-2.1-or-later); that base comes from [libime](https://github.com/fcitx/libime) (LGPL-2.1-or-later) and pages of [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) (ODC-By) and [Common Crawl](https://commoncrawl.org)
 - [CSL](https://github.com/ydli-ai/CSL) (Chinese Scientific Literature, Apache-2.0): the science text mixed into the word n-gram
@@ -132,6 +146,6 @@ The learning-mode language packs were generated offline by large language models
 checked automatically and corrected by hand; the word lists are open under GPL-3.0 at
 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary).
 
-Zhiyi IME is licensed under [GPL-3.0-only](LICENSE). The weights of the models Zhiyi trained itself (every recommendation model, offline translation models v2 and v3) are licensed under [Apache-2.0](data/licenses/Apache-2.0.txt) (GPL-3.0-only until 2026-10-20); the word n-gram ng1017 is licensed under [LGPL-2.1-or-later](data/licenses/LGPL-2.1.txt) like its base; the voice models (SenseVoice-Small, Silero VAD) and the llama.cpp runtime are not Zhiyi's and keep their own licenses, which come with the download; full notices are in [NOTICE](NOTICE) and
+Zhiyi IME is licensed under [GPL-3.0-only](LICENSE). The weights of the models Zhiyi trained itself (every recommendation model, offline translation models v2, v3 and v4) are licensed under [Apache-2.0](data/licenses/Apache-2.0.txt) (GPL-3.0-only until 2026-10-20); the word n-gram ng1017 is licensed under [LGPL-2.1-or-later](data/licenses/LGPL-2.1.txt) like its base; the voice models (SenseVoice-Small, Silero VAD) and the llama.cpp runtime are not Zhiyi's and keep their own licenses, which come with the download; full notices are in [NOTICE](NOTICE) and
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt). Development and build notes:
 [docs/development.md](docs/development.md).

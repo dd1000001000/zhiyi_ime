@@ -1,0 +1,74 @@
+name: Release binaries
+
+on:
+  push:
+    branches:
+      - ci/release-binaries
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-binaries-${{ github.ref }}
+  cancel-in-progress: true
+
+# Builds the binaries a release ships, as the installer packages them: the 64-bit program and the
+# 32-bit input method modules (production build). These are the files that would go to code
+# signing; the installer itself is assembled elsewhere.
+jobs:
+  build:
+    name: Build x64 + Win32
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: "4"
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Fetch ONNX Runtime
+        shell: pwsh
+        run: python scripts/fetch_onnxruntime.py
+
+      - name: Build x64
+        shell: pwsh
+        run: |
+          cmake -S . -B out-x64 -G "Visual Studio 17 2022" -A x64 `
+            -DCXXIME_PRODUCTION_BUILD=ON -DCXXIME_BUILD_TESTS=OFF -DCXXIME_BUILD_TOOLS=OFF
+          cmake --build out-x64 --config Release
+
+      - name: Build Win32 input method modules
+        shell: pwsh
+        run: |
+          cmake -S . -B out-x86 -G "Visual Studio 17 2022" -A Win32 `
+            -DCXXIME_PRODUCTION_BUILD=ON -DCXXIME_BUILD_TESTS=OFF -DCXXIME_BUILD_TOOLS=OFF
+          cmake --build out-x86 --config Release --target cxxime-platform-modules
+
+      - name: Collect binaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force binaries | Out-Null
+          $files = Get-ChildItem out-x64, out-x86 -Recurse -File -Include zhiyi*.dll, zhiyi*.exe, zhiyi*.ime |
+            Where-Object { $_.FullName -match '\\Release\\' }
+          foreach ($f in $files) {
+            Copy-Item $f.FullName binaries
+            "{0,-32} {1,10}  {2}" -f $f.Name, $f.Length, (Get-FileHash $f.FullName).Hash
+          }
+          foreach ($need in 'zhiyi_tsf_x64.dll', 'zhiyi_tsf_x86.dll', 'zhiyi_ime_x64.ime', 'zhiyi_ime_x86.ime',
+                            'zhiyi-server.exe', 'zhiyi-settings.exe') {
+            if (-not (Test-Path "binaries/$need")) { throw "missing $need" }
+          }
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhiyi-binaries-${{ github.sha }}
+          path: binaries/
+          if-no-files-found: error

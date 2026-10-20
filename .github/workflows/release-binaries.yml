@@ -3,7 +3,10 @@ name: Release binaries
 on:
   push:
     branches:
-      - ci/release-binaries
+      - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:

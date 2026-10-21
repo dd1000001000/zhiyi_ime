@@ -9,6 +9,7 @@
 #include <windows.h>
 
 #include <cxxime/key_event.h>
+#include <cxxime/symbol_table.h>
 
 namespace cxxime {
 
@@ -52,7 +53,7 @@ bool Context::set_preedit(std::string text) {
 bool Context::start_composition(CompositionScheme scheme, std::string text,
                                 std::size_t cursor) {
     if (text.empty() || cursor > text.size() ||
-        (scheme == CompositionScheme::kSymbol && (text.front() != '\\' || cursor == 0))) {
+        (scheme == CompositionScheme::kSymbol && (text.front() != kSymbolPrefix || cursor == 0))) {
         return false;
     }
     CompositionState next = composition_;

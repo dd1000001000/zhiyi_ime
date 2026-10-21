@@ -48,7 +48,7 @@
     "general.auto_space_hint": "英文等带空格的语言：用数字、鼠标或回车上屏时，在词后加一个空格；用空格或标点上屏时只跟那个符号，不另加空格",
     "general.emoji": "表情符号:",
     "general.emoji_candidates": "拼音候选里显示 emoji",
-    "general.emoji_hint": "打 xiao 时，“笑”后面跟着 😄，每页最多 3 个。所有 emoji 可以用 \\bq 浏览",
+    "general.emoji_hint": "打 xiao 时，“笑”后面跟着 😄，每页最多 3 个。所有 emoji 可以用 /bq 浏览",
     "general.card_input": "输入与启动",
     "general.card_appearance": "外观",
     "general.layout": "候选排列:",

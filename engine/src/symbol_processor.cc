@@ -14,7 +14,7 @@ bool SymbolProcessor::is_active(const Context& context) {
 
 bool SymbolProcessor::is_trigger(const KeyEvent& event) {
     return !event.is_key_up &&
-           event.keycode == VK_OEM_5 &&
+           event.keycode == VK_OEM_2 &&
            !event.is_shift() &&
            !event.is_ctrl() &&
            !event.is_alt();

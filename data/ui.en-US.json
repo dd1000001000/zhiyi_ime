@@ -48,7 +48,7 @@
     "general.auto_space_hint": "Languages written with spaces (English ...): a word committed with a number, the mouse or Enter gets a space after it; with Space or a punctuation mark it gets just that mark",
     "general.emoji": "Emoji:",
     "general.emoji_candidates": "Show emoji among pinyin candidates",
-    "general.emoji_hint": "Typing xiao, 😄 follows 笑, at most 3 a page. Browse all emoji with \\bq",
+    "general.emoji_hint": "Typing xiao, 😄 follows 笑, at most 3 a page. Browse all emoji with /bq",
     "general.card_input": "Input and startup",
     "general.card_appearance": "Appearance",
     "general.layout": "Candidates:",

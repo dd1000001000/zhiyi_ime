@@ -12,7 +12,9 @@
 
 namespace cxxime {
 
-inline constexpr char kSymbolPrefix = '\\';
+// / opens symbol input: rarely typed in Chinese, and the key that starts commands elsewhere.
+// A second / types itself; \ is the enumeration comma 、.
+inline constexpr char kSymbolPrefix = '/';
 
 class SymbolTable {
 public:

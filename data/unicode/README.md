@@ -3,7 +3,7 @@
 `17.0/` 内的三份官方文件纳入版本管理，供 `generate_emoji_classification.py` 离线再生成。
 总计约 2.84 MiB，仅作为维护和测试输入；不会加载到输入法进程或复制进安装包。
 普通词典构建仍直接使用冻结的 `tools/dict_builder/emoji_classification.json`。
-`emoji-test.txt` 也是 `generate_symbols.py` 展开 `\bq` 表情分类的输入；`cldr48/` 的
+`emoji-test.txt` 也是 `generate_symbols.py` 展开 `/bq` 表情分类的输入；`cldr48/` 的
 CLDR 中文 emoji 注释（约 0.4 MiB）生成拼音候选后面的 emoji 对照表（`symbols.json` 的 `emoji_words`）。
 
 ## 官方下载地址

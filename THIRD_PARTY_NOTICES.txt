@@ -152,7 +152,7 @@ Unicode codepoints and ranges. Its dictionary-derived contents retain the
 rime-wubi86-jidian attribution above.
 The classification data is used offline; shared/src/symbol_ranges.inc derives
 compact property ranges for personal vocabulary and learning admission.
-The emoji category (\bq) of data/symbols.json lists emoji from emoji-test.txt.
+The emoji category (/bq) of data/symbols.json lists emoji from emoji-test.txt.
 Its emoji_words, the emoji offered after Chinese words, are derived from the
 unmodified CLDR Chinese annotations in data/unicode/cldr48/annotations.zh.json.
 

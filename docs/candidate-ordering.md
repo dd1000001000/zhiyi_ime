@@ -55,7 +55,7 @@
 - **五笔**：`wubi86.dict.idx`（CXWIDX v1）在构建期按「精确匹配 → 码长升序 → 词频降序 → 码序 → 文本长度 → 文本字典序」预排序 postings，运行时直接读取，不做实时评分。
 - 拼音普通管道与 Top-N 的排序规则详见 [候选词选词算法](candidate-selection.md) 与 [短输入快速路径](short-input-fast-path.md)；五笔默认排序的质量约束与审计见 [五笔候选质量排序](wubi-candidate-ranking.md)。
 
-系统词典在构建期已剥离纯符号与 emoji（见 [词典系统设计](dictionary.md)），默认排序只处理文字与混合文本候选；符号候选统一由 `\` 符号输入提供，不参与这些排序层级。
+系统词典在构建期已剥离纯符号与 emoji（见 [词典系统设计](dictionary.md)），默认排序只处理文字与混合文本候选；符号候选统一由 `/` 符号输入提供，不参与这些排序层级。
 
 emoji 在排序之后才加（`Engine::add_emoji_candidates`，`engine.emoji_candidates`）：拼音第一页里有 emoji 的词（`symbols.json` 的 `emoji_words`），后面紧跟它的 emoji，每个词最多 2 个、每页最多 3 个，第一个候选总是文字。emoji 与它跟着的词消耗同样的拼音，来源是符号，选了不记学习；挤出第一页的词排到下一页，和中文里夹的英文词一样。
 

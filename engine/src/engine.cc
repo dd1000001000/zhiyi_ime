@@ -884,7 +884,7 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
     } else if (SymbolProcessor::is_active(context_) &&
                context_.active_input() == std::string(1, kSymbolPrefix) &&
                SymbolProcessor::is_trigger(event)) {
-        // A second \ right after the one that opened symbol input: the \ punctuation (、).
+        // A second / right after the one that opened symbol input: / itself.
         context_.reset();
         if (!handle_punctuation(event, context_, opts)) {
             commit_with_punctuation(context_, std::string(1, kSymbolPrefix));

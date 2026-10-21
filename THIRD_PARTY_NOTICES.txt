@@ -136,10 +136,11 @@ data/licenses/Apache-2.0.txt in source distributions and licenses/Apache-2.0.txt
 in binary packages.
 
 
-Unicode 17.0 classification data
---------------------------------
+Unicode 17.0 classification data and CLDR 48 emoji annotations
+---------------------------------------------------------------
 
 Upstream: https://www.unicode.org/Public/17.0.0/
+Upstream: https://github.com/unicode-org/cldr-json (48.0.0)
 License: Unicode-3.0
 
 Unmodified upstream inputs are included in data/unicode/17.0/ for offline
@@ -151,6 +152,9 @@ Unicode codepoints and ranges. Its dictionary-derived contents retain the
 rime-wubi86-jidian attribution above.
 The classification data is used offline; shared/src/symbol_ranges.inc derives
 compact property ranges for personal vocabulary and learning admission.
+The emoji category (\bq) of data/symbols.json lists emoji from emoji-test.txt.
+Its emoji_words, the emoji offered after Chinese words, are derived from the
+unmodified CLDR Chinese annotations in data/unicode/cldr48/annotations.zh.json.
 
 UNICODE LICENSE V3
 

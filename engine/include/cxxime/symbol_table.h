@@ -22,6 +22,9 @@ public:
     TranslationResult translate(const TranslationRequest& request) const;
     CandidatePage translate_page(const std::string& code, int page_index, int page_size,
                                  int candidate_offset = -1) const;
+    // The emoji of a Chinese word (symbols.json "emoji_words", from the CLDR zh annotations),
+    // best first; nullptr when it has none.
+    const std::vector<std::string>* emoji_for(const std::string& word) const;
 
 private:
     struct Category {
@@ -31,6 +34,7 @@ private:
 
     std::unordered_map<std::string, Category> categories_;
     std::vector<std::string> category_order_;
+    std::unordered_map<std::string, std::vector<std::string>> emoji_words_;
 };
 
 } // namespace cxxime

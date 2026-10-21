@@ -5,6 +5,38 @@ import argparse
 import json
 from pathlib import Path
 
+DIGITS = range(ord("0"), ord("9") + 1)
+
+
+def read_points(data, props):
+    points = set()
+    for prop in props:
+        previous = -1
+        for value in data["properties"][prop]:
+            bounds = value.split("..")
+            first, last = int(bounds[0], 16), int(bounds[-1], 16)
+            if not previous < first <= last <= 0x10FFFF:
+                raise ValueError("invalid or unsorted symbol range")
+            points.update(range(first, last + 1))
+            previous = last
+    # Digits are text unless they form a keycap sequence.
+    points.difference_update(DIGITS)
+    return points
+
+
+def table(name, points):
+    ranges = []
+    for point in sorted(points):
+        if ranges and point == ranges[-1][1] + 1:
+            ranges[-1][1] = point
+        else:
+            ranges.append([point, point])
+    lines = [f"constexpr SymbolRange {name}[] = {{"]
+    for first, last in ranges:
+        lines.append(f"    {{0x{first:04X}, 0x{last:04X}}},")
+    lines.extend(["};", ""])
+    return lines
+
 
 def generate(source, output):
     data = json.loads(Path(source).read_text(encoding="utf-8"))
@@ -21,28 +53,12 @@ def generate(source, output):
         "    std::uint32_t last;",
         "};",
         "",
-        "constexpr SymbolRange kSymbolRanges[] = {",
     ]
-    points = set()
-    for prop in ("Punctuation_Or_Symbol", "Emoji"):
-        previous = -1
-        for value in data["properties"][prop]:
-            bounds = value.split("..")
-            first, last = int(bounds[0], 16), int(bounds[-1], 16)
-            if not previous < first <= last <= 0x10FFFF:
-                raise ValueError("invalid or unsorted symbol range")
-            points.update(range(first, last + 1))
-            previous = last
-    points.difference_update(range(ord("0"), ord("9") + 1))
-    ranges = []
-    for point in sorted(points):
-        if ranges and point == ranges[-1][1] + 1:
-            ranges[-1][1] = point
-        else:
-            ranges.append([point, point])
-    for first, last in ranges:
-        lines.append(f"    {{0x{first:04X}, 0x{last:04X}}},")
-    lines.extend(["};", "", "} // namespace", ""])
+    lines += table("kSymbolRanges", read_points(data, ("Punctuation_Or_Symbol", "Emoji")))
+    # Emoji drawn as emoji: by default, or (kEmojiRanges) when followed by U+FE0F.
+    lines += table("kEmojiPresentationRanges", read_points(data, ("Emoji_Presentation",)))
+    lines += table("kEmojiRanges", read_points(data, ("Emoji",)))
+    lines.extend(["} // namespace", ""])
     with Path(output).open("w", encoding="utf-8", newline="\n") as stream:
         stream.write("\n".join(lines))
 

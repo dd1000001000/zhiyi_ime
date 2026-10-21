@@ -188,8 +188,11 @@ private:
     HWND hVertical_ = nullptr, hHorizontal_ = nullptr;  // candidate layout
     HWND hPageSize_ = nullptr;
     HWND hLanguage_ = nullptr;
+    HWND hEnglishWords_ = nullptr;    // english.word_mode
+    HWND hEnglishLetters_ = nullptr;  // !english.word_mode
     HWND hEnglishCorrection_ = nullptr;
     HWND hAutoSpace_ = nullptr;  // engine.auto_space
+    HWND hEmoji_ = nullptr;      // engine.emoji_candidates
     HWND hAutostart_ = nullptr;  // startup.autostart
     HWND hLaya_ = nullptr;  // laya.enable (Chinese and English)
     // laya.device (editor_gpu.cc): only created when this computer has a card to offer

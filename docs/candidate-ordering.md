@@ -57,6 +57,8 @@
 
 系统词典在构建期已剥离纯符号与 emoji（见 [词典系统设计](dictionary.md)），默认排序只处理文字与混合文本候选；符号候选统一由 `\` 符号输入提供，不参与这些排序层级。
 
+emoji 在排序之后才加（`Engine::add_emoji_candidates`，`engine.emoji_candidates`）：拼音第一页里有 emoji 的词（`symbols.json` 的 `emoji_words`），后面紧跟它的 emoji，每个词最多 2 个、每页最多 3 个，第一个候选总是文字。emoji 与它跟着的词消耗同样的拼音，来源是符号，选了不记学习；挤出第一页的词排到下一页，和中文里夹的英文词一样。
+
 ### 1.4 分页与展示（第 4 层）
 
 有序候选列表按 `page_size` 切分返回（`CandidatePage{page_index, page_offset, page_size, total_count, highlighted}`），高亮项固定为当前页第一个候选。分页不改变排序，只负责切片与展示。

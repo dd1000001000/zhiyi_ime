@@ -26,6 +26,7 @@ bool is_valid_code(const std::string& code) {
 bool SymbolTable::load(const std::string& path) {
     categories_.clear();
     category_order_.clear();
+    emoji_words_.clear();
 
     std::ifstream file(path);
     if (!file.is_open()) {
@@ -80,12 +81,38 @@ bool SymbolTable::load(const std::string& path) {
         if (loaded.empty()) {
             return false;
         }
+        std::unordered_map<std::string, std::vector<std::string>> emoji_words;
+        if (root.contains("emoji_words")) {
+            if (!root["emoji_words"].is_object()) {
+                return false;
+            }
+            for (const auto& [word, values] : root["emoji_words"].items()) {
+                if (word.empty() || !candidate_text_fits(word) || !values.is_array() ||
+                    values.empty()) {
+                    return false;
+                }
+                std::vector<std::string>& texts = emoji_words[word];
+                for (const auto& value : values) {
+                    if (!value.is_string() || value.get<std::string>().empty() ||
+                        !candidate_text_fits(value.get<std::string>())) {
+                        return false;
+                    }
+                    texts.push_back(value.get<std::string>());
+                }
+            }
+        }
         categories_ = std::move(loaded);
         category_order_ = std::move(loaded_order);
+        emoji_words_ = std::move(emoji_words);
         return true;
     } catch (const nlohmann::json::exception&) {
         return false;
     }
+}
+
+const std::vector<std::string>* SymbolTable::emoji_for(const std::string& word) const {
+    const auto found = emoji_words_.find(word);
+    return found == emoji_words_.end() ? nullptr : &found->second;
 }
 
 CandidatePage SymbolTable::translate_page(const std::string& code, int page_index, int page_size,

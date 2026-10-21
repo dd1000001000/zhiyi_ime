@@ -568,6 +568,16 @@ def check_symbols_json(data_dir, errors):
     if "bd" not in codes:
         errors.append("symbols.json: required category missing: bd")
         return False
+    words = root.get("emoji_words", {})
+    if not isinstance(words, dict) or any(
+        not word
+        or not isinstance(texts, list)
+        or not texts
+        or any(not isinstance(text, str) or not text for text in texts)
+        for word, texts in words.items()
+    ):
+        errors.append("symbols.json: invalid emoji_words")
+        return False
     return True
 
 

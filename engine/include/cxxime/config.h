@@ -74,6 +74,9 @@ struct Config {
     // Enter gets a space after it. Committed with Space or a punctuation mark it gets that
     // mark either way.
     bool auto_space = true;
+    // engine.emoji_candidates: on the first pinyin page, emoji follow the words they stand for
+    // (笑 then 😄; symbols.json "emoji_words").
+    bool emoji_candidates = true;
     bool wubi_commit_first_on_fifth_key = true;  // Commit the first choice before code 5.
     bool wubi_restart_on_fifth_after_miss = true;
     bool wubi_code_hint = false;  // Show the shortest remaining Wubi code in candidates.

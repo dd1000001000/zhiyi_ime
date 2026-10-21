@@ -11,6 +11,7 @@
 third_party/**/LICENSE -text
 data/licenses/** -text
 data/unicode/**/*.txt -text
+data/unicode/**/*.json -text
 
 # Treat binary assets as binary even if their contents look like text.
 *.ico binary

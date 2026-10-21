@@ -1404,6 +1404,10 @@ bool SessionManager::apply_config(const std::shared_ptr<const cxxime::Config>& c
     const bool pinyin_style_changed = !previous_resources.runtime ||
                                       previous_resources.runtime->config().pinyin_style !=
                                           config->pinyin_style;
+    // Settings' English input (english.word_mode), like the input style above.
+    const bool english_words_changed = !previous_resources.runtime ||
+                                       previous_resources.runtime->config().english.word_mode !=
+                                           config->english.word_mode;
     if (!shared_.commit_prepared_config(config) &&
         (!shared_.prepare_config(config) || !shared_.commit_prepared_config(config))) {
         CXXIME_LOG(L"%s", L"SessionManager: config apply rejected because scheme load failed");
@@ -1427,7 +1431,7 @@ bool SessionManager::apply_config(const std::shared_ptr<const cxxime::Config>& c
 
     // Sync input_mode from config to all active sessions
     if (resources.runtime) {
-        if (input_mode_changed || pinyin_style_changed) {
+        if (input_mode_changed || pinyin_style_changed || english_words_changed) {
             GlobalVisibleState state = snapshot_global_state();
             if (input_mode_changed) {
                 state.input_mode =
@@ -1435,6 +1439,9 @@ bool SessionManager::apply_config(const std::shared_ptr<const cxxime::Config>& c
             }
             if (pinyin_style_changed) {
                 state.pinyin_style = resources.runtime->config().pinyin_style;
+            }
+            if (english_words_changed) {
+                state.english_words = resources.runtime->config().english.word_mode;
             }
             commit_global_state(state);
         }

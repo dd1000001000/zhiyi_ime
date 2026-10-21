@@ -10,6 +10,7 @@
         "pinyin_scheme": "full_pinyin",
         "wubi_auto_commit": true,
         "auto_space": true,
+        "emoji_candidates": true,
         "wubi_commit_first_on_fifth_key": true,
         "wubi_restart_on_fifth_after_miss": true,
         "wubi_code_hint": false,

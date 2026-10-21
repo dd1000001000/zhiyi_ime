@@ -116,6 +116,7 @@ public:
 
     std::unordered_map<std::string, bool> pair_open;
     std::unordered_map<std::string, int> alt_index;
+    // The last character typed (Engine::process_key): committed, or passed to the application.
     char last_committed_char = '\0';
 
 private:

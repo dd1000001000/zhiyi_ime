@@ -179,6 +179,8 @@ public:
     static std::string derive_spellings_path(const std::string& dict_path);
 
 private:
+    ProcessResult process_key_event(const KeyEvent& event, const OutputOptions& opts,
+                                    int visible_candidate_count);
     void init_per_session(const Config& config);
     void reset_composition_state();
     void rebuild_pipeline(InputMode mode, bool force = false);
@@ -229,6 +231,9 @@ private:
     const std::string& live_laya_history() const;
     // English words mixed into the first pinyin page (config.english.mixed_in_chinese).
     void add_english_candidates(const std::string& input, int page_size, TranslationResult& result) const;
+    // Emoji after the words of the first pinyin page they stand for (config.emoji_candidates);
+    // `limit` candidates are kept.
+    void add_emoji_candidates(int limit, TranslationResult& result) const;
     // English (ASCII) mode word completion (config.english.completion_in_ascii): letters build
     // a word, candidates = the typed text + completions, two pages at least; 1-9 (0 the tenth)
     // select, Space commits the highlighted candidate plus a space, Enter commits the typed text.

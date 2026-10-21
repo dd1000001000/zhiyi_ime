@@ -597,7 +597,7 @@ RUN_ALL_TESTS()                            // main 入口，自动发现并运�
 | `shuangpin_test` | 双拼方案描述表、候选规范输入键、分段选词与学习；拼音方式切换时按新方式重读已打的键、缺拼写表时按全拼处理 |
 | `shuangpin_schema_runtime_test` | 合成与五种内置双拼 schema 生成的 trie 由运行时索引加载与切分；模糊音拼写带全拼相同的组合位 |
 | `pinyin_spelling_schema_test` | 双拼 schema 契约、黄金映射与冲突声明校验（Python） |
-| `ordinary_candidate_test` | 语义策略：混合文本保留、纯符号/emoji 剔除，个人词/偏好/排序/学习的加载、导入与修改路径 |
+| `ordinary_candidate_test` | 语义策略：混合文本和单独的 emoji 保留、纯符号剔除，个人词/偏好/排序/学习的加载、导入与修改路径 |
 | `dictionary_symbol_policy_test` | 词典符号过滤、分类与构建期共享策略验证（Python） |
 | `symbol_catalog_test` | 独立符号清单 → symbols.json 的可复现性、顺序与非法输入边界（Python） |
 | `unicode_classification_generator_test` | 冻结 Unicode 输入复现符号/emoji 分类数据（Python） |

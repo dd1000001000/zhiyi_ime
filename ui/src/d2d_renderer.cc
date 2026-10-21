@@ -175,7 +175,7 @@ void D2DRenderer::draw_preedit(const RenderContext& ctx) {
             static_cast<float>(run.rect.right), static_cast<float>(run.rect.bottom),
         };
         render_target_->DrawText(text.c_str(), static_cast<UINT32>(text.length()), fmt_preedit_,
-                                 rect, brush);
+                                 rect, brush, D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT);
     }
 
     if (preedit_cursor_brush_ &&
@@ -302,8 +302,10 @@ HRESULT D2DRenderer::render(HDC hdc, const RECT& rect, const RenderContext& ctx)
         auto wt = dec(cr.text);
         D2D1_RECT_F tr = {(float)cr.text_rect.left, (float)cr.text_rect.top,
                           (float)cr.text_rect.right, (float)cr.text_rect.bottom};
+        // Emoji candidates in colour.
         render_target_->DrawText(wt.c_str(), (UINT32)wt.length(), fmt_left_, tr,
-                                 hl ? highlight_text_brush_ : text_brush_);
+                                 hl ? highlight_text_brush_ : text_brush_,
+                                 D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT);
         if (!cr.comment.empty()) {
             auto wc = dec(cr.comment);
             D2D1_RECT_F comment_rect = {

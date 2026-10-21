@@ -3,6 +3,8 @@
 `17.0/` 内的三份官方文件纳入版本管理，供 `generate_emoji_classification.py` 离线再生成。
 总计约 2.84 MiB，仅作为维护和测试输入；不会加载到输入法进程或复制进安装包。
 普通词典构建仍直接使用冻结的 `tools/dict_builder/emoji_classification.json`。
+`emoji-test.txt` 也是 `generate_symbols.py` 展开 `\bq` 表情分类的输入；`cldr48/` 的
+CLDR 中文 emoji 注释（约 0.4 MiB）生成拼音候选后面的 emoji 对照表（`symbols.json` 的 `emoji_words`）。
 
 ## 官方下载地址
 
@@ -11,6 +13,7 @@
 | `17.0/emoji-test.txt` | [emoji-test.txt](https://www.unicode.org/Public/17.0.0/emoji/emoji-test.txt) | 完整 emoji 序列及分组 |
 | `17.0/emoji-data.txt` | [emoji-data.txt](https://www.unicode.org/Public/17.0.0/ucd/emoji/emoji-data.txt) | Emoji 等码点属性 |
 | `17.0/UnicodeData.txt` | [UnicodeData.txt](https://www.unicode.org/Public/17.0.0/ucd/UnicodeData.txt) | Unicode 通用类别，提取 P/S |
+| `cldr48/annotations.zh.json` | [annotations.json](https://raw.githubusercontent.com/unicode-org/cldr-json/48.0.0/cldr-json/cldr-annotations-full/annotations/zh/annotations.json) | 中文 emoji 名字和关键词 |
 
 保留官方文件原始字节，不手工修订内容或转换换行。
 `.gitattributes` 禁止这三类输入的 Git 文本换行转换，避免 Windows 检出改变哈希。

@@ -341,8 +341,10 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(mt_device);
     KEEP_PAGE_EDIT(page_size);
     KEEP_PAGE_EDIT(ui_language);
+    KEEP_PAGE_EDIT(english.word_mode);
     KEEP_PAGE_EDIT(english.correction);
     KEEP_PAGE_EDIT(auto_space);
+    KEEP_PAGE_EDIT(emoji_candidates);
     KEEP_PAGE_EDIT(candidate_learning);
     KEEP_PAGE_EDIT(experience_program);
     KEEP_PAGE_EDIT(collect_input);

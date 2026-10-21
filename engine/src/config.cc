@@ -261,6 +261,7 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         config.shuangpin_scheme = resolve_shuangpin_scheme(config.shuangpin_scheme).id;
         load_bool(e, "wubi_auto_commit", config.wubi_auto_commit);
         load_bool(e, "auto_space", config.auto_space);
+        load_bool(e, "emoji_candidates", config.emoji_candidates);
         load_bool(e, "wubi_commit_first_on_fifth_key",
                   config.wubi_commit_first_on_fifth_key);
         load_bool(e, "wubi_restart_on_fifth_after_miss",
@@ -674,6 +675,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["engine"]["pinyin_scheme"] = normalize_pinyin_scheme_id(config.pinyin_scheme);
     j["engine"]["wubi_auto_commit"] = config.wubi_auto_commit;
     j["engine"]["auto_space"] = config.auto_space;
+    j["engine"]["emoji_candidates"] = config.emoji_candidates;
     j["engine"]["wubi_commit_first_on_fifth_key"] =
         config.wubi_commit_first_on_fifth_key;
     j["engine"]["wubi_restart_on_fifth_after_miss"] =

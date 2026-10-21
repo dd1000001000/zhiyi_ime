@@ -9,9 +9,106 @@
         {
             "source": "Unicode 17.0",
             "license": "Unicode-3.0"
+        },
+        {
+            "source": "Unicode CLDR 48 (zh annotations)",
+            "license": "Unicode-3.0"
         }
     ],
     "categories": [
+        {
+            "code": "bq",
+            "name": "表情符号",
+            "groups": [
+                {
+                    "name": "笑脸与情感",
+                    "emoji_group": "Smileys & Emotion"
+                },
+                {
+                    "name": "人物与手势",
+                    "emoji_group": "People & Body"
+                },
+                {
+                    "name": "动物与植物",
+                    "emoji_group": "Animals & Nature"
+                },
+                {
+                    "name": "食物与饮料",
+                    "emoji_group": "Food & Drink"
+                },
+                {
+                    "name": "旅行与地点",
+                    "emoji_group": "Travel & Places"
+                },
+                {
+                    "name": "活动",
+                    "emoji_group": "Activities"
+                },
+                {
+                    "name": "物品",
+                    "emoji_group": "Objects"
+                },
+                {
+                    "name": "符号",
+                    "emoji_group": "Symbols"
+                }
+            ]
+        },
+        {
+            "code": "ts",
+            "name": "常用符号",
+            "groups": [
+                {
+                    "name": "几何图形与参考标记",
+                    "codepoints": [
+                        "2605",
+                        "2606",
+                        "25CB",
+                        "25CF",
+                        "25CE",
+                        "25C7",
+                        "25C6",
+                        "25A1",
+                        "25A0",
+                        "25B3",
+                        "25B2",
+                        "203B"
+                    ]
+                },
+                {
+                    "name": "勾号、版权与注册标记",
+                    "codepoints": [
+                        "2713",
+                        "00A9",
+                        "00AE"
+                    ]
+                },
+                {
+                    "name": "编号、性别与章节",
+                    "codepoints": [
+                        "2116",
+                        "2642",
+                        "2640",
+                        "00A7"
+                    ]
+                },
+                {
+                    "name": "音符与变音记号",
+                    "range": [
+                        "2669",
+                        "266E"
+                    ]
+                },
+                {
+                    "name": "键盘操作符号",
+                    "codepoints": [
+                        "2318",
+                        "232B",
+                        "23CE"
+                    ]
+                }
+            ]
+        },
         {
             "code": "bd",
             "name": "补充标点",
@@ -84,6 +181,43 @@
                     "range": [
                         "2170",
                         "217B"
+                    ]
+                }
+            ]
+        },
+        {
+            "code": "jt",
+            "name": "箭头",
+            "groups": [
+                {
+                    "name": "基本方向",
+                    "codepoints": [
+                        "2192",
+                        "2191",
+                        "2190",
+                        "2193"
+                    ]
+                },
+                {
+                    "name": "斜向箭头",
+                    "range": [
+                        "2196",
+                        "2199"
+                    ]
+                },
+                {
+                    "name": "双向箭头",
+                    "range": [
+                        "2194",
+                        "2195"
+                    ]
+                },
+                {
+                    "name": "双线箭头",
+                    "codepoints": [
+                        "21D0",
+                        "21D2",
+                        "21D4"
                     ]
                 }
             ]
@@ -184,77 +318,6 @@
             ]
         },
         {
-            "code": "jt",
-            "name": "箭头",
-            "groups": [
-                {
-                    "name": "基本方向",
-                    "codepoints": [
-                        "2192",
-                        "2191",
-                        "2190",
-                        "2193"
-                    ]
-                },
-                {
-                    "name": "斜向箭头",
-                    "range": [
-                        "2196",
-                        "2199"
-                    ]
-                },
-                {
-                    "name": "双向箭头",
-                    "range": [
-                        "2194",
-                        "2195"
-                    ]
-                },
-                {
-                    "name": "双线箭头",
-                    "codepoints": [
-                        "21D0",
-                        "21D2",
-                        "21D4"
-                    ]
-                }
-            ]
-        },
-        {
-            "code": "xl",
-            "name": "希腊字母",
-            "groups": [
-                {
-                    "name": "小写 alpha 至 rho",
-                    "range": [
-                        "03B1",
-                        "03C1"
-                    ]
-                },
-                {
-                    "name": "小写 sigma 至 omega",
-                    "range": [
-                        "03C3",
-                        "03C9"
-                    ]
-                },
-                {
-                    "name": "大写 alpha 至 rho",
-                    "range": [
-                        "0391",
-                        "03A1"
-                    ]
-                },
-                {
-                    "name": "大写 sigma 至 omega",
-                    "range": [
-                        "03A3",
-                        "03A9"
-                    ]
-                }
-            ]
-        },
-        {
             "code": "dw",
             "name": "单位",
             "groups": [
@@ -298,56 +361,35 @@
             ]
         },
         {
-            "code": "ts",
-            "name": "常用符号",
+            "code": "xl",
+            "name": "希腊字母",
             "groups": [
                 {
-                    "name": "编号、性别与章节",
-                    "codepoints": [
-                        "2116",
-                        "2642",
-                        "2640",
-                        "00A7"
-                    ]
-                },
-                {
-                    "name": "几何图形与参考标记",
-                    "codepoints": [
-                        "2606",
-                        "2605",
-                        "25CB",
-                        "25CF",
-                        "25CE",
-                        "25C7",
-                        "25C6",
-                        "25A1",
-                        "25A0",
-                        "25B3",
-                        "25B2",
-                        "203B"
-                    ]
-                },
-                {
-                    "name": "音符与变音记号",
+                    "name": "小写 alpha 至 rho",
                     "range": [
-                        "2669",
-                        "266E"
+                        "03B1",
+                        "03C1"
                     ]
                 },
                 {
-                    "name": "勾号、版权与注册标记",
-                    "codepoints": [
-                        "2713",
-                        "00A9",
-                        "00AE"
+                    "name": "小写 sigma 至 omega",
+                    "range": [
+                        "03C3",
+                        "03C9"
                     ]
                 },
                 {
-                    "name": "键盘操作符号",
-                    "codepoints": [
-                        "2318",
-                        "232B",
-                        "23CE"
+                    "name": "大写 alpha 至 rho",
+                    "range": [
+                        "0391",
+                        "03A1"
+                    ]
+                },
+                {
+                    "name": "大写 sigma 至 omega",
+                    "range": [
+                        "03A3",
+                        "03A9"
                     ]
                 }
             ]
@@ -466,5 +508,6 @@
                 }
             ]
         }
-    ]
+    ],
+    "emoji_words": "bq"
 }

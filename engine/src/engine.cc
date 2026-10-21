@@ -395,6 +395,24 @@ ProcessResult Engine::process_key(const KeyEvent& event) {
 
 ProcessResult Engine::process_key(const KeyEvent& event, const OutputOptions& opts,
                                   int visible_candidate_count) {
+    const ProcessResult result = process_key_event(event, opts, visible_candidate_count);
+    // The last character typed, for the period after a number (handle_punctuation): what was
+    // committed, or the key passed to the application; another key (an arrow, Backspace, a
+    // composition started) forgets it.
+    if (result == ProcessResult::COMMITTED && !context_.committed_text.empty()) {
+        context_.last_committed_char = context_.committed_text.back();
+    } else if (!event.is_key_up && !is_modifier_key(event.keycode)) {
+        const std::optional<char> typed = normalize_ascii_key(event);
+        context_.last_committed_char = result == ProcessResult::REJECTED && typed &&
+                                               !event.is_ctrl() && !event.is_alt()
+                                           ? *typed
+                                           : '\0';
+    }
+    return result;
+}
+
+ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptions& opts,
+                                        int visible_candidate_count) {
     CXXIME_LOG(L"Engine::process_key: vk=%u, is_key_up=%d, composing=%d",
                event.keycode, event.is_key_up, context_.is_composing());
     // The voice key as the client read it (docs/key-gestures.md).
@@ -1124,7 +1142,6 @@ void Engine::commit_with_punctuation(Context& context, const std::string& output
         context.committed_text = output;
         context.set_commit_source(CommitSource::kRawCodePretransformed);
     }
-    context.last_committed_char = output.back();
 }
 
 bool Engine::handle_punctuation(const KeyEvent& event, Context& context,
@@ -1162,11 +1179,10 @@ bool Engine::handle_punctuation(const KeyEvent& event, Context& context,
     if (!entry)
         return false;
 
-    // Step 5: digit separator guard
-    if (context.active_input().empty() &&
+    // Step 5: a period right after a number is a decimal point (3.14, issue #32).
+    if (context.active_input().empty() && key == "." &&
         std::isdigit(static_cast<unsigned char>(context.last_committed_char))) {
-        if (key == "." || key == ",")
-            return false;
+        return false;
     }
 
     // Step 6: process punct type
@@ -1429,6 +1445,7 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
         // continues after the last candidate shown: it keeps that many (issue #21).
         add_english_candidates(request.input, candidate_limit > 0 ? candidate_limit : page_size,
                                result);
+        add_emoji_candidates(candidate_limit > 0 ? candidate_limit : page_size, result);
         // Nothing matched (neither pinyin nor an English word): offer the typed text itself.
         const std::string& input = request.input;
         // Only for a completed query: a failed or degraded one keeps the engine's retry and
@@ -1489,6 +1506,49 @@ void Engine::add_english_candidates(const std::string& input, int page_size,
     if (page_size > 0 && static_cast<int>(result.entries.size()) > page_size)
         result.entries.resize(static_cast<size_t>(page_size));
     if (result.highlighted < 0 && !result.entries.empty()) result.highlighted = 0;
+}
+
+void Engine::add_emoji_candidates(int limit, TranslationResult& result) const {
+    const SymbolTable* symbols = runtime_->symbol_table();
+    if (!runtime_->config().emoji_candidates || !symbols) return;
+    // A few, so the page stays mostly words: at most two after a word and three a page.
+    constexpr int kEmojiPerWord = 2;
+    constexpr int kEmojiPerPage = 3;
+    // The words of the first page (the next page's query, translate_after_visible_anchor,
+    // sees the same ones and so the same emoji).
+    const int page_size = runtime_->config().page_size;
+    int added = 0;
+    std::size_t index = 0;
+    for (int word = 0; word < page_size && index < result.entries.size() && added < kEmojiPerPage;
+         ++word) {
+        const CandidateEntry& entry = result.entries[index++];
+        const auto* action = std::get_if<TextSelectionAction>(&entry.selection);
+        const std::vector<std::string>* emoji =
+            action && entry.candidate.source == CandidateSource::kPinyin
+                ? symbols->emoji_for(entry.candidate.text)
+                : nullptr;
+        if (!emoji) continue;
+        const std::size_t consumed = action->consumed_input_bytes;
+        int after_word = 0;
+        for (const std::string& text : *emoji) {
+            if (after_word == kEmojiPerWord || added == kEmojiPerPage) break;
+            if (std::any_of(result.entries.begin(), result.entries.end(),
+                            [&](const CandidateEntry& e) { return e.candidate.text == text; }))
+                continue;
+            // A symbol: it consumes what its word does and committing it learns nothing.
+            Candidate c;
+            c.text = text;
+            c.source = CandidateSource::kSymbol;
+            result.entries.insert(result.entries.begin() + static_cast<std::ptrdiff_t>(index),
+                                  make_text_candidate_entry(std::move(c), consumed));
+            ++index;
+            ++after_word;
+            ++added;
+        }
+    }
+    // Words pushed out reappear on the next page, as after English words.
+    if (limit > 0 && static_cast<int>(result.entries.size()) > limit)
+        result.entries.resize(static_cast<size_t>(limit));
 }
 
 namespace {

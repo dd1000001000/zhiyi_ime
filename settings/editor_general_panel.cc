@@ -43,7 +43,10 @@ enum ControlId {
     kLanguageId,
     kPageSizeId,
     kEnglishCorrectionId,
+    kEnglishWordsId,
+    kEnglishLettersId,
     kAutoSpaceId,
+    kEmojiId,
     kVerticalId,
     kHorizontalId,
     kAutostartId,
@@ -137,9 +140,11 @@ HWND EditorApp::make_hint(const wchar_t* text, int x, int y, int width, HWND par
 
 void EditorApp::create_general_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
-    const int labels = label_width({"general.chinese_input", "general.shuangpin_scheme",
+    const int labels = label_width({"general.chinese_input", "general.english_input",
+                                    "general.shuangpin_scheme",
                                     "general.theme", "general.font_size", "general.layout",
                                     "general.page_size", "general.language", "general.english",
+                                    "general.emoji",
                                     "general.laya", "general.device", "general.startup"});
     int y = card_begin(panel, kPanelPadTop, tr("general.card_input"));
     const int option_width = S(110);
@@ -173,16 +178,30 @@ void EditorApp::create_general_panel(HWND panel) {
         combo_add(hShuangpinScheme_, tr(key));
     }
     y += kRowH;
+    // English mode: word suggestions or one letter at a time (english.word_mode; the style key
+    // switches it while typing).
+    const int english_input_x =
+        radios("general.english_input",
+               {{kEnglishWordsId, "general.english_words"},
+                {kEnglishLettersId, "general.english_letters"}},
+               {&hEnglishWords_, &hEnglishLetters_});
+    make_hint(tr("general.english_input_hint"), english_input_x, y - S(6), S(480), panel);
+    y += S(40);
     const int english_x = make_aligned_label(tr("general.english"), x0, labels, y, panel);
     hEnglishCorrection_ = make_check(kEnglishCorrectionId, tr("general.english_correction"),
-                                     english_x, y, S(300), panel);
+                                     english_x, y, S(150), panel);
+    hAutoSpace_ = make_check(kAutoSpaceId, tr("general.auto_space"), english_x + S(160), y,
+                             S(300), panel);
     y += kRowH;
     make_hint(tr("general.english_correction_hint"), english_x, y - S(6), S(480), panel, 1);
     y += S(20);
-    hAutoSpace_ = make_check(kAutoSpaceId, tr("general.auto_space"), english_x, y, S(300), panel);
-    y += kRowH;
     make_hint(tr("general.auto_space_hint"), english_x, y - S(6), S(480), panel);
     y += S(40);
+    const int emoji_x = make_aligned_label(tr("general.emoji"), x0, labels, y, panel);
+    hEmoji_ = make_check(kEmojiId, tr("general.emoji_candidates"), emoji_x, y, S(300), panel);
+    y += kRowH;
+    make_hint(tr("general.emoji_hint"), emoji_x, y - S(6), S(480), panel, 1);
+    y += S(20);
     const int laya_x = make_aligned_label(tr("general.laya"), x0, labels, y, panel);
     hLaya_ = make_check(kLayaId, tr("general.laya_enable"), laya_x, y, S(440), panel);
     y += kRowH;
@@ -447,8 +466,11 @@ void EditorApp::populate_controls() {
         }
     }
     combo_set_index(hLanguage_, language_index);
+    set_check(hEnglishWords_, config_.english.word_mode);
+    set_check(hEnglishLetters_, !config_.english.word_mode);
     set_check(hEnglishCorrection_, config_.english.correction);
     set_check(hAutoSpace_, config_.auto_space);
+    set_check(hEmoji_, config_.emoji_candidates);
     set_check(hAutostart_, config_.autostart);
     set_check(hLaya_, config_.laya.enable);
     populate_device();
@@ -491,8 +513,10 @@ bool EditorApp::read_controls(bool report_errors) {
     c.ui_language = language_index > 0 && language_index <= static_cast<int>(languages_.size())
                         ? languages_[language_index - 1].code
                         : kAutoUiLanguage;
+    c.english.word_mode = !get_check(hEnglishLetters_);
     c.english.correction = get_check(hEnglishCorrection_);
     c.auto_space = get_check(hAutoSpace_);
+    c.emoji_candidates = get_check(hEmoji_);
     c.autostart = get_check(hAutostart_);
     c.laya.enable = get_check(hLaya_);
     c.laya.device = selected_device();

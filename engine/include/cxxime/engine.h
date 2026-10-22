@@ -261,8 +261,8 @@ private:
     bool voice_key_from_client_ = false;
     // The voice key outside recording: commits a composition as typed, asks for recording.
     ProcessResult request_voice_input();
-    // " " after an English word committed with a number, the mouse or Enter (engine.auto_space,
-    // English among learning.space_languages), else "" (issue #28).
+    // " " after an English-mode word committed with a number, the mouse or Enter
+    // (engine.auto_space, English among learning.space_languages), else "" (issue #28).
     std::string english_auto_space() const;
 
     std::shared_ptr<const EngineRuntimeState> runtime_;

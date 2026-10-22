@@ -127,11 +127,15 @@ void EditorApp::create_learning_panel(HWND panel) {
     const int labels = label_width({"learning.chinese", "learning.english"});
     int y = card_begin(panel, kPanelPadTop, tr("learning.card_translation"));
     const int top = y;
+    const int preview_width = S(250);
+    const int preview_x = client.right - kPanelPadLeft - preview_width;
     const int combo_x = make_aligned_label(tr("learning.chinese"), x0, labels, y, panel);
+    // Clear of the preview beside them (English labels are wider).
+    const int combo_width = (std::min)(S(180), preview_x - S(12) - combo_x);
     hChineseTarget_ = CreateWindowExW(
         0, L"COMBOBOX", L"",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS,
-        combo_x, y, S(180), S(300), panel,
+        combo_x, y, combo_width, S(300), panel,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kChineseTargetId)), GetModuleHandle(nullptr),
         nullptr);
     y += kRowH;
@@ -139,7 +143,7 @@ void EditorApp::create_learning_panel(HWND panel) {
     hEnglishTarget_ = CreateWindowExW(
         0, L"COMBOBOX", L"",
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS,
-        combo_x, y, S(180), S(300), panel,
+        combo_x, y, combo_width, S(300), panel,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kEnglishTargetId)), GetModuleHandle(nullptr),
         nullptr);
     for (HWND combo : {hChineseTarget_, hEnglishTarget_}) {
@@ -147,8 +151,6 @@ void EditorApp::create_learning_panel(HWND panel) {
         scroll_page_on_wheel(combo);
     }
     y += kRowH;
-    const int preview_width = S(250);
-    const int preview_x = client.right - kPanelPadLeft - preview_width;
     make_hint(tr("learning.hint"), x0, y, preview_x - x0 - S(16), panel);
     y += S(40);
     make_hint(tr("learning.keys_hint"), x0, y, preview_x - x0 - S(16), panel);

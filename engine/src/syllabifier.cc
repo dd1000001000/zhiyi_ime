@@ -481,6 +481,50 @@ bool Syllabifier::matches_without_fuzzy(const std::string& input,
     return std::find(positions.begin(), positions.end(), input.size()) != positions.end();
 }
 
+bool Syllabifier::matches_in_full(const std::string& input, const std::string& syllables,
+                                  bool enable_fuzzy, uint8_t fuzzy_groups) const {
+    if (input.empty() || syllables.empty()) {
+        return false;
+    }
+    SyllabifierOptions options;
+    options.enable_fuzzy = enable_fuzzy;
+    options.fuzzy_groups = enable_fuzzy ? fuzzy_groups : 0;
+    const SyllableGraph graph = build_graph(input, options);
+
+    // Input positions reachable after the first k syllables, by full spellings only.
+    std::vector<std::size_t> positions = {0};
+    std::size_t begin = 0;
+    while (begin <= syllables.size()) {
+        std::size_t end = syllables.find(':', begin);
+        if (end == std::string::npos) {
+            end = syllables.size();
+        }
+        const std::string_view syllable(syllables.data() + begin, end - begin);
+        begin = end + 1;
+        std::vector<std::size_t> next;
+        for (const std::size_t position : positions) {
+            const auto edges = graph.find(position);
+            if (edges == graph.end()) {
+                continue;
+            }
+            for (const auto& [edge_end, group] : edges->second) {
+                for (const SyllableEdge& edge : group) {
+                    if ((edge.type == kNormalSpelling || edge.type == kFuzzySpelling) &&
+                        edge.syllable == syllable &&
+                        std::find(next.begin(), next.end(), edge_end) == next.end()) {
+                        next.push_back(edge_end);
+                    }
+                }
+            }
+        }
+        if (next.empty()) {
+            return false;
+        }
+        positions = std::move(next);
+    }
+    return std::find(positions.begin(), positions.end(), input.size()) != positions.end();
+}
+
 bool Syllabifier::has_fuzzy_path(const std::string& input,
                                  const SyllabifierOptions& options) const {
     const SyllableGraph graph = build_graph(input, options);

@@ -69,10 +69,11 @@ struct Config {
     // sogou_shuangpin | abc_shuangpin.
     std::string shuangpin_scheme = "xiaohe_shuangpin";
     bool wubi_auto_commit = true;  // Auto-commit the only candidate at four codes.
-    // engine.auto_space (issue #28): a word of a language written with spaces
-    // (learning.space_languages; English words are "en") committed with a number, the mouse or
-    // Enter gets a space after it. Committed with Space or a punctuation mark it gets that
-    // mark either way.
+    // engine.auto_space (issue #28): in English mode, and for learning-mode translations, a word
+    // of a language written with spaces (learning.space_languages; English words are "en")
+    // committed with a number, the mouse or Enter gets a space after it. Committed with Space or
+    // a punctuation mark it gets that mark either way. English words among Chinese candidates
+    // never get a space.
     bool auto_space = true;
     // engine.emoji_candidates: on the first pinyin page, emoji follow the words they stand for
     // (笑 then 😄; symbols.json "emoji_words").
@@ -194,6 +195,12 @@ struct Config {
         std::string model_dir = "laya";        // relative to the server executable's directory
         std::string onnx = "laya.int8g.onnx";
         int min_candidates = 2;   // fewer comparable candidates: keep the translator's order
+        // Pinyin: when a compared candidate spells the input exactly (every syllable in full, a
+        // fuzzy reading only with fuzzy pinyin on), only such a candidate goes first; completions
+        // (想 for "xian") and initials (了哦 for "lo") keep their places (issue #34). Off by
+        // default: typists who stop inside the last syllable (jinti for 今天) lose the model's
+        // pick (bench eng_test, last syllable cut short: 67.2 -> 50.4%; full pinyin 86.7 -> 87.2).
+        bool exact_pinyin_first = false;
         // Leading candidates the model looks at (those covering the whole input are compared);
         // 0 = 2 * page_size. See Config::laya_candidate_count.
         int max_candidates = 0;

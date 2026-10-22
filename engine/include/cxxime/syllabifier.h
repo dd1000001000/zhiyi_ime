@@ -91,6 +91,11 @@ public:
     // (full syllables, initials, the last syllable unfinished; syllables after the end of the
     // input are a dictionary continuation).
     bool matches_without_fuzzy(const std::string& input, const std::string& syllables) const;
+    // True when `input` spells exactly `syllables`, every syllable in full: normal spellings,
+    // and fuzzy ones when `enable_fuzzy` allows them (issue #34). An initial, an unfinished last
+    // syllable or a word going on past the input does not match.
+    bool matches_in_full(const std::string& input, const std::string& syllables,
+                         bool enable_fuzzy, uint8_t fuzzy_groups) const;
 
 private:
     friend class PinyinResourceSet;

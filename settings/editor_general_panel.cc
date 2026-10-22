@@ -52,6 +52,7 @@ enum ControlId {
     kAutostartId,
     kLayaId,
     kDeviceId,
+    kExactPinyinId,
     kSwitchKeyId = 1101,
     kStyleKeyId,
     kPunctKeyId,
@@ -147,17 +148,28 @@ void EditorApp::create_general_panel(HWND panel) {
                                     "general.emoji",
                                     "general.laya", "general.device", "general.startup"});
     int y = card_begin(panel, kPanelPadTop, tr("general.card_input"));
-    const int option_width = S(110);
+    RECT panel_client = {};
+    GetClientRect(panel, &panel_client);
     auto radios = [&](const char* label, std::initializer_list<std::pair<int, const char*>> items,
                       std::initializer_list<HWND*> handles) {
         const int x = make_aligned_label(tr(label), x0, labels, y, panel);
+        // S(110) apart when that fits the card; otherwise (long English labels) each as wide as
+        // its text and the button.
+        const int option_width = S(110);
+        bool spaced = x + static_cast<int>(items.size()) * option_width <=
+                      static_cast<int>(panel_client.right) - kPanelPadLeft;
+        for (const auto& item : items) {
+            spaced = spaced && label_width({item.second}) + S(24) <= option_width;
+        }
         auto handle = handles.begin();
-        int i = 0;
+        int option_x = x;
+        bool first = true;
         for (const auto& [id, key] : items) {
-            **handle = make_radio(id, tr(key), x + i * option_width, y, option_width - S(6), panel,
-                                  i == 0);
+            const int width = spaced ? option_width : label_width({key}) + S(24);
+            **handle = make_radio(id, tr(key), option_x, y, width - S(6), panel, first);
+            option_x += width;
             ++handle;
-            ++i;
+            first = false;
         }
         y += kRowH;
         return x;
@@ -170,8 +182,8 @@ void EditorApp::create_general_panel(HWND panel) {
                           {kWubiId, "general.wubi"},
                           {kShuangpinId, "general.shuangpin"}},
                          {&hFullPinyin_, &hInitials_, &hWubi_, &hShuangpin_});
-    make_hint(tr("general.input_style_hint"), x, y - S(6), S(480), panel);
-    y += S(40);
+    make_hint(tr("general.input_style_hint"), x, y - S(6), S(480), panel, 1);
+    y += S(20);
     const int scheme_x = make_aligned_label(tr("general.shuangpin_scheme"), x0, labels, y, panel);
     hShuangpinScheme_ = make_combo(kShuangpinSchemeId, scheme_x, y, S(160), panel);
     for (const char* key : kShuangpinSchemeLabels) {
@@ -185,8 +197,8 @@ void EditorApp::create_general_panel(HWND panel) {
                {{kEnglishWordsId, "general.english_words"},
                 {kEnglishLettersId, "general.english_letters"}},
                {&hEnglishWords_, &hEnglishLetters_});
-    make_hint(tr("general.english_input_hint"), english_input_x, y - S(6), S(480), panel);
-    y += S(40);
+    make_hint(tr("general.english_input_hint"), english_input_x, y - S(6), S(480), panel, 1);
+    y += S(20);
     const int english_x = make_aligned_label(tr("general.english"), x0, labels, y, panel);
     hEnglishCorrection_ = make_check(kEnglishCorrectionId, tr("general.english_correction"),
                                      english_x, y, S(150), panel);
@@ -195,8 +207,8 @@ void EditorApp::create_general_panel(HWND panel) {
     y += kRowH;
     make_hint(tr("general.english_correction_hint"), english_x, y - S(6), S(480), panel, 1);
     y += S(20);
-    make_hint(tr("general.auto_space_hint"), english_x, y - S(6), S(480), panel);
-    y += S(40);
+    make_hint(tr("general.auto_space_hint"), english_x, y - S(6), S(480), panel, 1);
+    y += S(20);
     const int emoji_x = make_aligned_label(tr("general.emoji"), x0, labels, y, panel);
     hEmoji_ = make_check(kEmojiId, tr("general.emoji_candidates"), emoji_x, y, S(300), panel);
     y += kRowH;
@@ -205,8 +217,12 @@ void EditorApp::create_general_panel(HWND panel) {
     const int laya_x = make_aligned_label(tr("general.laya"), x0, labels, y, panel);
     hLaya_ = make_check(kLayaId, tr("general.laya_enable"), laya_x, y, S(440), panel);
     y += kRowH;
-    make_hint(tr("general.laya_hint"), laya_x, y - S(6), S(480), panel);
-    y += S(40);
+    make_hint(tr("general.laya_hint"), laya_x, y - S(6), S(480), panel, 1);
+    y += S(20);
+    hExactPinyin_ = make_check(kExactPinyinId, tr("general.exact_pinyin"), laya_x, y, S(440), panel);
+    y += kRowH;
+    make_hint(tr("general.exact_pinyin_hint"), laya_x, y - S(6), S(480), panel, 1);
+    y += S(20);
     // Graphics card (editor_gpu.cc): no row when this computer has none to offer.
     load_gpu_choices();
     hDevice_ = nullptr;
@@ -373,8 +389,8 @@ void EditorApp::create_dictionary_panel(HWND panel) {
 
     // editor_backup.cc
     y = card_begin(panel, y, tr("backup.card"));
-    make_hint(tr("backup.hint"), x0, y, S(560), panel, 3);
-    y += S(3 * (kFontPt + 6) + 8);
+    make_hint(tr("backup.hint"), x0, y, S(560), panel, 2);
+    y += S(2 * (kFontPt + 6) + 8);
     make_button(kExportBackupId, tr("backup.export"), x0, y, S(120), panel);
     make_button(kImportBackupId, tr("backup.import"), x0 + S(130), y, S(120), panel);
     card_end(panel, y + S(30));
@@ -473,6 +489,7 @@ void EditorApp::populate_controls() {
     set_check(hEmoji_, config_.emoji_candidates);
     set_check(hAutostart_, config_.autostart);
     set_check(hLaya_, config_.laya.enable);
+    set_check(hExactPinyin_, config_.laya.exact_pinyin_first);
     populate_device();
 
     set_switch_key_boxes(config_);
@@ -519,6 +536,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.emoji_candidates = get_check(hEmoji_);
     c.autostart = get_check(hAutostart_);
     c.laya.enable = get_check(hLaya_);
+    c.laya.exact_pinyin_first = get_check(hExactPinyin_);
     c.laya.device = selected_device();
     const KeyChoice choices[kSwitchKeyCount] = {
         key_capture_get(hSwitchKey_), key_capture_get(hStyleKey_), key_capture_get(hPunctKey_),
@@ -627,6 +645,8 @@ void EditorApp::update_enabled_controls() {
     if (hDevice_) {
         EnableWindow(hDevice_, get_check(hLaya_) && !gpu_testing_ && !gpu_choices_.empty());
     }
+    // Grayed out (keeping its check mark) while context recommendation is off.
+    EnableWindow(hExactPinyin_, get_check(hLaya_));
 }
 
 bool EditorApp::handle_command(int control_id, int notification) {
@@ -653,7 +673,7 @@ bool EditorApp::handle_command(int control_id, int notification) {
             if (language != ui_language_) {
                 ui_language_ = language;
                 load_ui_strings(ui_language_);
-                rebuild_ui();
+                PostMessageW(hwnd_, kRebuildUiMessage, 0, 0);
             }
         }
         return true;

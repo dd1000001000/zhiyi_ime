@@ -47,6 +47,34 @@ bool is_placeholder_caret_rect(ITfContext* context, const RECT& caret_rect) {
                                     foreground_rect, caret_rect));
 }
 
+// The whole text being composed, as the caret (a host can answer an empty range badly and the
+// composed text well). False when not composing or it lies outside `foreground`.
+bool composition_text_rect(TextService* service, TfEditCookie ec, ITfContextView* view,
+                           HWND foreground, RECT* out, cxxime_tsf::TextExtRectTrace* trace) {
+    ITfComposition* composition =
+        service && service->is_composing() ? service->get_composition() : nullptr;
+    ITfRange* range = nullptr;
+    if (!composition || !view || FAILED(composition->GetRange(&range)) || !range) {
+        return false;
+    }
+    RECT rect = {};
+    BOOL clipped = FALSE;
+    const HRESULT hr = view->GetTextExt(ec, range, &rect, &clipped);
+    range->Release();
+    if (trace) {
+        trace->composition_hr = hr;
+        trace->composition_rect = rect;
+    }
+    RECT window = {};
+    if (FAILED(hr) || rect.bottom <= rect.top || rect.right < rect.left || !foreground ||
+        !GetWindowRect(foreground, &window) || rect.left < window.left ||
+        rect.left >= window.right || rect.top < window.top || rect.top >= window.bottom) {
+        return false;
+    }
+    SetRect(out, rect.left, rect.top, rect.left + 1, rect.bottom);
+    return true;
+}
+
 struct RangeCaretResult {
     RECT rect = {};
     RECT view_rect = {};
@@ -94,10 +122,10 @@ bool get_range_caret_rect(TextService* service,
         trace.text_ext_hr = text_ext_hr;
         trace.clipped = clipped != FALSE;
     }
+    HWND view_hwnd = nullptr;
+    pView->GetWnd(&view_hwnd);
+    HWND foreground = GetForegroundWindow();
     if (resolved) {
-        HWND view_hwnd = nullptr;
-        pView->GetWnd(&view_hwnd);
-        HWND foreground = GetForegroundWindow();
         if (trace_enabled) {
             trace.view_hwnd = view_hwnd;
             trace.foreground_hwnd = foreground;
@@ -112,6 +140,37 @@ bool get_range_caret_rect(TextService* service,
     if (resolved && has_view_rect &&
         cxxime_tsf::text_rect_is_outside_view(S_OK, view_rect, S_OK, rc, false)) {
         resolved = false;
+    }
+    // No caret, or one with no height (issue #24: Age of Empires II DE answers its window's
+    // bottom-right corner, where Microsoft Pinyin still finds the chat box): the composed text
+    // as a whole, the foreground thread's system caret, then where the program asked for the
+    // candidate window through IMM.
+    if (!resolved || raw_rect.bottom == raw_rect.top) {
+        cxxime_tsf::TextExtRectTrace* alternative_trace = trace_enabled ? &trace : nullptr;
+        if (trace_enabled) {
+            trace.alternatives = true;
+        }
+        RECT alternative = {};
+        HWND focus = nullptr;
+        const char* branch = nullptr;
+        if (composition_text_rect(service, ec, pView, foreground, &alternative,
+                                  alternative_trace)) {
+            branch = "composition_text";
+        } else if (cxxime_tsf::foreground_caret_rect(foreground, &alternative, &focus,
+                                                     alternative_trace)) {
+            branch = "foreground_caret";
+        } else if (cxxime_tsf::imm_candidate_caret_rect(
+                       focus ? focus : (view_hwnd ? view_hwnd : foreground), &alternative,
+                       alternative_trace)) {
+            branch = "imm_candidate_form";
+        }
+        if (branch) {
+            rc = alternative;
+            resolved = true;
+            if (trace_enabled) {
+                trace.branch = branch;
+            }
+        }
     }
     if (!resolved && service) {
         viewport_fallback = service->resolve_viewport_caret(

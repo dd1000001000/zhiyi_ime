@@ -47,6 +47,10 @@ public:
     bool matches_without_fuzzy(const std::string& input, const std::string& syllables) const {
         return syllabifier_.matches_without_fuzzy(input, syllables);
     }
+    bool matches_in_full(const std::string& input, const std::string& syllables,
+                         bool enable_fuzzy, uint8_t fuzzy_groups) const {
+        return syllabifier_.matches_in_full(input, syllables, enable_fuzzy, fuzzy_groups);
+    }
     std::vector<SpellingMatch> prefix_search(std::string_view input,
                                              bool enable_fuzzy = true,
                                              uint8_t fuzzy_groups = kAllFuzzyGroups) const;

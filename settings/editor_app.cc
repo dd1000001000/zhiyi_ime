@@ -351,6 +351,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(update_notify);
     KEEP_PAGE_EDIT(autostart);
     KEEP_PAGE_EDIT(laya.enable);
+    KEEP_PAGE_EDIT(laya.exact_pinyin_first);
     KEEP_PAGE_EDIT(laya.device);
     KEEP_PAGE_EDIT(fuzzy_pinyin);
     KEEP_PAGE_EDIT(fuzzy_groups);
@@ -459,6 +460,10 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (a->handle_update_message(msg, wp, lp) || a->handle_learning_message(msg, wp, lp) ||
         a->handle_gpu_message(msg, wp, lp) || a->handle_data_message(msg, wp, lp) ||
         a->handle_translator_message(msg, wp, lp) || a->handle_voice_message(msg, wp, lp)) {
+        return 0;
+    }
+    if (msg == kRebuildUiMessage) {
+        a->rebuild_ui();
         return 0;
     }
     if (msg == kRebuildWordListsMessage) {

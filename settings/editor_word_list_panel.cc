@@ -147,8 +147,8 @@ void EditorApp::create_word_list_panel(HWND panel) {
     int y = card_begin(panel, card_top, tr("wordlists.card"));
     make_page_button(kWordListImportId, tr("wordlists.import"),
                      client.right - kPanelPadLeft - S(130), card_top + S(10), S(130), S(28), panel);
-    make_hint(tr("wordlists.hint"), x0, y, width, panel, 4);
-    y += S(4 * (kFontPt + 6)) + S(10);
+    make_hint(tr("wordlists.hint"), x0, y, width, panel, 3);
+    y += S(3 * (kFontPt + 6)) + S(10);
 
     if (word_lists_.empty()) {
         make_hint(tr(word_lists_loaded_ ? "wordlists.empty" : "wordlists.loading"), x0, y, width,

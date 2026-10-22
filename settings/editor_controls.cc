@@ -379,7 +379,17 @@ void scroll_page_on_wheel(HWND combo) {
     if (combo) SetWindowSubclass(combo, ComboWheelProc, 1, 0);
 }
 
+// Never past the right edge of the card: long labels (English) move the controls right.
+static int fit_width(HWND parent, int x, int width) {
+    RECT client = {};
+    if (!GetClientRect(parent, &client) || client.right <= 0) {
+        return width;
+    }
+    return (std::max)(S(40), (std::min)(width, static_cast<int>(client.right) - kPanelPadLeft - x));
+}
+
 HWND make_combo(int id, int x, int y, int width, HWND parent) {
+    width = fit_width(parent, x, width);
     HWND combo =
         CreateWindowExW(0, L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST,
                         x, y, width, 200, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
@@ -400,6 +410,7 @@ void set_combo_drop_count(HWND combo, int count) {
 }
 
 HWND make_check(int id, const wchar_t* text, int x, int y, int width, HWND parent) {
+    width = fit_width(parent, x, width);
     HWND check =
         CreateWindowExW(0, L"BUTTON", text, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX, x,
                                  y, width, kCtrlH, parent, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
@@ -409,6 +420,7 @@ HWND make_check(int id, const wchar_t* text, int x, int y, int width, HWND paren
 }
 
 HWND make_radio(int id, const wchar_t* text, int x, int y, int width, HWND parent, bool group) {
+    width = fit_width(parent, x, width);
     HWND radio = CreateWindowExW(
         0, L"BUTTON", text,
         WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTORADIOBUTTON | (group ? WS_GROUP : 0), x, y,

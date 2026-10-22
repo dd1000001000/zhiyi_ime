@@ -30,6 +30,10 @@ struct LayaApplyOptions {
     // goes first and is recommended, and the page is not reranked, unless
     // config.laya.continuation_rerank.
     bool lattice_scored = false;
+    // config.laya.exact_pinyin_first: which entries of the result (as passed in) spell the input
+    // exactly. When any compared candidate does, the first slot goes to the model's best among
+    // them. Empty: no constraint.
+    std::vector<bool> exact;
 };
 
 struct LayaRerankStats {

@@ -244,4 +244,23 @@ void TextService::trace_text_ext_rect(const cxxime_tsf::TextExtRectTrace& trace)
     if (length > 0 && length < static_cast<int>(sizeof(detail))) {
         _enqueue_event_trace("caret_normalize", detail);
     }
+    if (!trace.alternatives) {
+        return;
+    }
+    // Issue #24: what the other places held (a line is at most 512 bytes, so its own event).
+    char alternatives[320] = {};
+    const int alternatives_length = snprintf(
+        alternatives, sizeof(alternatives),
+        "comp=0x%08lx/%ld,%ld,%ld,%ld fgcaret=%p/%ld,%ld,%ld,%ld fgfocus=%p "
+        "immctx=%d imm=%d/0x%lx imm_rc=%ld,%ld,%ld,%ld",
+        static_cast<unsigned long>(trace.composition_hr), trace.composition_rect.left,
+        trace.composition_rect.top, trace.composition_rect.right, trace.composition_rect.bottom,
+        static_cast<const void*>(trace.foreground_caret_hwnd), trace.foreground_caret.left,
+        trace.foreground_caret.top, trace.foreground_caret.right, trace.foreground_caret.bottom,
+        static_cast<const void*>(trace.foreground_focus_hwnd), trace.imm_context ? 1 : 0,
+        trace.imm_read ? 1 : 0, static_cast<unsigned long>(trace.imm_style), trace.imm_rect.left,
+        trace.imm_rect.top, trace.imm_rect.right, trace.imm_rect.bottom);
+    if (alternatives_length > 0 && alternatives_length < static_cast<int>(sizeof(alternatives))) {
+        _enqueue_event_trace("caret_alternatives", alternatives);
+    }
 }

@@ -4,6 +4,8 @@
 
 #include <algorithm>
 
+#include <imm.h>
+
 namespace {
 
 bool is_valid_rect(const RECT& rc) {
@@ -258,6 +260,96 @@ bool normalize_text_ext_rect(HWND view_hwnd, HWND foreground, RECT* rc,
         trace->branch = on_monitor ? "monitor" : "unresolved";
     }
     return on_monitor;
+}
+
+bool imm_candidate_caret_rect(HWND hwnd, RECT* out, TextExtRectTrace* trace) {
+    if (!hwnd || !out) {
+        return false;
+    }
+    HIMC himc = ImmGetContext(hwnd);
+    if (trace) {
+        trace->imm_context = himc != nullptr;
+    }
+    if (!himc) {
+        return false;
+    }
+    CANDIDATEFORM form = {};
+    const bool read = ImmGetCandidateWindow(himc, 0, &form) != FALSE;
+    ImmReleaseContext(hwnd, himc);
+    if (trace) {
+        trace->imm_read = read;
+        trace->imm_style = read ? form.dwStyle : 0;
+    }
+    if (!read) {
+        return false;
+    }
+    // In the client area of the window: the text to keep clear, else a caret just above the
+    // point where the window's top-left goes.
+    RECT client = {};
+    if ((form.dwStyle & CFS_EXCLUDE) && rect_has_area(form.rcArea)) {
+        client = form.rcArea;
+    } else if (form.dwStyle & (CFS_EXCLUDE | CFS_CANDIDATEPOS)) {
+        SetRect(&client, form.ptCurrentPos.x, form.ptCurrentPos.y - 20, form.ptCurrentPos.x + 1,
+                form.ptCurrentPos.y);
+    } else {
+        return false;
+    }
+    POINT points[2] = {
+        {client.left, client.top},
+        {client.right, client.bottom}
+    };
+    MapWindowPoints(hwnd, nullptr, points, 2);
+    RECT rect = {};
+    SetRect(&rect, points[0].x, points[0].y, points[1].x, points[1].y);
+    normalize_rect_size(&rect);
+    RECT window = {};
+    HWND root = GetAncestor(hwnd, GA_ROOT);
+    if (!is_valid_rect(rect) || !GetWindowRect(root ? root : hwnd, &window) ||
+        !rect_primary_point_in_rect(window, rect)) {
+        return false;
+    }
+    if (trace) {
+        trace->imm_rect = rect;
+    }
+    *out = rect;
+    return true;
+}
+
+bool foreground_caret_rect(HWND foreground, RECT* out, HWND* focus, TextExtRectTrace* trace) {
+    if (!foreground || !out) {
+        return false;
+    }
+    GUITHREADINFO gui = {sizeof(gui)};
+    const DWORD thread = GetWindowThreadProcessId(foreground, nullptr);
+    if (!thread || !GetGUIThreadInfo(thread, &gui)) {
+        return false;
+    }
+    if (focus) {
+        *focus = gui.hwndFocus;
+    }
+    if (trace) {
+        trace->foreground_caret_hwnd = gui.hwndCaret;
+        trace->foreground_focus_hwnd = gui.hwndFocus;
+        trace->foreground_caret = gui.rcCaret;
+    }
+    if (!gui.hwndCaret || !same_root_window(foreground, gui.hwndCaret)) {
+        return false;
+    }
+    POINT points[2] = {
+        {gui.rcCaret.left, gui.rcCaret.top},
+        {gui.rcCaret.right, gui.rcCaret.bottom}
+    };
+    MapWindowPoints(gui.hwndCaret, nullptr, points, 2);
+    RECT rect = {};
+    SetRect(&rect, points[0].x, points[0].y, points[1].x, points[1].y);
+    normalize_rect_size(&rect);
+    RECT window = {};
+    if (!is_valid_rect(rect) || !GetWindowRect(foreground, &window) ||
+        !rect_primary_point_in_rect(window, rect)) {
+        return false;
+    }
+    *out = rect;
+    return true;
 }
 
 bool text_rect_is_outside_view(HRESULT screen_rect_hr, const RECT& screen_rect,

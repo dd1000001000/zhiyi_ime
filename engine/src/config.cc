@@ -308,6 +308,7 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_string(l, "model_dir", config.laya.model_dir);
         load_string(l, "onnx", config.laya.onnx);
         load_int(l, "min_candidates", config.laya.min_candidates);
+        load_bool(l, "exact_pinyin_first", config.laya.exact_pinyin_first);
         load_int(l, "max_candidates", config.laya.max_candidates);
         load_double(l, "rank_prior_weight", config.laya.rank_prior_weight);
         load_double(l, "english_rank_prior_weight", config.laya.english_rank_prior_weight);
@@ -697,6 +698,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["model_dir"] = config.laya.model_dir;
     j["laya"]["onnx"] = config.laya.onnx;
     j["laya"]["min_candidates"] = config.laya.min_candidates;
+    j["laya"]["exact_pinyin_first"] = config.laya.exact_pinyin_first;
     j["laya"]["max_candidates"] = config.laya.max_candidates;
     j["laya"]["rank_prior_weight"] = config.laya.rank_prior_weight;
     j["laya"]["english_rank_prior_weight"] = config.laya.english_rank_prior_weight;

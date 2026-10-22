@@ -736,20 +736,35 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     }
     if (!has_context(context) && !(ngram && lc.ngram_without_context)) return false;
 
+    // The candidates the model compares: those covering the whole input among the first
+    // laya_candidate_count() (2 * page_size by default; the engine fetches that many for the
+    // first page and shows page_size of them).
+    const size_t limit = (std::min)(result.entries.size(),
+                                    static_cast<size_t>((std::max)(2, config.laya_candidate_count())));
+    auto covers_input = [&](size_t i) {
+        const TextSelectionAction* a = text_action(result.entries[i]);
+        return a && a->consumed_input_bytes == input.size() && !result.entries[i].candidate.text.empty();
+    };
+    // laya.exact_pinyin_first (issue #34): when one of them spells the input exactly, only such a
+    // candidate goes first (先 for "xian", not 想 completing xiang).
+    auto exact = [&](size_t i) { return i < options.exact.size() && options.exact[i]; };
+    bool any_exact = false;
+    for (size_t i = 0; i < limit; ++i)
+        if (covers_input(i) && exact(i)) any_exact = true;
+
     // Sentences the model composed in its own lattice (laya.continuation): when the first
     // candidate for the whole input is one (no dictionary word leads, as 眼科医院 would), it goes
     // first, recommended, and the page is not reranked (the word choice picks worse sentences
     // than the lattice), unless laya.continuation_rerank. A leading dictionary word is left to
-    // the word choice as before (bench: forcing the sentence over it lost 4 points).
+    // the word choice as before (bench: forcing the sentence over it lost 4 points), and so is
+    // a sentence that does not spell the input exactly when another candidate does.
     if (options.lattice_scored && !lc.continuation_rerank) {
         for (size_t i = 0; i < result.entries.size(); ++i) {
-            const TextSelectionAction* a = text_action(result.entries[i]);
-            if (!a || a->consumed_input_bytes != input.size() || result.entries[i].candidate.text.empty()) {
-                continue;
-            }
+            if (!covers_input(i)) continue;
             const Candidate& lead = result.entries[i].candidate;
             if (lead.origin != CandidateOrigin::kComposed || lead.composed_score >= 0 ||
-                utf8_length(lead.text) < static_cast<size_t>((std::max)(1, lc.sentence_min_chars))) {
+                utf8_length(lead.text) < static_cast<size_t>((std::max)(1, lc.sentence_min_chars)) ||
+                (any_exact && !exact(i))) {
                 break;
             }
             result.entries[i].candidate.recommended = true;
@@ -762,16 +777,9 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
 
     // 1. The candidates covering the whole input, any length (显示 / 西安市, 今天 / 今天是).
     //    Candidates for part of the input (飘 for "piaol") keep their places.
-    // The model compares the first laya_candidate_count() candidates (2 * page_size by default;
-    // the engine fetches that many for the first page and shows page_size of them).
-    const size_t limit = (std::min)(result.entries.size(),
-                                    static_cast<size_t>((std::max)(2, config.laya_candidate_count())));
     std::vector<size_t> idx;
-    for (size_t i = 0; i < limit; ++i) {
-        const TextSelectionAction* a = text_action(result.entries[i]);
-        if (a && a->consumed_input_bytes == input.size() && !result.entries[i].candidate.text.empty())
-            idx.push_back(i);
-    }
+    for (size_t i = 0; i < limit; ++i)
+        if (covers_input(i)) idx.push_back(i);
     if (static_cast<int>(idx.size()) < (std::max)(2, lc.min_candidates)) return false;
 
     // A long input no dictionary word covers: its candidates are sentences the engine composed.
@@ -875,8 +883,15 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     }
 
     // 3. The model's pick moves to the group's first slot (marked as recommended); every other
-    //    entry, partial-input ones included, keeps its order behind it.
-    const size_t top = order.front();
+    //    entry, partial-input ones included, keeps its order behind it. With an exact spelling
+    //    among them, the pick is the model's best of those.
+    size_t top = order.front();
+    for (size_t k : order) {
+        if (!any_exact || exact(idx[k])) {
+            top = k;
+            break;
+        }
+    }
     if (top != 0) {
         CandidateEntry pick = std::move(result.entries[idx[top]]);
         result.entries.erase(result.entries.begin() + static_cast<std::ptrdiff_t>(idx[top]));

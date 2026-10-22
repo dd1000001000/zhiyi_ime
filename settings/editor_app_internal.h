@@ -22,6 +22,10 @@ inline constexpr int kUpdatePanel = 8;    // page index of Updates
 inline constexpr int kAboutPanel = 9;     // page index of About
 // Makes the Word lists page again after an import or a removal (posted from its buttons).
 inline constexpr UINT kRebuildWordListsMessage = WM_APP + 90;
+// Makes all pages again in a new interface language. Posted from the language box: rebuilding
+// inside its CBN_SELCHANGE destroys the box while it is still handling the click (a crash in
+// COMCTL32).
+inline constexpr UINT kRebuildUiMessage = WM_APP + 91;
 
 extern float g_dpi;
 extern HFONT g_hFont;

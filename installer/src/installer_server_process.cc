@@ -116,7 +116,18 @@ int find_server_process(const std::wstring& expected_path, DWORD* process_id) {
             std::wstring image_path;
             const bool queried = query_image_path(process, &image_path);
             const DWORD query_error = queried ? ERROR_SUCCESS : GetLastError();
+            // A server that has exited but is still being torn down (the graphics driver can
+            // take seconds) is listed, yet its path reads as ERROR_GEN_FAILURE: it is still
+            // there, so the installer keeps waiting for it to go instead of giving up.
+            DWORD exit_code = STILL_ACTIVE;
+            const bool exiting = !queried && GetExitCodeProcess(process, &exit_code) != FALSE &&
+                                 exit_code != STILL_ACTIVE;
             CloseHandle(process);
+            if (exiting) {
+                *process_id = entry.th32ProcessID;
+                CloseHandle(snapshot);
+                return 0;
+            }
             if (!queried) {
                 if (process_gone_error(query_error)) {
                     found = Process32NextW(snapshot, &entry) != FALSE;
@@ -141,6 +152,19 @@ int find_server_process(const std::wstring& expected_path, DWORD* process_id) {
     const DWORD enumeration_error = GetLastError();
     CloseHandle(snapshot);
     return enumeration_error == ERROR_NO_MORE_FILES ? 1 : 2;
+}
+
+// The process has begun to exit (its exit code is set) but may still be listed.
+bool process_exiting(DWORD process_id) {
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process_id);
+    if (!process) {
+        return false;
+    }
+    DWORD exit_code = STILL_ACTIVE;
+    const bool exiting = GetExitCodeProcess(process, &exit_code) != FALSE &&
+                         exit_code != STILL_ACTIVE;
+    CloseHandle(process);
+    return exiting;
 }
 
 struct StopWindowContext {
@@ -258,7 +282,7 @@ int stop_server(const std::wstring& path, bool force) {
     if (!force) {
         StopWindowContext context = {process_id, false};
         EnumWindows(request_server_close, reinterpret_cast<LPARAM>(&context));
-        if (context.posted) {
+        if (context.posted || process_exiting(process_id)) {
             return 0;
         }
         // The server may have exited between the process snapshot and EnumWindows. Treat that
@@ -274,7 +298,10 @@ int stop_server(const std::wstring& path, bool force) {
         return remaining_status == 1 ? 0 : 1;
     }
     const BOOL terminated = TerminateProcess(process, 0) != FALSE;
-    bool already_exited = !terminated && WaitForSingleObject(process, 0) == WAIT_OBJECT_0;
+    DWORD exit_code = STILL_ACTIVE;
+    bool already_exited = !terminated && (WaitForSingleObject(process, 0) == WAIT_OBJECT_0 ||
+                                          (GetExitCodeProcess(process, &exit_code) != FALSE &&
+                                           exit_code != STILL_ACTIVE));
     CloseHandle(process);
     if (!terminated && !already_exited) {
         DWORD remaining_process_id = 0;

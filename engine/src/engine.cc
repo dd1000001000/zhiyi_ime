@@ -896,20 +896,13 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
         result = processor_->process_key(event, context_);
     }
     if (result == ProcessResult::CANDIDATE_SELECTED) {
+        // An English word among Chinese candidates goes alone, like a Chinese one: no space.
         const std::optional<int> requested = context_.take_requested_candidate_selection();
-        const CandidateEntry* chosen = requested ? context_.candidate_entry(*requested) : nullptr;
-        const bool english_word = chosen && chosen->candidate.source == CandidateSource::kEnglish;
         if (!requested || !dispatch_candidate_selection(*requested, per_query_deadline)) {
             result = ProcessResult::ACCEPTED;
         } else {
             candidate_action_applied = context_.is_composing();
             result = context_.is_composing() ? ProcessResult::ACCEPTED : ProcessResult::COMMITTED;
-            // An English word picked by Space gets the space; by a number, the space of
-            // engine.auto_space (issue #28).
-            if (result == ProcessResult::COMMITTED && english_word) {
-                context_.committed_text += event.keycode == VK_SPACE ? std::string(" ")
-                                                                     : english_auto_space();
-            }
         }
     }
 
@@ -1256,13 +1249,16 @@ bool Engine::select_candidate(int index) {
     if (index < 0 || index >= context_.candidate_count()) {
         return false;
     }
+    // Only English mode spaces a word picked by the mouse (issue #28); among Chinese candidates
+    // it goes alone.
     const CandidateEntry* chosen = context_.candidate_entry(index);
-    const bool english_word = chosen && chosen->candidate.source == CandidateSource::kEnglish;
+    const bool english_word = english_composing_ && chosen &&
+                              chosen->candidate.source == CandidateSource::kEnglish;
     if (!dispatch_candidate_selection(index, QueryDeadline::from_now(query_deadline_ms_))) {
         return false;
     }
     if (!context_.is_composing()) {
-        if (english_word) context_.committed_text += english_auto_space();  // issue #28
+        if (english_word) context_.committed_text += english_auto_space();
         apply_commit_learning_plan();
     }
     return true;
@@ -1429,6 +1425,24 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
         LayaApplyOptions options;
         options.slots = request.scheme == CompositionScheme::kPinyin;
         options.lattice_scored = span_scorer && span_scorer->scored();
+        // Issue #34: which candidates spell the input exactly, every syllable in full (fuzzy
+        // readings with fuzzy pinyin on); only those may be put first when there are any.
+        const PinyinResourceSet* resources = active_pinyin_resources();
+        if (options.slots && runtime_->config().laya.exact_pinyin_first && resources) {
+            const PinyinQueryPolicy policy = runtime_->pinyin_query_policy();
+            std::string typed = request.input;
+            typed.erase(std::remove(typed.begin(), typed.end(), '\''), typed.end());
+            options.exact.reserve(result.entries.size());
+            for (const CandidateEntry& entry : result.entries) {
+                const Candidate& candidate = entry.candidate;
+                const auto* action = std::get_if<TextSelectionAction>(&entry.selection);
+                options.exact.push_back(candidate.source == CandidateSource::kPinyin && action &&
+                                        action->consumed_input_bytes == request.input.size() &&
+                                        resources->matches_in_full(typed, candidate.syllables,
+                                                                   policy.enable_fuzzy,
+                                                                   policy.fuzzy_groups));
+            }
+        }
         LayaRerank::instance().apply(
             runtime_->config(), laya_context(state), request.input, result,
             shuangpin_model_pinyin(request.input, result, shuangpin_input()), options);

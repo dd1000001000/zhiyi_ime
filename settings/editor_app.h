@@ -195,6 +195,7 @@ private:
     HWND hEmoji_ = nullptr;      // engine.emoji_candidates
     HWND hAutostart_ = nullptr;  // startup.autostart
     HWND hLaya_ = nullptr;  // laya.enable (Chinese and English)
+    HWND hExactPinyin_ = nullptr;  // laya.exact_pinyin_first
     // laya.device (editor_gpu.cc): only created when this computer has a card to offer
     HWND hDevice_ = nullptr;
     HWND hDeviceHint_ = nullptr;

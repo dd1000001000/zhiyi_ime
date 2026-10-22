@@ -26,6 +26,18 @@ struct TextExtRectTrace {
     bool caret_pos_queried = false;
     bool caret_pos_ok = false;
     bool caret_map_ok = false;
+    // Issue #24, a caret with no height: the other places tried (alternatives = they were).
+    bool alternatives = false;
+    HRESULT composition_hr = E_UNEXPECTED;  // GetTextExt of the whole composition
+    RECT composition_rect = {};
+    HWND foreground_caret_hwnd = nullptr;   // the foreground thread's caret and focus
+    HWND foreground_focus_hwnd = nullptr;
+    RECT foreground_caret = {};
+    bool imm_context = false;
+    // imm_candidate_caret_rect: the program's CANDIDATEFORM (read, its style, the caret used).
+    bool imm_read = false;
+    DWORD imm_style = 0;
+    RECT imm_rect = {};
 };
 
 enum class CaretViewportFallback : uint8_t {
@@ -63,6 +75,17 @@ bool map_current_thread_caret_rect(HWND foreground, RECT* rect,
 bool resolve_native_caret_rect(HWND foreground, RECT* rect);
 bool normalize_text_ext_rect(HWND view_hwnd, HWND foreground, RECT* rect,
                              TextExtRectTrace* trace = nullptr);
+// Where an IMM program asked for the candidate window (ImmSetCandidateWindow: a position, or
+// the text the window must not cover), as a screen caret rect the window goes below. False
+// when the program set none (most do not) or it lies outside `hwnd`'s top-level window.
+// Issue #24: Age of Empires II DE gives TSF a caret with no height at its window's bottom-right
+// corner and its chat box only this way.
+bool imm_candidate_caret_rect(HWND hwnd, RECT* rect, TextExtRectTrace* trace = nullptr);
+// The system caret of `foreground`'s thread, on any of its windows (a game's single top-level
+// window too), in screen coordinates; false when it has none inside the window. `focus` gets
+// that thread's focus window when given.
+bool foreground_caret_rect(HWND foreground, RECT* rect, HWND* focus = nullptr,
+                           TextExtRectTrace* trace = nullptr);
 
 } // namespace cxxime_tsf
 

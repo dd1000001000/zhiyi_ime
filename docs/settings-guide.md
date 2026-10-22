@@ -33,10 +33,11 @@
 | 界面语言 | 跟随系统、简体中文或 English；设置程序与任务栏菜单使用这个语言 |
 | 英文输入 | 英文模式的输入方式：**单词联想**（默认，打几个字母就给出单词补全）或**只打字母**（每个键直接交给程序，适合终端和 vim）。打字时在英文模式按“输入方式切换”键或在任务栏菜单里也能切换，三处是同一个设置（`english.word_mode`） |
 | 英文单词 · 拼写纠错 | 和“自动添加空格”在同一行。打错时在候选里给出正确拼写，第一个候选仍是原文，不会自动替换 |
-| 英文单词 · 自动添加空格 | 默认勾选：英文等带空格的语言（`learning.space_languages`）的词，用数字、鼠标或回车上屏时在后面加一个空格；不勾时只上屏这个词。用空格或标点上屏时总是只跟那个符号（`hello` + 逗号 → `hello,`）。英文模式和中文模式里夹的英文候选、学习模式打出的翻译都一样（`engine.auto_space`） |
+| 英文单词 · 自动添加空格 | 默认勾选：英文模式里，用数字、鼠标或回车上屏的词后面加一个空格；不勾时只上屏这个词。用空格或标点上屏时总是只跟那个符号（`hello` + 逗号 → `hello,`）。学习模式打出的英文等带空格的语言（`learning.space_languages`）的翻译也照此加空格。中文模式里夹的英文候选不管怎么上屏都不加空格，和中文候选一样（`engine.auto_space`） |
 | 表情符号 · 拼音候选里显示 emoji | 默认勾选：拼音第一页里有 emoji 的词后面跟着它的 emoji（打 `xiao`，“笑”后面是 😄 ☺️），每页最多 3 个，第一个候选总是文字；选了 emoji 不记学习。全部 emoji 可以用 `/bq` 浏览（`engine.emoji_candidates`） |
 | 推理设备 | 只在这台电脑有可用的独立显卡（Direct3D 12、自带显存 1 GB 以上，核显不算；门槛见配置项 `laya.min_gpu_memory_mb`）时出现：`CPU（型号）`（默认；多路 CPU 显示为 `CPU（2 × 型号）`），以及每块显卡 `GPU（型号）`（有几块时为 `GPU 1（型号）`、`GPU 2（型号）`，同型号的两块卡也分开列出）。选显卡时先在后台把推荐模型分别放到显卡和 CPU 上各跑一遍测速，下方显示两边的耗时；显卡比 CPU 慢时这行字变成黄色并建议改用 CPU，但选择保留，由用户决定。模型在这块卡上跑不起来时改回 CPU，这块卡以后不再列出（换了驱动会重新列出）。测速结果按显卡和驱动版本记在本机数据目录的 `laya-gpu.json`（见下面的“数据位置”）。显卡上约占 500 MB 显存和 200 MB 内存；显卡不在或加载失败时自动用 CPU |
 | 上文推荐 · 按上文推荐候选和组长句（中文和英文） | 默认勾选：本机的推荐模型读取光标前的文字，把最合适的候选排到第一位并标上星号，长拼音停顿后由模型组句；中文和英文一起开关（`laya.enable`）。不勾时候选按词频和学习记录排列，下次启动不再加载模型 |
+| 上文推荐 · 只把拼音完全对上的候选提到首位 | 默认不勾。勾选后：拼音输入时，候选里有拼音完全对上的词（每个音节都打全，例如打 `xian` 时的“先”“现”“西安”），推荐只会把这样的词放到第一位；只打了一半的音节（`xian` 补成 xiang 的“想”）或只打声母（`lo` 的“了哦”）的候选留在原来的位置。开了模糊音时，所选模糊音组的读法也算对上（开了 an=ang，`xian` 的“想”就算）。没有完全对上的候选时（如简拼 `zg`）照常推荐。不勾时推荐可以把任何候选放到第一位，末音节没打完时（`jinti` 想打“今天”）也能推荐出想要的词。“上文推荐”不勾时这一项变灰（`laya.exact_pinyin_first`） |
 | 数据 · 数据位置 | 词库、学习记录、语言包、日志、推荐模型的缓存和下载的翻译模型存放的文件夹，默认 `%USERPROFILE%\zhiyi\`（本机缓存在 `%LOCALAPPDATA%\zhiyi\`）。“更改…”选一个文件夹（如 D 盘）后，数据放到 `<所选文件夹>\zhiyi\`，本机缓存放到其中的 `local\`：先关闭输入法后台，复制并逐个核对文件大小，再改用新位置、重启后台，最后删除原位置的数据。新位置已有知意的数据（如重装系统后）时可以选择沿用那里的数据。复制出错时什么都不改，原数据保持不变。“恢复默认”把数据搬回 C 盘。所选位置暂时无法访问（如移动硬盘未连接）时使用默认位置，这一行会提示 |
 | 启动 · 开机时自动启动 | 默认勾选：登录时启动后台服务 `zhiyi-server.exe`。不勾时登录不启动，第一次切换到知意输入法时才启动，要等几秒（加载词典和推荐模型）才能打字 |
 
@@ -223,7 +224,7 @@
 | `engine.shuangpin_scheme` | `xiaohe_shuangpin` | 双拼方案：`microsoft_shuangpin`、`xiaohe_shuangpin`、`ziranma_shuangpin`、`sogou_shuangpin`、`abc_shuangpin` |
 | `engine.page_size` | 7 | 每页候选数（3–10） |
 | `engine.emoji_candidates` | true | 拼音第一页的词后面跟着它的 emoji（每个词最多 2 个，每页最多 3 个）；对照表来自 Unicode CLDR 的中文 emoji 注释 |
-| `engine.auto_space` | true | 带空格的语言（`learning.space_languages`）的词用数字、鼠标或回车上屏时后面加一个空格；用空格或标点上屏时只跟那个符号 |
+| `engine.auto_space` | true | 英文模式的词和学习模式的翻译（带空格的语言，`learning.space_languages`）用数字、鼠标或回车上屏时后面加一个空格；用空格或标点上屏时只跟那个符号。中文模式里夹的英文候选从不加空格 |
 | `engine.candidate_learning` | true | 自学习 |
 | `engine.fuzzy_pinyin` / `engine.fuzzy_groups` | true / `["en_eng","in_ing"]` | 模糊音开关与组合（`z_zh`、`c_ch`、`s_sh`、`n_l`、`an_ang`、`en_eng`、`in_ing`） |
 | `engine.wubi_code_hint` | false | 五笔候选后显示剩余编码 |
@@ -236,7 +237,7 @@
 | `learning.translator_min_gpu_memory_mb` | 1000 | “学习”页离线翻译列出的显卡至少要有这么多 MB 自带显存（Vulkan 的独立显卡；模型约占 1 GB） |
 | `learning.translator_context_chars` | 32 | 交给翻译模型的光标前文字（字数，0–256），帮助多义词选对意思 |
 | `learning.translator_idle_seconds` | 60 | 这么多秒没有要翻译的词就卸载翻译模型，释放显存 |
-| `learning.space_languages` | `["en", "ko", "fr", "de", "es", "ru"]` | 带空格的语言：这些语言的词和学习模式打出的翻译按 `engine.auto_space` 在后面加空格（英文单词看 `en`；`[]` = 都不加），前面从不补空格 |
+| `learning.space_languages` | `["en", "ko", "fr", "de", "es", "ru"]` | 带空格的语言：这些语言的英文模式的词和学习模式打出的翻译按 `engine.auto_space` 在后面加空格（英文单词看 `en`；`[]` = 都不加），前面从不补空格 |
 | `voice.enable` | false | 语音输入（需要下载语音模型，见 [语音输入](voice-input.md)） |
 | `voice.device` | 空 | 语音识别在哪里运行：空 = CPU，或显卡名称（同推荐模型的 `laya.device`） |
 | `voice.min_gpu_memory_mb` | 1000 | “语音输入”页列出的显卡至少要有这么多 MB 自带显存（DirectML，不含核显） |
@@ -258,6 +259,7 @@
 | `english.correction` | true | 英文拼写纠错 |
 | `english.mixed_in_chinese` | true | 中文模式下提供完整的英文单词 |
 | `laya.enable` / `laya.english` | true / true | 上文推荐（总开关，即“常规”页的“按上文推荐候选和组长句”，也管长拼音组句 / 其中的英文部分） |
+| `laya.exact_pinyin_first` | false | 有拼音完全对上的候选时，推荐只把这样的候选放到第一位（补全和简拼的不算，模糊音开着时其读法算；issue #34） |
 | `laya.context_chars` / `laya.english_context_chars` | 128 / 192 | 交给模型的上文长度（光标前的字符数） |
 | `laya.context_memory_seconds` | 60 | 读不到输入框文字的程序里，用之前打过的字当上文；这么多秒没打字就清空（0 = 一直保留） |
 | `laya.threads` | 4 | 推理线程数（CPU） |

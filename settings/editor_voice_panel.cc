@@ -247,8 +247,8 @@ void EditorApp::create_voice_panel(HWND panel) {
     SendMessageW(hVoiceKeyText_, WM_SETFONT, reinterpret_cast<WPARAM>(get_font()), TRUE);
     make_button(kVoiceKeysLinkId, tr("voice.key_set"), key_x + S(210), y, S(150), panel);
     y += kRowH;
-    make_hint(tr("voice.usage"), x0, y - S(2), S(560), panel, 3);
-    y += S(3 * (kFontPt + 6) + 6);
+    make_hint(tr("voice.usage"), x0, y - S(2), S(560), panel, 2);
+    y += S(2 * (kFontPt + 6) + 6);
     y = card_end(panel, y);
 
     y = card_begin(panel, y, tr("voice.card_model"));

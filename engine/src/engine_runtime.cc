@@ -20,7 +20,7 @@ EngineRuntimeState::EngineRuntimeState(
     , symbol_table_(std::move(symbol_table))
     , shuangpin_resources_(std::move(shuangpin_resources))
     , pinyin_query_policy_{config_.fuzzy_pinyin && config_.fuzzy_groups != 0,
-                           config_.fuzzy_pinyin ? config_.fuzzy_groups : uint8_t{0}} {}
+                           config_.fuzzy_pinyin ? config_.fuzzy_groups : uint16_t{0}} {}
 
 std::shared_ptr<const EngineRuntimeState>
 EngineRuntimeState::create(Config config, std::shared_ptr<Dict> pinyin_dict,

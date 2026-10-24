@@ -31,6 +31,8 @@ _SCHEME_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 _SUPPORTED_SHUANGPIN_ALPHABET = frozenset("abcdefghijklmnopqrstuvwxyz;")
 _ROOT_FIELDS = {"scheme_id", "speller"}
 _FULL_PINYIN_FIELDS = {"type", "algebra", "fuzzy_groups"}
+# The part of a syllable a fuzzy pair changes: one fuzzy step per part.
+_FUZZY_GROUP_PARTS = {"initial", "final", "syllable"}
 _SHUANGPIN_FIELDS = {
     "type",
     "alphabet",
@@ -272,10 +274,14 @@ class SpellingAlgebra:
                         # Keep original key
                         temp.merge(key, K_NORMAL, 0.0, spellings)
                     if rule.addition() and new_key:
-                        # Add transformed key with rule's type, penalty and fuzzy group
-                        temp.merge(new_key, rule.rule_type(),
-                                   rule.credibility_delta(), spellings,
-                                   getattr(rule, "groups", 0))
+                        # Add transformed key with rule's type, penalty and fuzzy group; a
+                        # spelling already fuzzy in the part this rule changes is left out.
+                        blocked = getattr(rule, "blocked_groups", 0)
+                        source = [sp for sp in spellings if not sp.groups & blocked]
+                        if source:
+                            temp.merge(new_key, rule.rule_type(),
+                                       rule.credibility_delta(), source,
+                                       getattr(rule, "groups", 0))
                 else:
                     # Rule didn't match — keep unchanged
                     temp.merge(key, K_NORMAL, 0.0, spellings)
@@ -377,11 +383,11 @@ def validate_schema(schema):
     groups = speller["fuzzy_groups"]
     bits = [group.get("bit") for group in groups if isinstance(group, dict)]         if isinstance(groups, list) else []
     if (not isinstance(groups, list) or len(bits) != len(groups) or
-            any(not isinstance(bit, int) or bit <= 0 or bit > 0x80 or bit & (bit - 1)
+            any(not isinstance(bit, int) or bit <= 0 or bit > 0x8000 or bit & (bit - 1)
                 for bit in bits) or len(set(bits)) != len(bits) or
-            any(not isinstance(group.get("rules"), list) or not group["rules"]
-                for group in groups)):
-        raise ValueError("speller.fuzzy_groups must list {name, bit, rules} with "
+            any(not isinstance(group.get("rules"), list) or not group["rules"] or
+                group.get("part") not in _FUZZY_GROUP_PARTS for group in groups)):
+        raise ValueError("speller.fuzzy_groups must list {name, bit, part, rules} with "
                          "distinct single-bit values")
     return schema
 
@@ -402,13 +408,25 @@ def parse_rules_from_json(json_path):
             raise ValueError(f"failed to parse spelling rule: {definition}")
         rules.append(rule)
     # Fuzzy pinyin pairs: each group's rules tag their spellings with the group's bit, so the
-    # engine can enable the pairs one by one (applied after the algebra above).
-    for group in schema["speller"]["fuzzy_groups"]:
+    # engine can enable the pairs one by one (applied after the algebra above). One fuzzy step
+    # per part of the syllable: a rule skips spellings that a pair of the same part already
+    # changed (with n = l and l = r, r reaches l but not n), while an initial and a final pair
+    # still combine (zan for zhang). A whole-syllable pair takes no step with any other.
+    groups = schema["speller"]["fuzzy_groups"]
+    all_bits = sum(group["bit"] for group in groups)
+    syllable_bits = sum(group["bit"] for group in groups if group["part"] == "syllable")
+    for group in groups:
+        if group["part"] == "syllable":
+            blocked = all_bits
+        else:
+            blocked = syllable_bits | sum(
+                other["bit"] for other in groups if other["part"] == group["part"])
         for definition in group["rules"]:
             rule = _parse_rule(definition)
             if rule is None or rule.rule_type() != K_FUZZY:
                 raise ValueError(f"fuzzy group rules must be fuzz rules: {definition}")
             rule.groups = group["bit"]
+            rule.blocked_groups = blocked
             rules.append(rule)
     return rules
 
@@ -610,6 +628,9 @@ def build_shuangpin_script(syllabary, schema, strict=True):
                 alias, applied = rule.apply(syllable)
                 if not applied or not alias or alias == syllable:
                     continue
+                passthrough = speller["passthrough_syllables"]
+                if syllable in passthrough and alias not in passthrough:
+                    continue  # a letter typed as itself ("f"): its alias ("h") has no code
                 for code in encode(alias):
                     script.merge(
                         code,

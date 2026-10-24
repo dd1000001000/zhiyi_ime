@@ -62,7 +62,7 @@ ng1017+1.4V2-Long-L18 在 1.4V2-Long-L18 上加了一个词语 n-gram（三元�
 
 ## 离线翻译模型
 
-学习模式里语言包查不到的候选由本机的翻译模型翻译，现在用的是知意 v3：从 [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) 的 28 层中去掉 8 层，用腾讯 [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B) 对约 275 万条输入法候选和句子（中、英、日、韩、法、德、西、俄、越 9 种语言，带光标前的上文）的译文蒸馏而来。知意 v4 已在 [Release translator](https://github.com/dd1000001000/zhiyi_ime/releases/tag/translator) 发布（输入法暂时还用 v3）：结构和 v3 相同，训练数据增至约 360 万条，新增针对 v3 弱项的约 88 万条（要靠上文选词义的条目由 [Hy-MT2-30B-A3B](https://huggingface.co/tencent/Hy-MT2-30B-A3B) 翻译）和约 1,100 个多义词，并学一个 28 层老师的输出概率。在三个开源测试集上，v4 的 COMET-22 比 v3 高约 2.4–2.5 分（FLORES-200 81.5 → 84.0，WMT24++ 78.1 → 80.5，NTREX-128 79.2 → 81.7），三个都超过 LMT-60 原版（82.2、76.7、81.4）；输出不是目标语言的比例也更低（WMT24++ 0.62% → 0.35%，另外两个都在 0.1% 以下）。两者都是下载约 0.32 GB，显卡上一页约 70 毫秒、CPU 上一页约 0.28 秒，显存和内存都约 1.1 GB。
+学习模式里语言包查不到的候选由本机的翻译模型翻译，现在用的是知意 v4（1.5.16 起，之前装了 v3 的在设置“学习”页更新）。v3 从 [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) 的 28 层中去掉 8 层，用腾讯 [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B) 对约 275 万条输入法候选和句子（中、英、日、韩、法、德、西、俄、越 9 种语言，带光标前的上文）的译文蒸馏而来。v4 在 [Release translator](https://github.com/dd1000001000/zhiyi_ime/releases/tag/translator) 发布，结构和 v3 相同，训练数据增至约 360 万条，新增针对 v3 弱项的约 88 万条（要靠上文选词义的条目由 [Hy-MT2-30B-A3B](https://huggingface.co/tencent/Hy-MT2-30B-A3B) 翻译）和约 1,100 个多义词，并学一个 28 层老师的输出概率。在三个开源测试集上，v4 的 COMET-22 比 v3 高约 2.4–2.5 分（FLORES-200 81.5 → 84.0，WMT24++ 78.1 → 80.5，NTREX-128 79.2 → 81.7），三个都超过 LMT-60 原版（82.2、76.7、81.4）；输出不是目标语言的比例也更低（WMT24++ 0.62% → 0.35%，另外两个都在 0.1% 以下）。两者都是下载约 0.32 GB，显卡上一页约 70 毫秒、CPU 上一页约 0.28 秒，显存和内存都约 1.1 GB。
 
 <img src="docs/media/translator.zh-CN.svg" alt="离线翻译模型对比：(a)(b)(c) FLORES-200、WMT24++、NTREX-128 的 COMET-22 (d)(e)(f) 不是目标语言的比例 (g) 显卡耗时 (h) 显存 (i) 下载大小 (j) CPU 耗时 (k) 内存" width="100%">
 

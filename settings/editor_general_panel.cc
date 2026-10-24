@@ -71,7 +71,7 @@ enum ControlId {
     kOpenLogsId,
     kDeleteLogsId,
     kFuzzyEnabledId = 1301,
-    kFuzzyGroupFirstId = 1311,  // .. 1317, FuzzyGroup bit order
+    kFuzzyGroupFirstId = 1311,  // .. 1320, FuzzyGroup bit order
 };
 
 // Page key choices in combo order; 0 is none (shortcuts.page_up / page_down).
@@ -85,13 +85,16 @@ int page_key_index(const char (&keys)[4], char key) {
     return 0;
 }
 
-// Fuzzy pinyin pairs in FuzzyGroup bit order (engine/include/cxxime/spellings_index.h):
-// four initials (left column) and three finals (right column).
+// Fuzzy pinyin pairs in FuzzyGroup bit order (engine/include/cxxime/spellings_index.h) and
+// where each goes: initials in the left column, finals and wang = huang in the right one.
 const wchar_t* const kFuzzyGroupLabels[] = {
     L"z = zh", L"c = ch", L"s = sh", L"n = l", L"an = ang", L"en = eng", L"in = ing",
+    L"l = r", L"f = h", L"wang = huang",
 };
-constexpr int kFuzzyGroupCount = 7;
-constexpr int kFuzzyInitialCount = 4;
+constexpr int kFuzzyGroupColumn[] = {0, 0, 0, 0, 1, 1, 1, 0, 0, 1};
+constexpr int kFuzzyGroupRow[] = {0, 1, 2, 3, 0, 1, 2, 4, 5, 3};
+constexpr int kFuzzyGroupCount = 10;
+constexpr int kFuzzyRowCount = 6;
 
 // Shuangpin schemes in the order of cxxime::shuangpin_scheme_index (built_in_pinyin_schemes()
 // after full pinyin).
@@ -285,13 +288,11 @@ void EditorApp::create_fuzzy_panel(HWND panel) {
     make_label(tr("fuzzy.finals"), indent + column_width, y, panel);
     y += kRowH;
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
-        const bool initial = i < kFuzzyInitialCount;
-        const int row = initial ? i : i - kFuzzyInitialCount;
         hFuzzyGroups_[i] = make_check(kFuzzyGroupFirstId + i, kFuzzyGroupLabels[i],
-                                      indent + (initial ? 0 : column_width), y + row * kRowH,
-                                      column_width - S(10), panel);
+                                      indent + kFuzzyGroupColumn[i] * column_width,
+                                      y + kFuzzyGroupRow[i] * kRowH, column_width - S(10), panel);
     }
-    y += kFuzzyInitialCount * kRowH + S(6);
+    y += kFuzzyRowCount * kRowH + S(6);
     make_hint(tr("fuzzy.hint"), x0, y, S(500), panel);
     card_end(panel, y + S(40));
 }
@@ -556,7 +557,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.fuzzy_groups = 0;
     for (int i = 0; i < kFuzzyGroupCount; ++i) {
         if (get_check(hFuzzyGroups_[i])) {
-            c.fuzzy_groups |= static_cast<uint8_t>(1 << i);
+            c.fuzzy_groups |= static_cast<uint16_t>(1 << i);
         }
     }
 

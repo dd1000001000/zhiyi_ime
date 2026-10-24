@@ -51,8 +51,8 @@ WUBI_INDEX_HEADER_SIZE = struct.calcsize(WUBI_INDEX_HEADER_FORMAT)
 WUBI_INDEX_KEY_FORMAT = "<III"
 WUBI_INDEX_KEY_SIZE = struct.calcsize(WUBI_INDEX_KEY_FORMAT)
 WUBI_INDEX_MAX_CODE_LENGTH = 4
-SPELLINGS_MAGIC_V2 = b"CXSPL\x02\x00\x00"
-SPELLINGS_VERSION = 2
+SPELLINGS_MAGIC_V3 = b"CXSPL\x03\x00\x00"
+SPELLINGS_VERSION = 3
 TOPN_MAGIC = b"CXTOPN\x04\x00"
 TOPN_VERSION = 4
 TOPN_HEADER_FORMAT = "<8s11IQI"
@@ -218,7 +218,7 @@ def check_spellings_bin(data_dir, filename, errors):
         errors.append(f"{filename}: file too small for header")
         return False
     magic = data[:8]
-    if magic != SPELLINGS_MAGIC_V2:
+    if magic != SPELLINGS_MAGIC_V3:
         errors.append(f"{filename}: bad magic {magic!r}")
         return False
     version = struct.unpack_from("<I", data, 8)[0]

@@ -209,7 +209,7 @@ private:
 
     // Fuzzy pinyin: master switch and one check box per pair (FuzzyGroup bit order)
     HWND hFuzzyEnabled_ = nullptr;
-    HWND hFuzzyGroups_[7] = {};
+    HWND hFuzzyGroups_[10] = {};
 
     // Keys
     HWND hSwitchKey_ = nullptr;  // key capture boxes (key_capture.h)

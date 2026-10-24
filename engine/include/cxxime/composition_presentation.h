@@ -35,7 +35,7 @@ CompositionPresentation derive_composition_presentation(const CompositionState& 
                                                         bool terminal_completion = false,
                                                         bool enable_fuzzy = true,
                                                         bool initials_only = false,
-                                                        uint8_t fuzzy_groups = 0x7F);
+                                                        uint16_t fuzzy_groups = 0x3FF);
 
 } // namespace cxxime
 

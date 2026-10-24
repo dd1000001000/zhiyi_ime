@@ -34,7 +34,7 @@ CompositionPresentation derive_composition_presentation(const CompositionState& 
                                                         bool terminal_completion,
                                                         bool enable_fuzzy,
                                                         bool initials_only,
-                                                        uint8_t fuzzy_groups) {
+                                                        uint16_t fuzzy_groups) {
     CompositionPresentation presentation;
     for (const auto& segment : state.converted_segments()) {
         presentation.logical_preedit += segment.text;

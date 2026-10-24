@@ -111,12 +111,13 @@ void reset_switch_keys(Config& config) {
     }
 }
 
-static const std::pair<uint8_t, const char*> kFuzzyGroupNames[] = {
+static const std::pair<uint16_t, const char*> kFuzzyGroupNames[] = {
     {0x01, "z_zh"}, {0x02, "c_ch"}, {0x04, "s_sh"}, {0x08, "n_l"},
-    {0x10, "an_ang"}, {0x20, "en_eng"}, {0x40, "in_ing"},
+    {0x10, "an_ang"}, {0x20, "en_eng"}, {0x40, "in_ing"}, {0x80, "l_r"},
+    {0x100, "f_h"}, {0x200, "wang_huang"},
 };
 
-static uint8_t fuzzy_group_bit(const std::string& name) {
+static uint16_t fuzzy_group_bit(const std::string& name) {
     for (const auto& [bit, group_name] : kFuzzyGroupNames) {
         if (name == group_name) {
             return bit;

@@ -61,7 +61,7 @@ bool pinyin_matches_mixed(std::string_view input, std::string_view syllables);
 
 struct SyllabifierOptions {
     bool enable_fuzzy = true;
-    uint8_t fuzzy_groups = kAllFuzzyGroups;  // enabled FuzzyGroup bits
+    uint16_t fuzzy_groups = kAllFuzzyGroups;  // enabled FuzzyGroup bits
     // Initials mode: only one-letter spans (and zh/ch/sh) are syllables, as initials.
     bool initials_only = false;
     bool enable_terminal_completion = false;
@@ -95,7 +95,7 @@ public:
     // and fuzzy ones when `enable_fuzzy` allows them (issue #34). An initial, an unfinished last
     // syllable or a word going on past the input does not match.
     bool matches_in_full(const std::string& input, const std::string& syllables,
-                         bool enable_fuzzy, uint8_t fuzzy_groups) const;
+                         bool enable_fuzzy, uint16_t fuzzy_groups) const;
 
 private:
     friend class PinyinResourceSet;

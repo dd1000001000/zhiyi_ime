@@ -16,6 +16,7 @@
             {
                 "name": "z_zh",
                 "bit": 1,
+                "part": "initial",
                 "rules": [
                     "fuzz/^zh/z/",
                     "fuzz/^z([^h]|$)/zh$1/"
@@ -24,6 +25,7 @@
             {
                 "name": "c_ch",
                 "bit": 2,
+                "part": "initial",
                 "rules": [
                     "fuzz/^ch/c/",
                     "fuzz/^c([^h]|$)/ch$1/"
@@ -32,6 +34,7 @@
             {
                 "name": "s_sh",
                 "bit": 4,
+                "part": "initial",
                 "rules": [
                     "fuzz/^sh/s/",
                     "fuzz/^s([^h]|$)/sh$1/"
@@ -40,6 +43,7 @@
             {
                 "name": "n_l",
                 "bit": 8,
+                "part": "initial",
                 "rules": [
                     "fuzz/^n/l/",
                     "fuzz/^l/n/"
@@ -48,6 +52,7 @@
             {
                 "name": "an_ang",
                 "bit": 16,
+                "part": "final",
                 "rules": [
                     "fuzz/ang$/an/",
                     "fuzz/an$/ang/"
@@ -56,6 +61,7 @@
             {
                 "name": "en_eng",
                 "bit": 32,
+                "part": "final",
                 "rules": [
                     "fuzz/eng$/en/",
                     "fuzz/en$/eng/"
@@ -64,9 +70,37 @@
             {
                 "name": "in_ing",
                 "bit": 64,
+                "part": "final",
                 "rules": [
                     "fuzz/ing$/in/",
                     "fuzz/in$/ing/"
+                ]
+            },
+            {
+                "name": "l_r",
+                "bit": 128,
+                "part": "initial",
+                "rules": [
+                    "fuzz/^l/r/",
+                    "fuzz/^r/l/"
+                ]
+            },
+            {
+                "name": "f_h",
+                "bit": 256,
+                "part": "initial",
+                "rules": [
+                    "fuzz/^f/h/",
+                    "fuzz/^h/f/"
+                ]
+            },
+            {
+                "name": "wang_huang",
+                "bit": 512,
+                "part": "syllable",
+                "rules": [
+                    "fuzz/^wang$/huang/",
+                    "fuzz/^huang$/wang/"
                 ]
             }
         ]

@@ -131,7 +131,7 @@ struct Config {
     bool learning_section_loaded = false;
     // Fuzzy pinyin: master switch and the enabled pairs (FuzzyGroup bits, spellings_index.h).
     bool fuzzy_pinyin = false;
-    uint8_t fuzzy_groups = 0x7F;
+    uint16_t fuzzy_groups = 0;
 
     // Older versions' "initial_state" (width and punctuation a new session started with). The
     // server now saves the current state in input_state.json and reads these only when that file

@@ -150,8 +150,8 @@ Engine
 ```
 ┌────────────────────────────────────────────┐
 │ Header (28 bytes)                          │
-│   magic[8]      = "CXSPL\x02\x00\x00"     │
-│   version       = 2                        │
+│   magic[8]      = "CXSPL\x03\x00\x00"     │
+│   version       = 3                        │
 │   node_count    = N                        │
 │   string_data_size                         │
 │   nodes_offset  = 28                       │
@@ -164,7 +164,7 @@ Engine
 │     num_spellings (uint8)  = ns            │
 │     num_children  (uint8)  = nc            │
 │     padding       (uint16)                 │
-│     SpellingEntry[ns]  (每条 14 bytes)      │
+│     SpellingEntry[ns]  (每条 15 bytes)      │
 │     ChildEntry[nc]     (每条 8 bytes)       │
 ├────────────────────────────────────────────┤
 │ String Data (连续 UTF-8 字节块)             │
@@ -174,17 +174,17 @@ Engine
 
 #### 结构体定义
 
-**SpellingEntry** (14 bytes, `#pragma pack(push, 1)`)
+**SpellingEntry** (15 bytes, `#pragma pack(push, 1)`)
 
 | 偏移 | 大小 | 类型 | 字段 | 说明 |
 |------|------|------|------|------|
 | 0 | 4 | uint32 | syllable_offset | 音节字符串在 string_data 中的偏移 |
 | 4 | 4 | uint32 | syllable_len | 音节字符串长度 |
 | 8 | 1 | uint8 | type | 0=正常, 1=模糊, 2=缩写 |
-| 9 | 1 | — | padding | |
-| 10 | 4 | float | credibility | 可信度评分 |
+| 9 | 2 | uint16 | fuzzy_groups | 用到的模糊音组（FuzzyGroup 位，0 = 不需要） |
+| 11 | 4 | float | credibility | 可信度评分 |
 
-Python 格式: `"<IIbxf"`
+Python 格式: `"<IIbHf"`
 
 **ChildEntry** (8 bytes)
 
@@ -341,7 +341,7 @@ Python 格式: `"<IIIIi"`
 
 | 格式 | magic (hex/ASCII) | 说明 |
 |------|-------------------|------|
-| spellings v2 | `43 58 53 50 4C 02 00 00` / `CXSPL\x02\x00\x00` | Patricia trie（当前生产格式） |
+| spellings v3 | `43 58 53 50 4C 03 00 00` / `CXSPL\x03\x00\x00` | Patricia trie（当前生产格式） |
 | dict v2 | `43 58 44 49 43 02 00 00` / `CXDIC\x02\x00\x00` | 平坦排序数组（词条 = `CandidateStoreEntry`，20 字节） |
 | dict.idx v3 | `43 58 49 44 58 00 00 00 00` / `CXIDX\0\0\0\0` | 整数 ID 索引（音节→词条，zero-copy） |
 | wubi idx v1 | `43 58 57 49 44 58 01 00` / `CXWIDX\x01\x00` | 五笔完整前缀索引（packed code → 排序 postings） |

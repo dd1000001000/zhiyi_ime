@@ -108,6 +108,31 @@ bool atomic_write_file(const std::wstring& path, const std::string& contents,
     return succeeded;
 }
 
+// Before 1.5.16 the package turned on the fuzzy pairs en=eng and in=ing; now none are on. Someone
+// who used an earlier version (settings or learned words in the user folder) and never chose
+// the pairs keeps the old ones: they are written into the user's settings once.
+bool keep_earlier_fuzzy_pairs(const std::wstring& user_path, nlohmann::json* user_config) {
+    if (user_config->contains("engine") && (*user_config)["engine"].is_object() &&
+        (*user_config)["engine"].contains("fuzzy_groups")) {
+        return false;
+    }
+    const std::wstring folder = user_path.substr(0, user_path.find_last_of(L"\\/") + 1);
+    bool earlier_user = false;
+    for (const wchar_t* name : {L"default.json", L"learning_pinyin.tsv", L"user_pinyin.tsv",
+                                L"learning_english.json", L"input_state.json"}) {
+        earlier_user = earlier_user ||
+                       GetFileAttributesW((folder + name).c_str()) != INVALID_FILE_ATTRIBUTES;
+    }
+    if (!earlier_user) {
+        return false;
+    }
+    if (!(*user_config)["engine"].is_object()) {
+        (*user_config)["engine"] = nlohmann::json::object();
+    }
+    (*user_config)["engine"]["fuzzy_groups"] = nlohmann::json::array({"en_eng", "in_ing"});
+    return true;
+}
+
 } // namespace
 
 bool ConfigStore::initialize(const std::string& base_config_path,
@@ -159,7 +184,13 @@ bool ConfigStore::initialize(const std::string& base_config_path,
             }
             return false;
         }
+        const bool kept_fuzzy_pairs = keep_earlier_fuzzy_pairs(user_path, &parsed);
         user_json = parsed.dump(4);
+        unsigned long write_error = ERROR_SUCCESS;
+        if (kept_fuzzy_pairs && !atomic_write_file(user_path, user_json + "\n", &write_error)) {
+            cxxime::log_problem("config", "cannot write " + user_config_path + ": " +
+                                              cxxime::windows_error_text(write_error));
+        }
     } catch (const nlohmann::json::exception&) {
         set_failure(failure, ConfigStoreFailure::kUserConfig);
         if (error_code) {

@@ -482,7 +482,7 @@ bool Syllabifier::matches_without_fuzzy(const std::string& input,
 }
 
 bool Syllabifier::matches_in_full(const std::string& input, const std::string& syllables,
-                                  bool enable_fuzzy, uint8_t fuzzy_groups) const {
+                                  bool enable_fuzzy, uint16_t fuzzy_groups) const {
     if (input.empty() || syllables.empty()) {
         return false;
     }

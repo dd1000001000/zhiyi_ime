@@ -1311,8 +1311,12 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         }
         // The context model's lattice (laya.continuation): the model reads the typed syllables
         // and scores the characters, so every homophone of a span is offered to it, not the
-        // eight most common.
-        SpanScorer* scorer = span_scorer_ && longest_path >= span_scorer_->min_syllables()
+        // eight most common. Only when the most plausible reading (the first path) is long
+        // enough: the model scores no shorter path, so a longer, less likely reading ("zhijieyong"
+        // as zhi:ji:e:yong) would be the only one composed and 直接用 left out.
+        SpanScorer* scorer = span_scorer_ && !composition_paths.empty() &&
+                                     composition_paths.front().syllables->size() >=
+                                         span_scorer_->min_syllables()
                                  ? span_scorer_ : nullptr;
         const auto limits_for = [&](bool scored) {
             CompositionLimits limits;

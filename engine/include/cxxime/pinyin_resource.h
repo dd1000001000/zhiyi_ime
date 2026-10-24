@@ -21,7 +21,7 @@ enum class PinyinSpellingRequirement {
 
 struct PinyinQueryPolicy {
     bool enable_fuzzy = true;
-    uint8_t fuzzy_groups = kAllFuzzyGroups;  // enabled FuzzyGroup bits
+    uint16_t fuzzy_groups = kAllFuzzyGroups;  // enabled FuzzyGroup bits
     // Initials mode: every letter is the initial of one syllable (zh/ch/sh count as one).
     bool initials_only = false;
 };
@@ -48,15 +48,15 @@ public:
         return syllabifier_.matches_without_fuzzy(input, syllables);
     }
     bool matches_in_full(const std::string& input, const std::string& syllables,
-                         bool enable_fuzzy, uint8_t fuzzy_groups) const {
+                         bool enable_fuzzy, uint16_t fuzzy_groups) const {
         return syllabifier_.matches_in_full(input, syllables, enable_fuzzy, fuzzy_groups);
     }
     std::vector<SpellingMatch> prefix_search(std::string_view input,
                                              bool enable_fuzzy = true,
-                                             uint8_t fuzzy_groups = kAllFuzzyGroups) const;
+                                             uint16_t fuzzy_groups = kAllFuzzyGroups) const;
     std::vector<SpellingMatch> completion_search(std::string_view input,
                                                  bool enable_fuzzy = true,
-                                                 uint8_t fuzzy_groups = kAllFuzzyGroups) const;
+                                                 uint16_t fuzzy_groups = kAllFuzzyGroups) const;
 
 private:
     PinyinResourceSet(std::string scheme_id, PinyinSchemeKind kind);

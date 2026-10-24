@@ -9,11 +9,11 @@ from dataclasses import dataclass, field
 from typing import Deque, Dict, List, Tuple
 
 
-MAGIC = b"CXSPL\x02\x00\x00"
+MAGIC = b"CXSPL\x03\x00\x00"
 HEADER_FORMAT = "<8sIIIII"
 HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
 # syllable offset, syllable length, type, fuzzy groups, credibility
-SPELLING_FORMAT = "<IIbBf"
+SPELLING_FORMAT = "<IIbHf"
 CHILD_FORMAT = "<B3xI"
 
 
@@ -141,8 +141,8 @@ class PatriciaTrie:
                         SPELLING_FORMAT,
                         syllable_offset,
                         syllable_length,
-                        spelling_type & 0xFF,         # type in the low byte,
-                        (spelling_type >> 8) & 0xFF,  # fuzzy groups in the next one
+                        spelling_type & 0xFF,           # type in the low byte,
+                        (spelling_type >> 8) & 0xFFFF,  # fuzzy groups in the next two
                         credibility,
                     )
                 )
@@ -160,7 +160,7 @@ class PatriciaTrie:
         header = struct.pack(
             HEADER_FORMAT,
             MAGIC,
-            2,
+            3,
             len(serialized),
             len(string_data),
             entries_offset,

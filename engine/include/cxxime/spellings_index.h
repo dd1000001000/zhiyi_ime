@@ -1,6 +1,6 @@
 // Copyright (c) 2026 CxxIME Contributors. Apache License 2.0.
 // SpellingsIndex — Prism layer: maps input strings to syllable interpretations.
-// Loads from binary spellings.bin via memory-mapped file (Patricia trie format v2).
+// Loads from binary spellings.bin via memory-mapped file (Patricia trie format v3).
 
 #ifndef CXXIME_SPELLINGS_INDEX_H_
 #define CXXIME_SPELLINGS_INDEX_H_
@@ -24,7 +24,7 @@ enum SpellingType {
 
 // Fuzzy pinyin groups. A fuzzy spelling records the groups it needs in the byte after its type
 // (SpellingEntry::padding); it is used only when all of them are enabled.
-enum FuzzyGroup : uint8_t {
+enum FuzzyGroup : uint16_t {
     kFuzzyZZh = 1 << 0,    // z = zh
     kFuzzyCCh = 1 << 1,    // c = ch
     kFuzzySSh = 1 << 2,    // s = sh
@@ -32,8 +32,11 @@ enum FuzzyGroup : uint8_t {
     kFuzzyAnAng = 1 << 4,  // an = ang
     kFuzzyEnEng = 1 << 5,  // en = eng
     kFuzzyInIng = 1 << 6,  // in = ing
+    kFuzzyLR = 1 << 7,     // l = r
+    kFuzzyFH = 1 << 8,     // f = h
+    kFuzzyWangHuang = 1 << 9,  // wang = huang
 };
-inline constexpr uint8_t kAllFuzzyGroups = 0x7F;
+inline constexpr uint16_t kAllFuzzyGroups = 0x3FF;
 
 struct SpellingMatch {
     std::string syllable;
@@ -46,7 +49,7 @@ struct SpellingMatch {
 
 struct SpellingsHeader {
     char magic[8];       // "CXSPL\x02\0\0"
-    uint32_t version;    // 2
+    uint32_t version;    // 3
     uint32_t node_count;
     uint32_t string_data_size;
     uint32_t nodes_offset;
@@ -60,12 +63,12 @@ struct SpellingsHeader {
 //   SpellingEntry[num_spellings]
 //   ChildEntry[num_children]
 
-// v2 trie per-node spelling
+// v3 trie per-node spelling
 struct SpellingEntry {
     uint32_t syllable_offset;
     uint32_t syllable_len;
     uint8_t type;
-    uint8_t fuzzy_groups;  // FuzzyGroup bits this spelling needs (0: none; older files: 0)
+    uint16_t fuzzy_groups;  // FuzzyGroup bits this spelling needs (0: none)
     float credibility;
 };
 
@@ -92,15 +95,15 @@ public:
     // `fuzzy_groups`: enabled FuzzyGroup bits (used when enable_fuzzy).
     std::vector<SpellingMatch> prefix_search(std::string_view prefix,
                                             bool enable_fuzzy = true,
-                                            uint8_t fuzzy_groups = kAllFuzzyGroups) const;
+                                            uint16_t fuzzy_groups = kAllFuzzyGroups) const;
 
     // Returns spellings whose stored input key is strictly longer than and starts with `prefix`.
     std::vector<SpellingMatch> completion_search(std::string_view prefix,
                                                  bool enable_fuzzy = true,
-                                                 uint8_t fuzzy_groups = kAllFuzzyGroups) const;
+                                                 uint16_t fuzzy_groups = kAllFuzzyGroups) const;
 
-    // For tests: create a v2 trie binary file from entries (input, syllable, type, credibility);
-    // FuzzyGroup bits go in bits 8-15 of the type.
+    // For tests: create a v3 trie binary file from entries (input, syllable, type, credibility);
+    // FuzzyGroup bits go in bits 8-23 of the type.
     static bool create_test_trie(const std::string& path,
                                  const std::vector<std::tuple<std::string, std::string, int, float>>& entries);
 

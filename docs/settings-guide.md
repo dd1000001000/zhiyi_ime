@@ -57,8 +57,10 @@
 
 ## 模糊音
 
-总开关加 7 组模糊音：z=zh、c=ch、s=sh、n=l（声母）和 an=ang、en=eng、in=ing（韵母）。新安装默认打开，
-只勾选 en=eng、in=ing。模糊匹配出的词排在原音之后，并在后面用括号标出正确拼音，如 `zongguo` → 中国(zhong guo)。
+总开关加 10 组模糊音：z=zh、c=ch、s=sh、n=l、l=r、f=h（声母）和 an=ang、en=eng、in=ing、wang=huang（韵母）。
+an=ang 也包括 ian=iang、uan=uang。新安装默认打开总开关，各组都不勾；1.5.16 以前用过的用户，没自己选过的仍是
+en=eng、in=ing。声母、韵母各最多模糊一次：同时勾了 n=l 和 l=r 时，n 和 r 不互通；勾了 z=zh 和
+an=ang 时，`zan` 仍会出“张”；wang=huang 不和其他组叠加。模糊匹配出的词排在原音之后，并在后面用括号标出正确拼音，如 `zongguo` → 中国(zhong guo)。
 
 ## 按键
 
@@ -226,7 +228,7 @@
 | `engine.emoji_candidates` | true | 拼音第一页的词后面跟着它的 emoji（每个词最多 2 个，每页最多 3 个）；对照表来自 Unicode CLDR 的中文 emoji 注释 |
 | `engine.auto_space` | true | 英文模式的词和学习模式的翻译（带空格的语言，`learning.space_languages`）用数字、鼠标或回车上屏时后面加一个空格；用空格或标点上屏时只跟那个符号。中文模式里夹的英文候选从不加空格 |
 | `engine.candidate_learning` | true | 自学习 |
-| `engine.fuzzy_pinyin` / `engine.fuzzy_groups` | true / `["en_eng","in_ing"]` | 模糊音开关与组合（`z_zh`、`c_ch`、`s_sh`、`n_l`、`an_ang`、`en_eng`、`in_ing`） |
+| `engine.fuzzy_pinyin` / `engine.fuzzy_groups` | true / `[]` | 模糊音开关与组合（`z_zh`、`c_ch`、`s_sh`、`n_l`、`l_r`、`f_h`、`an_ang`、`en_eng`、`in_ing`、`wang_huang`） |
 | `engine.wubi_code_hint` | false | 五笔候选后显示剩余编码 |
 | `initial_state.full_shape` / `chinese_punct` | false / true | 启动时的全角与中文标点状态 |
 | `style.font_point` | 14 | 候选字号 |

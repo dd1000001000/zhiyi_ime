@@ -10,9 +10,9 @@
 
 #include <cxxime/logging.h>
 
-static const char SPELLINGS_MAGIC_V2[] = "CXSPL\x02\x00\x00";
+static const char SPELLINGS_MAGIC_V3[] = "CXSPL\x03\x00\x00";
 static const uint32_t NODE_HEADER_SIZE = 12;
-static const uint32_t SPELLING_SIZE = 14;  // v2 per-node spelling
+static const uint32_t SPELLING_SIZE = 15;  // v3 per-node spelling
 static const uint32_t CHILD_SIZE = 8;
 
 namespace cxxime {
@@ -37,7 +37,7 @@ bool SpellingsIndex::load(const std::string& bin_path) {
     data_ = file_.data();
 
     auto* hdr = (const SpellingsHeader*)data_;
-    if (std::memcmp(hdr->magic, SPELLINGS_MAGIC_V2, 8) != 0 || hdr->version != 2) {
+    if (std::memcmp(hdr->magic, SPELLINGS_MAGIC_V3, 8) != 0 || hdr->version != 3) {
         CXXIME_LOG(L"SpellingsIndex::load unsupported format");
         unload();
         return false;
@@ -69,7 +69,7 @@ bool SpellingsIndex::load(const std::string& bin_path) {
         }
     }
 
-    CXXIME_LOG(L"SpellingsIndex::load v2 trie nodes=%u", node_count_);
+    CXXIME_LOG(L"SpellingsIndex::load v3 trie nodes=%u", node_count_);
     return node_count_ > 0;
 }
 
@@ -86,19 +86,19 @@ void SpellingsIndex::unload() {
 
 // A spelling is usable when it is not fuzzy (or fuzzy pinyin is on) and every fuzzy group it
 // needs is enabled. `allowed_groups` is 0 when fuzzy pinyin is off.
-static bool spelling_allowed(const char* spelling, bool enable_fuzzy, uint8_t allowed_groups) {
+static bool spelling_allowed(const char* spelling, bool enable_fuzzy, uint16_t allowed_groups) {
     const uint8_t type = *(const uint8_t*)(spelling + 8);
-    const uint8_t needed = *(const uint8_t*)(spelling + 9);
+    const uint16_t needed = *(const uint16_t*)(spelling + 9);
     if (!enable_fuzzy && type == kFuzzySpelling) {
         return false;
     }
     return (needed & ~allowed_groups) == 0;
 }
 
-// v2 trie prefix search: O(k) walk
+// v3 trie prefix search: O(k) walk
 static std::vector<SpellingMatch> trie_prefix_search(
     const char* nodes, const char* strings, const uint32_t* node_offsets,
-    uint32_t node_count, std::string_view prefix, bool enable_fuzzy, uint8_t allowed_groups) {
+    uint32_t node_count, std::string_view prefix, bool enable_fuzzy, uint16_t allowed_groups) {
 
     std::vector<SpellingMatch> results;
     const uint32_t prefix_len = (uint32_t)prefix.size();
@@ -133,7 +133,7 @@ static std::vector<SpellingMatch> trie_prefix_search(
             m.syllable.assign(strings + *(const uint32_t*)(sp),
                               *(const uint32_t*)(sp + 4));
             m.type = type;
-            m.credibility = *(const float*)(sp + 10);
+            m.credibility = *(const float*)(sp + 11);
             m.input_key_len = prefix_pos;
             results.push_back(std::move(m));
             sp += SPELLING_SIZE;
@@ -164,7 +164,7 @@ static std::vector<SpellingMatch> trie_prefix_search(
 static void append_trie_completions(
     const char* nodes, const char* strings, const uint32_t* node_offsets,
     uint32_t node_count, uint32_t start_node, uint32_t start_key_length,
-    uint32_t prefix_length, bool enable_fuzzy, uint8_t allowed_groups,
+    uint32_t prefix_length, bool enable_fuzzy, uint16_t allowed_groups,
     std::vector<SpellingMatch>* results) {
     struct PendingNode {
         uint32_t index;
@@ -194,7 +194,7 @@ static void append_trie_completions(
                 match.syllable.assign(strings + *(const uint32_t*)(spelling),
                                       *(const uint32_t*)(spelling + 4));
                 match.type = type;
-                match.credibility = *(const float*)(spelling + 10);
+                match.credibility = *(const float*)(spelling + 11);
                 match.input_key_len = current.key_length;
                 results->push_back(std::move(match));
                 spelling += SPELLING_SIZE;
@@ -218,7 +218,7 @@ static void append_trie_completions(
 
 static std::vector<SpellingMatch> trie_completion_search(
     const char* nodes, const char* strings, const uint32_t* node_offsets,
-    uint32_t node_count, std::string_view prefix, bool enable_fuzzy, uint8_t allowed_groups) {
+    uint32_t node_count, std::string_view prefix, bool enable_fuzzy, uint16_t allowed_groups) {
     std::vector<SpellingMatch> results;
     const uint32_t prefix_length = (uint32_t)prefix.size();
     uint32_t prefix_position = 0;
@@ -266,7 +266,7 @@ static std::vector<SpellingMatch> trie_completion_search(
 
 std::vector<SpellingMatch> SpellingsIndex::prefix_search(std::string_view prefix,
                                                          bool enable_fuzzy,
-                                                         uint8_t fuzzy_groups) const {
+                                                         uint16_t fuzzy_groups) const {
     if (!data_ || prefix.empty())
         return {};
 
@@ -279,7 +279,7 @@ std::vector<SpellingMatch> SpellingsIndex::prefix_search(std::string_view prefix
 
 std::vector<SpellingMatch> SpellingsIndex::completion_search(std::string_view prefix,
                                                              bool enable_fuzzy,
-                                                             uint8_t fuzzy_groups) const {
+                                                             uint16_t fuzzy_groups) const {
     if (!data_ || prefix.empty())
         return {};
 
@@ -399,8 +399,9 @@ bool SpellingsIndex::create_test_trie(const std::string& path,
             auto [so, sl] = intern(syll);
             node_data.append((const char*)&so, 4);
             node_data.append((const char*)&sl, 4);
-            node_data += (char)(uint8_t)(stype & 0xFF);         // type
-            node_data += (char)(uint8_t)((stype >> 8) & 0xFF);  // fuzzy groups
+            const uint16_t groups = (uint16_t)((stype >> 8) & 0xFFFF);
+            node_data += (char)(uint8_t)(stype & 0xFF);  // type
+            node_data.append((const char*)&groups, 2);  // fuzzy groups
             node_data.append((const char*)&cred, 4);
         }
 
@@ -426,8 +427,8 @@ bool SpellingsIndex::create_test_trie(const std::string& path,
 
     DWORD written;
     char hdr[28];
-    memcpy(hdr, SPELLINGS_MAGIC_V2, 8);
-    uint32_t ver = 2;
+    memcpy(hdr, SPELLINGS_MAGIC_V3, 8);
+    uint32_t ver = 3;
     memcpy(hdr + 8, &ver, 4);
     // Only reachable nodes are serialized (splitting leaves the replaced node orphaned).
     uint32_t nc = (uint32_t)order.size();

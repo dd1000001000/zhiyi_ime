@@ -92,6 +92,10 @@ Candidates the learning-mode language packs lack are translated by a model on yo
 
 <img src="docs/media/translator.en-US.svg" alt="Offline translation models: (a)(b)(c) COMET-22 on FLORES-200, WMT24++ and NTREX-128 (d)(e)(f) answers not in the target language (g) GPU time (h) video memory (i) download size (j) CPU time (k) memory" width="100%">
 
+[Zhiyi v4-1024](https://github.com/dd1000001000/zhiyi_ime/releases/tag/translator) (not in the IME) comes with a 2 MB part-of-speech head: it reads the translator's own hidden states and tags the candidate from the text before it, with no second model (how to connect it: the README in its safetensors zip). On words whose part of speech depends on that text:
+
+<img src="docs/media/pos_head.en-US.svg" alt="Part-of-speech accuracy of Zhiyi v4-1024's head on ambiguous words: UD 2.18 test sets in 9 languages and hand-written Chinese and English pairs, against the most frequent tag, the head without context and GLM-5.3" width="100%">
+
 ## Installation
 
 **Requirements**: Windows 10 / 11 (64-bit).

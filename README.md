@@ -50,7 +50,7 @@
 
 ## 新选词测试集与知意 1.4V2-Long-L12
 
-新做的选词测试集更接近实际打字：文本来自 SkyPile、LCCC 对话、C4 中英文、SODA 对话和 Tatoeba，带光标前的上文，按全拼、简拼、全拼和声母混打、英文只打前几个字母等方式输入，候选是输入法引擎的实际候选。1.5.9–1.5.11 的默认模型知意 1.4V2-Long-L18（[Release model-zhen-long-l18](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l18)，Apache-2.0）是 1.4V2 去掉 4 个滑窗注意力层（22 层 → 18 层），用微调过的 Qwen3.5-9B 老师模型（Apache-2.0）在约 170 万条这样的数据上蒸馏选词：候选放在上文之后，不再带提示词，候选只写一次，所以每页要算的词元少了约四成；组句头沿用 1.4V2 的结构，和编码器一起训练。在输入法引擎里端到端（停顿后），它比 1.4V2 的首选正确率高：中文词和两个词 86.2%（1.4V2 为 84.4%），长句 67.2%（66.2%），英文 90.2%（87.7%），全打声母 77.7%（69.8%），英文只打前几个字母 77.3%（71.4%）；CPU 上一页 14.6 ms，约为 1.4V2 的一半。旧测试集上的长句全拼 61.8%，末字只打声母 30.6%，前面简拼、后面全拼 16.5%，输入法实际候选 77.6%。同一模型去掉组句头、只留选词头的版本是知意 1.4V2-Sim-L18（[Release model-zhen-sim-l18](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-sim-l18)，含 safetensors 版），给自己组句的输入法用。
+新做的选词测试集更接近实际打字：文本来自 SkyPile、LCCC 对话、C4 中英文、SODA 对话和 Tatoeba，带光标前的上文，按全拼、简拼、全拼和声母混打、英文只打前几个字母等方式输入，候选是输入法引擎的实际候选。1.5.9–1.5.11 的默认模型知意 1.4V2-Long-L18（[Release model-zhen-long-l18](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l18)，Apache-2.0）是 1.4V2 去掉 4 个滑窗注意力层（22 层 → 18 层），用微调过的 Qwen3.5-9B 老师模型（Apache-2.0）在约 170 万条这样的数据上蒸馏选词：候选放在上文之后，不再带提示词，候选只写一次，所以每页要算的词元少了约四成；组句头沿用 1.4V2 的结构，和编码器一起训练。在输入法引擎里端到端（停顿后），它比 1.4V2 的首选正确率高：中文词和两个词 86.2%（1.4V2 为 84.4%），长句 67.2%（66.2%），英文 90.2%（87.7%），全打声母 77.7%（69.8%），英文只打前几个字母 77.3%（71.4%）；CPU 上一页 14.6 ms，约为 1.4V2 的一半。旧测试集上的长句全拼 61.8%，末字只打声母 30.6%，前面简拼、后面全拼 16.5%，输入法实际候选 77.6%。
 
 图中也列出原始 Laya（Hugging Face 上的 [convaiinnovations/laya](https://huggingface.co/convaiinnovations/laya)，基于 mmBERT-base，未经知意微调）作参照：直接用它给候选排序，首选正确率比只按词频还低（中文词和两个词 31.9%，长句 43.6%，英文 68.1%，全打声母 31.7%，英文只打前几个字母 26.3%），CPU 上一页 43.3 ms；知意各版模型的提升来自在输入法实际候选上的微调和蒸馏。
 
@@ -92,14 +92,14 @@ ng1017+1.4V2-Long-L18 在 1.4V2-Long-L18 上加了一个词语 n-gram（三元�
 - [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small)：上文推荐模型的编码器 mmBERT-small（MIT）
 - [LMT-60](https://huggingface.co/NiuTrans/LMT-60-0.6B)（NiuTrans）：离线翻译模型的底座（Apache-2.0）
 - [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B)（腾讯混元）：离线翻译的第 1 版模型（1.8B）和蒸馏用的老师模型（7B，v4 起还有 [30B-A3B](https://huggingface.co/tencent/Hy-MT2-30B-A3B)）（Apache-2.0）
-- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B)（通义千问）：知意 1.4V2-Long-L18 / Sim-L18 / Long-L12 选词和 Long-L12 组句头蒸馏用的老师模型，经 LoRA 微调（Apache-2.0）
+- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B)（通义千问）：知意 1.4V2-Long-L18 / Long-L12 选词和 Long-L12 组句头蒸馏用的老师模型，经 LoRA 微调（Apache-2.0）
 - [幽默输入法](https://github.com/Sraw/youmo-ime)：词语 n-gram 的底座（它的拼音语言模型）和混合用的工具（LGPL-2.1-or-later）；其底座来自 [libime](https://github.com/fcitx/libime)（LGPL-2.1-or-later），混入的网页来自 [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2)（ODC-By）和 [Common Crawl](https://commoncrawl.org)
 - [CSL](https://github.com/ydli-ai/CSL)（中文科学文献数据集，Apache-2.0）：词语 n-gram 混入的科研文本
 - [llama.cpp](https://github.com/ggml-org/llama.cpp)：离线翻译模型的运行库（MIT，随模型下载）
 - [LCCC](https://github.com/thu-coai/CDial-GPT)（MIT）与 [C4](https://huggingface.co/datasets/allenai/c4) 中文部分（ODC-BY）：模型蒸馏的部分语料
 - [Tatoeba](https://tatoeba.org)（CC BY 2.0 FR）与 [C4](https://huggingface.co/datasets/allenai/c4) 的英、日、韩、法、德、西、俄、越文部分（ODC-BY）：离线翻译模型 v3 的外语原文
-- [SkyPile-150B](https://huggingface.co/datasets/Skywork/SkyPile-150B)（昆仑万维天工 Skywork，Skywork Community License）：1.5.4 起长拼音组句部分的训练文本（约七成），离线翻译模型 v3 的中文句子，以及 1.4V2-Long-L18 / Sim-L18 / Long-L12 选词数据和 Long-L12 组句数据的一部分
-- [SODA](https://huggingface.co/datasets/allenai/soda)（CC BY 4.0）、Tatoeba 与 C4 英文部分：1.4V2-Long-L18 / Sim-L18 / Long-L12 英文选词数据的文本
+- [SkyPile-150B](https://huggingface.co/datasets/Skywork/SkyPile-150B)（昆仑万维天工 Skywork，Skywork Community License）：1.5.4 起长拼音组句部分的训练文本（约七成），离线翻译模型 v3 的中文句子，以及 1.4V2-Long-L18 / Long-L12 选词数据和 Long-L12 组句数据的一部分
+- [SODA](https://huggingface.co/datasets/allenai/soda)（CC BY 4.0）、Tatoeba 与 C4 英文部分：1.4V2-Long-L18 / Long-L12 英文选词数据的文本
 - [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb) 与 [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2)（ODC-By 1.0）：1.4V2-Long-L12 选词数据里的近年网页
 - [wordfreq](https://github.com/rspeer/wordfreq)：英文词频（CC BY-SA 4.0）
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime)：模型推理（MIT）

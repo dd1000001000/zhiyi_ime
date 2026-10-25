@@ -239,8 +239,7 @@ Part of the distillation text was drawn from:
   Skywork Community License (about 70% of the long-pinyin composition text since 1.5.4).
 
 The model in the installer of 1.5.9-1.5.11, Zhiyi 1.4V2-Long-L18 (release model-zhen-long-l18),
-and Zhiyi 1.4V2-Sim-L18 (release model-zhen-sim-l18: the same model without its continuation
-head, not in the installer) are 1.4V2 with 18 of its 22 encoder layers; their word choice was
+is 1.4V2 with 18 of its 22 encoder layers; its word choice was
 distilled from Qwen3.5-9B (Qwen team, Alibaba Cloud), https://huggingface.co/Qwen/Qwen3.5-9B,
 Apache License 2.0, fine-tuned with LoRA as the teacher; only the teacher's scores were used,
 none of its weights are in the models. The word-choice text also came from SODA (Kim et al., 2023),

@@ -60,6 +60,11 @@ ng1017+1.4V2-Long-L18 在 1.4V2-Long-L18 上加了一个词语 n-gram（三元�
 
 <img src="docs/media/choice2.zh-CN.svg" alt="新选词测试集：(a) 中文词和两个词 (b) 中文长句 (c) 英文单词 (d) 中文全打声母 (e) 英文只打前几个字母 (f) CPU 每页耗时；只按词频、原始 Laya、知意 1.4V2、1.4V2-Long-L18、ng1017+1.4V2-Long-L18 与 ng1017+1.4V2-Long-L12" width="100%">
 
+多语言预览版 [知意 1.4V2-ML-Preview-1024](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-ml-preview-1024)（未接入输入法）在 Long-L12 上加了繁体中文、日文、韩文、越南文的选词和繁体、日文的组句，繁体和日文的词语 n-gram 见 [ngram-ml-1024](https://github.com/dd1000001000/zhiyi_ime/releases/tag/ngram-ml-1024)：
+
+<img src="docs/media/ml_preview.zh-CN.svg" alt="知意 1.4V2-ML-Preview-1024 各语言的短句（选词）和长句（整句）正确率：简体中文、英文、繁体中文、日文、韩文、越南文" width="100%">
+
+
 ## 离线翻译模型
 
 学习模式里语言包查不到的候选由本机的翻译模型翻译，现在用的是知意 v4（1.5.16 起，之前装了 v3 的在设置“学习”页更新）。v3 从 [LMT-60-0.6B](https://huggingface.co/NiuTrans/LMT-60-0.6B) 的 28 层中去掉 8 层，用腾讯 [Hy-MT2-7B](https://huggingface.co/tencent/Hy-MT2-7B) 对约 275 万条输入法候选和句子（中、英、日、韩、法、德、西、俄、越 9 种语言，带光标前的上文）的译文蒸馏而来。v4 在 [Release translator](https://github.com/dd1000001000/zhiyi_ime/releases/tag/translator) 发布，结构和 v3 相同，训练数据增至约 360 万条，新增针对 v3 弱项的约 88 万条（要靠上文选词义的条目由 [Hy-MT2-30B-A3B](https://huggingface.co/tencent/Hy-MT2-30B-A3B) 翻译）和约 1,100 个多义词，并学一个 28 层老师的输出概率。在三个开源测试集上，v4 的 COMET-22 比 v3 高约 2.4–2.5 分（FLORES-200 81.5 → 84.0，WMT24++ 78.1 → 80.5，NTREX-128 79.2 → 81.7），三个都超过 LMT-60 原版（82.2、76.7、81.4）；输出不是目标语言的比例也更低（WMT24++ 0.62% → 0.35%，另外两个都在 0.1% 以下）。两者都是下载约 0.32 GB，显卡上一页约 70 毫秒、CPU 上一页约 0.28 秒，显存和内存都约 1.1 GB。

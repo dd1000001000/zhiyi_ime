@@ -71,9 +71,9 @@ ng1017+1.4V2-Long-L18 在 1.4V2-Long-L18 上加了一个词语 n-gram（三元�
 
 <img src="docs/media/translator.zh-CN.svg" alt="离线翻译模型对比：(a)(b)(c) FLORES-200、WMT24++、NTREX-128 的 COMET-22 (d)(e)(f) 不是目标语言的比例 (g) 显卡耗时 (h) 显存 (i) 下载大小 (j) CPU 耗时 (k) 内存" width="100%">
 
-[知意 v4-1025](https://github.com/dd1000001000/zhiyi_ime/releases/tag/translator)（未接入输入法）另带一个 10 MB 的词性头：读翻译模型自己的隐藏状态，按候选前面的上文判断候选的词性，不需要第二个模型，接法见它的 safetensors 包里的 README。在要看上文才能定词性的词上：
+[知意 v4-1026](https://github.com/dd1000001000/zhiyi_ime/releases/tag/translator)（未接入输入法）另带一个 10 MB 的词性头：读翻译模型自己的隐藏状态，按候选前面的上文判断候选的词性，翻成哪种语言都能用，不需要第二个模型，接法见它的 safetensors 包里的 README。在要看上文才能定词性的词上：
 
-<img src="docs/media/pos_head.zh-CN.svg" alt="知意 v4-1025 词性头在兼类词上的词性正确率：UD 2.18 测试集 9 种语言的兼类词和手写的中英文对照，与只按词频、不给上文的词性头和 GLM-5.3 对比" width="100%">
+<img src="docs/media/pos_head.zh-CN.svg" alt="知意 v4-1026 词性头在兼类词上的词性正确率：UD 2.18 测试集 9 种语言的兼类词和手写的中英文对照，与只按词频、不给上文的词性头和 GLM-5.3 对比" width="100%">
 
 ## 安装说明
 

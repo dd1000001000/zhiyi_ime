@@ -18,6 +18,10 @@ constexpr UINT WM_CXXIME_UI_COMMAND = WM_APP + 0x315;
 constexpr UINT WM_CXXIME_REFRESH_CAPS_LOCK = WM_APP + 0x316;
 // A Ctrl+0..9 taken by the translation key hook: wParam the key, lParam 1 for its key-up.
 constexpr UINT WM_CXXIME_TRANSLATION_KEY = WM_APP + 0x317;
+// The keyboard open/close compartment changed (TextService::_set_keyboard_open): wParam 1 to
+// open it again (after a switch key's system hotkey closed it), 0 to apply its new state. A
+// compartment cannot be set from its own change notification.
+constexpr UINT WM_CXXIME_KEYBOARD_STATE = WM_APP + 0x318;
 constexpr UINT_PTR TIMER_CXXIME_INPUT_INDICATOR_REFRESH = 0xC317;
 // A conversion mode change from outside is judged a moment later (TextService::
 // _settle_conversion_change): restored by a focus change, or set by a program.

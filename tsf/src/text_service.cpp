@@ -284,6 +284,10 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* ptim, TfClientId tid, DWORD d
     if (!_inputIndicator.initialize(
             _threadMgr, tid, initial_status,
             [this]() {
+                if (!_keyboardOpen) {  // closed, shown as English: the click opens it
+                    _open_keyboard("indicator");
+                    return;
+                }
                 CXXIME_LOG(L"toggle_chinese: sessionId=%u", _sessionId);
                 cxxime::IPCResponse resp = {};
                 if (_ensure_ipc_session()) {

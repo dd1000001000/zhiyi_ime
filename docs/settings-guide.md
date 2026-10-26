@@ -239,6 +239,8 @@ an=ang 时，`zan` 仍会出“张”；wang=huang 不和其他组叠加。模�
 | `learning.translator_min_gpu_memory_mb` | 1000 | “学习”页离线翻译列出的显卡至少要有这么多 MB 自带显存（Vulkan 的独立显卡；模型约占 1 GB） |
 | `learning.translator_context_chars` | 32 | 交给翻译模型的光标前文字（字数，0–256），帮助多义词选对意思 |
 | `learning.translator_idle_seconds` | 60 | 这么多秒没有要翻译的词就卸载翻译模型，释放显存 |
+| `learning.translator_pos_min_probability` | 0.4 | 翻译模型判断的词性（第 4 版 1026 起）至少有这么大的概率（0–1）才显示在译文前 |
+| `learning.translator_pos_max_labels` | 3 | 译文前最多显示几个词性（0–5，0 = 不显示），如 `adv./adj. fast` |
 | `learning.space_languages` | `["en", "ko", "fr", "de", "es", "ru"]` | 带空格的语言：这些语言的英文模式的词和学习模式打出的翻译按 `engine.auto_space` 在后面加空格（英文单词看 `en`；`[]` = 都不加），前面从不补空格 |
 | `voice.enable` | false | 语音输入（需要下载语音模型，见 [语音输入](voice-input.md)） |
 | `voice.device` | 空 | 语音识别在哪里运行：空 = CPU，或显卡名称（同推荐模型的 `laya.device`） |

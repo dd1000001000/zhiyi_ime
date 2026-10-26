@@ -18,7 +18,9 @@
 
 #include <json.hpp>
 
+#include <cxxime/candidate_presentation.h>
 #include <cxxime/data_path.h>
+#include <cxxime/glossary.h>
 #include <cxxime/gpu_adapters.h>
 #include <cxxime/translator_files.h>
 
@@ -240,6 +242,7 @@ bool find_installed(InstalledModel* installed) {
     found.server = version_dir + wide(kTranslatorRuntimeDir) + L"\\" + wide(kTranslatorServerExe);
     found.dir = version_dir;
     found.version = state.value("version", 0u);
+    if (state.contains("name") && state["name"].is_string()) found.name = state["name"].get<std::string>();
     if (state.contains("prompt") && state["prompt"].is_string()) {
         found.prompt = state["prompt"].get<std::string>();
         if (found.prompt != kStudentPrompt) return false;  // asked in a way this version does not know
@@ -253,6 +256,45 @@ bool translatable(const std::string& text) {
     const std::vector<char32_t> chars = code_points(text);
     if (chars.empty() || chars.size() > static_cast<size_t>(kMaxCharacters)) return false;
     return std::any_of(chars.begin(), chars.end(), is_letter);
+}
+
+std::string labelled_translation(const Translation& translation, const PosLabels& labels) {
+    // The head's tags (Universal Dependencies, plus CLF and ONOM) as the glossary's parts of
+    // speech; NONE (phrases, sentences), X, SYM and PUNCT get no label.
+    static const std::map<std::string, GlossPos> kParts = {
+        {"NOUN", GlossPos::kNoun},         {"PROPN", GlossPos::kNoun},
+        {"VERB", GlossPos::kVerb},         {"AUX", GlossPos::kVerb},
+        {"ADJ", GlossPos::kAdjective},     {"ADV", GlossPos::kAdverb},
+        {"PRON", GlossPos::kPronoun},      {"DET", GlossPos::kDeterminer},
+        {"NUM", GlossPos::kNumeral},       {"CLF", GlossPos::kClassifier},
+        {"ADP", GlossPos::kPreposition},   {"CCONJ", GlossPos::kConjunction},
+        {"SCONJ", GlossPos::kConjunction}, {"PART", GlossPos::kParticle},
+        {"INTJ", GlossPos::kInterjection}, {"ONOM", GlossPos::kOnomatopoeia},
+    };
+    if (translation.text.empty()) return {};
+    std::vector<std::pair<GlossPos, float>> parts;  // in the order first found: most likely first
+    for (const auto& [tag, probability] : translation.pos) {
+        const auto found = kParts.find(tag);
+        if (found == kParts.end()) continue;
+        const auto same = std::find_if(parts.begin(), parts.end(),
+                                       [&](const auto& part) { return part.first == found->second; });
+        if (same == parts.end()) {
+            parts.emplace_back(found->second, probability);
+        } else {
+            same->second += probability;
+        }
+    }
+    std::stable_sort(parts.begin(), parts.end(),
+                     [](const auto& a, const auto& b) { return a.second > b.second; });
+    std::string label;
+    int shown = 0;
+    for (const auto& [part, probability] : parts) {
+        if (shown == labels.max_labels || probability < labels.min_probability) break;
+        if (shown++) label += '/';
+        label += gloss_pos_label(part);
+    }
+    if (label.empty()) return translation.text;
+    return label + kGlossLabelSeparator + translation.text;
 }
 
 std::string clean_translation(const std::string& source, const std::string& answer) {
@@ -433,9 +475,9 @@ bool LlamaServer::start(const InstalledModel& installed, const std::string& devi
     return true;
 }
 
-std::vector<std::string> LlamaServer::translate(const std::vector<Item>& items,
+std::vector<Translation> LlamaServer::translate(const std::vector<Item>& items,
                                                 const std::string& context, int timeout_ms) {
-    std::vector<std::string> results(items.size());
+    std::vector<Translation> results(items.size());
     if (!running()) return results;
     std::vector<std::thread> threads;
     for (size_t i = 0; i < items.size(); ++i) {
@@ -448,6 +490,7 @@ std::vector<std::string> LlamaServer::translate(const std::vector<Item>& items,
                     {"top_k", 1},
                     {"repeat_penalty", 1.05},
                     {"stop", {"<|im_end|>"}},
+                    {"pos", true},  // the parts of speech, from a runtime that knows them
                 };
                 const std::string text = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
                 DWORD status = 0;
@@ -455,7 +498,16 @@ std::vector<std::string> LlamaServer::translate(const std::vector<Item>& items,
                 if (status != 200) return;
                 const nlohmann::json answer = nlohmann::json::parse(response, nullptr, false);
                 if (answer.is_object() && answer.contains("content") && answer["content"].is_string()) {
-                    results[i] = clean_translation(items[i].text, answer["content"].get<std::string>());
+                    results[i].text = clean_translation(items[i].text, answer["content"].get<std::string>());
+                    if (answer.contains("pos_top") && answer["pos_top"].is_array()) {
+                        for (const auto& tag : answer["pos_top"]) {
+                            if (tag.is_object() && tag.contains("tag") && tag["tag"].is_string() &&
+                                tag.contains("prob") && tag["prob"].is_number()) {
+                                results[i].pos.emplace_back(tag["tag"].get<std::string>(),
+                                                            tag["prob"].get<float>());
+                            }
+                        }
+                    }
                 }
                 return;
             }
@@ -479,7 +531,7 @@ std::vector<std::string> LlamaServer::translate(const std::vector<Item>& items,
             }
             const auto& message = answer["choices"][0]["message"];
             if (message.is_object() && message.contains("content") && message["content"].is_string()) {
-                results[i] = clean_translation(items[i].text, message["content"].get<std::string>());
+                results[i].text = clean_translation(items[i].text, message["content"].get<std::string>());
             }
         });
     }

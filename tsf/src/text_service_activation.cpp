@@ -68,6 +68,8 @@ void TextService::_handle_ime_menu_command(cxxime::ImeMenuCommand command) {
     case cxxime::ImeMenuCommand::kChinese:
     case cxxime::ImeMenuCommand::kEnglish: {
         const bool chinese = command == cxxime::ImeMenuCommand::kChinese;
+        // Closed by a program or a hotkey, shown as English: a choice opens it again.
+        if (!_keyboardOpen) _open_keyboard("menu");
         if (chinese == _chinese_mode) break;
         // Like a switch key: an open composition is committed as typed.
         if (_ensure_ipc_session() && _client.set_chinese_mode(_sessionId, chinese, response) &&
@@ -287,6 +289,8 @@ void TextService::_initialize_optional_activation_services() {
     cxxime_tsf::trace_activation_step("conversion_sink", "attempt", S_OK, false);
     _register_conversion_compartment_sink();
     _register_open_close_compartment_sink();
+    _keyboardOpen = false;  // opened here, whatever the thread had
+    _open_keyboard("activate");
     cxxime_tsf::trace_activation_step("conversion_sink", "complete", S_OK, false);
 }
 

@@ -56,6 +56,11 @@ bool can_start_text_input(WPARAM key, uint32_t modifiers) {
     }
 }
 
+// The keyboard closed: the status keys (Shift switching the mode) go to the program too.
+bool blocks_status_keys(const char* block_reason) {
+    return block_reason && std::strcmp(block_reason, "keyboard_closed") == 0;
+}
+
 bool indicates_unavailable_input_target(const char* block_reason) {
     return block_reason && (std::strcmp(block_reason, "no_context") == 0 ||
                             std::strcmp(block_reason, "context_not_foreground") == 0);
@@ -113,6 +118,7 @@ STDMETHODIMP TextService::OnSetFocus(BOOL fForeground) {
 STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
     _fTestKeyUpPending = false;
+    _deferredKeyDown = 0;  // a key claimed before whose OnKeyDown never came
     if (_fTestKeyDownPending) {
         *pfEaten = TRUE;
         return S_OK;
@@ -121,7 +127,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
     bool status_key = is_status_key(wParam);
     const char* test_block_reason = _input_context_block_reason(pic);
     _trace_input_decision(test_block_reason);
-    if (test_block_reason && !status_key) {
+    if (test_block_reason && (!status_key || blocks_status_keys(test_block_reason))) {
         cxxime_tsf::trace_context(
             trace_input_id(), trace_composition_id(), pic, _threadMgr,
             "blocked_input_context");
@@ -154,6 +160,20 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
         _fTestKeyDownPending = true;
         return S_OK;
     }
+    if (_defers_key_down(wParam)) {
+        // Claimed now, typed in OnKeyDown: when the edit target turns it down, the program
+        // gets the key as before.
+        if (!_synchronize_effective_edit_target(pic, nullptr, "test_key_event")) {
+            if (wParam < _passThroughKeyUps.size()) {
+                _passThroughKeyUps.set(wParam);
+            }
+            *pfEaten = FALSE;
+            return S_OK;
+        }
+        _deferredKeyDown = wParam;
+        *pfEaten = TRUE;
+        return S_OK;
+    }
     *pfEaten = _ProcessKeyEvent(pic, wParam, lParam, pfEaten);
     if (wParam == VK_CAPITAL) {
         *pfEaten = TRUE;
@@ -177,6 +197,12 @@ STDMETHODIMP TextService::OnTestKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lPa
         _fTestKeyUpPending = true;
         return S_OK;
     }
+    if (_deferredKeyDown != 0 && _deferredKeyDown == wParam) {
+        // Its OnKeyDown never came: the program took the key (a shortcut), the key-up is its.
+        _deferredKeyDown = 0;
+        *pfEaten = FALSE;
+        return S_OK;
+    }
     if (wParam < _passThroughKeyUps.size() && _passThroughKeyUps.test(wParam)) {
         *pfEaten = FALSE;
         return S_OK;
@@ -193,6 +219,11 @@ STDMETHODIMP TextService::OnTestKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lPa
 
 STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
+    if (_deferredKeyDown != 0 && _deferredKeyDown == wParam) {
+        _deferredKeyDown = 0;
+        *pfEaten = _ProcessKeyEvent(pic, wParam, lParam, pfEaten);
+        return S_OK;
+    }
     if (_fTestKeyDownPending) {
         _fTestKeyDownPending = false;
         *pfEaten = TRUE;
@@ -231,6 +262,11 @@ STDMETHODIMP TextService::OnKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lParam,
         *pfEaten = TRUE;
         return S_OK;
     }
+    if (_deferredKeyDown != 0 && _deferredKeyDown == wParam) {
+        _deferredKeyDown = 0;  // as in OnTestKeyUp
+        *pfEaten = FALSE;
+        return S_OK;
+    }
     if (wParam < _passThroughKeyUps.size() && _passThroughKeyUps.test(wParam)) {
         _passThroughKeyUps.reset(wParam);
         *pfEaten = FALSE;
@@ -262,7 +298,7 @@ bool TextService::_ProcessKeyEvent(ITfContext* pic, WPARAM wParam, LPARAM lParam
         !_context_matches_effective_edit_target(pic);
     bool input_allowed = block_reason == nullptr;
     _trace_input_decision(block_reason);
-    if (!input_allowed && !status_key) {
+    if (!input_allowed && (!status_key || blocks_status_keys(block_reason))) {
         cxxime_tsf::trace_context(
             trace_input_id(), trace_composition_id(), pic, _threadMgr,
             "blocked_input_context");
@@ -432,6 +468,19 @@ bool TextService::_ProcessKeyEvent(ITfContext* pic, WPARAM wParam, LPARAM lParam
     return *pfEaten != FALSE;
 }
 
+// A letter that starts a new composition is only claimed in OnTestKeyDown and typed in OnKeyDown,
+// as TSF intends: a program that takes the key in between gets it with no composition started.
+// wxWidgets programs run their shortcuts from a keyboard hook between the two and skip them once
+// a composition has started (WM_IME_STARTCOMPOSITION), so typing in OnTestKeyDown ate the
+// shortcuts of Aegisub's audio display (#37). Only keys the engine always takes: no modifier and
+// no Caps Lock, where it may type a letter as it is.
+bool TextService::_defers_key_down(WPARAM key) const {
+    if (_composing || !_chinese_mode || _voicePolling || key < 'A' || key > 'Z') {
+        return false;
+    }
+    return (_get_modifiers() & (0x01 | 0x02 | 0x04 | 0x08)) == 0;
+}
+
 bool TextService::_ProcessKeyUp(WPARAM wParam, LPARAM lParam) {
     if (wParam == VK_CAPITAL) {
         return false;
@@ -515,6 +564,12 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext* pic, REFGUID rguid, BOOL* p
     for (size_t i = 0; i < std::size(keys); ++i) {
         if (IsEqualGUID(rguid, *keys[i]) && _preservedSwitchKeys[i].enabled()) {
             const int slot = static_cast<int>(i);
+            if (!_keyboardOpen) {
+                // Closed by a program or a hotkey: a switch key opens the keyboard, nothing more.
+                if (_claim_switch_key_press(slot)) _open_keyboard("switch_key_closed");
+                *pfEaten = TRUE;
+                break;
+            }
             // Every shortcut press goes through the gestures; the voice key is read there.
             if (_feed_key_gesture(_preservedSwitchKeys[i].virtual_key, false)) {
                 *pfEaten = TRUE;

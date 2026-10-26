@@ -50,7 +50,7 @@ void TextService::_sync_ime_status(const cxxime::ImeStatus& status) {
     // Update button state before notifying the compartment. The language bar
     // queries GetIcon during the notification, so stale button state causes a
     // second refresh and visible flicker.
-    _inputIndicator.update_from_status(status);
+    _inputIndicator.update_from_status(_shown_status(status));
     if (!_handlingConversionCompartmentChange) {
         _sync_conversion_mode_compartment(status);
     }

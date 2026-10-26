@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace cxxime {
@@ -31,6 +32,7 @@ struct InstalledModel {
     std::wstring model;   // the .gguf file
     std::wstring server;  // runtime\llama-server.exe
     std::uint32_t version = 0;
+    std::string name;     // the version as shown after "v" ("4-1026"); "" = `version`
     std::string prompt;   // "" or kStudentPrompt
 };
 
@@ -50,6 +52,26 @@ bool translatable(const std::string& text);
 // The model's answer as shown after a candidate: the first line, trimmed, without quotes;
 // empty when it only repeats the candidate.
 std::string clean_translation(const std::string& source, const std::string& answer);
+
+// A candidate's translation, with the parts of speech the model's head found for it in its
+// context (translator v4-1026 and later on the patched runtime): Universal Dependencies tags
+// (plus CLF, ONOM, NONE) and their probabilities, most likely first; empty without a head.
+struct Translation {
+    std::string text;
+    std::vector<std::pair<std::string, float>> pos;
+};
+
+// learning.translator_pos_min_probability and learning.translator_pos_max_labels.
+struct PosLabels {
+    float min_probability = 0.4f;
+    int max_labels = 3;
+};
+
+// A translation as the candidate window takes it (candidate_presentation.h): with the parts of
+// speech at least labels.min_probability likely, at most labels.max_labels of them, as the
+// glossary's labels ("adv./adj."). Tags with the same label count together (NOUN and PROPN are
+// both "n."); NONE (phrases, sentences), X, SYM and PUNCT get none.
+std::string labelled_translation(const Translation& translation, const PosLabels& labels);
 
 // The prompt for one candidate (Hy-MT2's templates), with the text before it when given.
 std::string translation_prompt(const std::string& target, const std::string& text,
@@ -80,8 +102,9 @@ public:
     bool running() const;
     const std::string& device() const { return device_; }
 
-    // The translations, in the order of `items` (empty where it failed), asked in parallel.
-    std::vector<std::string> translate(const std::vector<Item>& items, const std::string& context,
+    // The translations, in the order of `items` (empty where it failed), asked in parallel; with
+    // their parts of speech when the model has a head.
+    std::vector<Translation> translate(const std::vector<Item>& items, const std::string& context,
                                        int timeout_ms = 10000);
 
 private:

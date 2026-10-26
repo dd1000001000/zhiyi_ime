@@ -129,6 +129,8 @@ bool TextService::_context_keyboard_disabled(ITfContext* context) const {
 const char* TextService::_input_context_block_reason(ITfContext* context) const {
     if (!context)
         return "no_context";
+    if (!_keyboardOpen)
+        return "keyboard_closed";
     if (!_context_belongs_to_foreground(context))
         return "context_not_foreground";
     if (_context_keyboard_disabled(context))

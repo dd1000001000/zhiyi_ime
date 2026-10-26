@@ -32,13 +32,17 @@ public:
 
     void set_callback(Callback callback);
 
-    // The translation remembered for (target, text); false when it was never asked.
-    bool cached(const std::string& target, const std::string& text, std::string* translation);
+    // The translation remembered for (target, context, text) as the candidate window shows it,
+    // with `labels` of its parts of speech (cxxime::mt::labelled_translation); false when it was
+    // never asked. The context (the text before the caret) picks the meaning and the part of
+    // speech.
+    bool cached(const std::string& target, const std::string& context, const std::string& text,
+                const cxxime::mt::PosLabels& labels, std::string* translation);
 
     // Translates these candidates (the current page) on the graphics card `device`; replaces a
-    // page still waiting.
+    // page still waiting. The callback gets them with `labels`.
     void request(std::vector<cxxime::mt::Item> items, std::string context, std::string device,
-                 int idle_seconds);
+                 int idle_seconds, cxxime::mt::PosLabels labels);
 
     void stop();  // at server exit
 
@@ -52,6 +56,7 @@ private:
         std::string context;
         std::string device;
         int idle_seconds = 60;
+        cxxime::mt::PosLabels labels;
     };
 
     std::mutex mutex_;
@@ -61,7 +66,7 @@ private:
     bool have_page_ = false;
     Page page_;
     Callback callback_;
-    std::unordered_map<std::string, std::string> cache_;  // target \x1F text -> translation
+    std::unordered_map<std::string, cxxime::mt::Translation> cache_;  // target \x1F context \x1F text
     std::wstring model_;  // run() only: the .gguf the cached translations came from
     std::string failed_device_;  // the model could not start there; not tried again for a while
     long long failed_at_ms_ = 0;

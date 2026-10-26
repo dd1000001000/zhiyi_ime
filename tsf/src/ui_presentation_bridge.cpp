@@ -174,7 +174,7 @@ void TextService::_publish_ui_presentation() {
     snapshot.ownership = ui_ownership(_candidatePresentation.ownership());
     {
         std::lock_guard<std::mutex> lock(_lastImeStatusMutex);
-        snapshot.ime_status = _lastImeStatus;
+        snapshot.ime_status = _shown_status(_lastImeStatus);
     }
 
     if (_composing) {

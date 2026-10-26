@@ -440,6 +440,10 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(learning, "translator_idle_seconds", config.mt_idle_seconds);
         load_int(learning, "translator_min_gpu_memory_mb", config.mt_min_gpu_memory_mb);
         config.mt_min_gpu_memory_mb = std::clamp(config.mt_min_gpu_memory_mb, 0, 1 << 20);
+        load_double(learning, "translator_pos_min_probability", config.mt_pos_min_probability);
+        load_int(learning, "translator_pos_max_labels", config.mt_pos_max_labels);
+        config.mt_pos_min_probability = std::clamp(config.mt_pos_min_probability, 0.0, 1.0);
+        config.mt_pos_max_labels = std::clamp(config.mt_pos_max_labels, 0, 5);
         load_bool(learning, "digits_type_translation", config.digits_type_translation);
         config.mt_context_chars = (std::max)(0, (std::min)(config.mt_context_chars, 256));
         config.mt_idle_seconds = (std::max)(5, config.mt_idle_seconds);
@@ -812,6 +816,8 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["learning"]["translator_context_chars"] = config.mt_context_chars;
     j["learning"]["translator_idle_seconds"] = config.mt_idle_seconds;
     j["learning"]["translator_min_gpu_memory_mb"] = config.mt_min_gpu_memory_mb;
+    j["learning"]["translator_pos_min_probability"] = config.mt_pos_min_probability;
+    j["learning"]["translator_pos_max_labels"] = config.mt_pos_max_labels;
     j["learning"]["space_languages"] = config.translation_space_languages;
     j["learning"]["digits_type_translation"] = config.digits_type_translation;
     j["voice"]["enable"] = config.voice_enable;

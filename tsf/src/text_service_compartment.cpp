@@ -41,6 +41,15 @@ void debug_switch(const char* format, ...) {
     OutputDebugStringA(line);
 }
 
+bool keyboard_opened(ITfCompartment* compartment) {
+    VARIANT value = {};
+    VariantInit(&value);
+    const bool open = compartment && SUCCEEDED(compartment->GetValue(&value)) &&
+                      (value.vt == VT_I4 || value.vt == VT_UI4) && value.lVal != 0;
+    VariantClear(&value);
+    return open;
+}
+
 constexpr UINT kConversionSettleMs = 150;
 constexpr ULONGLONG kFocusRestoreMs = 400;
 
@@ -148,6 +157,61 @@ void TextService::_unregister_open_close_compartment_sink() {
         _openCloseCompartment->Release();
         _openCloseCompartment = nullptr;
     }
+}
+
+// The keyboard is open while this input method is active, Chinese or English (the mode is the
+// conversion compartment), as Microsoft Pinyin keeps it. Programs read it as the IME open status
+// (ImmGetOpenStatus); nothing set it before, so it read closed (0) where no other input method had
+// opened it.
+void TextService::_open_keyboard(const char* reason) {
+    if (!_openCloseCompartment || _clientId == TF_CLIENTID_NULL) return;
+    if (!keyboard_opened(_openCloseCompartment)) {
+        VARIANT value = {};
+        VariantInit(&value);
+        value.vt = VT_I4;
+        value.lVal = TRUE;
+        ScopedFlag writing(_writingOpenCloseCompartment);
+        const HRESULT hr = _openCloseCompartment->SetValue(_clientId, &value);
+        debug_switch("keyboard opened (%s) hr=0x%08lx", reason, static_cast<unsigned long>(hr));
+    }
+    _set_keyboard_open(true, reason);
+}
+
+// Closed by a program (ImmSetOpenStatus) or a system hotkey that is no switch key (Ctrl+Space
+// when it is not one): like Microsoft Pinyin, the input method is off until it is opened again,
+// keys going to the program as typed. The Chinese / English mode stays as it is.
+void TextService::_set_keyboard_open(bool open, const char* reason) {
+    if (_keyboardOpen == open) return;
+    _keyboardOpen = open;
+    debug_switch("keyboard %s (%s)", open ? "open" : "closed", reason);
+    if (_configWindow) {
+        PostMessageW(_configWindow, cxxime_tsf::WM_CXXIME_KEYBOARD_STATE, 0, 0);
+    } else {
+        _apply_keyboard_state();
+    }
+}
+
+// After the compartment notification: what was typed is committed when the keyboard closed,
+// and the mode shown follows (English while closed).
+void TextService::_apply_keyboard_state() {
+    if (!_keyboardOpen && _composing) {
+        finalize_exact_candidate_ui_from_tsf();
+        if (_composing) abort_candidate_ui_from_tsf();
+    }
+    cxxime::ImeStatus status;
+    {
+        std::lock_guard<std::mutex> lock(_lastImeStatusMutex);
+        if (!_has_synced_ime_status()) return;
+        status = _lastImeStatus;
+    }
+    _inputIndicator.update_from_status(_shown_status(status));
+    _publish_ui_presentation();
+}
+
+cxxime::ImeStatus TextService::_shown_status(const cxxime::ImeStatus& status) const {
+    cxxime::ImeStatus shown = status;
+    if (!_keyboardOpen) shown.set_chinese_mode(false);
+    return shown;
 }
 
 cxxime::KeyboardShortcut TextService::_switch_key(int slot) const {
@@ -307,8 +371,27 @@ HRESULT TextService::_read_conversion_mode_compartment(
 
 STDMETHODIMP TextService::OnChange(REFGUID rguid) {
     if (IsEqualGUID(rguid, GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)) {
-        // Only a system hotkey on a configured switch key matters (e.g. Ctrl+Space).
-        if (_activated) _run_held_switch_key();
+        if (_writingOpenCloseCompartment || !_activated) return S_OK;
+        const bool open = keyboard_opened(_openCloseCompartment);
+        if (!_keyboardOpen) {
+            // Closed: opened again by the program or the hotkey. A switch key held for it only
+            // opens the keyboard (its key event finds the press claimed).
+            if (open) {
+                const int slot = _held_switch_key();
+                if (slot >= 0) _claim_switch_key_press(slot);
+                _set_keyboard_open(true, "opened");
+            }
+            return S_OK;
+        }
+        // A configured switch key's system hotkey (e.g. Ctrl+Space) runs that key; the keyboard
+        // stays open. Any other close is the program's or the user's: the keyboard closes.
+        if (_run_held_switch_key()) {
+            if (!open && _configWindow) {
+                PostMessageW(_configWindow, cxxime_tsf::WM_CXXIME_KEYBOARD_STATE, 1, 0);
+            }
+            return S_OK;
+        }
+        if (!open) _set_keyboard_open(false, "closed");
         return S_OK;
     }
     if (!IsEqualGUID(

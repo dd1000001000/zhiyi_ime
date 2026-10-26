@@ -285,16 +285,21 @@ bool translator_enabled(const cxxime::Config& config) {
     return config.mt_enable && !config.mt_device.empty();
 }
 
+cxxime::mt::PosLabels pos_labels(const cxxime::Config& config) {
+    return {static_cast<float>(config.mt_pos_min_probability), config.mt_pos_max_labels};
+}
+
 const std::string& gloss_target(const cxxime::Config& config, const cxxime::Candidate& candidate) {
     return candidate.source == cxxime::CandidateSource::kEnglish ? config.english_gloss_target
                                                                  : config.chinese_gloss_target;
 }
 
 // The translation the candidate window shows for `candidate`: from the language pack, or else
-// one the offline translation model (machine_translator.h) has made, shown without a part of
-// speech. `asked` tells whether the model was asked already (it may have found nothing).
+// one the offline translation model (machine_translator.h) has made for it after `context`, with
+// the part of speech its head found. `asked` tells whether the model was asked already (it may
+// have found nothing).
 std::string shown_gloss(const cxxime::Config& config, const cxxime::Candidate& candidate,
-                        bool* asked = nullptr) {
+                        const std::string& context, bool* asked = nullptr) {
     if (asked) *asked = false;
     if (candidate.source == cxxime::CandidateSource::kSymbol) return {};
     std::string gloss = cxxime::candidate_gloss(
@@ -302,7 +307,8 @@ std::string shown_gloss(const cxxime::Config& config, const cxxime::Candidate& c
         candidate.syllables, candidate.source == cxxime::CandidateSource::kEnglish);
     const std::string& target = gloss_target(config, candidate);
     if (gloss.empty() && translator_enabled(config) && !target.empty() &&
-        MachineTranslator::instance().cached(target, candidate.text, &gloss) && asked) {
+        MachineTranslator::instance().cached(target, context, candidate.text, pos_labels(config), &gloss) &&
+        asked) {
         *asked = true;
     }
     return gloss;
@@ -315,11 +321,15 @@ void add_glosses(const SessionEntry& entry, cxxime::CandidatePresentationPage& p
     const cxxime::Config& config = entry.resources.runtime->config();
     if (!learning_mode_shown(config)) return;
     const auto& entries = entry.engine->context().translation().entries;
+    const std::string context =
+        translator_enabled(config)
+            ? entry.engine->laya_context(static_cast<std::size_t>(config.mt_context_chars))
+            : std::string();
     std::vector<cxxime::mt::Item> missing;
     for (std::size_t i = 0; i < page.items.size() && i < entries.size(); ++i) {
         const cxxime::Candidate& candidate = entries[i].candidate;
         bool asked = false;
-        page.items[i].gloss = shown_gloss(config, candidate, &asked);
+        page.items[i].gloss = shown_gloss(config, candidate, context, &asked);
         // Not in the language pack nor asked yet: to the model, when on.
         const std::string& target = gloss_target(config, candidate);
         if (page.items[i].gloss.empty() && !asked &&
@@ -331,10 +341,8 @@ void add_glosses(const SessionEntry& entry, cxxime::CandidatePresentationPage& p
         }
     }
     if (!missing.empty()) {
-        MachineTranslator::instance().request(
-            std::move(missing),
-            entry.engine->laya_context(static_cast<std::size_t>(config.mt_context_chars)),
-            config.mt_device, config.mt_idle_seconds);
+        MachineTranslator::instance().request(std::move(missing), context, config.mt_device,
+                                              config.mt_idle_seconds, pos_labels(config));
     }
 }
 
@@ -1882,7 +1890,11 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
         const cxxime::Candidate* candidate = index ? engine.context().candidate(*index) : nullptr;
         if (candidate && resources.runtime) {
             const cxxime::Config& config = resources.runtime->config();
-            const auto senses = cxxime::decode_candidate_gloss(shown_gloss(config, *candidate));
+            const std::string context =
+                translator_enabled(config)
+                    ? engine.laya_context(static_cast<std::size_t>(config.mt_context_chars))
+                    : std::string();
+            const auto senses = cxxime::decode_candidate_gloss(shown_gloss(config, *candidate, context));
             if (!senses.empty()) translation = senses.front().text;
             const auto& languages = config.translation_space_languages;
             spaced = std::find(languages.begin(), languages.end(),

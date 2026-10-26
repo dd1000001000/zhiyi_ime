@@ -79,7 +79,9 @@
     "learning": {
         "chinese_target": "",
         "english_target": "",
-        "translator_min_gpu_memory_mb": 1000
+        "translator_min_gpu_memory_mb": 1000,
+        "translator_pos_min_probability": 0.4,
+        "translator_pos_max_labels": 3
     },
     "voice": {
         "enable": false,

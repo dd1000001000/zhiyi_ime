@@ -156,6 +156,9 @@ bool parse_translator_manifest(const std::string& text, const std::string& downl
     const auto version = json.find("version");
     if (version == json.end() || !version->is_number_unsigned()) return false;
     parsed.version = version->get<std::uint32_t>();
+    if (json.contains("name") && json["name"].is_string() && json["name"].get<std::string>().size() <= 32) {
+        parsed.name = json["name"].get<std::string>();
+    }
     if (json.contains("min_app") && json["min_app"].is_string()) {
         parsed.min_app = json["min_app"].get<std::string>();
     }

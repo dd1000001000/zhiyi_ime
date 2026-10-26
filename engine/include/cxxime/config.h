@@ -111,6 +111,11 @@ struct Config {
     int mt_context_chars = 32;     // learning.translator_context_chars: text before the caret
     int mt_idle_seconds = 60;      // learning.translator_idle_seconds: unloaded after this
     int mt_min_gpu_memory_mb = 1000;  // learning.translator_min_gpu_memory_mb: cards offered
+    // The parts of speech shown before a model translation (a model with a part-of-speech head):
+    // those at least this likely (learning.translator_pos_min_probability, 0-1), at most this
+    // many (learning.translator_pos_max_labels, 0-5; 0 shows none).
+    double mt_pos_min_probability = 0.4;
+    int mt_pos_max_labels = 3;
     // Voice input (docs/voice-input.md): the server records while the voice key is on and turns
     // the speech into text with the downloaded model (voice_recognizer.h, voice_files.h).
     bool voice_enable = false;            // voice.enable

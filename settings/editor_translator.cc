@@ -80,13 +80,18 @@ int time_pages(mt::LlamaServer& server) {
     for (const auto& page : timing_pages()) {
         const auto start = std::chrono::steady_clock::now();
         const auto out = server.translate(page, {});
-        if (out.empty() || out[0].empty()) return 0;
+        if (out.empty() || out[0].text.empty()) return 0;
         times.push_back(static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
                                              std::chrono::steady_clock::now() - start)
                                              .count()));
     }
     std::sort(times.begin(), times.end());
     return (std::max)(1, times[times.size() / 2]);
+}
+
+// A version as Settings shows it after "v": the manifest's name ("4-1026") when it has one.
+std::wstring shown_version(std::uint32_t version, const std::string& name) {
+    return name.empty() ? std::to_wstring(version) : utf8_to_wstr(name);
 }
 
 fs::path translator_root() { return fs::path(utf8_to_wstr(local_data_dir())) / kTranslatorDir; }
@@ -248,6 +253,7 @@ MtInstalled install(const update::TranslatorManifest& manifest, const std::atomi
                             {"dir", wstr_to_utf8(version)},
                             {"model", manifest.model.file}};
     if (!manifest.prompt.empty()) state["prompt"] = manifest.prompt;
+    if (!manifest.name.empty()) state["name"] = manifest.name;
     const fs::path json = root / kTranslatorInstalled;
     {
         std::ofstream out(fs::path(json.wstring() + L".tmp"), std::ios::binary | std::ios::trunc);
@@ -358,9 +364,9 @@ void EditorApp::show_translator_state() {
             status = tr("learning.translator_missing");
             action = tr("learning.download");
         } else {
-            status = fill(tr("learning.translator_installed"), {std::to_wstring(installed.version)});
+            status = fill(tr("learning.translator_installed"), {shown_version(installed.version, installed.name)});
             if (mt_remote_known_ && mt_remote_.version > installed.version) {
-                status += L" · " + fill(tr("learning.has_update"), {std::to_wstring(mt_remote_.version)});
+                status += L" · " + fill(tr("learning.has_update"), {shown_version(mt_remote_.version, mt_remote_.name)});
                 action = tr("learning.update_to");
             } else {
                 if (mt_remote_known_) status += L" · " + std::wstring(tr("learning.latest"));
@@ -373,7 +379,7 @@ void EditorApp::show_translator_state() {
     SetWindowTextW(hTranslatorStatus_, status.c_str());
     std::wstring label = action ? action : L"";
     if (mt_busy_ == MtBusy::kNone && have && mt_remote_known_ && mt_remote_.version > installed.version) {
-        label = fill(tr("learning.update_to"), {std::to_wstring(mt_remote_.version)});
+        label = fill(tr("learning.update_to"), {shown_version(mt_remote_.version, mt_remote_.name)});
     }
     SetWindowTextW(hTranslatorAction_, label.c_str());
     ShowWindow(hTranslatorAction_, action ? SW_SHOW : SW_HIDE);
@@ -452,7 +458,7 @@ void EditorApp::start_translator_test() {
             tested->works = server.start(installed, key, &error);
             if (tested->works) {
                 const auto out = server.translate({{"en", "\xE4\xBD\xA0\xE5\xA5\xBD"}}, {});  // 你好
-                tested->works = !out.empty() && !out[0].empty();
+                tested->works = !out.empty() && !out[0].text.empty();
             }
             // An old card may run the model slower than the processor: time both.
             if (tested->works && key != mt::kCpuDevice) tested->device_ms = time_pages(server);

@@ -273,6 +273,10 @@ private:
     void _register_switch_keys();
     void _unregister_switch_keys();
     void _register_open_close_compartment_sink();
+    void _open_keyboard(const char* reason);
+    void _set_keyboard_open(bool open, const char* reason);
+    void _apply_keyboard_state();
+    cxxime::ImeStatus _shown_status(const cxxime::ImeStatus& status) const;
     void _unregister_open_close_compartment_sink();
     // The configured switch key (c_guidPreservedKey* order) held now, else -1.
     int _held_switch_key() const;
@@ -346,6 +350,7 @@ private:
                                 BOOL* eaten,
                                 TsfTrace* trace = nullptr);
     bool _ProcessKeyEvent(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten);
+    bool _defers_key_down(WPARAM key) const;
     bool _ProcessKeyUp(WPARAM wParam, LPARAM lParam);
     void _AbortComposition();
     void _reset_trace_composition(const char* reason);
@@ -506,9 +511,16 @@ private:
     unsigned int _runtimeTargetValidationFailures = 0;
     bool _fTestKeyDownPending = false;
     bool _fTestKeyUpPending = false;
+    // The key claimed in OnTestKeyDown and typed in OnKeyDown (0: none), see
+    // _defers_key_down.
+    WPARAM _deferredKeyDown = 0;
     std::bitset<256> _passThroughKeyUps;
     bool _hostCompatibilityRuntimeActive = false;
     bool _writingConversionCompartment = false;
+    bool _writingOpenCloseCompartment = false;
+    // The keyboard open/close compartment: closed by a program or a system hotkey, the input
+    // method types nothing and every key goes to the program (TextService::_set_keyboard_open).
+    bool _keyboardOpen = true;
     bool _handlingConversionCompartmentChange = false;
     UINT_PTR _statePollTimer = 0;
     UINT _statePollIntervalMs = 0;

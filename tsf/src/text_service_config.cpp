@@ -126,6 +126,12 @@ LRESULT CALLBACK TextService::_config_window_proc(HWND hwnd, UINT msg, WPARAM wp
         }
         return 0;
     }
+    if (msg == cxxime_tsf::WM_CXXIME_KEYBOARD_STATE && service) {
+        if (!service->_activated) return 0;
+        if (wp != 0) service->_open_keyboard("switch_key");
+        service->_apply_keyboard_state();
+        return 0;
+    }
     if (msg == WM_TIMER && wp == cxxime_tsf::TIMER_CXXIME_CONVERSION_SETTLE && service) {
         KillTimer(hwnd, cxxime_tsf::TIMER_CXXIME_CONVERSION_SETTLE);
         service->_settle_conversion_change();

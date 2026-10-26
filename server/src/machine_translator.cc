@@ -13,8 +13,8 @@ namespace {
 constexpr size_t kMaxCached = 20000;
 constexpr long long kRetryAfterFailureMs = 5 * 60 * 1000;
 
-std::string cache_key(const std::string& target, const std::string& text) {
-    return target + '\x1F' + text;
+std::string cache_key(const std::string& target, const std::string& context, const std::string& text) {
+    return target + '\x1F' + context + '\x1F' + text;
 }
 
 long long now_ms() {
@@ -37,22 +37,23 @@ void MachineTranslator::set_callback(Callback callback) {
     callback_ = std::move(callback);
 }
 
-bool MachineTranslator::cached(const std::string& target, const std::string& text,
+bool MachineTranslator::cached(const std::string& target, const std::string& context,
+                               const std::string& text, const cxxime::mt::PosLabels& labels,
                                std::string* translation) {
     std::lock_guard<std::mutex> lock(mutex_);
-    const auto found = cache_.find(cache_key(target, text));
+    const auto found = cache_.find(cache_key(target, context, text));
     if (found == cache_.end()) return false;
-    *translation = found->second;
+    *translation = cxxime::mt::labelled_translation(found->second, labels);
     return true;
 }
 
 void MachineTranslator::request(std::vector<cxxime::mt::Item> items, std::string context,
-                                std::string device, int idle_seconds) {
+                                std::string device, int idle_seconds, cxxime::mt::PosLabels labels) {
     if (items.empty() || device.empty()) return;
     std::lock_guard<std::mutex> lock(mutex_);
     if (stopping_) return;
     if (device == failed_device_ && now_ms() - failed_at_ms_ < kRetryAfterFailureMs) return;
-    page_ = Page{std::move(items), std::move(context), std::move(device), idle_seconds};
+    page_ = Page{std::move(items), std::move(context), std::move(device), idle_seconds, labels};
     have_page_ = true;
     if (!thread_.joinable()) thread_ = std::thread([this] { run(); });
     wake_.notify_one();
@@ -89,7 +90,7 @@ void MachineTranslator::run() {
             // Translated meanwhile (an earlier page with the same words).
             std::vector<cxxime::mt::Item> left;
             for (auto& item : page.items) {
-                if (cache_.find(cache_key(item.target, item.text)) == cache_.end()) {
+                if (cache_.find(cache_key(item.target, page.context, item.text)) == cache_.end()) {
                     left.push_back(std::move(item));
                 }
             }
@@ -125,7 +126,7 @@ void MachineTranslator::run() {
             CXXIME_LOG(L"MachineTranslator: model loaded on %S in %lld ms", page.device.c_str(),
                        now_ms() - started);
         }
-        const std::vector<std::string> translations = server.translate(page.items, page.context);
+        const std::vector<cxxime::mt::Translation> translations = server.translate(page.items, page.context);
         if (!server.running()) {  // it died: nothing is remembered, started again on the next page
             server.stop();
             continue;
@@ -136,8 +137,10 @@ void MachineTranslator::run() {
             std::lock_guard<std::mutex> lock(mutex_);
             if (cache_.size() > kMaxCached) cache_.clear();
             for (size_t i = 0; i < page.items.size(); ++i) {
-                cache_[cache_key(page.items[i].target, page.items[i].text)] = translations[i];
-                if (!translations[i].empty()) done.emplace_back(page.items[i].text, translations[i]);
+                cache_[cache_key(page.items[i].target, page.context, page.items[i].text)] = translations[i];
+                if (!translations[i].text.empty()) {
+                    done.emplace_back(page.items[i].text, cxxime::mt::labelled_translation(translations[i], page.labels));
+                }
             }
             callback = callback_;
         }

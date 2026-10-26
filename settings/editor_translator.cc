@@ -307,11 +307,11 @@ void EditorApp::create_translator_card(HWND panel, int y) {
 // is disabled and lists the CPU alone.
 void EditorApp::fill_translator_devices() {
     mt_choices_ = mt::find_installed(nullptr)
-                      ? list_translator_gpus(static_cast<std::uint64_t>(config_.mt_min_gpu_memory_mb))
+                      ? cached_translator_gpus(static_cast<std::uint64_t>(config_.mt_min_gpu_memory_mb))
                       : std::vector<GpuAdapter>{};
     const size_t cards = mt_choices_.size();
     GpuAdapter cpu;
-    cpu.name = cpu_info().name;
+    cpu.name = cached_cpu_info().name;
     cpu.key = mt::kCpuDevice;
     mt_choices_.push_back(cpu);
     SendMessageW(hTranslatorDevice_, CB_RESETCONTENT, 0, 0);

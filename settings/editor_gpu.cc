@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <map>
 #include <string>
 #include <thread>
 
@@ -103,10 +104,29 @@ std::wstring with_values(const wchar_t* text, const std::wstring& name, const st
 
 }  // namespace
 
+const std::vector<GpuAdapter>& cached_gpu_adapters(std::uint64_t min_memory_mb) {
+    static std::map<std::uint64_t, std::vector<GpuAdapter>> lists;
+    const auto found = lists.find(min_memory_mb);
+    return found != lists.end() ? found->second
+                                : lists.emplace(min_memory_mb, list_gpu_adapters(min_memory_mb)).first->second;
+}
+
+const std::vector<GpuAdapter>& cached_translator_gpus(std::uint64_t min_memory_mb) {
+    static std::map<std::uint64_t, std::vector<GpuAdapter>> lists;
+    const auto found = lists.find(min_memory_mb);
+    return found != lists.end() ? found->second
+                                : lists.emplace(min_memory_mb, list_translator_gpus(min_memory_mb)).first->second;
+}
+
+const CpuInfo& cached_cpu_info() {
+    static const CpuInfo info = cpu_info();
+    return info;
+}
+
 // "CPU（AMD Ryzen 9 9950X …）", "CPU（2 × Intel Xeon …）" for two sockets (one choice: the CPU
 // provider uses all of them); "GPU（…）", or "GPU 1（…）", "GPU 2（…）" when there are several.
 void EditorApp::fill_device_combo() {
-    const CpuInfo cpu = cpu_info();
+    const CpuInfo& cpu = cached_cpu_info();
     const std::wstring cpu_name = cpu.name.empty() ? L"?" : utf8_to_wstr(cpu.name);
     combo_add(hDevice_, (cpu.packages > 1
                              ? with_values(tr("general.device_cpus"), cpu_name, std::to_wstring(cpu.packages))
@@ -128,10 +148,10 @@ void EditorApp::load_gpu_choices() {
     const nlohmann::json state = read_gpu_state();
     const std::string model = LayaRerank::instance().model_id(config_);
     const auto min_memory_mb = static_cast<std::uint64_t>(config_.laya.min_gpu_memory_mb);
-    for (GpuAdapter& adapter : list_gpu_adapters(min_memory_mb)) {
+    for (const GpuAdapter& adapter : cached_gpu_adapters(min_memory_mb)) {
         const nlohmann::json* test = find_test(state, adapter, model);
         if (!test || test->value("gpu_ms", -1.0) > 0) {
-            gpu_choices_.push_back(std::move(adapter));
+            gpu_choices_.push_back(adapter);
         }
     }
 }

@@ -51,6 +51,9 @@ std::string chosen_data_folder();
 bool set_chosen_data_folder(const std::string& folder);
 // A folder is chosen but cannot be used (a removed drive): the default places are in use.
 bool chosen_data_folder_unavailable();
+// Tests: the HKCU key the chosen folder is kept under instead of Software\ZhiyiIME, so they never
+// touch the user's own setting.
+void set_data_folder_registry_key_for_test(const wchar_t* key);
 
 // The default places, whatever is chosen.
 std::string default_user_data_dir();

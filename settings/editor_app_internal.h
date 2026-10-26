@@ -3,14 +3,25 @@
 #ifndef CXXIME_SETTINGS_EDITOR_APP_INTERNAL_H_
 #define CXXIME_SETTINGS_EDITOR_APP_INTERNAL_H_
 
+#include <cstdint>
 #include <initializer_list>
 #include <string>
+#include <vector>
 
 #include <windows.h>
 #include <commctrl.h>
 
+#include <cxxime/gpu_adapters.h>
+
 namespace cxxime {
 namespace settings {
+
+// The graphics cards and the processor, asked once per run (editor_gpu.cc): the pages are built
+// again on every DPI change (the window moved to another screen), and asking Direct3D and Vulkan
+// each time made that take more than a second.
+const std::vector<GpuAdapter>& cached_gpu_adapters(std::uint64_t min_memory_mb);
+const std::vector<GpuAdapter>& cached_translator_gpus(std::uint64_t min_memory_mb);
+const CpuInfo& cached_cpu_info();
 
 inline constexpr int kFontPt = 14;
 inline constexpr int kNavFontPt = kFontPt + 1;

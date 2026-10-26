@@ -286,9 +286,9 @@ void EditorApp::fill_voice_devices() {
     const nlohmann::json state = read_test_state();
     const std::string model = model_id();
     const auto min_memory_mb = static_cast<std::uint64_t>(config_.voice_min_gpu_memory_mb);
-    for (GpuAdapter& adapter : list_gpu_adapters(min_memory_mb)) {
+    for (const GpuAdapter& adapter : cached_gpu_adapters(min_memory_mb)) {
         const nlohmann::json* test = find_test(state, adapter, model);
-        if (!test || test->value("gpu_ms", -1.0) > 0) voice_choices_.push_back(std::move(adapter));
+        if (!test || test->value("gpu_ms", -1.0) > 0) voice_choices_.push_back(adapter);
     }
     auto named = [](const char* key, const std::wstring& name, const std::wstring& count) {
         std::wstring text = tr(key);
@@ -299,7 +299,7 @@ void EditorApp::fill_voice_devices() {
         return text;
     };
     SendMessageW(hVoiceDevice_, CB_RESETCONTENT, 0, 0);
-    const CpuInfo cpu = cpu_info();
+    const CpuInfo& cpu = cached_cpu_info();
     const std::wstring cpu_name = cpu.name.empty() ? L"?" : utf8_to_wstr(cpu.name);
     combo_add(hVoiceDevice_, (cpu.packages > 1 ? named("general.device_cpus", cpu_name, std::to_wstring(cpu.packages))
                                                : named("general.device_cpu", cpu_name, L""))

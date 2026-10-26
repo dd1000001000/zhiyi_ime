@@ -75,8 +75,8 @@ std::string data_path(const char* filename) { return data_dir() + filename; }
 
 namespace {
 
-constexpr wchar_t kRegistryKey[] = L"Software\\ZhiyiIME";
 constexpr wchar_t kRegistryValue[] = L"DataDirectory";
+const wchar_t* g_registry_key = L"Software\\ZhiyiIME";
 
 std::string to_utf8(const std::wstring& text) {
     if (text.empty()) return {};
@@ -115,7 +115,7 @@ bool is_directory(const std::wstring& path) {
 std::wstring chosen_folder_wide() {
     wchar_t buf[MAX_PATH * 2] = {};
     DWORD size = sizeof(buf) - sizeof(wchar_t);
-    if (RegGetValueW(HKEY_CURRENT_USER, kRegistryKey, kRegistryValue, RRF_RT_REG_SZ, nullptr, buf,
+    if (RegGetValueW(HKEY_CURRENT_USER, g_registry_key, kRegistryValue, RRF_RT_REG_SZ, nullptr, buf,
                      &size) != ERROR_SUCCESS) {
         return {};
     }
@@ -147,17 +147,19 @@ std::string chosen_data_folder() { return to_utf8(chosen_folder_wide()); }
 
 bool set_chosen_data_folder(const std::string& folder) {
     if (folder.empty()) {
-        const LSTATUS status = RegDeleteKeyValueW(HKEY_CURRENT_USER, kRegistryKey, kRegistryValue);
+        const LSTATUS status = RegDeleteKeyValueW(HKEY_CURRENT_USER, g_registry_key, kRegistryValue);
         return status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND;
     }
     const std::wstring value = to_wide(folder);
-    return RegSetKeyValueW(HKEY_CURRENT_USER, kRegistryKey, kRegistryValue, REG_SZ, value.c_str(),
+    return RegSetKeyValueW(HKEY_CURRENT_USER, g_registry_key, kRegistryValue, REG_SZ, value.c_str(),
                            static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t))) == ERROR_SUCCESS;
 }
 
 bool chosen_data_folder_unavailable() {
     return !chosen_folder_wide().empty() && chosen_data_root().empty();
 }
+
+void set_data_folder_registry_key_for_test(const wchar_t* key) { g_registry_key = key; }
 
 std::string default_user_data_dir() { return ensure_dir(known_folder(CSIDL_PROFILE, L"\\zhiyi\\")); }
 

@@ -198,7 +198,15 @@ void EditorApp::choose_data_folder(bool to_default) {
     }
     const DataPlaces from = current_places();
     const DataPlaces to = places_for(folder);
-    if (lower(from.user) == lower(to.user)) return;  // already there
+    if (lower(from.user) == lower(to.user)) {
+        // The data is there already. A chosen folder that cannot be used (the default places
+        // are in use) is only forgotten: Restore default did nothing before.
+        if (chosen_data_folder() != wstr_to_utf8(folder) && !set_chosen_data_folder(wstr_to_utf8(folder))) {
+            MessageBoxW(hwnd_, tr("general.data_not_writable"), tr("window.title"), MB_OK | MB_ICONWARNING);
+        }
+        show_data_folder();
+        return;
+    }
 
     // Not into the data itself, the program, or the system.
     wchar_t windows[MAX_PATH] = {};

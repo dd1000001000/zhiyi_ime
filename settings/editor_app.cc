@@ -267,6 +267,26 @@ void EditorApp::destroy_controls() {
     release_fonts();
 }
 
+// The window at the scale of `dpi` in the rectangle Windows suggested (after a drag only its size:
+// the window stays where it was let go), then the pages built again at the new scale. A rebuild
+// takes about 0.4 s, so it is not done for every screen the window crosses while dragged.
+void EditorApp::apply_dpi(UINT dpi, const RECT& suggested, bool keep_position) {
+    const float scale = static_cast<float>(dpi) / 96.0f;
+    if (scale == g_dpi) return;  // dragged back to a screen of the same DPI
+    RECT rect = suggested;
+    if (keep_position) {
+        RECT now;
+        GetWindowRect(hwnd_, &now);
+        OffsetRect(&rect, now.left - rect.left, now.top - rect.top);
+    }
+    g_dpi = scale;
+    SendMessageW(hwnd_, WM_SETREDRAW, FALSE, 0);
+    SetWindowPos(hwnd_, nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top,
+                 SWP_NOZORDER | SWP_NOACTIVATE);
+    read_controls(false);  // keep unsaved choices across the rebuild
+    rebuild_ui();
+}
+
 void EditorApp::rebuild_ui() {
     const int panel = panel_;
     SendMessageW(hwnd_, WM_SETREDRAW, FALSE, 0);
@@ -524,15 +544,27 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         FillRect(reinterpret_cast<HDC>(wp), &rect, window_brush());
         return 1;
     }
-    case WM_DPICHANGED: {
-        g_dpi = static_cast<float>(LOWORD(wp)) / 96.0f;
-        const RECT* rect = reinterpret_cast<const RECT*>(lp);
-        SetWindowPos(hwnd, nullptr, rect->left, rect->top, rect->right - rect->left,
-                     rect->bottom - rect->top, SWP_NOZORDER | SWP_NOACTIVATE);
-        a->read_controls(false);  // keep unsaved choices across the rebuild
-        a->rebuild_ui();
+    case WM_DPICHANGED:
+        if (a->size_moving_) {  // built again when the drag ends
+            const RECT* rect = reinterpret_cast<const RECT*>(lp);
+            a->pending_dpi_ = LOWORD(wp);
+            a->pending_size_ = {rect->right - rect->left, rect->bottom - rect->top};
+        } else {
+            a->apply_dpi(LOWORD(wp), *reinterpret_cast<const RECT*>(lp), false);
+        }
         return 0;
-    }
+    case WM_ENTERSIZEMOVE:
+        a->size_moving_ = true;
+        break;
+    case WM_EXITSIZEMOVE:
+        a->size_moving_ = false;
+        if (a->pending_dpi_) {
+            const UINT dpi = a->pending_dpi_;
+            a->pending_dpi_ = 0;
+            const RECT size = {0, 0, a->pending_size_.cx, a->pending_size_.cy};
+            a->apply_dpi(dpi, size, true);
+        }
+        break;
     case WM_ACTIVATE: {
         // Back from the taskbar menu or another program: show what changed there. Not when one of
         // this window's own message boxes closes (its caller is still updating the page).

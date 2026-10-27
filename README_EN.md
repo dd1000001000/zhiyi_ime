@@ -125,7 +125,7 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small): the recommendation model's encoder, mmBERT-small (MIT)
 - [LMT-60](https://huggingface.co/NiuTrans/LMT-60-0.6B) (NiuTrans): the base of the offline translation model (Apache-2.0)
 - [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B) (Tencent Hunyuan): the first offline translation model (1.8B) and the teachers it was distilled from (7B, and [30B-A3B](https://huggingface.co/tencent/Hy-MT2-30B-A3B) from v4) (Apache-2.0)
-- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B) (Qwen): the teachers Zhiyi 1.4V2-Long-L18's and Long-L12's word choice and Long-L12's composition head were distilled from, fine-tuned with LoRA (Apache-2.0)
+- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B) (Qwen): the teachers Zhiyi 1.4V2-Long-L18's, Long-L12's and ML-pumpkin-1026's word choice and Long-L12's and ML-pumpkin-1026's composition head were distilled from, fine-tuned with LoRA (Apache-2.0)
 - [Youmo IME](https://github.com/Sraw/youmo-ime): the base of the word n-gram (its pinyin language model) and the tool that mixed it (LGPL-2.1-or-later); that base comes from [libime](https://github.com/fcitx/libime) (LGPL-2.1-or-later) and pages of [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) (ODC-By) and [Common Crawl](https://commoncrawl.org)
 - [CSL](https://github.com/ydli-ai/CSL) (Chinese Scientific Literature, Apache-2.0): the science text mixed into the word n-gram
 - [llama.cpp](https://github.com/ggml-org/llama.cpp): the offline translation runtime (MIT, downloaded with the model)
@@ -133,7 +133,8 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [Tatoeba](https://tatoeba.org) (CC BY 2.0 FR) and the English, Japanese, Korean, French, German, Spanish, Russian and Vietnamese parts of [C4](https://huggingface.co/datasets/allenai/c4) (ODC-BY): the foreign-language source texts of offline translation model v3
 - [SkyPile-150B](https://huggingface.co/datasets/Skywork/SkyPile-150B) (Skywork, Skywork Community License): about 70% of the training text for long-pinyin composition since 1.5.4, the Chinese sentences of offline translation model v3, and part of 1.4V2-Long-L18's and Long-L12's word-choice data and of Long-L12's composition data
 - [SODA](https://huggingface.co/datasets/allenai/soda) (CC BY 4.0), Tatoeba and the English part of C4: the text of 1.4V2-Long-L18's and Long-L12's English word-choice data
-- [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb) and [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) (ODC-By 1.0): the recent web pages in 1.4V2-Long-L12's word-choice data
+- [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb) and [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) (ODC-By 1.0): the recent web pages in 1.4V2-Long-L12's word-choice data, and ML-pumpkin-1026's Traditional Chinese, Cantonese, Japanese, Korean and Vietnamese text
+- [Cantonese Wikipedia](https://zh-yue.wikipedia.org) (CC BY-SA 4.0): part of the text of ML-pumpkin-1026's Jyutping composition
 - [wordfreq](https://github.com/rspeer/wordfreq): English word frequencies (CC BY-SA 4.0)
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime): model inference (MIT)
 - [DirectML](https://github.com/microsoft/DirectML): inference on graphics cards (Microsoft DirectML

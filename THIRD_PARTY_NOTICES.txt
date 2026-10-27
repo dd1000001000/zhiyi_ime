@@ -246,13 +246,25 @@ none of its weights are in the models. The word-choice text also came from SODA 
 https://huggingface.co/datasets/allenai/soda, CC BY 4.0; Tatoeba, https://tatoeba.org,
 CC BY 2.0 FR; and the English portion of C4 (ODC-BY 1.0).
 
-Zhiyi 1.4V2-Long-L12 (release model-zhen-long-l12, the model in the installer since 1.5.12) is 1.4V2 with 12 of its 22 encoder layers. Its word choice was distilled from the same fine-tuned Qwen3.5-9B teacher
+Zhiyi 1.4V2-Long-L12 (release model-zhen-long-l12, the model in the installer of 1.5.12-1.5.18) is 1.4V2 with 12 of its 22 encoder layers. Its word choice was distilled from the same fine-tuned Qwen3.5-9B teacher
 and its continuation head from a second Qwen3.5-9B teacher fine-tuned with LoRA to write the typed
 characters; only the teachers' scores were used, none of their weights are in the model. Besides
 the text above, its word-choice text came from FineWeb (Penedo et al., 2024),
 https://huggingface.co/datasets/HuggingFaceFW/fineweb, and FineWeb-2 (Penedo et al., 2025),
 https://huggingface.co/datasets/HuggingFaceFW/fineweb-2, both ODC-By 1.0; its composition text
 from SkyPile-150B and LCCC.
+
+Zhiyi ML-pumpkin-1026 (release model-ml-pumpkin-1026, the model in the installer since 1.6.0) is
+1.4V2-Long-L12 trained further with Traditional Chinese, Japanese, Korean and Vietnamese word
+choice and Traditional Chinese and Japanese composition; Zhiyi IME uses its Simplified Chinese and
+English. Its rows were scored by the two Qwen3.5-9B teachers above, retrained with LoRA; only their
+scores were used. Besides the text above, its text came from the cmn_Hani, yue_Hani, jpn_Jpan,
+kor_Hang and vie_Latn pages of FineWeb-2 (ODC-By 1.0) and the Cantonese Wikipedia,
+https://zh-yue.wikipedia.org (Wikimedia dump of 2026-10), CC BY-SA 4.0. The candidate lists and
+readings of the new languages came from librime (BSD-3-Clause) with rime-luna-pinyin,
+rime-bopomofo, rime-cangjie, rime-quick, rime-cantonese and rime-essay, the Cangjie 3 / Quick 3
+tables of fcitx5-table-extra, libchewing, Mozc and its dictionary, pypinyin, OpenCC and SudachiPy;
+these only produced training rows and none of them is in the model.
 
 
 Word n-gram (ngram/zh.ngram)

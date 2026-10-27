@@ -29,6 +29,7 @@
 #include <cxxime/translation_result.h>
 
 #include "laya/continuation_cache.h"
+#include "laya/model_sentences.h"
 #include "laya/ngram.h"
 #include "laya/reranker.h"
 #include "laya/slots.h"
@@ -443,6 +444,17 @@ struct ContinuationWork {
 
 namespace {
 
+// The head's own sentences of one syllable path it read (laya.model_sentences).
+struct PathSentences {
+    std::string syllables;   // as the composer joins them (a:b:c)
+    std::string code;        // the composer's Candidate::code and input_code for the path
+    std::string input_code;
+    SlotScores scores;  // the head's slot scores the rows came from
+    std::vector<laya::ScoredSentence> rows;
+};
+
+constexpr size_t kModelSentenceChars = 3;  // characters kept per slot (bench sim_free_sentences.py)
+
 // The composer's lattice scorer (pinyin_composer.h): the slot scores of at most
 // laya.continuation_paths syllable paths per translation, from the shared cache or (not in the
 // background) one model call each.
@@ -455,6 +467,7 @@ public:
           weight_(lc.continuation_weight),
           min_syllables_(static_cast<size_t>((std::max)(1, lc.continuation_min_syllables))),
           max_calls_(static_cast<size_t>((std::max)(1, lc.continuation_paths))),
+          model_sentences_(static_cast<size_t>((std::max)(0, lc.model_sentences))),
           background_(background) {}
 
     bool prepare(const CompositionPath& path, const std::string& input) override {
@@ -482,6 +495,10 @@ public:
             }
             SlotScores scores = cached_continuation(key);
             if (!scores && background_) {
+                if (model_sentences_ > 0 && !prefix_tried_) {  // in the same work as the path
+                    prefix_tried_ = true;
+                    add_prefix_reading(path, input, units);
+                }
                 if (missing_keys_.insert(key).second) missing_.push_back(std::move(units));
                 trace_prepare(path, code, key, "(computed in the background)");
                 return false;
@@ -492,6 +509,13 @@ public:
                 cache_continuation(key, scores);
             }
             it = cache_.emplace(key, std::move(scores)).first;
+            if (model_sentences_ > 0 && it->second->size() == path.syllables->size()) {
+                add_model_sentences(path, input, it->second);
+                if (!prefix_tried_) {
+                    prefix_tried_ = true;
+                    add_prefix_reading(path, input, units);
+                }
+            }
         } else {
             trace_prepare(path, code, key, "(cached)");
         }
@@ -499,6 +523,19 @@ public:
         current_ = it->second.get();
         scored_ = true;
         return true;
+    }
+
+    const std::string& context() const { return context_; }
+    // The head's own sentences of the paths it read this translation, in reading order.
+    const std::vector<PathSentences>& model_sentences() const { return sentences_; }
+
+    // ln P the head gives `text` with the slot scores `ps` came from; false when it is not one
+    // character per slot.
+    bool row_ln_p(const PathSentences& ps, const std::string& text, double& ln_p) const {
+        const laya::UnifiedVocab& vocab = *model_->vocab();
+        std::vector<int> ids;
+        for (const auto& c : laya::utf8_chars(text)) ids.push_back(vocab.char_index(c));
+        return ps.scores && laya::sentence_ln_p(*ps.scores, ids, ln_p);
     }
 
     bool score(const std::string& text, size_t start, size_t end, double& ln_p) const override {
@@ -527,10 +564,51 @@ public:
         work->units = std::move(missing_);
         missing_.clear();
         missing_keys_.clear();
+        prefix_missing_ = false;
         return work;
     }
 
 private:
+    void add_model_sentences(const CompositionPath& path, const std::string& input, const SlotScores& scores) {
+        PathSentences ps;
+        for (const auto& s : *path.syllables) {
+            if (!ps.syllables.empty()) ps.syllables += ':';
+            ps.syllables += s;
+        }
+        ps.code = path.input_code ? *path.input_code : input;
+        if (path.input_code) ps.input_code = *path.input_code;
+        ps.scores = scores;
+        ps.rows = laya::best_sentences(*scores, model_->vocab()->chars(), kModelSentenceChars, model_sentences_);
+        if (!ps.rows.empty()) sentences_.push_back(std::move(ps));
+    }
+
+    // The first path's last syllable typed in full may be unfinished ("...zu" for 座 zuo, "...yi"
+    // for 婴 ying): the composer reads it as that syllable only, so the head also reads it as a
+    // prefix (p:zu: every syllable it starts) for its own sentences. One model call more per
+    // composition (in the background as the paths'), not counted in laya.continuation_paths.
+    void add_prefix_reading(const CompositionPath& path, const std::string& input, std::vector<laya::Unit> units) {
+        if (units.empty() || units.back().kind != 'f') return;
+        const laya::UnifiedVocab& vocab = *model_->vocab();
+        const int64_t full = vocab.unit_id(units.back());
+        const int64_t prefix = vocab.unit_id({'p', units.back().text});
+        if (!full || !prefix || vocab.allowed(prefix) == vocab.allowed(full)) return;  // zhong starts no other
+        units.back().kind = 'p';
+        const std::string key = continuation_key(context_, units);
+        SlotScores scores = cached_continuation(key);
+        if (!scores && background_) {
+            if (!prefix_missing_ && !missing_keys_.count(key)) missing_.push_back(std::move(units));
+            prefix_missing_ = true;
+            trace_prepare(path, input, key, "(prefix reading, in the background)");
+            return;
+        }
+        trace_prepare(path, input, key, scores ? "(prefix reading, cached)" : "(prefix reading, model call)");
+        if (!scores) {
+            scores = run_continuation(*model_, context_, units);
+            cache_continuation(key, scores);
+        }
+        if (scores->size() == path.syllables->size()) add_model_sentences(path, input, scores);
+    }
+
     void trace_prepare(const CompositionPath& path, const std::string& code, const std::string& key,
                        const char* how) const {
         if (!std::getenv("LAYA_TRACE")) return;
@@ -545,11 +623,15 @@ private:
     double weight_;
     size_t min_syllables_;
     size_t max_calls_;
+    size_t model_sentences_;
     bool background_;
     bool scored_ = false;
     std::unordered_map<std::string, SlotScores> cache_;  // the paths this translation scored
     std::vector<std::vector<laya::Unit>> missing_;       // the paths left for the background
     std::unordered_set<std::string> missing_keys_;
+    std::vector<PathSentences> sentences_;
+    bool prefix_tried_ = false;    // add_prefix_reading, once a translation
+    bool prefix_missing_ = false;  // its units wait in missing_ (not in missing_keys_: no path's call)
     const std::vector<std::vector<float>>* current_ = nullptr;
 };
 
@@ -902,6 +984,96 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     }
     result.entries[idx[0]].candidate.recommended = true;
     return top != 0;
+}
+
+bool LayaRerank::promote_model_sentence(const Config& config, const std::string& input,
+                                        TranslationResult& result, SpanScorer& scorer,
+                                        const std::function<bool(const Candidate&)>& spells_exactly) {
+    const auto& lc = config.laya;
+    auto* head = dynamic_cast<ContinuationScorer*>(&scorer);
+    if (!lc.enable || lc.model_sentences <= 0 || !head || head->model_sentences().empty()) return false;
+    auto covers_input = [&](const CandidateEntry& entry) {
+        const TextSelectionAction* a = text_action(entry);
+        return a && a->consumed_input_bytes == input.size() && !entry.candidate.text.empty();
+    };
+    size_t first = 0;
+    while (first < result.entries.size() && !covers_input(result.entries[first])) ++first;
+    if (first == result.entries.size()) return false;
+    const Candidate& lead = result.entries[first].candidate;
+
+    // Every path's rows, a text once (its best ln P), and the lead: one n-gram call.
+    std::vector<std::string> texts;
+    std::vector<double> ln_p;
+    std::vector<const PathSentences*> from;
+    for (const auto& ps : head->model_sentences()) {
+        for (const auto& row : ps.rows) {
+            auto it = std::find(texts.begin(), texts.end(), row.text);
+            if (it == texts.end()) {
+                texts.push_back(row.text);
+                ln_p.push_back(row.ln_p);
+                from.push_back(&ps);
+            } else if (row.ln_p > ln_p[static_cast<size_t>(it - texts.begin())]) {
+                ln_p[static_cast<size_t>(it - texts.begin())] = row.ln_p;
+                from[static_cast<size_t>(it - texts.begin())] = &ps;
+            }
+        }
+    }
+    std::shared_ptr<const laya::Ngram> ngram;
+    {
+        State& s = state();
+        std::lock_guard<std::mutex> lk(s.mu);
+        ngram = s.ngram;
+    }
+    const double weight = ngram ? lc.model_sentence_ngram_weight : 0.0;
+    std::vector<double> ng(texts.size() + 1, 0.0);
+    if (weight != 0.0) {
+        std::vector<std::string> all = texts;
+        all.push_back(lead.text);
+        ng = ngram->score(head->context(), all);
+        if (ng.size() != all.size()) return false;
+    }
+    size_t best = 0;
+    for (size_t i = 1; i < texts.size(); ++i)
+        if (ln_p[i] + weight * ng[i] > ln_p[best] + weight * ng[best]) best = i;
+    // The lead with the same slot scores (a row of another length: not one the head can weigh).
+    double lead_ln_p = 0.0;
+    if (!head->row_ln_p(*from[best], lead.text, lead_ln_p)) return false;
+    const double best_score = ln_p[best] + weight * ng[best];
+    const double lead_score = lead_ln_p + weight * ng.back();
+    if (std::getenv("LAYA_TRACE")) {
+        std::fprintf(stderr, "[trace] model sentence %s %.2f vs first %s %.2f (%zu rows)\n", texts[best].c_str(),
+                     best_score, lead.text.c_str(), lead_score, texts.size());
+    }
+    if (texts[best] == lead.text || best_score <= lead_score + lc.model_sentence_margin) return false;
+
+    Candidate pick;
+    pick.text = texts[best];
+    pick.code = from[best]->code;
+    pick.input_code = from[best]->input_code;
+    pick.syllables = from[best]->syllables;
+    pick.origin = CandidateOrigin::kComposed;
+    pick.source = CandidateSource::kPinyin;
+    pick.frequency = lead.frequency;
+    pick.composed_score = lead.composed_score < 0 ? lead.composed_score : -1;
+    pick.recommended = true;
+    // laya.exact_pinyin_first (issue #34): a sentence that does not spell the input exactly does
+    // not displace one that does.
+    if (spells_exactly && spells_exactly(lead) && !spells_exactly(pick)) return false;
+
+    result.entries[first].candidate.recommended = false;
+    auto same = std::find_if(result.entries.begin(), result.entries.end(), [&](const CandidateEntry& e) {
+        return covers_input(e) && e.candidate.text == pick.text;
+    });
+    if (same != result.entries.end()) {
+        CandidateEntry entry = std::move(*same);
+        entry.candidate.recommended = true;
+        result.entries.erase(same);
+        result.entries.insert(result.entries.begin() + static_cast<std::ptrdiff_t>(first), std::move(entry));
+    } else {
+        result.entries.insert(result.entries.begin() + static_cast<std::ptrdiff_t>(first),
+                              make_text_candidate_entry(std::move(pick), input.size()));
+    }
+    return true;
 }
 
 bool LayaRerank::apply_english(const Config& config, const std::string& context,

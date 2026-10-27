@@ -6,6 +6,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstring>
+#include <functional>
 #include <iterator>
 #include <optional>
 
@@ -1428,24 +1429,31 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
         // Issue #34: which candidates spell the input exactly, every syllable in full (fuzzy
         // readings with fuzzy pinyin on); only those may be put first when there are any.
         const PinyinResourceSet* resources = active_pinyin_resources();
+        std::function<bool(const Candidate&)> spells_exactly;
         if (options.slots && runtime_->config().laya.exact_pinyin_first && resources) {
-            const PinyinQueryPolicy policy = runtime_->pinyin_query_policy();
             std::string typed = request.input;
             typed.erase(std::remove(typed.begin(), typed.end(), '\''), typed.end());
+            spells_exactly = [resources, typed, policy = runtime_->pinyin_query_policy()](const Candidate& candidate) {
+                return candidate.source == CandidateSource::kPinyin &&
+                       resources->matches_in_full(typed, candidate.syllables, policy.enable_fuzzy,
+                                                  policy.fuzzy_groups);
+            };
             options.exact.reserve(result.entries.size());
             for (const CandidateEntry& entry : result.entries) {
-                const Candidate& candidate = entry.candidate;
                 const auto* action = std::get_if<TextSelectionAction>(&entry.selection);
-                options.exact.push_back(candidate.source == CandidateSource::kPinyin && action &&
-                                        action->consumed_input_bytes == request.input.size() &&
-                                        resources->matches_in_full(typed, candidate.syllables,
-                                                                   policy.enable_fuzzy,
-                                                                   policy.fuzzy_groups));
+                options.exact.push_back(action && action->consumed_input_bytes == request.input.size() &&
+                                        spells_exactly(entry.candidate));
             }
         }
         LayaRerank::instance().apply(
             runtime_->config(), laya_context(state), request.input, result,
             shuangpin_model_pinyin(request.input, result, shuangpin_input()), options);
+        // Long pinyin: the continuation head's own sentence first when it clearly beats the pick
+        // (laya.model_sentences).
+        if (span_scorer && span_scorer->scored()) {
+            LayaRerank::instance().promote_model_sentence(runtime_->config(), request.input, result,
+                                                          *span_scorer, spells_exactly);
+        }
         move_extra_sentences_back(request.input, result);
         if (laya_first_page && static_cast<int>(result.entries.size()) > page_size) {
             result.entries.resize(page_size);

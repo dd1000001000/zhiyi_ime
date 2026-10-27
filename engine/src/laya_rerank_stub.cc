@@ -18,6 +18,11 @@ bool LayaRerank::apply(const Config&, const std::string&, const std::string&, Tr
     return false;
 }
 
+bool LayaRerank::promote_model_sentence(const Config&, const std::string&, TranslationResult&, SpanScorer&,
+                                        const std::function<bool(const Candidate&)>&) {
+    return false;
+}
+
 std::unique_ptr<SpanScorer> LayaRerank::span_scorer(const Config&, const std::string&) {
     return nullptr;
 }

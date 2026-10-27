@@ -15,6 +15,7 @@
 
 namespace cxxime {
 
+struct Candidate;
 struct Config;
 struct TranslationResult;
 struct EnglishWord;
@@ -68,6 +69,17 @@ public:
     bool apply(const Config& config, const std::string& context, const std::string& input,
                TranslationResult& result, const std::string& model_pinyin = {},
                const LayaApplyOptions& options = {});
+
+    // Long pinyin, after apply (laya.model_sentences): the continuation head's own sentences that
+    // `scorer` (from span_scorer, after the translation) collected, whole rows not split into
+    // dictionary words. The best of them by ln P + model_sentence_ngram_weight * ln P_ngram
+    // goes first among the candidates for the whole input, recommended, when it beats the first
+    // of them, scored the same way, by more than model_sentence_margin; a first candidate the
+    // head did not read keeps its place. `spells_exactly` (laya.exact_pinyin_first; empty =
+    // none): a sentence that does not may not displace one that does. True when it moved one.
+    bool promote_model_sentence(const Config& config, const std::string& input, TranslationResult& result,
+                                SpanScorer& scorer,
+                                const std::function<bool(const Candidate&)>& spells_exactly = {});
 
     // Long pinyin: a scorer for the composer's lattice (pinyin_composer.h) reading `context`,
     // for one translation. nullptr when config.laya.continuation is off, the model is not

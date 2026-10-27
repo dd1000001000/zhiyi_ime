@@ -287,6 +287,18 @@ struct Config {
         // (the model alone has nothing to go on there; with the n-gram, bench neutral set rows
         // without context 72.2 -> 80.6).
         bool ngram_without_context = true;
+        // The continuation head's own sentences (engine/src/laya/model_sentences.h): for every
+        // syllable path it read, its model_sentences best rows (each slot's 3 most likely
+        // characters, not split into dictionary words), and for the first path also with its last
+        // syllable read as a prefix (zu as zuo...: typed so far, not finished). After the word
+        // choice, the best of them by ln P + model_sentence_ngram_weight * ln P_ngram goes first
+        // when it beats the first candidate, scored the same way, by more than
+        // model_sentence_margin (bench sim_prefix_reading.py, tuned on long_test's odd rows; end
+        // to end, all 3270 rows: the last syllable typed in part 35.9 -> 47.3%, all styles
+        // 33.3 -> 35.9%, typed in full 68.6 -> 67.9%). 0 = off.
+        int model_sentences = 16;
+        double model_sentence_ngram_weight = 3.0;
+        double model_sentence_margin = 12.0;
     };
     LayaConfig laya;
     int laya_candidate_count() const {

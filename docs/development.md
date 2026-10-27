@@ -20,7 +20,7 @@ IMM 兼容模块）、构建脚本，以及生成运行时词典的工具（`dat
 
 ```cmd
 python scripts\fetch_onnxruntime.py   :: ONNX Runtime 1.24.4（DirectML 版）+ DirectML.dll -> third_party\onnxruntime\
-python scripts\fetch_model.py         :: Laya 模型（GitHub Release model-zhen-long-l12）-> models\laya\
+python scripts\fetch_model.py         :: Laya 模型（GitHub Release model-ml-pumpkin-1026）-> models\laya\
 build_laya.bat                        :: Ninja Release 构建，产物在 build\
 ```
 
@@ -49,8 +49,8 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 - 模型只看上文和候选词，不看拼音或已打的字母（“猜词”提示词，模型目录的 `rl_agent_config.json` 中
   `"zhiyi_prompt": "guess"`）。训练时中文上文是上一句加本句，
   英文是最后 192 个字符；中文候选是输入法实际给出的第一页（全拼、末音节不完整、简拼和混打）。
-- 模型权重随 [Release model-zhen-long-l12](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l12)
-  发布（1.5.9–1.5.11 的 [model-zhen-long-l18](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l18)）（`scripts/fetch_model.py`）；训练代码与训练、评测数据涉及第三方语料版权，不公开。
+- 模型权重随 [Release model-ml-pumpkin-1026](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-ml-pumpkin-1026)
+  发布（1.5.12–1.5.18 的 [model-zhen-long-l12](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l12)；1.5.9–1.5.11 的 [model-zhen-long-l18](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l18)）（`scripts/fetch_model.py`）；训练代码与训练、评测数据涉及第三方语料版权，不公开。
 - 上文：开始输入时，TSF 模块读取输入框里光标前（有选中文字时为选区之前）最多 256 个字（`SET_CONTEXT`），
   模型取其中最后 128 个字 / 192 个英文字符。程序不允许读取时，改用之前上屏的文字，换到另一个输入框时清空；
   密码框和标为私密的输入框不读取。实现见 `tsf/src/text_before_caret.cpp`。
@@ -74,6 +74,12 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
     页面只在 TSF 来取时变：在这之前按下的空格等键先到服务端，上屏的就是屏幕上那一页，看到的和上屏的总是一致。重新出的第一页：覆盖全部输入的第一个候选是组出的句子时，模型组的第一句放在第一个并加星标，这一页不再由选词头重排（`laya.continuation_rerank` 默认关），
     领头的是词典词（如 眼科医院）时仍由选词头选（总放句子会低 4 个点）；重新组句超时或组不出时留着按键时那一页。模型组出的句子少于 5 个时，
     词频组的句子排在它后面，一句也组不出来时（如只有 3 个音节的那种切分才对）就用词频组的。继续打字、删字或先选了一部分（剩下的输入变了，已选的字成为上文）都会作废之前的结果，按新的组合重算。
+  - 组句头自己的整句（`laya.model_sentences`，`engine/src/laya/model_sentences.h`）：组句头一次写出所有音节，词典格子只用词典里的词；
+    最后一个音节打了一半（"...zu" 想打 座 zuo）而那几个字母本身又是个音节时，组句器只按 zu 读，正确的整句组不出来。所以每种读过的切分
+    另取组句头自己最好的 16 句（每个音节前 3 个字，不切词），第一种切分再把最后一个音节按前缀读一次（p:zu，多一次模型调用，同样在后台算）；
+    选词头排完后，其中 ln P(组句头) + 3 × ln P(n-gram) 最高的一句比第一个候选（用同一种读法的分数算，字数不同的不动）高出 12 以上时，
+    排到第一个并加星标（`LayaRerank::promote_model_sentence`）。端到端（bench long_test 3270 条，Long-L12 + ng1017，显卡，停顿后）：
+    末字只打一部分 35.9% → 47.3%，全部 33.3% → 35.9%，全拼 68.6% → 67.9%（误差内）；权重和阈值在奇数行上调（`sim_prefix_reading.py`）。
   - 只对声明了 `kClientCapabilityCandidateRefresh` 的客户端这样做：更新后仍在运行的旧 TSF 收不到刷新，否则会出现看到的和上屏的不一致。
     没有后台线程时（laya_smoke、测试）模型在按键时同步打分；`LAYA_SMOKE_BACKGROUND=1` 模拟停顿后的结果，`=nopause` 是按键时的结果。
   端到端（首选，bench `eval_long_e2e.py`，822 条长句、1898 条词语 eng_test；旧选词模型 → 按键时 → 停顿后；小鹤双拼打同样的全拼长句也是 47.0% → 60.7%）：

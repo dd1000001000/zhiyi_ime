@@ -279,6 +279,9 @@ an=ang 时，`zan` 仍会出“张”；wang=huang 不和其他组叠加。模�
 | `laya.continuation_paths` | 4 | 每个组合最多给模型几种拼音切分（每种一次模型调用，在后台算） |
 | `laya.continuation_delay_ms` | 100 | 停止打字多少毫秒后后台才开始组句（CPU 和显卡都一样）；连续打字时不做马上作废的计算 |
 | `laya.continuation_rerank` | false | 模型组出的整句再交给选词头重排；关时模型的第一句放在第一个并加星标，这一页不再重排 |
+| `laya.model_sentences` | 16 | 组句头自己写的整句：每种切分取每个音节最可能的 3 个字，按模型分数留前几句（不按词典切词）；第一种切分的最后一个音节还按"没打完"读一次（zu 也可能是 zuo）；0 = 关 |
+| `laya.model_sentence_ngram_weight` | 3.0 | 比较组句头整句和第一个候选时：分数 = ln P(组句头) + 权重 × ln P(n-gram) |
+| `laya.model_sentence_margin` | 12.0 | 组句头最好的整句比第一个候选（同样算分）高出这么多才排到第一个并加星标 |
 | `laya.decoder_beam` | 16 | 解码器模型（1.5.4–1.5.8 的默认模型）逐字组句时同时保留的路径数；每写一个字所有路径一起算一次 |
 | `laya.decoder_weight` | 0.3 | 解码器模型组句时每个词的分数 = 各字 ln P(模型) 之和 + 权重 × 引擎的词分数（`laya.continuation_weight` 只用于组句头模型） |
 | `laya.decoder_cache` | true | 模型目录里有解码器的 KV 缓存图（`laya_decoder_memory` / `laya_decoder_step`）时使用：每写一个字只算新字，前面字算过的结果留着复用；关掉则每个字都把前面的字重算一遍。首选不变，长句快一半左右 |

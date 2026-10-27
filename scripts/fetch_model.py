@@ -4,7 +4,7 @@ models/ngram/.
   python scripts/fetch_model.py            # download the release assets and verify them
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ and models/ngram/ for release uploads
 
-The model (laya.int8g.onnx ~84 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
+The model (laya.int8g.onnx ~92 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
 published as a GitHub release asset. The training code and data are not published.
 """
 import argparse
@@ -20,17 +20,16 @@ DEST = os.path.join(ROOT, "models", "laya")
 FILES = ["laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json", "unified_vocab.json"]
 # The decoder graphs of the 1.5.4-1.5.8 model: removed from models/laya (the packager ships them when present).
 OLD_FILES = ["laya_decoder.int8.onnx", "laya_decoder_memory.int8.onnx", "laya_decoder_step.int8.onnx"]
-ASSET = "laya-zhen-long-l12-int8g.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-zhen-long-l12/{ASSET}"
-# SHA-256 of the graph: 知意 1.4V2-Long-L12 (1.5.12; 1.5.9-1.5.11 shipped 1.4V2-Long-L18 from
-# model-zhen-long-l18). The unified model 1.4V2 (mmBERT-small, width 384) with 12 of its 22 encoder
-# layers (0, 1, 2, 6, 7, 8, 12, 13, 14, 19, 20, 21); word choice distilled from a fine-tuned
-# Qwen3.5-9B teacher on 3.77M rows of the IME's real candidates, in the ctx-first sequence
-# (unified_vocab.json "choice_format": the context, then the typed input as slots, then the
-# candidates, no instructions); 1.4V2's one-shot continuation head, distilled from a second
-# Qwen3.5-9B teacher, scores every character at every typed syllable for the sentence composition.
-# int8, the vocabulary and tokenizer of 1.4V2-Long-L18.
-ONNX_SHA256 = "82d0fd05a5c2bff7898be518101d23dd03d0a5c4ecb8abaebcb397d42bebb529"
+ASSET = "laya-ml-pumpkin-1026-int8g.zip"
+URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-ml-pumpkin-1026/{ASSET}"
+# SHA-256 of the graph: 知意 ML-pumpkin-1026 (after 1.5.18; 1.5.12-1.5.18 shipped 1.4V2-Long-L12 from
+# model-zhen-long-l12, 1.5.9-1.5.11 1.4V2-Long-L18 from model-zhen-long-l18). 1.4V2-Long-L12 (the
+# unified model 1.4V2, mmBERT-small, width 384, 12 of its 22 encoder layers) trained further on
+# Traditional Chinese, Japanese, Korean and Vietnamese word choice and Traditional / Japanese
+# composition, both heads distilled from Qwen3.5-9B LoRA teachers. The engine reads its zh / en side
+# only: unified_vocab.json keeps Long-L12's readings, the new tables are under "ml". int8, 126963
+# embedding rows, the tokenizer of 1.4V2-Long-L18.
+ONNX_SHA256 = "bbf51918f88873ea550618bb23d4932851ee3c0497bad5478bf8823ff4dc7a06"
 
 # The word n-gram scored next to the word choice (laya.ngram, engine/src/laya/ngram.h), ng1017: Youmo
 # IME's pinyin language model (LGPL-2.1-or-later, on libime's) with science text mixed in (CSL

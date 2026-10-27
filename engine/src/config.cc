@@ -337,6 +337,10 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_string(l, "ngram", config.laya.ngram);
         load_double(l, "ngram_weight", config.laya.ngram_weight);
         load_bool(l, "ngram_without_context", config.laya.ngram_without_context);
+        load_int(l, "model_sentences", config.laya.model_sentences);
+        config.laya.model_sentences = std::clamp(config.laya.model_sentences, 0, 256);
+        load_double(l, "model_sentence_ngram_weight", config.laya.model_sentence_ngram_weight);
+        load_double(l, "model_sentence_margin", config.laya.model_sentence_margin);
         // The same for the rank prior: 0.4 was the default until schema 1.1, which turned it off.
         // Applied once: a file saved since then (schema 1.1) keeps what it says.
         const bool before_rank_prior_off =
@@ -729,6 +733,9 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["ngram"] = config.laya.ngram;
     j["laya"]["ngram_weight"] = config.laya.ngram_weight;
     j["laya"]["ngram_without_context"] = config.laya.ngram_without_context;
+    j["laya"]["model_sentences"] = config.laya.model_sentences;
+    j["laya"]["model_sentence_ngram_weight"] = config.laya.model_sentence_ngram_weight;
+    j["laya"]["model_sentence_margin"] = config.laya.model_sentence_margin;
     j["laya"]["english_freq_weight"] = config.laya.english_freq_weight;
     j["laya"]["english_correction_weight"] = config.laya.english_correction_weight;
 

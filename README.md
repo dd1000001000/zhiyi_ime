@@ -58,7 +58,7 @@ ng1017+1.4V2-Long-L18 在 1.4V2-Long-L18 上加了一个词语 n-gram（三元�
 
 知意 1.4V2-Long-L12（[Release model-zhen-long-l12](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l12)，Apache-2.0，含 safetensors 版）是 1.5.12–1.5.18 的默认模型，1.4V2 只保留 12 层编码器（22 层 → 12 层）的新模型。选词用微调过的 Qwen3.5-9B 老师在约 377 万条数据上蒸馏：1.4V2-Long-L18 的约 170 万条之外，新加约 172 万条 SkyPile、LCCC、C4、SODA 的文本，和约 35 万条 [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb)、[FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2)（ODC-By 1.0）的近年网页，中英文约 3:1。组句头由另一个微调过、按字写出所打汉字的 Qwen3.5-9B 老师蒸馏，用了约 431 万条组句数据，其中 220 万条带老师打分。加上 ng1017 后在输入法引擎里端到端，它和 ng1017+1.4V2-Long-L18 打平：中文词和两个词 87.7%（87.6%），长句 74.9%（74.5%），英文 89.5%（90.2%），全打声母 76.3%（77.7%），英文只打前几个字母 75.7%（77.3%），差别都在抽样误差之内；CPU 上一页 10.4 ms（14.7 ms），快约三成，模型文件 84 MB（96 MB）。1.5.12–1.5.18 输入法带的是 ng1017+1.4V2-Long-L12。
 
-<img src="docs/media/choice2.zh-CN.svg" alt="新选词测试集：(a) 中文词和两个词 (b) 中文长句 (c) 英文单词 (d) 中文全打声母 (e) 英文只打前几个字母 (f) CPU 每页耗时；只按词频、原始 Laya、1.4V2-Long-L18、ng1017+1.4V2-Long-L18、ng1017+1.4V2-Long-L12、ng1017+1.4V2-ML-Preview 与 ng1017+ML-pumpkin-1026" width="100%">
+<img src="docs/media/choice2.zh-CN.svg" alt="新选词测试集：(a) 中文词和两个词 (b) 中文长句 (c) 英文单词 (d) 中文全打声母 (e) 英文只打前几个字母 (f) CPU 每页耗时；只按词频、Rime + 雾凇、原始 Laya、1.4V2-Long-L18、ng1017+1.4V2-Long-L18、ng1017+1.4V2-Long-L12、ng1017+1.4V2-ML-Preview 与 ng1017+ML-pumpkin-1026" width="100%">
 
 多语言预览版 [知意 1.4V2-ML-Preview-1024](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-ml-preview-1024)在 Long-L12 上加了繁体中文、日文、韩文、越南文的选词和繁体、日文的组句；第二版 [知意 ML-pumpkin-1026](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-ml-pumpkin-1026) 补了繁体组句和韩文的数据，是现在输入法的默认模型（用它的简体和英文）。繁体和日文的词语 n-gram 见 [ngram-ml-1024](https://github.com/dd1000001000/zhiyi_ime/releases/tag/ngram-ml-1024)：
 

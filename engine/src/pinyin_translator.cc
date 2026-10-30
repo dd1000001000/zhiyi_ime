@@ -702,6 +702,78 @@ void PinyinTranslator::annotate_fuzzy_matches(const std::string& input,
     }
 }
 
+// Words that spell the whole input in more syllables than the first candidate has characters
+// (西安 for "xian", 提案 "tian", 饥饿 "jie", 企鹅 "qie") rank by frequency after every common
+// character of the one-syllable reading: 西安 was 25th, after 先 现 显 线 ... As rime-ice's
+// long_word_filter, the two most frequent go fourth, on the first page, where the context
+// model sees them and may move them further. Only words typed in full (no initial, no fuzzy
+// spelling), above the dictionary's floor weight; short inputs only, where a one-syllable
+// reading can hide them. Applied after the ranking, so the Top-N index keeps its order.
+constexpr std::size_t kLongWordPosition = 3;
+constexpr std::size_t kMaxLongWords = 2;
+constexpr std::size_t kMaxLongWordInput = 12;
+
+void PinyinTranslator::promote_long_words(const std::string& pinyin,
+                                          std::vector<Candidate>& sorted,
+                                          const QueryBudget* budget) const {
+    if (sorted.size() <= kLongWordPosition || !pinyin_resources_ ||
+        pinyin_scheme() != PinyinSchemeKind::kFullPinyin || pinyin_query_policy_.initials_only ||
+        pinyin.size() > kMaxLongWordInput || (budget && budget->deadline.expired())) {
+        return;
+    }
+    const std::string& first = sorted.front().text;
+    const std::size_t first_characters = static_cast<std::size_t>(
+        std::count_if(first.begin(), first.end(),
+                      [](char ch) { return (static_cast<unsigned char>(ch) & 0xC0) != 0x80; }));
+    SyllabifierOptions options;
+    options.collect_path_metadata = true;  // the spelling types
+    const SegmentResult segmented = pinyin_resources_->segment(pinyin, nullptr, options);
+    std::vector<Candidate> words;
+    for (const SegmentedPath& path : segmented.paths) {
+        if (path.syllables.size() <= first_characters || !path_consumes_entire_input(pinyin, path) ||
+            !std::all_of(path.spelling_types.begin(), path.spelling_types.end(),
+                         [](uint8_t type) { return type == kNormalSpelling; })) {
+            continue;
+        }
+        std::vector<uint32_t> ids;
+        for (const std::string& syllable : path.syllables) {
+            ids.push_back(dict_->syllable_to_id(syllable));
+        }
+        if (std::find(ids.begin(), ids.end(), UINT32_MAX) != ids.end()) continue;
+        for (Candidate& word : dict_->lookup_by_ids(ids, static_cast<int>(kMaxLongWords) + 2)) {
+            if (candidate_syllable_count(word) != ids.size() ||
+                word.source_frequency <= kMinCompletionFrequency ||
+                !rank_fallback_candidate(word, PathMatchTier::kNormal, ids.size(), path.credibility,
+                                         true, false, false)) {
+                continue;
+            }
+            words.push_back(std::move(word));
+        }
+    }
+    dict_->filter_disabled_system_candidates(words);
+    std::stable_sort(words.begin(), words.end(), [](const Candidate& a, const Candidate& b) {
+        return a.frequency > b.frequency;
+    });
+    std::size_t position = kLongWordPosition;
+    std::size_t promoted = 0;
+    for (Candidate& word : words) {
+        if (promoted == kMaxLongWords) break;
+        const auto found = std::find_if(sorted.begin(), sorted.end(), [&](const Candidate& c) {
+            return c.text == word.text;
+        });
+        const std::size_t index = static_cast<std::size_t>(found - sorted.begin());
+        if (index < position) continue;  // already on the first page, or promoted
+        if (found != sorted.end()) {
+            word = std::move(*found);
+            sorted.erase(found);
+        }
+        sorted.insert(sorted.begin() + static_cast<std::ptrdiff_t>((std::min)(position, sorted.size())),
+                      std::move(word));
+        ++position;
+        ++promoted;
+    }
+}
+
 void PinyinTranslator::keep_initials_matches(const std::string& pinyin,
                                              std::vector<Candidate>& candidates) const {
     if (!pinyin_query_policy_.initials_only) {
@@ -752,6 +824,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
         }
         auto& sorted = fast.candidates;
         limit_extension_candidates(sorted);
+        promote_long_words(pinyin, sorted, budget);
         const int known_count = static_cast<int>(sorted.size());
         const int returned_end = (std::min)(offset + fetch_limit, known_count);
         page.extent = make_candidate_extent(known_count, returned_end, false);
@@ -1525,6 +1598,7 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     // After the learned words and sentences too: initials mode keeps only what lines up.
     keep_initials_matches(pinyin, sorted);
     dict_->filter_disabled_system_candidates(sorted);
+    promote_long_words(pinyin, sorted, budget);
     if (pinyin_scheme() == PinyinSchemeKind::kFullPinyin) {
         dict_->apply_manual_candidate_order(pinyin, CandidateSource::kPinyin, sorted, need);
     } else {

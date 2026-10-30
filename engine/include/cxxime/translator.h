@@ -109,6 +109,9 @@ private:
                                 int begin, int end) const;
     // Initials mode: drops candidates whose syllables do not match `pinyin` as initials.
     void keep_initials_matches(const std::string& pinyin, std::vector<Candidate>& candidates) const;
+    // Moves the longer words that spell the whole input (西安 for "xian") up to the first page.
+    void promote_long_words(const std::string& pinyin, std::vector<Candidate>& sorted,
+                            const QueryBudget* budget) const;
     const ShortCodeCache* short_cache_ = nullptr;
     PinyinSegmentor segmentor_;
 

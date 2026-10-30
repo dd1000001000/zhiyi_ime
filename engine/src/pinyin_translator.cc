@@ -1592,15 +1592,18 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
 
     remove_oversized_candidates(sorted);
 
+    // Learned words and the user's order are kept under the letters ("xi'an" as "xian").
+    const std::string learned_key = without_separators(pinyin);
     if (pinyin_scheme() == PinyinSchemeKind::kFullPinyin && candidate_learning_enabled_) {
-        dict_->apply_candidate_preferences(pinyin, CandidateSource::kPinyin, sorted, need);
+        dict_->apply_candidate_preferences(learned_key, CandidateSource::kPinyin, sorted, need);
     }
     // After the learned words and sentences too: initials mode keeps only what lines up.
     keep_initials_matches(pinyin, sorted);
     dict_->filter_disabled_system_candidates(sorted);
     promote_long_words(pinyin, sorted, budget);
     if (pinyin_scheme() == PinyinSchemeKind::kFullPinyin) {
-        dict_->apply_manual_candidate_order(pinyin, CandidateSource::kPinyin, sorted, need);
+        dict_->apply_manual_candidate_order(learned_key, CandidateSource::kPinyin, sorted, need);
+        keep_separator_matches(pinyin, sorted);  // learned words under the letters alone
     } else {
         std::vector<std::string> query_keys;
         for (const auto& query_key : path_query_keys) {

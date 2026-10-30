@@ -111,6 +111,14 @@ bool pinyin_matches_initials(std::string_view input, std::string_view syllables)
 
 constexpr float kErhuaCredibility = 0.0f;
 
+// The position after the syllable separators (apostrophes, xi'an) at `pos`: a syllable's span
+// takes the separators typed after it, as librime's syllabifier does with its delimiters, so the
+// spans still add up to the input.
+static size_t after_separators(const std::string& input, size_t pos) {
+    while (pos < input.size() && input[pos] == '\'') ++pos;
+    return pos;
+}
+
 Syllabifier::Syllabifier(const SpellingsIndex& spellings)
     : spellings_(spellings) {}
 
@@ -149,9 +157,10 @@ SyllableGraph Syllabifier::build_graph(const std::string& input,
             if (options.initials_only && !is_initial_span(remaining, m.input_key_len)) {
                 continue;
             }
-            const size_t end_pos = pos + m.input_key_len;
+            size_t end_pos = pos + m.input_key_len;
             if (end_pos > input.size())
                 continue;
+            end_pos = after_separators(input, end_pos);
 
             // Add edge
             graph[pos][end_pos].push_back(
@@ -168,10 +177,11 @@ SyllableGraph Syllabifier::build_graph(const std::string& input,
         // "yihuir"), a whole syllable like "er" typed out; the r-initial readings (华人, 纳入)
         // stay as abbreviations.
         if (pos > 0 && !remaining.empty() && remaining[0] == 'r' && !options.initials_only) {
-            graph[pos][pos + 1].push_back(
+            const size_t end_pos = after_separators(input, pos + 1);
+            graph[pos][end_pos].push_back(
                 {"er", kNormalSpelling, kErhuaCredibility, syllable_log_share("er")});
-            if (pos + 1 < visited.size() && !visited[pos + 1]) {
-                queue.push({pos + 1, vertex_type});
+            if (end_pos < visited.size() && !visited[end_pos]) {
+                queue.push({end_pos, vertex_type});
             }
         }
     }

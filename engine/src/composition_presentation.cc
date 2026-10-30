@@ -155,7 +155,8 @@ CompositionPresentation derive_composition_presentation(const CompositionState& 
     presentation.display_preedit.append(presentation.logical_preedit, 0,
                                         presentation.converted_prefix_bytes);
     for (std::size_t index = 0; index < state.active().input.size(); ++index) {
-        if (std::binary_search(boundaries.begin(), boundaries.end(), index)) {
+        if (std::binary_search(boundaries.begin(), boundaries.end(), index) &&
+            state.active().input[index - 1] != '\'') {
             presentation.display_preedit.push_back('\'');
         }
         presentation.display_preedit.push_back(state.active().input[index]);

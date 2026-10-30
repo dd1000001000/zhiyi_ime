@@ -6,9 +6,13 @@
 
 namespace cxxime {
 
+// Symbol keys that belong to the code while composing, not punctuation: ; in Shuangpin (a zero
+// initial in some schemes), the apostrophe separating syllables in full pinyin (xi'an).
 bool PinyinProcessor::accepts_code_key(const KeyEvent& event, const Context& context) const {
-    return shuangpin_enabled_ && event.keycode == VK_OEM_1 && !event.is_shift() &&
-           !event.is_ctrl() && !event.is_alt() && context.is_composing();
+    if (event.is_shift() || event.is_ctrl() || event.is_alt() || !context.is_composing()) {
+        return false;
+    }
+    return event.keycode == (shuangpin_enabled_ ? VK_OEM_1 : VK_OEM_7);
 }
 
 ProcessResult PinyinProcessor::process_key(const KeyEvent& event, Context& context) {
@@ -121,6 +125,19 @@ ProcessResult PinyinProcessor::process_key(const KeyEvent& event, Context& conte
             ch = static_cast<char>(vk - 'A' + 'a');  // force lowercase
         }
         context.insert_preedit(ch);
+        return ProcessResult::ACCEPTED;
+    }
+
+    // An apostrophe in full pinyin separates two syllables (xi'an: 西安, not 先), as in Rime and
+    // Microsoft Pinyin; it was a Chinese quotation mark that committed the first candidate.
+    // Only after a letter: not to start the input, nor twice in a row.
+    if (accepts_code_key(event, context) && !shuangpin_enabled_) {
+        const std::string& input = context.active_input();
+        const std::size_t cursor = context.preedit_cursor();
+        if (cursor > 0 && cursor <= input.size() && input[cursor - 1] != '\'' &&
+            (cursor == input.size() || input[cursor] != '\'')) {
+            context.insert_preedit('\'');
+        }
         return ProcessResult::ACCEPTED;
     }
 

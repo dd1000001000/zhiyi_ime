@@ -161,6 +161,7 @@ void merge_or_append_partial(std::vector<PartialCandidate>& partials,
 }
 
 void rank_partial_candidates(Dict& dict,
+                             const std::string& input,
                              bool candidate_learning_enabled,
                              bool include_input_code,
                              std::vector<PartialCandidate>& partials,
@@ -202,6 +203,9 @@ void rank_partial_candidates(Dict& dict,
         }
         dict.apply_manual_candidate_order(lookup_key, CandidateSource::kPinyin,
                                           candidates, limit);
+        if (!include_input_code) {  // full pinyin: learned words under the letters alone
+            keep_separator_matches(input.substr(0, consumed), candidates);
+        }
 
         std::vector<PartialCandidate> group;
         group.reserve(candidates.size());
@@ -334,9 +338,9 @@ void append_pinyin_partial_candidates(Dict& dict,
 
     std::vector<std::pair<std::size_t, std::string>> queried_user_prefixes;
     for (const PartialBoundary& boundary : boundaries) {
-        const std::string lookup_key = shuangpin
-                                           ? boundary.canonical_key
-                                           : request.input.substr(0, boundary.consumed);
+        const std::string lookup_key =
+            shuangpin ? boundary.canonical_key
+                      : without_separators(request.input.substr(0, boundary.consumed));
         const auto user_prefix = std::make_pair(boundary.consumed, lookup_key);
         if (span_stats.entry_scans >= effective_budget.max_exact_scan) {
             span_stats.truncated = true;
@@ -402,7 +406,7 @@ void append_pinyin_partial_candidates(Dict& dict,
                                                         : TranslationStatus::kStableDegraded;
     }
 
-    rank_partial_candidates(dict, candidate_learning_enabled, shuangpin, partials,
+    rank_partial_candidates(dict, request.input, candidate_learning_enabled, shuangpin, partials,
                             static_cast<int>(limits.max_candidates_per_range));
     if (partials.size() > kMaxSegmentedPartialCandidateCount) {
         partials.resize(kMaxSegmentedPartialCandidateCount);

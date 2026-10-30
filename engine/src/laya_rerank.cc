@@ -238,18 +238,29 @@ double median_score_ms(const laya::Reranker& model) {
 }
 
 // "jintian" -> "jin'tian", the format the model was trained with.
+// A typed apostrophe ("xi'an") separates syllables there.
 std::string pinyin_for_model(const std::string& raw) {
-    std::string letters;
-    for (char c : raw)
-        if (c >= 'a' && c <= 'z') letters += c;
     thread_local PinyinSegmentor segmentor;
-    std::vector<std::string> syllables = segmentor.segment_best(letters);
-    if (syllables.empty()) return letters;
     std::string out;
-    for (const auto& s : syllables) {
-        if (!out.empty()) out += '\'';
-        out += s;
+    std::string letters;
+    auto flush = [&] {
+        if (letters.empty()) return;
+        std::vector<std::string> syllables = segmentor.segment_best(letters);
+        if (syllables.empty()) syllables.push_back(letters);
+        for (const auto& s : syllables) {
+            if (!out.empty()) out += '\'';
+            out += s;
+        }
+        letters.clear();
+    };
+    for (char c : raw) {
+        if (c >= 'a' && c <= 'z') {
+            letters += c;
+        } else if (c == '\'') {
+            flush();
+        }
     }
+    flush();
     return out;
 }
 

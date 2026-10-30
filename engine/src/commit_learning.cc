@@ -7,6 +7,8 @@
 #include <cxxime/composition_state.h>
 #include <cxxime/user_dict_validation.h>
 
+#include "pinyin_path_filter.h"
+
 namespace cxxime {
 namespace {
 
@@ -37,7 +39,8 @@ void append_preference(CommitLearningPlan& plan, const std::string& text,
     }
     CandidatePreferenceLearningEvent event;
     event.target = variant->learning_target;
-    event.typed_code = variant->input_code.empty() ? typed_code : variant->input_code;
+    // The letters typed, without syllable separators ("xi'an" learned as "xian").
+    event.typed_code = without_separators(variant->input_code.empty() ? typed_code : variant->input_code);
     event.candidate.text = text;
     event.candidate.code = variant->code;
     event.candidate.syllables = variant->syllables;
@@ -55,7 +58,7 @@ bool append_sentence_part(SentenceParts& sentence, const std::string& text,
         return false;
     }
     sentence.text += text;
-    sentence.code += variant->input_code.empty() ? raw_input : variant->input_code;
+    sentence.code += without_separators(variant->input_code.empty() ? raw_input : variant->input_code);
     if (!sentence.syllables.empty()) {
         sentence.syllables.push_back(':');
     }

@@ -54,7 +54,8 @@ public:
                         int page_total,
                         std::size_t focused_preedit_start = 0,
                         std::size_t focused_preedit_end = 0,
-                        bool has_syllable_boundaries = false);
+                        bool has_syllable_boundaries = false,
+                        bool letter_labels = false);
     void update_content(const cxxime::CandidatePage& page,
                         const std::string& popup_preedit,
                         std::size_t popup_preedit_cursor,
@@ -106,6 +107,7 @@ public:
     std::size_t focused_preedit_start() const { return focused_preedit_start_; }
     std::size_t focused_preedit_end() const { return focused_preedit_end_; }
     bool has_syllable_boundaries() const { return has_syllable_boundaries_; }
+    bool letter_labels() const { return letter_labels_; }
     std::uint64_t candidate_revision() const { return candidate_revision_; }
     std::uint64_t generation() const { return generation_; }
     std::uint64_t presentation_generation() const { return presentation_generation_; }
@@ -147,6 +149,7 @@ private:
     std::size_t focused_preedit_start_ = 0;
     std::size_t focused_preedit_end_ = 0;
     bool has_syllable_boundaries_ = false;
+    bool letter_labels_ = false;
     std::uint64_t candidate_revision_ = 0;
     std::size_t local_visible_candidate_count_ = 0;
     std::uint64_t generation_ = 1;

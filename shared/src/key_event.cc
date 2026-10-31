@@ -26,6 +26,21 @@ KeyEvent from_windows_key(uint32_t vk_code, uint32_t /*lparam*/, bool is_key_up)
     return event;
 }
 
+uint32_t modifier_key_with_side(uint32_t vk_code, uint32_t lparam) {
+    const bool extended = (lparam & (1u << 24)) != 0;
+    const uint32_t scan = (lparam >> 16) & 0xFF;
+    switch (vk_code) {
+    case VK_SHIFT:
+        return scan == 0x36 ? VK_RSHIFT : VK_LSHIFT;
+    case VK_CONTROL:
+        return extended ? VK_RCONTROL : VK_LCONTROL;
+    case VK_MENU:
+        return extended ? VK_RMENU : VK_LMENU;
+    default:
+        return vk_code;
+    }
+}
+
 bool is_letter_key(uint32_t vk_code) {
     return vk_code >= 'A' && vk_code <= 'Z';
 }

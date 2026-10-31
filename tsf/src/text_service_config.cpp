@@ -115,6 +115,10 @@ LRESULT CALLBACK TextService::_config_window_proc(HWND hwnd, UINT msg, WPARAM wp
         service->_process_translation_key(static_cast<UINT>(wp), lp != 0);
         return 0;
     }
+    if (msg == cxxime_tsf::WM_CXXIME_ALT_KEY && service) {
+        service->_process_alt_key(static_cast<UINT>(wp), lp);
+        return 0;
+    }
     if (msg == cxxime_tsf::WM_CXXIME_UI_COMMAND && service) {
         service->_drain_ui_commands();
         return 0;

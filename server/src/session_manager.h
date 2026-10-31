@@ -128,6 +128,9 @@ struct SessionEntry {
     cxxime::InputRecord input;
     std::chrono::steady_clock::time_point input_start;
     bool input_open = false;
+    // A custom phrase was on a page of this input (a phone number, an address): the input is
+    // not collected.
+    bool input_private = false;
 };
 
 void apply_resource_snapshot(SessionEntry& entry, const SharedResourceSnapshot& resources);

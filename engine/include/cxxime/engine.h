@@ -6,6 +6,7 @@
 #include <optional>
 #include <atomic>
 #include <chrono>
+#include <ctime>
 #include <memory>
 #include <string>
 #include <utility>
@@ -26,11 +27,14 @@
 #include <cxxime/query_scratch.h>
 #include <cxxime/query_trace.h>
 #include <cxxime/symbol_processor.h>
+#include <cxxime/uv_mode_processor.h>
 #include <cxxime/translator.h>
 
 namespace cxxime {
 
 class SymbolTable;
+struct SlotRequest;
+struct SymbolCategory;
 struct ContinuationWork;
 
 // Which position the user picked (for the experience log): no text.
@@ -222,6 +226,21 @@ private:
     // Laya reranking: committed text of this session (context for the model) and the text
     // already confirmed inside the current composition.
     void remember_commit(const std::string& text);
+    // The date and time custom phrases are filled with: taken once for an input, so paging
+    // through its candidates finds the same texts.
+    std::tm phrase_time(const std::string& input);
+    // The custom phrases and built-in date / time (pinyin only) for the typed letters, as slot
+    // requests.
+    std::vector<SlotRequest> phrase_requests(const std::string& input, bool pinyin);
+    std::vector<SymbolCategory> time_symbol_categories(const std::string& input);
+    // U mode and V mode (uv_mode.h).
+    std::optional<char> uv_mode_trigger(const KeyEvent& event, const OutputOptions& opts) const;
+    TranslationResult translate_uv_mode(const std::string& input, int page_index, int page_offset,
+                                        int candidate_limit);
+    const std::vector<CandidateEntry>& uv_mode_entries(const std::string& input);
+    std::string phrase_time_input_;
+    std::tm phrase_time_{};
+    bool phrase_committed_ = false;  // the commit is a custom phrase: not the model's context
     std::string laya_context(const CompositionState& state) const;
     std::string continuation_key(const CompositionState& state) const;
     std::string laya_history_;  // the model's context: the input box's text, or earlier commits
@@ -229,8 +248,10 @@ private:
     std::chrono::steady_clock::time_point laya_history_time_{};  // last read or commit
     // laya_history_, or nothing once remembered commits are older than laya.context_memory_seconds.
     const std::string& live_laya_history() const;
-    // English words mixed into the first pinyin page (config.english.mixed_in_chinese).
-    void add_english_candidates(const std::string& input, int page_size, TranslationResult& result) const;
+    // The English word typed in full, mixed into the first pinyin page at `*slot` (from 1;
+    // config.english.mixed_in_chinese, position_in_pinyin); false when there is none.
+    bool english_candidate(const std::string& input, const TranslationResult& result,
+                           CandidateEntry* entry, int* slot) const;
     // Emoji after the words of the first pinyin page they stand for (config.emoji_candidates);
     // `limit` candidates are kept.
     void add_emoji_candidates(int limit, TranslationResult& result) const;
@@ -273,6 +294,10 @@ private:
     Context context_;
     AsciiComposer ascii_composer_;
     SymbolProcessor symbol_processor_;
+    UvModeProcessor uv_processor_;
+    // The last U / V mode query: its candidates, all pages.
+    std::string uv_input_;
+    std::vector<CandidateEntry> uv_entries_;
 
     // Input mode
     InputMode mode_ = InputMode::PINYIN;

@@ -263,8 +263,10 @@ bool parse_ui_command_packet(const void* data, std::size_t size, UiCommand* comm
 }
 
 bool is_valid_ui_snapshot(const UiPresentationSnapshot& snapshot) {
-    constexpr std::uint32_t kKnownPreeditPresentationFlags =
+    constexpr std::uint32_t kSyllableBoundaries =
         preedit_presentation_flag(PreeditPresentationFlag::SyllableBoundaries);
+    constexpr std::uint32_t kKnownPreeditPresentationFlags =
+        kSyllableBoundaries | preedit_presentation_flag(PreeditPresentationFlag::LetterLabels);
     if (snapshot.session_id == 0 || snapshot.session_generation == 0 ||
         snapshot.presentation_generation == 0 ||
         (snapshot.flags & ~kKnownSnapshotFlags) != 0 || !valid_ownership(snapshot.ownership) ||
@@ -279,7 +281,8 @@ bool is_valid_ui_snapshot(const UiPresentationSnapshot& snapshot) {
           snapshot.focused_preedit_end_bytes != 0) &&
          snapshot.focused_preedit_start_bytes < snapshot.converted_prefix_bytes) ||
         (snapshot.preedit_presentation_flags & ~kKnownPreeditPresentationFlags) != 0 ||
-        (snapshot.preedit_presentation_flags != 0 && snapshot.preedit_length == 0) ||
+        ((snapshot.preedit_presentation_flags & kSyllableBoundaries) != 0 &&
+         snapshot.preedit_length == 0) ||
         !is_valid_utf8(snapshot.preedit, snapshot.preedit_length) ||
         !is_utf8_boundary(snapshot.preedit, snapshot.preedit_length,
                           snapshot.preedit_cursor) ||

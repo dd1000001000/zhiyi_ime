@@ -445,6 +445,7 @@ void Dict::apply_manual_candidate_order(const std::string& code, CandidateSource
         if (std::none_of(fixed.begin(), fixed.end(), same_identity)) {
             candidates.erase(std::remove_if(candidates.begin(), candidates.end(), same_identity),
                              candidates.end());
+            resolved.pinned = true;
             fixed.push_back(std::move(resolved));
         }
     }

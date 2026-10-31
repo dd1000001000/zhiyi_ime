@@ -293,7 +293,7 @@ HRESULT D2DRenderer::render(HDC hdc, const RECT& rect, const RenderContext& ctx)
                                           : 0.13f);
         }
         // Label
-        std::wstring label = candidate_label(i);
+        const std::wstring label = cr.label.empty() ? candidate_label(i) : cr.label;
         D2D1_RECT_F lr = {(float)cr.label_rect.left, (float)cr.label_rect.top,
                           (float)cr.label_rect.right, (float)cr.label_rect.bottom};
         render_target_->DrawText(label.c_str(), (UINT32)label.length(), fmt_right_, lr,

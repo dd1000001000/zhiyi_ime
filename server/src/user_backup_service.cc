@@ -3,6 +3,7 @@
 // Modified by Zhiyi IME Contributors: English learning data, privacy choices kept per
 // computer, all-or-nothing import.
 
+#include "phrase_service.h"
 #include "user_backup_service.h"
 
 #include <algorithm>
@@ -307,12 +308,18 @@ bool UserBackupService::handle_request(const std::string& payload, std::string* 
         return cxxime::encode_user_backup_result(result, response_payload);
     }
     result.summary = archive.summary;
-    // A backup without word lists (none were kept, or an older version made it) has none to add.
+    // A backup without word lists or custom phrases (none were kept, or an older version made
+    // it) has none to add.
     request.components &= archive.summary.components |
-                           ~cxxime::user_backup_component_flag(cxxime::UserBackupComponent::kWordLists);
+                           ~(cxxime::user_backup_component_flag(cxxime::UserBackupComponent::kWordLists) |
+                             cxxime::user_backup_component_flag(cxxime::UserBackupComponent::kPhrases));
     const cxxime::UserBackupEntry* word_lists =
         includes(request.components, cxxime::UserBackupComponent::kWordLists)
             ? find_entry(archive, "wordlists/wordlists.json")
+            : nullptr;
+    const cxxime::UserBackupEntry* phrases =
+        includes(request.components, cxxime::UserBackupComponent::kPhrases)
+            ? find_entry(archive, "phrases/phrases.ini")
             : nullptr;
     if ((request.components & ~archive.summary.components) != 0 ||
         !required_entries_present(archive, request.components)) {
@@ -328,7 +335,8 @@ bool UserBackupService::handle_request(const std::string& payload, std::string* 
          (!make_config_patch(archive, request.components, &config_patch) ||
           !valid_config_patch(config_patch))) ||
         !session_manager_->validate_user_data(imported_data) ||
-        (word_lists && !validate_word_lists_backup(word_lists->contents))) {
+        (word_lists && !validate_word_lists_backup(word_lists->contents)) ||
+        (phrases && !validate_custom_phrases_backup(phrases->contents))) {
         result.error_code = ERROR_INVALID_DATA;
         return cxxime::encode_user_backup_result(result, response_payload);
     }
@@ -355,6 +363,10 @@ bool UserBackupService::handle_request(const std::string& payload, std::string* 
         merge_word_lists_backup(session_manager_, word_lists->contents, &imported_data_count,
                                 &skipped_data_count);
     }
+    if (phrases) {
+        std::size_t added = 0;
+        if (merge_custom_phrases_backup(phrases->contents, &added)) imported_data_count += added;
+    }
     result.imported_count += imported_data_count;
     result.skipped_count += skipped_data_count;
     result.succeeded = true;
@@ -380,6 +392,13 @@ bool UserBackupService::export_backup(const std::wstring& path, std::uint32_t co
         if (!word_lists.empty()) {  // none: left out, the backup reads in older versions
             entries.push_back({cxxime::UserBackupComponent::kWordLists, "wordlists/wordlists.json",
                                std::move(word_lists)});
+        }
+    }
+    if (!entries.empty() && includes(components, cxxime::UserBackupComponent::kPhrases)) {
+        std::string phrases = snapshot_custom_phrases();
+        if (!phrases.empty()) {  // as the word lists
+            entries.push_back({cxxime::UserBackupComponent::kPhrases, "phrases/phrases.ini",
+                               std::move(phrases)});
         }
     }
     return !entries.empty() && cxxime::write_user_backup_archive(path, entries, summary, error);

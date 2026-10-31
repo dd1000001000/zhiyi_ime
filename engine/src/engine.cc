@@ -13,8 +13,10 @@
 #include <windows.h>
 
 #include <cxxime/commit_learning.h>
+#include <cxxime/custom_phrases.h>
 #include <cxxime/input_limits.h>
 #include <cxxime/english_candidates.h>
+#include <cxxime/uv_mode.h>
 #include <cxxime/english_learning.h>
 #include <cxxime/english_lexicon.h>
 #include <cxxime/laya_rerank.h>
@@ -27,6 +29,8 @@
 #include <cxxime/wubi_input_policy.h>
 #include <cxxime/wubi_processor.h>
 #include <cxxime/wubi_translator.h>
+
+#include "candidate_placement.h"
 
 namespace cxxime {
 
@@ -305,6 +309,10 @@ void Engine::clear_laya_context() {
 }
 
 void Engine::remember_commit(const std::string& text) {
+    if (phrase_committed_) {  // a phone number or an address is nobody's context
+        phrase_committed_ = false;
+        return;
+    }
     if (text.empty()) return;
     if (&live_laya_history() != &laya_history_) laya_history_.clear();  // forgotten: start afresh
     append_bounded(laya_history_, text);
@@ -595,10 +603,11 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
     const bool swapped_keys = learning_keys && config->digits_type_translation;
     const bool zero_picks = !SymbolProcessor::is_active(context_) &&
                             context_.selectable_candidate_count() >= 10;
+    const bool digits_typed = UvModeProcessor::digits_are_input(context_);
     const int digit_index = event.keycode >= '1' && event.keycode <= '9'
                                 ? static_cast<int>(event.keycode - '1')
                                 : event.keycode == '0' ? 9 : -1;
-    const bool digit_picks = digit_index >= 0 &&
+    const bool digit_picks = digit_index >= 0 && !digits_typed &&
                              digit_index < context_.selectable_candidate_count() &&
                              (event.keycode != '0' || zero_picks);
     // A plain number past the page is typed as a number (below); Ctrl+0..9 is ours either way.
@@ -690,6 +699,18 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
         ascii_composer_.finish_temporary_ascii();
         record_total_us(trace_, total_start, trace_enabled_);
         return ProcessResult::COMMITTED;
+    }
+
+    // U mode and V mode (uv_mode.h): u / v first in full pinyin, Shift+U / Shift+V in shuangpin
+    // and Wubi, where those letters are codes (before Shift+letter starts English).
+    if (const std::optional<char> prefix = uv_mode_trigger(event, opts)) {
+        context_.start_composition(CompositionScheme::kUvMode, std::string(1, *prefix), 1);
+        context_.reset_pagination();
+        TranslationResult translated = translate_current_composition(per_query_deadline);
+        if (translated.usable()) context_.update_translation(std::move(translated));
+        else context_.clear_translation();
+        record_total_us(trace_, total_start, trace_enabled_);
+        return ProcessResult::ACCEPTED;
     }
 
     const InlineAsciiResult inline_result =
@@ -820,6 +841,7 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
 
     if (context_.composition_scheme() != CompositionScheme::kSymbol &&
         context_.composition_scheme() != CompositionScheme::kInlineAscii &&
+        context_.composition_scheme() != CompositionScheme::kUvMode &&
         context_.is_composing() &&
         !processor_code_key &&
         normalized && is_ascii_digit_or_symbol(*normalized) &&
@@ -893,6 +915,8 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
         result = ProcessResult::COMMITTED;
     } else if (SymbolProcessor::is_active(context_) || symbol_trigger) {
         result = symbol_processor_.process_key(event, context_, symbol_trigger_enabled);
+    } else if (UvModeProcessor::is_active(context_)) {
+        result = uv_processor_.process_key(event, normalized, context_);
     } else {
         result = processor_->process_key(event, context_);
     }
@@ -1018,7 +1042,8 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
                 const int target_offset = context_.page_offset() + visible_count;
                 const CandidateExtent current_extent = context_.translation().extent;
                 const bool anchored_continuation =
-                    context_.composition_scheme() != CompositionScheme::kSymbol;
+                    context_.composition_scheme() != CompositionScheme::kSymbol &&
+                    context_.composition_scheme() != CompositionScheme::kUvMode;
                 if (visible_count > 0 &&
                     candidate_extent_may_continue(current_extent, target_offset)) {
                     continuation_effort = !current_extent.complete
@@ -1360,6 +1385,9 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
                                                 const QueryDeadline& deadline,
                                                 int candidate_limit,
                                                 uint32_t continuation_effort) {
+    if (state.active().scheme == CompositionScheme::kUvMode) {
+        return translate_uv_mode(state.active().input, page_index, page_offset, candidate_limit);
+    }
     if (state.active().scheme == CompositionScheme::kSymbol) {
         TranslationRequest request;
         request.scheme = CompositionScheme::kSymbol;
@@ -1368,7 +1396,8 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
         request.page_offset = page_offset;
         request.page_size = candidate_limit > 0 ? candidate_limit : runtime_->config().page_size;
         const SymbolTable* symbol_table = runtime_->symbol_table();
-        return symbol_table ? symbol_table->translate(request) : TranslationResult{};
+        return symbol_table ? symbol_table->translate(request, time_symbol_categories(state.active().input))
+                            : TranslationResult{};
     }
 
     scratch_.reset_for_query();
@@ -1462,12 +1491,28 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
                                                   !result.extent.complete);
         }
     }
-    if (request.scheme == CompositionScheme::kPinyin && page_index == 0 && page_offset == 0) {
+    const bool pinyin_page = request.scheme == CompositionScheme::kPinyin;
+    if ((pinyin_page || request.scheme == CompositionScheme::kWubi) && page_index == 0 &&
+        page_offset == 0) {
         // The next page's query (translate_after_visible_anchor) asks for more than a page and
         // continues after the last candidate shown: it keeps that many (issue #21).
-        add_english_candidates(request.input, candidate_limit > 0 ? candidate_limit : page_size,
-                               result);
-        add_emoji_candidates(candidate_limit > 0 ? candidate_limit : page_size, result);
+        const int limit = candidate_limit > 0 ? candidate_limit : page_size;
+        // Candidates at fixed places (candidate_placement.h), after the ranking: custom phrases
+        // and the date and time, an English word; emoji follow their words before, so they never
+        // move one.
+        std::vector<SlotRequest> requests = phrase_requests(request.input, pinyin_page);
+        if (pinyin_page) {
+            SlotRequest english;
+            english.priority = PlacementPriority::kEnglish;
+            if (english_candidate(request.input, result, &english.entry, &english.slot)) {
+                requests.push_back(std::move(english));
+            }
+            add_emoji_candidates(limit, result);
+        }
+        place_slot_requests(std::move(requests), result.entries, limit);
+        if (result.highlighted < 0 && !result.entries.empty()) result.highlighted = 0;
+    }
+    if (pinyin_page && page_index == 0 && page_offset == 0) {
         // Nothing matched (neither pinyin nor an English word): offer the typed text itself.
         const std::string& input = request.input;
         // Only for a completed query: a failed or degraded one keeps the engine's retry and
@@ -1488,29 +1533,29 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     return result;
 }
 
-void Engine::add_english_candidates(const std::string& input, int page_size,
-                                    TranslationResult& result) const {
+bool Engine::english_candidate(const std::string& input, const TranslationResult& result,
+                               CandidateEntry* entry, int* slot) const {
     const auto& ec = runtime_->config().english;
-    if (!ec.mixed_in_chinese || static_cast<int>(input.size()) < ec.min_input) return;
-    if (!std::all_of(input.begin(), input.end(), [](char c) { return c >= 'a' && c <= 'z'; })) return;
+    if (!ec.mixed_in_chinese || static_cast<int>(input.size()) < ec.min_input) return false;
+    if (!std::all_of(input.begin(), input.end(), [](char c) { return c >= 'a' && c <= 'z'; })) return false;
     auto lexicon = EnglishLexicon::shared();
-    if (!lexicon) return;
+    if (!lexicon) return false;
 
     // Only a word typed in full (exact match, rare words included); the best-scored spelling
     // when several differ in case ("us" / "US").
     const std::vector<EnglishWord> words = lexicon->lookup(input, 1, 0, true);
-    if (words.empty() || !words[0].exact) return;
+    if (words.empty() || !words[0].exact) return false;
 
-    // Valid pinyin (the first candidate consumes the whole input): the word goes after the
-    // leading (Laya-ranked) Chinese candidate. Otherwise (e.g. "hello", where the pinyin
-    // candidates only cover a prefix) the word leads the page.
-    bool valid_pinyin = false;
-    if (!result.entries.empty()) {
-        if (const auto* head = std::get_if<TextSelectionAction>(&result.entries[0].selection))
-            valid_pinyin = head->consumed_input_bytes == input.size();
-    }
+    // Valid pinyin (a candidate consumes the whole input): the word goes after the leading
+    // (Laya-ranked) Chinese candidate, whichever that is. Otherwise (e.g. "hello", where the
+    // pinyin candidates only cover a prefix) the word leads the page.
+    const bool valid_pinyin =
+        std::any_of(result.entries.begin(), result.entries.end(), [&](const CandidateEntry& e) {
+            const auto* action = std::get_if<TextSelectionAction>(&e.selection);
+            return action && action->consumed_input_bytes == input.size();
+        });
     // Shuangpin reads nearly any letters as syllables: a word only where it does not.
-    if (valid_pinyin && shuangpin_input()) return;
+    if (valid_pinyin && shuangpin_input()) return false;
     Candidate c;
     c.text = words[0].text;
     c.source = CandidateSource::kEnglish;
@@ -1518,16 +1563,9 @@ void Engine::add_english_candidates(const std::string& input, int page_size,
     c.input_code = input;
     c.frequency = words[0].score;
     c.source_frequency = words[0].score;
-    const size_t pos = valid_pinyin
-                           ? (std::min)(result.entries.size(), static_cast<size_t>((std::max)(0, ec.position_in_pinyin)))
-                           : 0;
-    result.entries.insert(result.entries.begin() + static_cast<std::ptrdiff_t>(pos),
-                          make_text_candidate_entry(std::move(c), input.size(), input));
-    // Keep the requested count; Chinese candidates pushed out reappear on the next page
-    // (paging re-queries page 0 and continues after the last visible candidate).
-    if (page_size > 0 && static_cast<int>(result.entries.size()) > page_size)
-        result.entries.resize(static_cast<size_t>(page_size));
-    if (result.highlighted < 0 && !result.entries.empty()) result.highlighted = 0;
+    *slot = valid_pinyin ? (std::max)(0, ec.position_in_pinyin) + 1 : 1;
+    *entry = make_text_candidate_entry(std::move(c), input.size(), input);
+    return true;
 }
 
 void Engine::add_emoji_candidates(int limit, TranslationResult& result) const {
@@ -1975,7 +2013,165 @@ bool Engine::finalize_selection(const CandidateEntry& entry) {
     if (!context_.commit_entry(entry)) {
         return false;
     }
+    phrase_committed_ = entry.candidate.source == CandidateSource::kPhrase;
     return true;
+}
+
+std::optional<char> Engine::uv_mode_trigger(const KeyEvent& event, const OutputOptions& opts) const {
+    if (event.is_key_up || event.is_caps_lock() || !opts.chinese_mode || !runtime_ ||
+        ascii_composer_.is_ascii_mode() || context_.is_composing() ||
+        (event.keycode != 'U' && event.keycode != 'V'))
+        return std::nullopt;
+    const Config::AdvancedConfig& advanced = runtime_->config().advanced;
+    const bool v = event.keycode == 'V';
+    if (!(v ? advanced.v_mode : advanced.u_mode)) return std::nullopt;
+    // No syllable starts with u or v in full pinyin; they are codes in shuangpin and Wubi.
+    const bool full_pinyin = mode_ == InputMode::PINYIN && !shuangpin_input();
+    if (event.is_shift() == full_pinyin) return std::nullopt;
+    return v ? kVModePrefix : kUModePrefix;
+}
+
+// All the candidates of a U / V mode input (kept until the input changes, for the pages).
+const std::vector<CandidateEntry>& Engine::uv_mode_entries(const std::string& input) {
+    if (input == uv_input_) return uv_entries_;
+    uv_input_ = input;
+    uv_entries_.clear();
+    const std::string rest = input.substr(1);
+    std::vector<UvCandidate> found;
+    if (input[0] == kVModePrefix) {
+        found = v_mode_candidates(rest);
+    } else if (!rest.empty() && rest[0] == kUModePrefix) {
+        // uu: a symbol group, as the / menu (uudw 单位); Microsoft Pinyin's names for ours.
+        static const std::pair<const char*, const char*> kAliases[] = {
+            {"xh", "sz"}, {"zm", "xl"}, {"jh", "ts"}};
+        std::string code = rest.substr(1);
+        for (const auto& [from, to] : kAliases) {
+            if (code == from) code = to;
+        }
+        const SymbolTable* symbols = runtime_->symbol_table();
+        if (symbols && !code.empty()) {
+            const CandidatePage page = symbols->translate_page(code, 0, 1000, 0);
+            for (const Candidate& c : page.candidates) found.push_back({c.text, {}});
+        } else if (symbols) {
+            // The groups: choosing one opens it in the / menu.
+            TranslationRequest request;
+            request.scheme = CompositionScheme::kSymbol;
+            request.page_size = 1000;
+            for (CandidateEntry& entry : symbols->translate(request).entries) uv_entries_.push_back(std::move(entry));
+            return uv_entries_;
+        }
+    } else if (const auto table = UModeTable::shared()) {
+        constexpr std::size_t kUModeLimit = 500;
+        found = u_mode_candidates(*table, rest, kUModeLimit);
+    }
+    for (UvCandidate& c : found) {
+        Candidate candidate;
+        candidate.text = std::move(c.text);
+        // A symbol: committing it learns nothing.
+        candidate.source = CandidateSource::kSymbol;
+        candidate.code = input;
+        candidate.input_code = input;
+        CandidateEntry entry = make_text_candidate_entry(std::move(candidate), input.size(), input);
+        entry.hint = std::move(c.comment);
+        uv_entries_.push_back(std::move(entry));
+    }
+    // An English word typed in Chinese (very, user, update) stays second, as in pinyin.
+    CandidateEntry english;
+    int slot = 0;
+    if (input.size() > 1 && english_candidate(input, TranslationResult{}, &english, &slot)) {
+        const std::size_t at = uv_entries_.size() > 1 ? 1 : uv_entries_.size();
+        uv_entries_.insert(uv_entries_.begin() + static_cast<std::ptrdiff_t>(at), std::move(english));
+    }
+    return uv_entries_;
+}
+
+TranslationResult Engine::translate_uv_mode(const std::string& input, int page_index,
+                                            int page_offset, int candidate_limit) {
+    TranslationResult result;
+    result.page_size = candidate_limit > 0 ? candidate_limit : runtime_->config().page_size;
+    result.page_index = page_index;
+    result.page_offset = page_offset > 0 ? page_offset : page_index * result.page_size;
+    if (input.empty()) return result;
+    const std::vector<CandidateEntry>& all = uv_mode_entries(input);
+    const int total = static_cast<int>(all.size());
+    const int end = (std::min)(result.page_offset + result.page_size, total);
+    for (int i = result.page_offset; i < end; ++i) result.entries.push_back(all[static_cast<std::size_t>(i)]);
+    result.extent = make_candidate_extent(total, (std::max)(end, result.page_offset), false);
+    if (!result.entries.empty()) result.highlighted = 0;
+    result.letter_labels = input[0] == kVModePrefix && v_mode_letters_choose(input.substr(1)) &&
+                           !result.entries.empty();
+    return result;
+}
+
+// The / menu's date, time and weekday: always there (the custom phrase switches are for typing).
+std::vector<SymbolCategory> Engine::time_symbol_categories(const std::string& input) {
+    const std::tm now = phrase_time(input);
+    return {{"rq", "日期", builtin_time_phrases(BuiltinTime::kDate, now)},
+            {"sj", "时间", builtin_time_phrases(BuiltinTime::kTime, now)},
+            {"xq", "星期", builtin_time_phrases(BuiltinTime::kWeek, now)}};
+}
+
+std::tm Engine::phrase_time(const std::string& input) {
+    if (input != phrase_time_input_ || phrase_time_input_.empty()) {
+        const std::time_t now = std::time(nullptr);
+        localtime_s(&phrase_time_, &now);
+        phrase_time_input_ = input;
+    }
+    return phrase_time_;
+}
+
+std::vector<SlotRequest> Engine::phrase_requests(const std::string& input, bool pinyin) {
+    std::vector<SlotRequest> requests;
+    const Config& config = runtime_->config();
+    if (!config.phrases.enable) return requests;
+    // The letters as typed, the syllable separators left out.
+    std::string code;
+    for (char ch : input) {
+        if (ch == '\'') continue;
+        if (ch < 'a' || ch > 'z') return requests;
+        code += ch;
+    }
+    if (!is_valid_custom_phrase_code(code)) return requests;
+    auto make = [&](std::string text, int slot, PlacementPriority priority) {
+        Candidate c;
+        // The first line shown, the whole text committed.
+        const std::size_t line_end = text.find('\n');
+        c.text = line_end == std::string::npos ? text : text.substr(0, line_end) + "…";
+        c.source = CandidateSource::kPhrase;
+        c.code = code;
+        c.input_code = code;
+        SlotRequest request;
+        request.entry = make_text_candidate_entry(std::move(c), input.size(), code);
+        std::string committed;
+        for (char ch : text) {
+            if (ch == '\n') committed += "\r\n";
+            else committed += ch;
+        }
+        std::get<TextSelectionAction>(request.entry.selection).text = std::move(committed);
+        request.slot = slot;
+        request.priority = priority;
+        requests.push_back(std::move(request));
+    };
+    const auto table = CustomPhraseTable::shared();
+    const std::vector<CustomPhrase>* phrases = table ? table->lookup(code) : nullptr;
+    if (phrases) {
+        const std::tm now = phrase_time(input);
+        for (const CustomPhrase& phrase : *phrases) {
+            make(expand_custom_phrase(phrase.text, now), phrase.position, PlacementPriority::kUserPhrase);
+        }
+        return requests;  // the user's own rq / sj / xq replace the built-in ones
+    }
+    // Pinyin read as 日期 / 时间 / 星期 (riqi, rq, shijian, shij, sj, xq ...).
+    const BuiltinTime kind = pinyin ? builtin_time_for(code) : BuiltinTime::kNone;
+    const bool enabled = (kind == BuiltinTime::kDate && config.phrases.builtin_date) ||
+                         (kind == BuiltinTime::kTime && config.phrases.builtin_time) ||
+                         (kind == BuiltinTime::kWeek && config.phrases.builtin_week);
+    const std::vector<std::string> texts =
+        enabled ? builtin_time_phrases(kind, phrase_time(input)) : std::vector<std::string>();
+    // Second on the page and after: the first stays the pinyin's own.
+    int slot = 2;
+    for (const std::string& text : texts) make(text, slot++, PlacementPriority::kBuiltinPhrase);
+    return requests;
 }
 
 void Engine::apply_commit_learning_plan() {
@@ -1993,6 +2189,7 @@ void Engine::apply_commit_learning_plan() {
         }
         CandidatePreferenceReceipt receipt;
         if (dictionary && event.candidate.source != CandidateSource::kSymbol &&
+            event.candidate.source != CandidateSource::kPhrase &&
             dictionary->record_candidate_preference(event.candidate, event.typed_code,
                                                     &receipt)) {
             last_learning_.receipts.emplace_back(dictionary, std::move(receipt));

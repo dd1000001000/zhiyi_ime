@@ -10,6 +10,7 @@
 
 #include <cxxime/key_event.h>
 #include <cxxime/symbol_table.h>
+#include <cxxime/uv_mode.h>
 
 namespace cxxime {
 
@@ -35,7 +36,8 @@ const Candidate* Context::candidate(int index) const {
 }
 
 bool Context::set_ime_scheme(CompositionScheme scheme) {
-    if (scheme == CompositionScheme::kSymbol || scheme == CompositionScheme::kInlineAscii) {
+    if (scheme == CompositionScheme::kSymbol || scheme == CompositionScheme::kInlineAscii ||
+        scheme == CompositionScheme::kUvMode) {
         return false;
     }
     if (!composition_.set_scheme(scheme)) {
@@ -53,7 +55,9 @@ bool Context::set_preedit(std::string text) {
 bool Context::start_composition(CompositionScheme scheme, std::string text,
                                 std::size_t cursor) {
     if (text.empty() || cursor > text.size() ||
-        (scheme == CompositionScheme::kSymbol && (text.front() != kSymbolPrefix || cursor == 0))) {
+        (scheme == CompositionScheme::kSymbol && (text.front() != kSymbolPrefix || cursor == 0)) ||
+        (scheme == CompositionScheme::kUvMode &&
+         ((text.front() != kUModePrefix && text.front() != kVModePrefix) || cursor == 0))) {
         return false;
     }
     CompositionState next = composition_;
@@ -62,7 +66,8 @@ bool Context::start_composition(CompositionScheme scheme, std::string text,
         return false;
     }
     composition_ = std::move(next);
-    if (scheme != CompositionScheme::kSymbol && scheme != CompositionScheme::kInlineAscii) {
+    if (scheme != CompositionScheme::kSymbol && scheme != CompositionScheme::kInlineAscii &&
+        scheme != CompositionScheme::kUvMode) {
         ime_scheme_ = scheme;
     }
     composition_origin_.reset();
@@ -96,7 +101,8 @@ bool Context::restore_composition_origin() {
     const CompositionOrigin origin = *composition_origin_;
     const bool original_input_restored = active_input() == origin.input;
     if (!original_input_restored &&
-        (origin.scheme == CompositionScheme::kSymbol || !is_resumable_ime_code(active_input()))) {
+        (origin.scheme == CompositionScheme::kSymbol || origin.scheme == CompositionScheme::kUvMode ||
+         !is_resumable_ime_code(active_input()))) {
         return false;
     }
     const std::size_t edited_cursor = preedit_cursor();

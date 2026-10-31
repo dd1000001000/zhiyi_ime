@@ -26,6 +26,7 @@ class ReadingUIElement;
 #include <cxxime/ipc_client.h>
 #include <cxxime/ipc_protocol.h>
 #include <cxxime/key_gesture.h>
+#include <cxxime/thread_key_hook.h>
 #include <cxxime/host_trace.h>
 #include <cxxime/ui_channel.h>
 
@@ -302,6 +303,15 @@ private:
     void _handle_key_gestures(const std::vector<cxxime::Gesture>& gestures);
     // kVoiceKeyPress / kVoiceKeyRelease / kVoiceKeyCancel to the server; the voice state after.
     uint32_t _send_voice_key(uint32_t code);
+    // Alt, which TSF never hands to a text service (cxxime/thread_key_hook.h): while a tapped Alt
+    // is a switch key, a thread key hook reads it and posts it to the config window, where it
+    // goes through the gestures and to the engine like a tapped Shift / Ctrl.
+    enum AltKeyEvent : LPARAM { kAltKeyDown, kAltKeyUp, kAltKeyTap, kAltKeyOther };
+    void _update_key_hook();
+    bool _take_hooked_key(const cxxime::HookedKey& key);
+    void _process_alt_key(UINT vk, LPARAM event);
+    bool _alt_tap_switches(uint32_t vk) const;  // VK_LMENU / VK_RMENU tapped does something
+    void _note_sink_alt(WPARAM vk, bool up);
     // Voice input (text_service_voice.cpp): asking the server where the recording is while it
     // records and recognizes, and the text it gives, shown underlined until a key decides.
     void _start_voice_poll();
@@ -545,6 +555,13 @@ private:
     HHOOK _translationKeyHook = nullptr;
     bool _voicePolling = false;               // the server records or recognizes for us
     cxxime::KeyGestureTracker _keyGestures;
+    bool _keyHook = false;  // the thread key hook is installed (Alt)
+    // The Alt key down / up the key event sink handled in this press: some programs hand TSF
+    // their Alt keys before the hook sees them, WeChat both (the engine has the tap already),
+    // Electron only the key-up (it does not).
+    uint32_t _sinkAltDown = 0;
+    uint32_t _sinkAltUp = 0;
+    cxxime::AltTap _altTap;
     bool _keyGestureTimer = false;
     bool _voiceHoldArmed = false;  // the voice key's press started recording: a long press ends it
     std::uint64_t _voiceTargetGeneration = 0;  // the input box it is for (_uiTargetGeneration)

@@ -35,8 +35,12 @@
 - **模糊音**：z=zh、c=ch、s=sh、n=l、an=ang、en=eng、in=ing 可以逐组开关，模糊匹配的词会标出正确拼音
 - **英文输入**：单词联想（打几个字母就给出补全）或逐字母输入；打错时给出正确拼写，但不会自动替换
 - **中英混输**：中文模式下打出完整的英文单词，该词会出现在候选里
-- **自由设置切换键**：中英切换、输入方式、中英文标点、全角/半角都可以设置成自己习惯的按键，
-  并提示与系统或其他程序快捷键的冲突
+- **自由设置切换键**：中英切换、输入方式、中英文标点、全角/半角、语音输入都可以设置成自己习惯的按键，
+  轻按 Shift、Ctrl、Alt 都行，可分左右；并提示与系统或其他程序快捷键的冲突
+- **快捷短语**：打编码在指定位置出事先写好的短语（`dh` 出手机号），格式同搜狗，可导入导出；
+  拼音读作“日期”“时间”“星期”时出当前日期时间，见[快捷短语](docs/custom-phrases.md)
+- **U 模式和 V 模式**：和微软拼音一样，`v` 开头输入中文数字、大写金额、日期（含农历）、时间、算式；
+  `u` 开头按笔画或部件读音输入不认识的字，见[U 模式和 V 模式](docs/uv-mode.md)
 - **任务栏快速切换**：右键任务栏上的“中/英”可以切换中英文、全拼/首字母/五笔/双拼、标点、全角等，
   也可以“退出”后台服务（再次切换到知意输入法时自动启动）
 - **候选窗口**：竖排（默认）或横排，浅色 / 深色主题，三档字号；中英文界面
@@ -104,6 +108,7 @@ ng1017+1.4V2-Long-L18 在 1.4V2-Long-L18 上加了一个词语 n-gram（三元�
 - [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B)（通义千问）：知意 1.4V2-Long-L18 / Long-L12 / ML-pumpkin-1026 选词和 Long-L12 / ML-pumpkin-1026 组句头蒸馏用的老师模型，经 LoRA 微调（Apache-2.0）
 - [幽默输入法](https://github.com/Sraw/youmo-ime)：词语 n-gram 的底座（它的拼音语言模型）和混合用的工具（LGPL-2.1-or-later）；其底座来自 [libime](https://github.com/fcitx/libime)（LGPL-2.1-or-later），混入的网页来自 [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2)（ODC-By）和 [Common Crawl](https://commoncrawl.org)
 - [CSL](https://github.com/ydli-ai/CSL)（中文科学文献数据集，Apache-2.0）：词语 n-gram 混入的科研文本
+- [rime-stroke（五笔画）](https://github.com/rime/rime-stroke)（LGPL-3.0）、开放词典网的[汉语拆字字典](https://github.com/kfcd/chaizi)（CC BY 3.0）、[pinyin-data](https://github.com/mozillazg/pinyin-data)（MIT）：U 模式的笔画、拆字和读音
 - [llama.cpp](https://github.com/ggml-org/llama.cpp)：离线翻译模型的运行库（MIT，随模型下载）
 - [LCCC](https://github.com/thu-coai/CDial-GPT)（MIT）与 [C4](https://huggingface.co/datasets/allenai/c4) 中文部分（ODC-BY）：模型蒸馏的部分语料
 - [Tatoeba](https://tatoeba.org)（CC BY 2.0 FR）与 [C4](https://huggingface.co/datasets/allenai/c4) 的英、日、韩、法、德、西、俄、越文部分（ODC-BY）：离线翻译模型 v3 的外语原文

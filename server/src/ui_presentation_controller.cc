@@ -433,6 +433,9 @@ private:
             candidate_window_.set_preedit({});
         }
         candidate_window_.move_to_caret(applied.caret);
+        candidate_window_.set_letter_labels(
+            (current.preedit_presentation_flags &
+             cxxime::preedit_presentation_flag(cxxime::PreeditPresentationFlag::LetterLabels)) != 0);
         candidate_window_.update(cxxime::candidate_page_from_snapshot(current));
         candidate_window_.show();
         applied.candidate_visible = candidate_window_.is_visible();

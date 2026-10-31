@@ -98,7 +98,8 @@ void fill_process_response_fields(const ProcessKeyResult& result,
     }
     constexpr uint32_t kKnownPreeditPresentationFlags =
         cxxime::preedit_presentation_flag(
-            cxxime::PreeditPresentationFlag::SyllableBoundaries);
+            cxxime::PreeditPresentationFlag::SyllableBoundaries) |
+        cxxime::preedit_presentation_flag(cxxime::PreeditPresentationFlag::LetterLabels);
     if (result.converted_prefix_bytes > result.preedit_cursor ||
         focused_start > focused_end || focused_start < result.converted_prefix_bytes ||
         focused_end > result.preedit.size() ||

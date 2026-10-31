@@ -306,6 +306,7 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
         CXXIME_LOG(L"%s", L"DictionaryMonitor: start failed");
     }
 
+    phrases_.start();  // custom phrases (phrases.ini), read again whenever it changes
     diagnostic_log_maintenance_.start();
     if (!candidate_preference_saver_.start(
             [this](bool force) {
@@ -358,6 +359,7 @@ void ServerApp::finalize() {
     session_mgr_.stop_background_continuation();
     diagnostic_log_maintenance_.stop();
     dictionary_monitor_.stop();
+    phrases_.stop();
     system_lifecycle_monitor_.stop();
     ui_presentation_router_.stop();
     ui_presentation_controller_.stop();

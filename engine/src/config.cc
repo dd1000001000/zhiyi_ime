@@ -354,6 +354,20 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
                 l["english_correction_weight"].template get<double>();
     }
 
+    if (j.contains("phrases") && j["phrases"].is_object()) {
+        auto& ph = j["phrases"];
+        load_bool(ph, "enable", config.phrases.enable);
+        load_bool(ph, "builtin_date", config.phrases.builtin_date);
+        load_bool(ph, "builtin_time", config.phrases.builtin_time);
+        load_bool(ph, "builtin_week", config.phrases.builtin_week);
+    }
+
+    if (j.contains("advanced") && j["advanced"].is_object()) {
+        auto& adv = j["advanced"];
+        load_bool(adv, "u_mode", config.advanced.u_mode);
+        load_bool(adv, "v_mode", config.advanced.v_mode);
+    }
+
     if (j.contains("english") && j["english"].is_object()) {
         auto& en = j["english"];
         load_bool(en, "mixed_in_chinese", config.english.mixed_in_chinese);
@@ -738,6 +752,14 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["model_sentence_margin"] = config.laya.model_sentence_margin;
     j["laya"]["english_freq_weight"] = config.laya.english_freq_weight;
     j["laya"]["english_correction_weight"] = config.laya.english_correction_weight;
+
+    j["phrases"]["enable"] = config.phrases.enable;
+    j["phrases"]["builtin_date"] = config.phrases.builtin_date;
+    j["phrases"]["builtin_time"] = config.phrases.builtin_time;
+    j["phrases"]["builtin_week"] = config.phrases.builtin_week;
+
+    j["advanced"]["u_mode"] = config.advanced.u_mode;
+    j["advanced"]["v_mode"] = config.advanced.v_mode;
 
     j["english"]["mixed_in_chinese"] = config.english.mixed_in_chinese;
     j["english"]["min_input"] = config.english.min_input;

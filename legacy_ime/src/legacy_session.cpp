@@ -93,15 +93,9 @@ void LegacyImeSession::set_active(bool active) {
 bool LegacyImeSession::process_key(UINT key_code, LPARAM key_data, const BYTE* key_state) {
     host_trace_session_.begin_input(key_code, key_data);
     last_engine_calls_ = 0;
-    if (!ImmGetOpenStatus(himc_)) {
-        return false;
-    }
-
+    // A switch key may be only the right Shift / Ctrl: the engine gets the side.
+    key_code = cxxime::modifier_key_with_side(key_code, static_cast<uint32_t>(key_data));
     const bool was_composing = composing_;
-    if (!ensure_session()) {
-        return false;
-    }
-
     uint32_t modifiers = modifiers_from_key_state(key_state);
     const bool is_key_up = is_key_up_from_key_data(key_data);
     if (key_code == VK_CAPITAL && !is_key_up) {
@@ -113,6 +107,46 @@ bool LegacyImeSession::process_key(UINT key_code, LPARAM key_data, const BYTE* k
     }
 
     cxxime::IPCResponse response = {};
+    if (!send_key(key_code, modifiers, is_key_up, &response)) {
+        return false;
+    }
+    const bool eaten = should_eat_response(response, key_code, was_composing);
+    if (!composing_ && !candidate_open_) {
+        host_trace_session_.reset_composition();
+    }
+    return eaten;
+}
+
+bool LegacyImeSession::tap_alt(uint32_t vk) {
+    host_trace_session_.begin_input(vk, 0);
+    last_engine_calls_ = 0;
+    const uint32_t caps = (GetKeyState(VK_CAPITAL) & 0x0001) ? cxxime::kKeyModifierCapsLock : 0;
+    cxxime::IPCResponse down = {};
+    cxxime::IPCResponse up = {};
+    if (!send_key(vk, cxxime::kKeyModifierAlt | caps, false, &down) ||
+        !send_key(vk, caps, true, &up) || down.status != cxxime::IPCStatus::OK ||
+        up.status != cxxime::IPCStatus::OK) {
+        return false;
+    }
+    return up.key_handled || up.ime_status.flags != down.ime_status.flags ||
+           up.ime_status.input_mode != down.ime_status.input_mode ||
+           up.voice_state != down.voice_state;
+}
+
+bool LegacyImeSession::process_alt_combination(const cxxime::HookedKey& key) {
+    host_trace_session_.begin_input(key.vk, static_cast<LPARAM>(key.key_data));
+    last_engine_calls_ = 0;
+    const uint32_t caps = (GetKeyState(VK_CAPITAL) & 0x0001) ? cxxime::kKeyModifierCapsLock : 0;
+    cxxime::IPCResponse response = {};
+    return send_key(key.vk, key.modifiers | caps, key.up, &response) && response.key_handled;
+}
+
+bool LegacyImeSession::send_key(uint32_t key_code, uint32_t modifiers, bool is_key_up,
+                                cxxime::IPCResponse* out) {
+    if (!ImmGetOpenStatus(himc_) || !ensure_session()) {
+        return false;
+    }
+    cxxime::IPCResponse& response = *out;
     ++last_engine_calls_;
     if (!client_.process_key(session_id_, key_code, modifiers, response, is_key_up) ||
         response.status == cxxime::IPCStatus::ERR_INVALID_SESSION) {
@@ -138,11 +172,7 @@ bool LegacyImeSession::process_key(UINT key_code, LPARAM key_data, const BYTE* k
         static_cast<int>(response.status), response.composing, strlen(response.preedit),
         strlen(response.commit_text), response.candidate_count, response.highlighted);
     apply_response(response);
-    const bool eaten = should_eat_response(response, key_code, was_composing);
-    if (!composing_ && !candidate_open_) {
-        host_trace_session_.reset_composition();
-    }
-    return eaten;
+    return true;
 }
 
 void LegacyImeSession::close_candidate_list() {

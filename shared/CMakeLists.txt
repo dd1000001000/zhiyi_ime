@@ -14,6 +14,7 @@ add_library(cxxime-shared STATIC
     src/key_event.cc
     src/keyboard_shortcut.cc
     src/key_gesture.cc
+    src/thread_key_hook.cc
     src/data_path.cc
     src/diagnostic_log_maintenance.cc
     src/diagnostic_log_path.cc

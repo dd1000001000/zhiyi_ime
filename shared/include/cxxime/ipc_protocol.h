@@ -252,6 +252,8 @@ constexpr uint64_t kClientCapabilityVoiceKey = 1ULL << 4;
 
 enum class PreeditPresentationFlag : uint32_t {
     SyllableBoundaries = 1u << 0,
+    // The candidates are labelled a, b, c ... (V mode, whose digits are input; uv_mode.h).
+    LetterLabels = 1u << 1,
 };
 
 constexpr uint32_t preedit_presentation_flag(PreeditPresentationFlag flag) noexcept {

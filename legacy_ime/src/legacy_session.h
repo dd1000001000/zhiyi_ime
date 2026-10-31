@@ -8,6 +8,8 @@
 #include <cxxime/ipc_client.h>
 #include <cxxime/input_limits.h>
 #include <cxxime/host_trace.h>
+#include <cxxime/key_event.h>
+#include <cxxime/thread_key_hook.h>
 
 #include <memory>
 #include <vector>
@@ -25,6 +27,13 @@ public:
     void select(bool selected);
     void set_active(bool active);
     bool process_key(UINT key_code, LPARAM key_data, const BYTE* key_state);
+    // Alt, which IMM never hands to ImeProcessKey (cxxime/thread_key_hook.h). A tapped Alt
+    // (VK_LMENU / VK_RMENU) goes to the engine as a whole tap; true when it switched something
+    // (the program then does not get its key-up: no menu bar).
+    bool tap_alt(uint32_t vk);
+    // A key typed with Alt held, to the engine; true when it took it (an Alt switch key
+    // combination).
+    bool process_alt_combination(const cxxime::HookedKey& key);
     uint32_t last_engine_calls() const { return last_engine_calls_; }
 
     void close_candidate_list();
@@ -38,6 +47,10 @@ public:
 
 private:
     bool ensure_session();
+    // The key to the server and its answer applied; false when the keyboard is closed or the
+    // server did not answer.
+    bool send_key(uint32_t key_code, uint32_t modifiers, bool is_key_up,
+                  cxxime::IPCResponse* response);
     void end_server_session();
     void initialize_input_context();
     void finalize_input_context();

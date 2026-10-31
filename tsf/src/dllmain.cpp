@@ -23,6 +23,7 @@ BOOL WINAPI DllMain(HINSTANCE hInst, DWORD dwReason, LPVOID) {
     case DLL_PROCESS_DETACH:
         // Normal teardown joins outside the loader lock when the last service unsubscribes.
         cxxime_tsf::request_tsf_log_writer_stop();
+        cxxime::remove_all_thread_key_hooks();  // normally removed at deactivation
         DeleteCriticalSection(&g_cs);
         break;
     }

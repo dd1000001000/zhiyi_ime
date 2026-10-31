@@ -16,8 +16,10 @@
 
 namespace cxxime {
 
-// Candidate label: "1." .. "9.", and "0." for the tenth (selected with the 0 key).
-inline std::wstring candidate_label(int index) {
+// Candidate label: "1." .. "9.", and "0." for the tenth (selected with the 0 key); "a." "b." ...
+// in V mode, whose digits are input.
+inline std::wstring candidate_label(int index, bool letters = false) {
+    if (letters) return std::wstring(1, static_cast<wchar_t>(L'a' + index)) + L".";
     return std::to_wstring((index + 1) % 10) + L".";
 }
 
@@ -45,6 +47,7 @@ struct Theme {
 
 struct CandidateRect {
     int index;
+    std::wstring label;  // candidate_label()
     std::string text;
     std::string comment;
     RECT label_rect{};

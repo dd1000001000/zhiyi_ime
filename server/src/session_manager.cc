@@ -301,7 +301,10 @@ const std::string& gloss_target(const cxxime::Config& config, const cxxime::Cand
 std::string shown_gloss(const cxxime::Config& config, const cxxime::Candidate& candidate,
                         const std::string& context, bool* asked = nullptr) {
     if (asked) *asked = false;
-    if (candidate.source == cxxime::CandidateSource::kSymbol) return {};
+    if (candidate.source == cxxime::CandidateSource::kSymbol ||
+        candidate.source == cxxime::CandidateSource::kPhrase) {
+        return {};
+    }
     std::string gloss = cxxime::candidate_gloss(
         config.chinese_gloss_target, config.english_gloss_target, candidate.text,
         candidate.syllables, candidate.source == cxxime::CandidateSource::kEnglish);
@@ -334,7 +337,7 @@ void add_glosses(const SessionEntry& entry, cxxime::CandidatePresentationPage& p
         const std::string& target = gloss_target(config, candidate);
         if (page.items[i].gloss.empty() && !asked &&
             candidate.source != cxxime::CandidateSource::kSymbol &&
-            translator_enabled(config) && !target.empty() &&
+            candidate.source != cxxime::CandidateSource::kPhrase && translator_enabled(config) && !target.empty() &&
             cxxime::mt::translatable(candidate.text)) {
             missing.push_back({target, candidate.text,
                                candidate.source == cxxime::CandidateSource::kEnglish ? "en" : "zh"});
@@ -395,6 +398,10 @@ void fill_session_presentation(const SessionEntry& entry, ProcessKeyResult& resu
             ? cxxime::preedit_presentation_flag(
                 cxxime::PreeditPresentationFlag::SyllableBoundaries)
             : 0;
+    if (context.translation().letter_labels) {
+        result.preedit_presentation_flags |=
+            cxxime::preedit_presentation_flag(cxxime::PreeditPresentationFlag::LetterLabels);
+    }
     if (!supports_segmented_preedit) {
         result.focused_preedit_start_bytes = result.preedit.size();
         result.focused_preedit_end_bytes = result.preedit.size();
@@ -1746,6 +1753,7 @@ const char* composition_mode(cxxime::CompositionScheme scheme) {
     case cxxime::CompositionScheme::kMixed: return "mixed";
     case cxxime::CompositionScheme::kSymbol: return "symbol";
     case cxxime::CompositionScheme::kInlineAscii: return "english";
+    case cxxime::CompositionScheme::kUvMode: return "uv";
     }
     return "other";
 }
@@ -1765,6 +1773,7 @@ void track_input(SessionEntry& s, const cxxime::KeyEvent* event, bool was_compos
     const cxxime::Engine& engine = *s.engine;
     if (!s.input_open) {
         s.input = {};
+        s.input_private = false;
         s.input.app = s.input_app;
         s.input.window_title = s.input_window_title;
         s.input_start = std::chrono::steady_clock::now();
@@ -1772,6 +1781,9 @@ void track_input(SessionEntry& s, const cxxime::KeyEvent* event, bool was_compos
     }
     if (event) s.input.keys.push_back(input_key_name(*event));
     if (pick) s.input.picked = pick->index;
+    for (const auto& entry : engine.context().translation().entries) {
+        if (entry.candidate.source == cxxime::CandidateSource::kPhrase) s.input_private = true;
+    }
     if (ret.composing) {
         s.input.code = composition_code(engine.context());
         s.input.mode = composition_mode(engine.context().composition().active().scheme);
@@ -1790,6 +1802,11 @@ void track_input(SessionEntry& s, const cxxime::KeyEvent* event, bool was_compos
     }
     if (s.input.mode.empty()) {
         s.input.mode = composition_mode(engine.context().composition().active().scheme);
+    }
+    if (s.input_private) {  // custom phrases are nobody's data
+        s.input = {};
+        s.input_open = false;
+        return;
     }
     s.input.committed = ret.commit_text;
     s.input.duration_ms = static_cast<uint32_t>(

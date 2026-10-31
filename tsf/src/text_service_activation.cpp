@@ -464,6 +464,7 @@ void TextService::_send_text_before_caret(ITfContext* context) {
 void TextService::_register_switch_keys() {
     _unregister_switch_keys();
     _configure_key_gestures();  // the shortcuts as read (also with no keystroke manager)
+    _update_key_hook();
     if (!_threadMgr) return;
     ITfKeystrokeMgr* keystroke_mgr = nullptr;
     if (FAILED(_threadMgr->QueryInterface(IID_ITfKeystrokeMgr,
@@ -521,6 +522,9 @@ void TextService::_unregister_switch_keys() {
         keystroke_mgr->Release();
     }
     for (auto& key : _preservedSwitchKeys) key = {};
+    if (_keyHook) cxxime::remove_thread_key_hook();
+    _keyHook = false;
+    _altTap.reset();
     _keyGestures.clear();
     _voiceHoldArmed = false;
     _update_key_gesture_timer();

@@ -26,17 +26,26 @@ const CpuInfo& cached_cpu_info();
 inline constexpr int kFontPt = 14;
 inline constexpr int kNavFontPt = kFontPt + 1;
 inline constexpr int kWordListPanel = 4;  // page index of Word lists
-inline constexpr int kVoicePanel = 5;     // page index of Voice input
-inline constexpr int kLearningPanel = 6;  // page index of Learning
-inline constexpr int kPrivacyPanel = 7;   // page index of Privacy
-inline constexpr int kUpdatePanel = 8;    // page index of Updates
-inline constexpr int kAboutPanel = 9;     // page index of About
+inline constexpr int kPhrasePanel = 5;    // page index of Custom phrases
+inline constexpr int kVoicePanel = 6;     // page index of Voice input
+inline constexpr int kLearningPanel = 7;  // page index of Learning
+inline constexpr int kAdvancedPanel = 8;  // page index of Advanced (U mode, V mode)
+inline constexpr int kPrivacyPanel = 9;   // page index of Privacy
+inline constexpr int kUpdatePanel = 10;   // page index of Updates
+inline constexpr int kAboutPanel = 11;    // page index of About
 // Makes the Word lists page again after an import or a removal (posted from its buttons).
 inline constexpr UINT kRebuildWordListsMessage = WM_APP + 90;
+// The Custom phrases page made again after a change (not from inside the click).
+inline constexpr UINT kRebuildPhrasesMessage = WM_APP + 92;
 // Makes all pages again in a new interface language. Posted from the language box: rebuilding
 // inside its CBN_SELCHANGE destroys the box while it is still handling the click (a crash in
 // COMCTL32).
 inline constexpr UINT kRebuildUiMessage = WM_APP + 91;
+// One number each: a phrase page rebuild taken for the whole window's lost the phrase being edited.
+static_assert(kRebuildWordListsMessage != kRebuildPhrasesMessage &&
+                  kRebuildWordListsMessage != kRebuildUiMessage &&
+                  kRebuildPhrasesMessage != kRebuildUiMessage,
+              "rebuild messages share a number");
 
 extern float g_dpi;
 extern HFONT g_hFont;
@@ -104,6 +113,8 @@ void set_button_primary(HWND button, bool primary);
 void set_button_selected(HWND button, bool selected);  // a tab: tinted like the selected page
 void draw_button(const DRAWITEMSTRUCT& item);
 void enable_button_hover(HWND button);
+// A window of its own (the phrase dialog): the light or dark style for it and its controls.
+void style_popup(HWND window);
 HWND make_page_button(int id, const wchar_t* text, int x, int y, int width, int height,
                       HWND parent);
 

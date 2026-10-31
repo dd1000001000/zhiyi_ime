@@ -21,6 +21,7 @@
 #include <cxxime/gpu_adapters.h>
 #include <cxxime/settings_route.h>
 #include <cxxime/update.h>
+#include <cxxime/custom_phrases.h>
 #include <cxxime/word_list_control.h>
 
 #include "i18n.h"
@@ -52,6 +53,27 @@ private:
     void remove_word_list(std::size_t index);
     void show_guessed_readings(std::size_t index);
     bool handle_word_list_command(int control_id, int notification);
+    // Custom phrases (editor_phrase_panel.cc): phrases.ini, read when the page is shown and
+    // written at once on each change; the switches are settings.
+    void create_phrase_panel(HWND panel);
+    // Advanced (editor_advanced_panel.cc): U mode and V mode.
+    void create_advanced_panel(HWND panel);
+    void populate_advanced();
+    void read_advanced();
+    void rebuild_phrase_panel();
+    void populate_phrase_switches();
+    void read_phrase_switches();
+    void load_phrases();
+    bool save_phrases();
+    // The Add / Edit dialog (one phrase, as Microsoft Pinyin's): `index` -1 adds.
+    void edit_phrase(int index);
+    bool run_phrase_dialog(CustomPhrase* phrase, bool adding);
+    static LRESULT CALLBACK phrase_dialog_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
+    void remove_phrase(std::size_t index);
+    void import_phrases();
+    void export_phrases();
+    void clear_phrases();
+    bool handle_phrase_command(int control_id, int notification);
     void create_learning_panel(HWND panel);
     void create_privacy_panel(HWND panel);
     void open_log_folder();
@@ -183,7 +205,7 @@ private:
     SIZE pending_size_ = {};  // the size Windows suggested for it
     void apply_dpi(UINT dpi, const RECT& suggested, bool keep_position);
     cxxime::SettingsPanel initial_panel_ = cxxime::SettingsPanel::kInput;
-    static constexpr int kPanelCount = 10;
+    static constexpr int kPanelCount = 12;
     HWND hPanels_[kPanelCount] = {};
 
     // General
@@ -233,6 +255,14 @@ private:
     // Word lists
     std::vector<WordListInfo> word_lists_;
     bool word_lists_loaded_ = false;
+    std::vector<CustomPhrase> phrases_;
+    bool phrases_loaded_ = false;
+    HWND hPhraseEnable_ = nullptr;  // phrases.enable
+    HWND hPhraseDate_ = nullptr;    // phrases.builtin_date
+    HWND hPhraseTime_ = nullptr;
+    HWND hPhraseWeek_ = nullptr;
+    HWND hUMode_ = nullptr;  // advanced.u_mode
+    HWND hVMode_ = nullptr;  // advanced.v_mode
 
     // Learning
     struct PackState {

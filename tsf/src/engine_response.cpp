@@ -73,11 +73,14 @@ bool decode_engine_presentation(const cxxime::IPCResponse& response,
     }
     constexpr std::uint32_t kSyllableBoundaryFlag = cxxime::preedit_presentation_flag(
         cxxime::PreeditPresentationFlag::SyllableBoundaries);
-    if ((response.preedit_presentation_flags & ~kSyllableBoundaryFlag) != 0) {
+    constexpr std::uint32_t kLetterLabelsFlag =
+        cxxime::preedit_presentation_flag(cxxime::PreeditPresentationFlag::LetterLabels);
+    if ((response.preedit_presentation_flags & ~(kSyllableBoundaryFlag | kLetterLabelsFlag)) != 0) {
         return false;
     }
     presentation->has_syllable_boundaries =
         (response.preedit_presentation_flags & kSyllableBoundaryFlag) != 0;
+    presentation->letter_labels = (response.preedit_presentation_flags & kLetterLabelsFlag) != 0;
     std::size_t focused_start = response.focused_preedit_start_bytes;
     std::size_t focused_end = response.focused_preedit_end_bytes;
     if (focused_start == 0 && focused_end == 0) {

@@ -119,6 +119,7 @@ bool TextService::_present_local_candidate_window(const cxxime::CandidatePresent
         _candidatePresentation.focused_preedit_end(),
         _candidatePresentation.has_syllable_boundaries());
     _localCandidateWindow->move_to_caret(caret);
+    _localCandidateWindow->set_letter_labels(_candidatePresentation.letter_labels());
     _localCandidateWindow->update(page);
     _localCandidateWindow->show();
     if (!_localCandidateWindow->is_visible()) {
@@ -257,6 +258,10 @@ void TextService::_publish_ui_presentation() {
             ? cxxime::preedit_presentation_flag(
                 cxxime::PreeditPresentationFlag::SyllableBoundaries)
             : 0;
+    if (_candidatePresentation.letter_labels()) {
+        snapshot.preedit_presentation_flags |=
+            cxxime::preedit_presentation_flag(cxxime::PreeditPresentationFlag::LetterLabels);
+    }
 
     bool candidate_visible = snapshot.ownership == cxxime::UiOwnership::kExternal &&
                              _candidatePresentation.should_show_external_window(_composing) &&

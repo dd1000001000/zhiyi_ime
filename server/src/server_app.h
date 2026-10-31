@@ -12,6 +12,7 @@
 #include <cxxime/ipc_protocol.h>
 #include <cxxime/ipc_server.h>
 
+#include "phrase_service.h"
 #include "config_store.h"
 #include "config_write_coordinator.h"
 #include "candidate_preference_save_worker.h"
@@ -41,6 +42,7 @@ private:
     cxxime::IpcServer ipc_server_;
     cxxime::ControlServer control_server_;
     cxxime::DictionaryMonitor dictionary_monitor_;
+    PhraseService phrases_;
     DiagnosticLogMaintenanceWorker diagnostic_log_maintenance_;
     InputMethodHotkey input_method_hotkey_;
     SystemLifecycleMonitor system_lifecycle_monitor_;

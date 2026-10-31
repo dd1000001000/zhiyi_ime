@@ -85,6 +85,7 @@ std::wstring tapped_modifier_text(uint32_t vk) {
     switch (tap_family(vk)) {
     case VK_SHIFT: mod = tr("keys.mod_shift"); break;
     case VK_CONTROL: mod = tr("keys.mod_ctrl"); break;
+    case VK_MENU: mod = tr("keys.mod_alt"); break;
     default: return {};
     }
     std::wstring text;
@@ -270,11 +271,11 @@ void on_key_down(HWND window, State* state, UINT vk, LPARAM lparam,
 void on_key_up(HWND window, State* state, UINT vk) {
     const uint32_t bit = modifier_bit(vk);
     if (bit == 0) return;
-    // A modifier pressed and released alone: a tap of Shift or Ctrl. It is taken as either side,
-    // whichever was pressed; the arrow picks one side (show_side_menu). Not Alt: Windows does not
-    // hand Alt keys to input methods, so a tapped Alt would never switch anything.
+    // A modifier pressed and released alone: a tap of Shift, Ctrl or Alt. It is taken as either
+    // side, whichever was pressed; the arrow picks one side (show_side_menu). Windows keeps Alt
+    // from input methods: the input method's keyboard hook reads it (system_key_hook.h).
     if (!state->other_key_seen && state->modifiers_seen == bit) {
-        if (state->allow_tap && (bit == kKeyModifierShift || bit == kKeyModifierControl)) {
+        if (state->allow_tap) {
             accept(window, state, KeyChoice::tap(generic_modifier_vk(bit)));
             return;
         }

@@ -40,6 +40,11 @@ add_library(cxxime-engine STATIC
     src/wubi_input_policy.cc
     src/config.cc
     src/glossary.cc
+    src/candidate_placement.cc
+    src/custom_phrases.cc
+    src/u_mode.cc
+    src/uv_mode_processor.cc
+    src/v_mode.cc
     src/engine.cc
     src/engine_runtime.cc
     src/ascii_composer.cc

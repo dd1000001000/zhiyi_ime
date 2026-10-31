@@ -16,14 +16,24 @@ namespace cxxime {
 // A second / types itself; \ is the enumeration comma 、.
 inline constexpr char kSymbolPrefix = '/';
 
+// A category made at query time, after the loaded ones (the date, time and weekday: their texts
+// change); its candidates are CandidateSource::kPhrase (never learned).
+struct SymbolCategory {
+    std::string code;
+    std::string name;
+    std::vector<std::string> candidates;
+};
+
 class SymbolTable {
 public:
     bool load(const std::string& path);
     bool empty() const { return categories_.empty(); }
 
-    TranslationResult translate(const TranslationRequest& request) const;
+    TranslationResult translate(const TranslationRequest& request,
+                                const std::vector<SymbolCategory>& extra = {}) const;
     CandidatePage translate_page(const std::string& code, int page_index, int page_size,
-                                 int candidate_offset = -1) const;
+                                 int candidate_offset = -1,
+                                 const std::vector<SymbolCategory>& extra = {}) const;
     // The emoji of a Chinese word (symbols.json "emoji_words", from the CLDR zh annotations),
     // best first; nullptr when it has none.
     const std::vector<std::string>* emoji_for(const std::string& word) const;

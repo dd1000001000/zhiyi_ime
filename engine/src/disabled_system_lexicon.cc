@@ -18,7 +18,8 @@ bool is_valid_entry(const std::string& text) { return is_valid_user_dict_text(te
 
 bool is_filterable_candidate(const Candidate& candidate) {
     return candidate.origin != CandidateOrigin::kUser &&
-           candidate.source != CandidateSource::kSymbol;
+           candidate.source != CandidateSource::kSymbol &&
+           candidate.source != CandidateSource::kPhrase;
 }
 
 } // namespace

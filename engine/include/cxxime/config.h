@@ -325,6 +325,23 @@ struct Config {
     };
     EnglishConfig english;
 
+    // Custom phrases (phrases.ini, custom_phrases.h) and the built-in date / time / weekday.
+    struct PhrasesConfig {
+        bool enable = true;
+        bool builtin_date = true;  // rq
+        bool builtin_time = true;  // sj
+        bool builtin_week = true;  // xq
+    };
+    PhrasesConfig phrases;
+
+    // U mode and V mode (uv_mode.h, docs/uv-mode.md): u / v first in full pinyin, Shift+U /
+    // Shift+V in shuangpin and Wubi.
+    struct AdvancedConfig {
+        bool u_mode = true;  // strokes and parts
+        bool v_mode = true;  // numbers, dates, times, formulas, codes
+    };
+    AdvancedConfig advanced;
+
     // Color scheme loaded from themes.json.
     // Fields default to -1 = "not set" (resolved to Weasel-style fallbacks in load_themes).
     struct SchemeColors {

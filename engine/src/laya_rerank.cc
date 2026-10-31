@@ -834,9 +834,12 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     // first page and shows page_size of them).
     const size_t limit = (std::min)(result.entries.size(),
                                     static_cast<size_t>((std::max)(2, config.laya_candidate_count())));
+    // The words the user's manual order put first keep their places: the model chooses among
+    // the others, and its pick goes after them.
     auto covers_input = [&](size_t i) {
         const TextSelectionAction* a = text_action(result.entries[i]);
-        return a && a->consumed_input_bytes == input.size() && !result.entries[i].candidate.text.empty();
+        return a && a->consumed_input_bytes == input.size() && !result.entries[i].candidate.text.empty() &&
+               !result.entries[i].candidate.pinned;
     };
     // laya.exact_pinyin_first (issue #34): when one of them spells the input exactly, only such a
     // candidate goes first (先 for "xian", not 想 completing xiang).
@@ -852,7 +855,9 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
     // the word choice as before (bench: forcing the sentence over it lost 4 points), and so is
     // a sentence that does not spell the input exactly when another candidate does.
     if (options.lattice_scored && !lc.continuation_rerank) {
-        for (size_t i = 0; i < result.entries.size(); ++i) {
+        size_t start = 0;  // the first slot the model may fill: after the user's order
+        while (start < result.entries.size() && result.entries[start].candidate.pinned) ++start;
+        for (size_t i = start; i < result.entries.size(); ++i) {
             if (!covers_input(i)) continue;
             const Candidate& lead = result.entries[i].candidate;
             if (lead.origin != CandidateOrigin::kComposed || lead.composed_score >= 0 ||
@@ -861,8 +866,9 @@ bool LayaRerank::apply(const Config& config, const std::string& context, const s
                 break;
             }
             result.entries[i].candidate.recommended = true;
-            if (i == 0) return false;
-            std::rotate(result.entries.begin(), result.entries.begin() + static_cast<std::ptrdiff_t>(i),
+            if (i == start) return false;
+            std::rotate(result.entries.begin() + static_cast<std::ptrdiff_t>(start),
+                        result.entries.begin() + static_cast<std::ptrdiff_t>(i),
                         result.entries.begin() + static_cast<std::ptrdiff_t>(i) + 1);
             return true;
         }
@@ -1007,7 +1013,9 @@ bool LayaRerank::promote_model_sentence(const Config& config, const std::string&
         const TextSelectionAction* a = text_action(entry);
         return a && a->consumed_input_bytes == input.size() && !entry.candidate.text.empty();
     };
+    // After the words the user's manual order put first.
     size_t first = 0;
+    while (first < result.entries.size() && result.entries[first].candidate.pinned) ++first;
     while (first < result.entries.size() && !covers_input(result.entries[first])) ++first;
     if (first == result.entries.size()) return false;
     const Candidate& lead = result.entries[first].candidate;
@@ -1070,6 +1078,11 @@ bool LayaRerank::promote_model_sentence(const Config& config, const std::string&
     // laya.exact_pinyin_first (issue #34): a sentence that does not spell the input exactly does
     // not displace one that does.
     if (spells_exactly && spells_exactly(lead) && !spells_exactly(pick)) return false;
+    // A sentence the user's order already pins stays where it is, above.
+    if (std::any_of(result.entries.begin(), result.entries.begin() + static_cast<std::ptrdiff_t>(first),
+                    [&](const CandidateEntry& e) { return e.candidate.text == pick.text; })) {
+        return false;
+    }
 
     result.entries[first].candidate.recommended = false;
     auto same = std::find_if(result.entries.begin(), result.entries.end(), [&](const CandidateEntry& e) {

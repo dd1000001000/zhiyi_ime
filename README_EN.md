@@ -49,8 +49,15 @@
 - **English input**: word completion or letter by letter; misspelled words get their correct spelling
   as a candidate, never replaced automatically.
 - **Mixed input**: a complete English word typed in Chinese mode is offered among the candidates.
-- **Your own switch keys** for Chinese/English, input style, punctuation and full/half width, with
-  warnings about conflicts with Windows or other programs.
+- **Your own switch keys** for Chinese/English, input style, punctuation, full/half width and voice input,
+  including a tapped Shift, Ctrl or Alt (left, right or either), with warnings about conflicts with Windows
+  or other programs.
+- **Custom phrases**: a code brings up a prepared phrase at a chosen place (`dh` for a phone number), in
+  Sogou's format, with import and export; pinyin read as 日期 / 时间 / 星期 gives the current date and time
+  ([details](docs/custom-phrases.md)).
+- **U mode and V mode**, as in Microsoft Pinyin: `v` first types numbers in Chinese, amounts in capitals,
+  dates (with the lunar date), times and formulas; `u` first finds a character by its strokes or the readings
+  of its parts ([details](docs/uv-mode.md)).
 - **Taskbar menu**: right-click the 中/英 indicator to switch Chinese/English, full pinyin / initials /
   Wubi / shuangpin, punctuation, full width and more, or to exit the background service (it starts again when you
   switch to Zhiyi IME).
@@ -128,6 +135,7 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B) (Qwen): the teachers Zhiyi 1.4V2-Long-L18's, Long-L12's and ML-pumpkin-1026's word choice and Long-L12's and ML-pumpkin-1026's composition head were distilled from, fine-tuned with LoRA (Apache-2.0)
 - [Youmo IME](https://github.com/Sraw/youmo-ime): the base of the word n-gram (its pinyin language model) and the tool that mixed it (LGPL-2.1-or-later); that base comes from [libime](https://github.com/fcitx/libime) (LGPL-2.1-or-later) and pages of [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) (ODC-By) and [Common Crawl](https://commoncrawl.org)
 - [CSL](https://github.com/ydli-ai/CSL) (Chinese Scientific Literature, Apache-2.0): the science text mixed into the word n-gram
+- [rime-stroke](https://github.com/rime/rime-stroke) (LGPL-3.0), the [Chinese character splits](https://github.com/kfcd/chaizi) of kaifangcidian.com (CC BY 3.0) and [pinyin-data](https://github.com/mozillazg/pinyin-data) (MIT): the strokes, splits and readings of U mode
 - [llama.cpp](https://github.com/ggml-org/llama.cpp): the offline translation runtime (MIT, downloaded with the model)
 - [LCCC](https://github.com/thu-coai/CDial-GPT) (MIT) and the Chinese part of [C4](https://huggingface.co/datasets/allenai/c4) (ODC-BY): part of the distillation text
 - [Tatoeba](https://tatoeba.org) (CC BY 2.0 FR) and the English, Japanese, Korean, French, German, Spanish, Russian and Vietnamese parts of [C4](https://huggingface.co/datasets/allenai/c4) (ODC-BY): the foreign-language source texts of offline translation model v3

@@ -885,10 +885,11 @@ void CandidateWindow::update(const CandidatePage& page) {
         if (layout_orientation_ == "horizontal") {
             return calculate_horizontal_layout(
                 hdc, page.candidates, config_->font_name, config_->font_size, cfg, page_total_,
-                window_dpi);
+                window_dpi, letter_labels_);
         }
         return calculate_vertical_layout(
-            hdc, page.candidates, config_->font_name, config_->font_size, cfg, window_dpi);
+            hdc, page.candidates, config_->font_name, config_->font_size, cfg, window_dpi,
+            letter_labels_);
     };
     LayoutResult lr = calculate_layout();
     if (page.extent.known_count > 0 ||

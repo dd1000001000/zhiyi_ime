@@ -208,3 +208,77 @@ uint32_t TextService::_send_voice_key(uint32_t code) {
     if (context) context->Release();
     return response.voice_state;
 }
+
+bool TextService::_alt_tap_switches(uint32_t vk) const {
+    for (const char* name : {vk == VK_LMENU ? "Alt_L" : "Alt_R", "Alt"}) {
+        const auto found = _config.ascii_switch_key.find(name);
+        if (found == _config.ascii_switch_key.end() || !modifier_switches(found->second)) continue;
+        if (found->second == "toggle_voice" && !_config.voice_enable) continue;  // issue #29
+        return true;
+    }
+    return false;
+}
+
+void TextService::_update_key_hook() {
+    // Set up while activating (before _activated); the keys are read only once activated.
+    const bool wanted = _alt_tap_switches(VK_LMENU) || _alt_tap_switches(VK_RMENU);
+    if (wanted == _keyHook) return;
+    _altTap.reset();
+    if (!wanted) {
+        cxxime::remove_thread_key_hook();
+        _keyHook = false;
+        return;
+    }
+    _keyHook = cxxime::install_thread_key_hook(
+        [this](const cxxime::HookedKey& key) { return _take_hooked_key(key); });
+}
+
+// On the program's thread as it takes the key from its queue: what changes the text is posted
+// to the config window, which gets it before the next key.
+bool TextService::_take_hooked_key(const cxxime::HookedKey& key) {
+    const uint32_t tapped = _altTap.key(key);
+    if (!key.system || !_activated || !_configWindow) return false;
+    if (cxxime::is_alt_key(key.vk)) {
+        if (!key.repeat) {
+            PostMessageW(_configWindow, cxxime_tsf::WM_CXXIME_ALT_KEY, key.vk,
+                         key.up ? kAltKeyUp : kAltKeyDown);
+        }
+        // A whole tap the key event sink handled already (down and up): not twice.
+        const bool sink_tapped = tapped && _sinkAltDown == tapped && _sinkAltUp == tapped;
+        if (key.up) _sinkAltDown = _sinkAltUp = 0;  // the press is over
+        if (!tapped || !_keyboardOpen || !_alt_tap_switches(tapped)) return false;
+        if (!sink_tapped) {
+            PostMessageW(_configWindow, cxxime_tsf::WM_CXXIME_ALT_KEY, tapped, kAltKeyTap);
+        }
+        return true;  // the program never sees this key-up: no menu bar
+    }
+    // A key typed with Alt held: a combination with it (a started long press is cancelled). The
+    // switch key combinations come as preserved keys.
+    if (!key.up && !key.repeat && _held_switch_key() < 0) {
+        PostMessageW(_configWindow, cxxime_tsf::WM_CXXIME_ALT_KEY, key.vk, kAltKeyOther);
+    }
+    return false;
+}
+
+void TextService::_note_sink_alt(WPARAM vk, bool up) {
+    if (!cxxime::is_alt_key(static_cast<uint32_t>(vk))) return;
+    (up ? _sinkAltUp : _sinkAltDown) = static_cast<uint32_t>(vk);
+}
+
+void TextService::_process_alt_key(UINT vk, LPARAM event) {
+    if (!_activated) return;
+    if (event != kAltKeyTap) {
+        _feed_key_gesture(vk, event == kAltKeyUp);  // the voice key's long press
+        return;
+    }
+    // A whole tap, as the key event sink hands the engine a tapped Shift / Ctrl: down, then up.
+    const uint32_t caps = _is_caps_lock_on() ? cxxime::kKeyModifierCapsLock : 0;
+    ITfContext* context = _current_edit_context_for_composition();
+    _modifierOverride = cxxime::kKeyModifierAlt | caps;
+    BOOL eaten = FALSE;
+    _ProcessKeyEvent(context, vk, 0, &eaten);
+    _modifierOverride = caps;
+    _ProcessKeyUp(vk, 0);
+    _modifierOverride.reset();
+    if (context) context->Release();
+}

@@ -7,6 +7,7 @@
 #include <iterator>
 
 #include <cxxime/diagnostics_config.h>
+#include <cxxime/key_event.h>
 #include <cxxime/logging.h>
 
 #include "config_coordinator.h"
@@ -66,23 +67,9 @@ bool indicates_unavailable_input_target(const char* block_reason) {
                             std::strcmp(block_reason, "context_not_foreground") == 0);
 }
 
-// TSF reports a modifier as the generic key (VK_SHIFT / VK_CONTROL / VK_MENU); the side is in the
-// scan code (right Shift, 0x36) or the extended flag (right Ctrl / right Alt). The switch keys may
-// tell the two sides apart, so hand the engine the specific key. Any other key passes unchanged.
+// TSF reports a modifier as the generic key: the switch keys may tell the two sides apart.
 uint32_t modifier_vk_with_side(WPARAM vk, LPARAM lparam) {
-    const uint32_t flags = static_cast<uint32_t>(lparam);
-    const bool extended = (flags & (1u << 24)) != 0;
-    const uint32_t scan = (flags >> 16) & 0xFF;
-    switch (vk) {
-    case VK_SHIFT:
-        return scan == 0x36 ? VK_RSHIFT : VK_LSHIFT;
-    case VK_CONTROL:
-        return extended ? VK_RCONTROL : VK_LCONTROL;
-    case VK_MENU:
-        return extended ? VK_RMENU : VK_LMENU;
-    default:
-        return static_cast<uint32_t>(vk);
-    }
+    return cxxime::modifier_key_with_side(static_cast<uint32_t>(vk), static_cast<uint32_t>(lparam));
 }
 
 }  // namespace
@@ -117,6 +104,7 @@ STDMETHODIMP TextService::OnSetFocus(BOOL fForeground) {
 
 STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
+    _note_sink_alt(wParam, false);
     _fTestKeyUpPending = false;
     _deferredKeyDown = 0;  // a key claimed before whose OnKeyDown never came
     if (_fTestKeyDownPending) {
@@ -187,6 +175,7 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* pic, WPARAM wParam, LPARAM l
 
 STDMETHODIMP TextService::OnTestKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
+    _note_sink_alt(wParam, true);
     _fTestKeyDownPending = false;
     if (_fTestKeyUpPending) {
         *pfEaten = TRUE;
@@ -219,6 +208,7 @@ STDMETHODIMP TextService::OnTestKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lPa
 
 STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
+    _note_sink_alt(wParam, false);
     if (_deferredKeyDown != 0 && _deferredKeyDown == wParam) {
         _deferredKeyDown = 0;
         *pfEaten = _ProcessKeyEvent(pic, wParam, lParam, pfEaten);
@@ -253,6 +243,7 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext* pic, WPARAM wParam, LPARAM lPara
 
 STDMETHODIMP TextService::OnKeyUp(ITfContext* pic, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) {
     wParam = static_cast<WPARAM>(modifier_vk_with_side(wParam, lParam));
+    _note_sink_alt(wParam, true);
     if (_fTestKeyUpPending) {
         _fTestKeyUpPending = false;
         *pfEaten = TRUE;
@@ -472,13 +463,14 @@ bool TextService::_ProcessKeyEvent(ITfContext* pic, WPARAM wParam, LPARAM lParam
 // as TSF intends: a program that takes the key in between gets it with no composition started.
 // wxWidgets programs run their shortcuts from a keyboard hook between the two and skip them once
 // a composition has started (WM_IME_STARTCOMPOSITION), so typing in OnTestKeyDown ate the
-// shortcuts of Aegisub's audio display (#37). Only keys the engine always takes: no modifier and
-// no Caps Lock, where it may type a letter as it is.
+// shortcuts of Aegisub's audio display (#37), and Shift+letter ones (Shift+X starts temporary
+// English, #39). Only keys the engine always takes: Shift or no modifier, no Ctrl / Alt and no
+// Caps Lock, where it may type a letter as it is.
 bool TextService::_defers_key_down(WPARAM key) const {
     if (_composing || !_chinese_mode || _voicePolling || key < 'A' || key > 'Z') {
         return false;
     }
-    return (_get_modifiers() & (0x01 | 0x02 | 0x04 | 0x08)) == 0;
+    return (_get_modifiers() & (0x02 | 0x04 | 0x08)) == 0;
 }
 
 bool TextService::_ProcessKeyUp(WPARAM wParam, LPARAM lParam) {

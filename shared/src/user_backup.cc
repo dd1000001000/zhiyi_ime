@@ -60,6 +60,7 @@ constexpr KnownBackupPath kKnownPaths[] = {
     {"disabled/disabled_pinyin.tsv", UserBackupComponent::kDisabledSystemLexicon},
     {"disabled/disabled_wubi.tsv", UserBackupComponent::kDisabledSystemLexicon},
     {"wordlists/wordlists.json", UserBackupComponent::kWordLists},
+    {"phrases/phrases.ini", UserBackupComponent::kPhrases},
 };
 
 void set_error(unsigned long* error_code, unsigned long value) {
@@ -306,6 +307,8 @@ const char* user_backup_component_name(UserBackupComponent component) {
         return "device_settings";
     case UserBackupComponent::kWordLists:
         return "word_lists";
+    case UserBackupComponent::kPhrases:
+        return "phrases";
     default:
         return "";
     }

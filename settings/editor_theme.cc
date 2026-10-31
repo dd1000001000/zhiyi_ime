@@ -247,6 +247,13 @@ void draw_button(const DRAWITEMSTRUCT& item) {
 
 void enable_button_hover(HWND button) { SetWindowSubclass(button, ButtonHoverProc, 1, 0); }
 
+void style_popup(HWND window) {
+    const bool dark = ui_colors().dark;
+    const BOOL use_dark = dark ? TRUE : FALSE;
+    DwmSetWindowAttribute(window, kUseImmersiveDarkMode, &use_dark, sizeof(use_dark));
+    EnumChildWindows(window, style_child, dark ? 1 : 0);
+}
+
 HBRUSH control_brush() {
     ui_colors();
     return g_control_brush;

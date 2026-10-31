@@ -116,7 +116,8 @@ const std::vector<std::string>* SymbolTable::emoji_for(const std::string& word) 
 }
 
 CandidatePage SymbolTable::translate_page(const std::string& code, int page_index, int page_size,
-                                          int candidate_offset) const {
+                                          int candidate_offset,
+                                          const std::vector<SymbolCategory>& extra) const {
     CandidatePage page;
     if (page_size <= 0) {
         return page;
@@ -129,7 +130,9 @@ CandidatePage SymbolTable::translate_page(const std::string& code, int page_inde
         page.page_index = page_index;
         page.page_offset = offset;
         page.page_size = category_page_size;
-        const int known_count = static_cast<int>(category_order_.size());
+        // The loaded categories, then those made now.
+        const int loaded = static_cast<int>(category_order_.size());
+        const int known_count = loaded + static_cast<int>(extra.size());
         page.extent = make_candidate_extent(
             known_count, (std::min)(offset + category_page_size, known_count), false);
         if (offset < 0 || offset >= known_count) {
@@ -139,13 +142,21 @@ CandidatePage SymbolTable::translate_page(const std::string& code, int page_inde
         const int end = (std::min)(offset + category_page_size, known_count);
         page.candidates.reserve(end - offset);
         for (int index = offset; index < end; ++index) {
-            const std::string& category_code = category_order_[index];
-            const auto category = categories_.find(category_code);
-            if (category == categories_.end()) {
-                continue;
+            std::string category_code;
+            std::string name;
+            if (index < loaded) {
+                category_code = category_order_[index];
+                const auto category = categories_.find(category_code);
+                if (category == categories_.end()) {
+                    continue;
+                }
+                name = category->second.name;
+            } else {
+                category_code = extra[static_cast<std::size_t>(index - loaded)].code;
+                name = extra[static_cast<std::size_t>(index - loaded)].name;
             }
             Candidate candidate;
-            candidate.text = category->second.name;
+            candidate.text = std::move(name);
             candidate.comment = std::string(1, kSymbolPrefix) + category_code;
             candidate.source = CandidateSource::kSymbol;
             candidate.code = candidate.comment;
@@ -157,8 +168,19 @@ CandidatePage SymbolTable::translate_page(const std::string& code, int page_inde
         return page;
     }
 
-    const auto category = categories_.find(code);
-    if (category == categories_.end()) {
+    const std::vector<std::string>* texts = nullptr;
+    bool made_now = false;
+    if (const auto category = categories_.find(code); category != categories_.end()) {
+        texts = &category->second.candidates;
+    } else {
+        for (const SymbolCategory& made : extra) {
+            if (made.code == code) {
+                texts = &made.candidates;
+                made_now = true;
+            }
+        }
+    }
+    if (!texts) {
         return page;
     }
 
@@ -166,7 +188,7 @@ CandidatePage SymbolTable::translate_page(const std::string& code, int page_inde
     page.page_index = page_index;
     page.page_offset = offset;
     page.page_size = page_size;
-    const int known_count = static_cast<int>(category->second.candidates.size());
+    const int known_count = static_cast<int>(texts->size());
     page.extent = make_candidate_extent(
         known_count, (std::min)(offset + page_size, known_count), false);
     if (offset < 0 || offset >= known_count) {
@@ -177,8 +199,8 @@ CandidatePage SymbolTable::translate_page(const std::string& code, int page_inde
     page.candidates.reserve(end - offset);
     for (int index = offset; index < end; ++index) {
         Candidate candidate;
-        candidate.text = category->second.candidates[index];
-        candidate.source = CandidateSource::kSymbol;
+        candidate.text = (*texts)[static_cast<std::size_t>(index)];
+        candidate.source = made_now ? CandidateSource::kPhrase : CandidateSource::kSymbol;
         candidate.code = std::string(1, kSymbolPrefix) + code;
         page.candidates.push_back(std::move(candidate));
     }
@@ -188,9 +210,10 @@ CandidatePage SymbolTable::translate_page(const std::string& code, int page_inde
     return page;
 }
 
-TranslationResult SymbolTable::translate(const TranslationRequest& request) const {
-    CandidatePage page =
-        translate_page(request.input, request.page_index, request.page_size, request.page_offset);
+TranslationResult SymbolTable::translate(const TranslationRequest& request,
+                                        const std::vector<SymbolCategory>& extra) const {
+    CandidatePage page = translate_page(request.input, request.page_index, request.page_size,
+                                        request.page_offset, extra);
     TranslationResult result;
     result.page_index = page.page_index;
     result.page_offset = page.page_offset;

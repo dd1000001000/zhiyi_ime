@@ -6,6 +6,7 @@
 #include "legacy_trace.h"
 
 #include <cxxime/host_trace.h>
+#include <cxxime/thread_key_hook.h>
 
 #include <cstring>
 #include <memory>
@@ -15,6 +16,34 @@ namespace {
 HINSTANCE g_instance = nullptr;
 bool g_winlogon = false;
 
+// The session of the input box with the focus in this thread, if it uses this IME.
+std::shared_ptr<cxxime_legacy::LegacyImeSession> focused_session() {
+    HWND focus = GetFocus();
+    HIMC himc = focus ? ImmGetContext(focus) : nullptr;
+    if (!himc) return nullptr;
+    std::shared_ptr<cxxime_legacy::LegacyImeSession> session =
+        cxxime_legacy::find_session(himc, false);
+    ImmReleaseContext(focus, himc);
+    return session;
+}
+
+// Alt and the keys typed with it never reach ImeProcessKey (cxxime/thread_key_hook.h): the
+// thread key hook hands them to the engine. Only a whole tap of Alt goes (its down and up), so
+// Alt+F is never read as a tap; the keys typed with Alt go as they come, for the Alt switch key
+// combinations. The program gets every key the engine does not use.
+void install_key_hook() {
+    if (g_winlogon || cxxime::thread_key_hook_installed()) return;
+    auto alt_tap = std::make_shared<cxxime::AltTap>();
+    cxxime::install_thread_key_hook([alt_tap](const cxxime::HookedKey& key) {
+        const uint32_t tapped = alt_tap->key(key);
+        if (!key.system) return false;
+        std::shared_ptr<cxxime_legacy::LegacyImeSession> session = focused_session();
+        if (!session) return false;
+        if (cxxime::is_alt_key(key.vk)) return tapped != 0 && session->tap_alt(tapped);
+        return session->process_alt_combination(key);
+    });
+}
+
 } // namespace
 
 extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
@@ -23,6 +52,7 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
         DisableThreadLibraryCalls(instance);
         cxxime_legacy::register_ui_class(instance);
     } else if (reason == DLL_PROCESS_DETACH) {
+        cxxime::remove_all_thread_key_hooks();
         cxxime_legacy::clear_sessions(false);
         if (g_instance) {
             cxxime_legacy::unregister_ui_class(g_instance);
@@ -87,6 +117,7 @@ extern "C" BOOL WINAPI ImeSetActiveContext(HIMC himc, BOOL active) {
         cxxime_legacy::find_session(himc, active != FALSE);
     if (session) {
         session->set_active(active != FALSE);
+        if (active) install_key_hook();
     }
     return TRUE;
 }
@@ -220,6 +251,7 @@ extern "C" BOOL WINAPI ImeSetCompositionString(HIMC, DWORD, LPVOID, DWORD, LPVOI
 
 extern "C" BOOL WINAPI ImeDestroy(UINT) {
     cxxime_legacy::trace_legacy_destroy();
+    cxxime::remove_all_thread_key_hooks();
     cxxime_legacy::clear_sessions(true);
     return TRUE;
 }

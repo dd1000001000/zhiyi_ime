@@ -114,7 +114,7 @@ bool TextService::_apply_engine_response(ITfContext* context, const cxxime::IPCR
             decoded.candidates, popup_preedit, response.preedit_cursor, popup_converted_prefix,
             response.candidate_revision, static_cast<int>(response.page_current),
             static_cast<int>(response.page_total), popup_focused_start, popup_focused_end,
-            decoded.has_syllable_boundaries);
+            decoded.has_syllable_boundaries, decoded.letter_labels);
         _sync_candidate_ui_element_snapshot();
 
         cxxime_tsf::trace_context(trace_input_id(), trace_composition_id(), context, _threadMgr,

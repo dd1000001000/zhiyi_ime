@@ -17,6 +17,9 @@ enum class CandidateSource {
     kWubi,
     kSymbol,
     kEnglish,  // Laya: English word candidates (EnglishLexicon)
+    // The user's custom phrases and the built-in date and time (custom_phrases.h): never
+    // learned, never the model's context, never collected.
+    kPhrase,
 };
 
 enum class CandidateOrigin {
@@ -44,6 +47,9 @@ struct Candidate {
     // Picked by the Laya model as the best continuation (shown with a sparkle mark).
     bool recommended = false;
     bool learned = false;  // from the user's own selections (self-learning)
+    // Put in its place by the user's manual order (Settings): nothing goes above it, not the
+    // context model's pick, not a longer word, and no filter removes it.
+    bool pinned = false;
     // Learning mode: the translation shown after the candidate (encoded senses,
     // candidate_presentation.h); set for the candidate window only.
     std::string gloss;

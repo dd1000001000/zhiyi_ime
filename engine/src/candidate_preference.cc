@@ -342,7 +342,7 @@ bool CandidatePreference::record(const Candidate& candidate, const std::string& 
                                  CandidatePreferenceReceipt* receipt) {
     const bool sentence = candidate.origin == CandidateOrigin::kComposed;
     if (candidate.text.empty() || code.empty() || candidate.source == CandidateSource::kSymbol ||
-        candidate.source == CandidateSource::kEnglish ||
+        candidate.source == CandidateSource::kEnglish || candidate.source == CandidateSource::kPhrase ||
         (sentence && (kind_ != UserDictKind::PINYIN || candidate.syllables.empty())) ||
         code.size() > kMaxInputCodeLength ||
         std::any_of(code.begin(), code.end(), [](char ch) { return ch < 'a' || ch > 'z'; })) {

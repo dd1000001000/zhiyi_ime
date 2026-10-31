@@ -41,6 +41,12 @@ struct KeyEvent {
 // Convert Windows WPARAM/LPARAM to KeyEvent
 KeyEvent from_windows_key(uint32_t vk_code, uint32_t lparam, bool is_key_up);
 
+// Windows reports a modifier as the generic key (VK_SHIFT / VK_CONTROL / VK_MENU); the side is in
+// the key message's lParam: the scan code (right Shift, 0x36) or the extended flag (right Ctrl /
+// right Alt). The switch keys may tell the two sides apart, so the engine gets the specific key.
+// Any other key passes unchanged.
+uint32_t modifier_key_with_side(uint32_t vk_code, uint32_t lparam);
+
 // Check if a key is a letter (a-z)
 bool is_letter_key(uint32_t vk_code);
 

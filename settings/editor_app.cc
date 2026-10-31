@@ -30,12 +30,15 @@ constexpr int kOkId = 2001;
 constexpr int kCancelId = 2002;
 constexpr int kApplyId = 2003;
 
-const char* const kPanelKeys[] = {"nav.general",  "nav.fuzzy",   "nav.keys",
-                                  "nav.dictionary", "nav.wordlists", "nav.voice",
-                                  "nav.learning", "nav.privacy",  "nav.update",  "nav.about"};
+const char* const kPanelKeys[] = {"nav.general",  "nav.fuzzy",    "nav.keys",
+                                  "nav.dictionary", "nav.wordlists", "nav.phrases", "nav.voice",
+                                  "nav.learning", "nav.advanced", "nav.privacy", "nav.update",
+                                  "nav.about"};
 // Segoe Fluent Icons / MDL2 Assets glyphs for the pages above.
-const wchar_t kPanelIcons[] = {0xE713, 0xE8D2, 0xE765, 0xE82D, 0xE8F1,
-                               0xE720, 0xE7BE, 0xE72E, 0xE895, 0xE946};
+const wchar_t kPanelIcons[] = {0xE713, 0xE8D2, 0xE765, 0xE82D, 0xE8F1, 0xE70B,  // QuickNote
+                               0xE720, 0xE7BE, 0xE9E9,  // Equalizer
+                               0xE72E, 0xE895, 0xE946};
+static_assert(std::size(kPanelIcons) == std::size(kPanelKeys), "one icon per page");
 
 UINT settings_navigate_message() {
     static const UINT message = RegisterWindowMessageW(cxxime::kSettingsNavigateMessage);
@@ -219,12 +222,16 @@ void EditorApp::create_controls(HWND window) {
     make_panel_scrollable(hPanels_[kWordListPanel]);
     create_word_list_panel(hPanels_[kWordListPanel]);
     update_panel_scroll(hPanels_[kWordListPanel]);
+    make_panel_scrollable(hPanels_[kPhrasePanel]);
+    create_phrase_panel(hPanels_[kPhrasePanel]);
+    update_panel_scroll(hPanels_[kPhrasePanel]);
     make_panel_scrollable(hPanels_[kVoicePanel]);
     create_voice_panel(hPanels_[kVoicePanel]);
     update_panel_scroll(hPanels_[kVoicePanel]);
     make_panel_scrollable(hPanels_[kLearningPanel]);
     create_learning_panel(hPanels_[kLearningPanel]);
     update_panel_scroll(hPanels_[kLearningPanel]);
+    create_advanced_panel(hPanels_[kAdvancedPanel]);
     create_privacy_panel(hPanels_[kPrivacyPanel]);
     create_update_panel(hPanels_[kUpdatePanel]);
     create_about_panel(hPanels_[kAboutPanel], panel_width);
@@ -314,6 +321,9 @@ void EditorApp::show_panel(int idx) {
     if (idx == kWordListPanel && !word_lists_loaded_) {
         load_word_lists();
     }
+    if (idx == kPhrasePanel) {
+        load_phrases();  // each time: the file may have been edited by hand
+    }
 }
 
 void EditorApp::release_fonts() {
@@ -382,6 +392,12 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(voice_language);
     KEEP_PAGE_EDIT(voice_itn);
     KEEP_PAGE_EDIT(voice_key_mode);
+    KEEP_PAGE_EDIT(phrases.enable);
+    KEEP_PAGE_EDIT(phrases.builtin_date);
+    KEEP_PAGE_EDIT(phrases.builtin_time);
+    KEEP_PAGE_EDIT(phrases.builtin_week);
+    KEEP_PAGE_EDIT(advanced.u_mode);
+    KEEP_PAGE_EDIT(advanced.v_mode);
 #undef KEEP_PAGE_EDIT
     // The switch keys move together, so a merge never repeats a key.
     if (!(ui.ascii_switch_key == before.ascii_switch_key) ||
@@ -488,6 +504,10 @@ LRESULT CALLBACK EditorApp::wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     if (msg == kRebuildWordListsMessage) {
         a->rebuild_word_list_panel();
+        return 0;
+    }
+    if (msg == kRebuildPhrasesMessage) {
+        a->rebuild_phrase_panel();
         return 0;
     }
     if (navigate_message != 0 && msg == navigate_message) {  // opened again from the IME

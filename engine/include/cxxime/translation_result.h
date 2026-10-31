@@ -62,6 +62,8 @@ struct TranslationResult {
     CandidateExtent extent;
     int highlighted = -1;
     std::vector<CandidateEntry> entries;
+    // V mode: the candidates are labelled and chosen with a, b, c ... (its digits are input).
+    bool letter_labels = false;
 
     bool usable() const { return status != TranslationStatus::kFailed; }
 

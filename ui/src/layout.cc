@@ -171,7 +171,7 @@ static std::string truncate_middle(HDC hdc, const std::string& text, HFONT hf,
 LayoutResult calculate_horizontal_layout(HDC hdc,
     const std::vector<Candidate>& candidates,
     const std::string& font_name, int font_size,
-    const LayoutConfig& cfg, int page_total, UINT dpi) {
+    const LayoutConfig& cfg, int page_total, UINT dpi, bool letter_labels) {
     LayoutResult result;
     LayoutFont font(font_name, font_size, dpi);
     const HFONT hf = font.get();
@@ -203,7 +203,7 @@ LayoutResult calculate_horizontal_layout(HDC hdc,
     int x = cfg.margin_x, y = cfg.margin_y;
 
     for (int i = 0; i < (int)candidates.size(); ++i) {
-        std::wstring label = candidate_label(i);
+        std::wstring label = candidate_label(i, letter_labels);
         SIZE lsz = measure_wstr(hdc, hf, label);
         std::string comment = format_comment(candidates[i]);
         SIZE text_size = measure_wstr(hdc, hf, to_wstr(candidates[i].text));
@@ -219,6 +219,7 @@ LayoutResult calculate_horizontal_layout(HDC hdc,
 
         CandidateRect cr;
         cr.index = i;
+        cr.label = candidate_label(i, letter_labels);
         cr.text = candidates[i].text;
         cr.comment = std::move(comment);
         cr.recommended = candidates[i].recommended;
@@ -286,7 +287,7 @@ LayoutResult calculate_horizontal_layout(HDC hdc,
 LayoutResult calculate_vertical_layout(HDC hdc,
     const std::vector<Candidate>& candidates,
     const std::string& font_name, int font_size,
-    const LayoutConfig& cfg, UINT dpi) {
+    const LayoutConfig& cfg, UINT dpi, bool letter_labels) {
     LayoutResult result;
     LayoutFont font(font_name, font_size, dpi);
     const HFONT hf = font.get();
@@ -314,7 +315,7 @@ LayoutResult calculate_vertical_layout(HDC hdc,
     // First pass: measure all to find widest label/text columns
     int widest_label = 0, widest_text = 0;
     for (int i = 0; i < (int)candidates.size(); ++i) {
-        std::wstring label = candidate_label(i);
+        std::wstring label = candidate_label(i, letter_labels);
         int lw = measure_wstr(hdc, hf, label).cx;
         std::string comment = format_comment(candidates[i]);
         int tw = measure_wstr(hdc, hf, to_wstr(candidates[i].text)).cx +
@@ -355,6 +356,7 @@ LayoutResult calculate_vertical_layout(HDC hdc,
 
         CandidateRect cr;
         cr.index = i;
+        cr.label = candidate_label(i, letter_labels);
         cr.text = candidates[i].text;
         cr.comment = format_comment(candidates[i]);
         cr.recommended = candidates[i].recommended;

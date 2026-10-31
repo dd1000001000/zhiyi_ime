@@ -56,7 +56,8 @@ void CandidatePresentation::update_content(const cxxime::CandidatePresentationPa
                                            int page_total,
                                            std::size_t focused_preedit_start,
                                            std::size_t focused_preedit_end,
-                                           bool has_syllable_boundaries) {
+                                           bool has_syllable_boundaries,
+                                           bool letter_labels) {
     advance_generation();
     if (initial_layout_wait_) {
         caret_jump_pending_ = false;
@@ -70,6 +71,7 @@ void CandidatePresentation::update_content(const cxxime::CandidatePresentationPa
     focused_preedit_start_ = (std::min)(focused_preedit_start, popup_preedit_.size());
     focused_preedit_end_ = (std::min)(focused_preedit_end, popup_preedit_.size());
     has_syllable_boundaries_ = has_syllable_boundaries && !popup_preedit_.empty();
+    letter_labels_ = letter_labels;
     if (focused_preedit_start_ < converted_prefix_bytes_ ||
         focused_preedit_end_ < focused_preedit_start_) {
         focused_preedit_start_ = popup_preedit_.size();
@@ -376,6 +378,7 @@ void CandidatePresentation::finish() {
     focused_preedit_start_ = 0;
     focused_preedit_end_ = 0;
     has_syllable_boundaries_ = false;
+    letter_labels_ = false;
     candidate_revision_ = 0;
     reset_position_state();
 }

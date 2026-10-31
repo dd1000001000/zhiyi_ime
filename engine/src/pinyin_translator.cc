@@ -407,7 +407,8 @@ static void limit_extension_candidates(std::vector<Candidate>& candidates) {
     int extensions = 0;
     candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
                                     [&](const Candidate& candidate) {
-                                        if (candidate.frequency < kExtensionBase ||
+                                        if (candidate.pinned ||  // the user's order
+                                            candidate.frequency < kExtensionBase ||
                                             candidate.frequency >= kCompletionBase) {
                                             return false;
                                         }
@@ -708,7 +709,8 @@ void PinyinTranslator::annotate_fuzzy_matches(const std::string& input,
 // long_word_filter, the two most frequent go fourth, on the first page, where the context
 // model sees them and may move them further. Only words typed in full (no initial, no fuzzy
 // spelling), above the dictionary's floor weight; short inputs only, where a one-syllable
-// reading can hide them. Applied after the ranking, so the Top-N index keeps its order.
+// reading can hide them. Applied after the ranking, so the Top-N index keeps its order, and
+// after the user's manual order, below the words it pins (both paths alike).
 constexpr std::size_t kLongWordPosition = 3;
 constexpr std::size_t kMaxLongWords = 2;
 constexpr std::size_t kMaxLongWordInput = 12;
@@ -754,7 +756,10 @@ void PinyinTranslator::promote_long_words(const std::string& pinyin,
     std::stable_sort(words.begin(), words.end(), [](const Candidate& a, const Candidate& b) {
         return a.frequency > b.frequency;
     });
-    std::size_t position = kLongWordPosition;
+    const std::size_t pinned = static_cast<std::size_t>(
+        std::find_if(sorted.begin(), sorted.end(), [](const Candidate& c) { return !c.pinned; }) -
+        sorted.begin());
+    std::size_t position = (std::max)(kLongWordPosition, pinned);
     std::size_t promoted = 0;
     for (Candidate& word : words) {
         if (promoted == kMaxLongWords) break;
@@ -1600,7 +1605,8 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
     // After the learned words and sentences too: initials mode keeps only what lines up.
     keep_initials_matches(pinyin, sorted);
     dict_->filter_disabled_system_candidates(sorted);
-    promote_long_words(pinyin, sorted, budget);
+    limit_extension_candidates(sorted);
+    // The user's order, then the longer words below it, as on the Top-N path.
     if (pinyin_scheme() == PinyinSchemeKind::kFullPinyin) {
         dict_->apply_manual_candidate_order(learned_key, CandidateSource::kPinyin, sorted, need);
         keep_separator_matches(pinyin, sorted);  // learned words under the letters alone
@@ -1616,8 +1622,8 @@ CandidatePage PinyinTranslator::translate_page(const std::string& pinyin, int pa
             dict_->apply_manual_candidate_order(*it, CandidateSource::kPinyin, sorted, need, *it);
         }
     }
+    promote_long_words(pinyin, sorted, budget);
 
-    limit_extension_candidates(sorted);
     const int known_count = static_cast<int>(sorted.size());
     const int returned_end = (std::min)(offset + fetch_limit, known_count);
     const bool collector_capacity_incomplete = budget &&

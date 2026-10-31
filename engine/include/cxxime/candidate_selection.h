@@ -24,6 +24,7 @@ enum class CompositionScheme {
     kMixed,
     kSymbol,
     kInlineAscii,
+    kUvMode,  // U mode and V mode (uv_mode.h): the input starts with the u or v
 };
 
 enum class LearningTarget {

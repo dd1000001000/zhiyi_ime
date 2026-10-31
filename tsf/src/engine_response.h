@@ -19,6 +19,7 @@ struct DecodedEnginePresentation {
     std::size_t display_focused_preedit_start_bytes = 0;
     std::size_t display_focused_preedit_end_bytes = 0;
     bool has_syllable_boundaries = false;
+    bool letter_labels = false;  // V mode: candidates labelled a, b, c ...
     cxxime::CandidatePresentationPage candidates;
 };
 

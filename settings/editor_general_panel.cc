@@ -509,10 +509,14 @@ void EditorApp::populate_controls() {
     populate_learning();
     populate_translator();
     populate_voice();
+    populate_phrase_switches();
+    populate_advanced();
     update_enabled_controls();
 }
 
 bool EditorApp::read_controls(bool report_errors) {
+    read_phrase_switches();
+    read_advanced();
     auto& c = config_;
     c.input_mode = get_check(hWubi_) ? 1 : 0;
     c.pinyin_style = get_check(hInitials_)     ? PinyinStyle::kInitials
@@ -651,7 +655,8 @@ void EditorApp::update_enabled_controls() {
 }
 
 bool EditorApp::handle_command(int control_id, int notification) {
-    if (handle_word_list_command(control_id, notification)) {
+    if (handle_word_list_command(control_id, notification) ||
+        handle_phrase_command(control_id, notification)) {
         return true;
     }
     switch (control_id) {

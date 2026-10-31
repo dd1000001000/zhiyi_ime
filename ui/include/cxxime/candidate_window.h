@@ -49,6 +49,8 @@ public:
                      size_t converted_prefix, size_t focused_start, size_t focused_end,
                      bool has_syllable_boundaries);
     void set_layout(const std::string& layout);
+    // V mode: label the candidates a, b, c ... (applies from the next update).
+    void set_letter_labels(bool letters) { letter_labels_ = letters; }
     void move_to_caret(const RECT& caretRect);
     void move_to_screen_position(int x, int y);
     void set_candidate_selection_callback(CandidateSelectionCallback cb);
@@ -115,6 +117,7 @@ private:
     size_t focused_preedit_start_ = 0;
     size_t focused_preedit_end_ = 0;
     bool preedit_has_syllable_boundaries_ = false;
+    bool letter_labels_ = false;
     int preedit_cursor_width_ = 1;
     bool preedit_cursor_emphasized_ = false;
     std::string layout_orientation_ = "horizontal";

@@ -58,6 +58,8 @@
 - **U mode and V mode**, as in Microsoft Pinyin: `v` first types numbers in Chinese, amounts in capitals,
   dates (with the lunar date), times and formulas; `u` first finds a character by its strokes or the readings
   of its parts ([details](docs/uv-mode.md)).
+- **Custom punctuation**: a table, as in Sogou Pinyin, of what each symbol key types with Chinese punctuation,
+  at half and full width, pairs included ([details](docs/punctuation.md)).
 - **Taskbar menu**: right-click the 中/英 indicator to switch Chinese/English, full pinyin / initials /
   Wubi / shuangpin, punctuation, full width and more, or to exit the background service (it starts again when you
   switch to Zhiyi IME).

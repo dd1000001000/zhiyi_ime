@@ -10,6 +10,7 @@
 #include <cxxime/gpu_adapters.h>
 #include <cxxime/ipc_protocol.h>
 #include <cxxime/logging.h>
+#include <cxxime/punctuation.h>
 #include <cxxime/voice_files.h>
 
 namespace {
@@ -449,7 +450,12 @@ void VoiceService::finish_recording(uint64_t generation) {
 }
 
 std::string VoiceService::tidy(std::string text, uint32_t owner) {
-    if (sessions_.chinese_punct && !sessions_.chinese_punct(owner)) {
+    const Sessions::Punctuation punctuation =
+        sessions_.punctuation ? sessions_.punctuation(owner) : Sessions::Punctuation{};
+    if (punctuation.chinese && punctuation.table) {
+        // Each mark as its key types it, Settings' custom punctuation included (issue #43).
+        text = cxxime::voice_punctuation(text, *punctuation.table, punctuation.full_shape);
+    } else if (!punctuation.chinese) {
         for (const auto& [full, ascii] : kAsciiPunctuation) {
             for (std::size_t at = text.find(full); at != std::string::npos; at = text.find(full, at)) {
                 text.replace(at, std::char_traits<char>::length(full), ascii);

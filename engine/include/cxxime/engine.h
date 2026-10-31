@@ -328,6 +328,7 @@ private:
     bool handle_punctuation(const KeyEvent& event, Context& context, const OutputOptions& opts);
     bool handle_full_shape(const KeyEvent& event, Context& context, const OutputOptions& opts);
     void commit_with_punctuation(Context& context, const std::string& output);
+    ProcessResult type_into_composition(char ch, bool literal, const OutputOptions& opts);
 };
 
 } // namespace cxxime

@@ -15,6 +15,7 @@
 #include <cxxime/input_limits.h>
 #include <cxxime/logging.h>
 #include <cxxime/pinyin_scheme.h>
+#include <cxxime/punctuation.h>
 
 namespace cxxime {
 
@@ -54,6 +55,52 @@ static bool load_keyboard_shortcut(Json& obj, const char* key, KeyboardShortcut&
     }
     value = {};
     return false;
+}
+
+// One value of the custom punctuation ("punctuation" in config.json): a string types it, a
+// [left, right] array is a pair; anything else (or a value Settings would not accept) is unset.
+static std::optional<PunctEntry> load_punctuation_value(const nlohmann::json& value) {
+    PunctEntry entry{};
+    if (value.is_string()) {
+        entry.type = PunctType::COMMIT;
+        entry.commit = value.get<std::string>();
+    } else if (value.is_array() && value.size() == 2 && value[0].is_string() &&
+               value[1].is_string()) {
+        entry.type = PunctType::PAIR;
+        entry.pair = {value[0].get<std::string>(), value[1].get<std::string>()};
+    } else {
+        return std::nullopt;
+    }
+    if (!valid_punctuation_entry(entry)) return std::nullopt;
+    return entry;
+}
+
+static nlohmann::json punctuation_value_json(const PunctEntry& entry) {
+    if (entry.type == PunctType::PAIR && entry.pair.size() == 2) {
+        return nlohmann::json::array({entry.pair[0], entry.pair[1]});
+    }
+    return entry.commit;
+}
+
+// The custom punctuation keys; the list in the file replaces the one before (the package's).
+static void load_punctuation(const nlohmann::json& list, std::vector<PunctuationKeyConfig>& keys) {
+    keys.clear();
+    for (const auto& item : list) {
+        if (!item.is_object() || !item.contains("key") || !item["key"].is_string()) continue;
+        const std::string key = item["key"].get<std::string>();
+        if (key.size() != 1 || !is_custom_punctuation_key(key[0])) continue;
+        PunctuationKeyConfig custom;
+        custom.key = key[0];
+        if (item.contains("half")) custom.half_shape = load_punctuation_value(item["half"]);
+        if (item.contains("full")) custom.full_shape = load_punctuation_value(item["full"]);
+        if (item.contains("join_code") && item["join_code"].is_boolean()) {
+            custom.join_code = item["join_code"].get<bool>();
+        }
+        if (!custom.half_shape && !custom.full_shape && !custom.join_code) continue;
+        const auto same_key = [&](const PunctuationKeyConfig& k) { return k.key == custom.key; };
+        keys.erase(std::remove_if(keys.begin(), keys.end(), same_key), keys.end());
+        keys.push_back(std::move(custom));
+    }
 }
 
 // A page key (shortcuts.page_up / page_down) is one of `allowed` or "" for none; anything else
@@ -366,6 +413,11 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         auto& adv = j["advanced"];
         load_bool(adv, "u_mode", config.advanced.u_mode);
         load_bool(adv, "v_mode", config.advanced.v_mode);
+    }
+
+    if (j.contains("punctuation") && j["punctuation"].is_object() &&
+        j["punctuation"].contains("keys") && j["punctuation"]["keys"].is_array()) {
+        load_punctuation(j["punctuation"]["keys"], config.punctuation);
     }
 
     if (j.contains("english") && j["english"].is_object()) {
@@ -760,6 +812,16 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
 
     j["advanced"]["u_mode"] = config.advanced.u_mode;
     j["advanced"]["v_mode"] = config.advanced.v_mode;
+
+    j["punctuation"]["keys"] = nlohmann::json::array();
+    for (const PunctuationKeyConfig& custom : config.punctuation) {
+        nlohmann::json item;
+        item["key"] = std::string(1, custom.key);
+        if (custom.half_shape) item["half"] = punctuation_value_json(*custom.half_shape);
+        if (custom.full_shape) item["full"] = punctuation_value_json(*custom.full_shape);
+        if (custom.join_code) item["join_code"] = *custom.join_code;
+        j["punctuation"]["keys"].push_back(std::move(item));
+    }
 
     j["english"]["mixed_in_chinese"] = config.english.mixed_in_chinese;
     j["english"]["min_input"] = config.english.min_input;

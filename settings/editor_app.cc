@@ -120,7 +120,7 @@ int EditorApp::run(HINSTANCE hInst, float dpiScale, cxxime::SettingsPanel initia
     app.initial_panel_ = initialPanel;
 
     INITCOMMONCONTROLSEX icc = {sizeof(icc),
-                                ICC_STANDARD_CLASSES | ICC_LINK_CLASS | ICC_PROGRESS_CLASS};
+                                ICC_STANDARD_CLASSES | ICC_LINK_CLASS | ICC_PROGRESS_CLASS | ICC_LISTVIEW_CLASSES};
     InitCommonControlsEx(&icc);
 
     WNDCLASSEXW wc = {};
@@ -398,6 +398,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(phrases.builtin_week);
     KEEP_PAGE_EDIT(advanced.u_mode);
     KEEP_PAGE_EDIT(advanced.v_mode);
+    KEEP_PAGE_EDIT(punctuation);
 #undef KEEP_PAGE_EDIT
     // The switch keys move together, so a merge never repeats a key.
     if (!(ui.ascii_switch_key == before.ascii_switch_key) ||

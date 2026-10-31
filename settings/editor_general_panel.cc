@@ -124,15 +124,36 @@ std::wstring label_name(const char* key) {
 
 } // namespace
 
-HWND EditorApp::make_hint(const wchar_t* text, int x, int y, int width, HWND parent, int lines) {
-    RECT panel_rect = {};
-    GetClientRect(parent, &panel_rect);
-    width = (std::min)(width, static_cast<int>(panel_rect.right) - x - S(8));
+void EditorApp::ensure_hint_font() {
     if (!hHintFont_) {
         hHintFont_ = CreateFontW(-S(kFontPt - 2), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                  CLEARTYPE_QUALITY, 0, L"Microsoft YaHei UI");
     }
+}
+
+int EditorApp::hint_lines(const wchar_t* text, int x, int width, HWND parent) {
+    RECT panel_rect = {};
+    GetClientRect(parent, &panel_rect);
+    width = (std::min)(width, static_cast<int>(panel_rect.right) - x - S(8));
+    ensure_hint_font();
+    HDC dc = GetDC(parent);
+    HGDIOBJ old_font = SelectObject(dc, hHintFont_);
+    RECT measured = {0, 0, width, 0};
+    DrawTextW(dc, text, -1, &measured, DT_WORDBREAK | DT_LEFT | DT_CALCRECT);
+    TEXTMETRICW metrics = {};
+    GetTextMetricsW(dc, &metrics);
+    SelectObject(dc, old_font);
+    ReleaseDC(parent, dc);
+    const int line_height = (std::max)(1, static_cast<int>(metrics.tmHeight));
+    return (std::max)(1, (static_cast<int>(measured.bottom) + line_height - 1) / line_height);
+}
+
+HWND EditorApp::make_hint(const wchar_t* text, int x, int y, int width, HWND parent, int lines) {
+    RECT panel_rect = {};
+    GetClientRect(parent, &panel_rect);
+    width = (std::min)(width, static_cast<int>(panel_rect.right) - x - S(8));
+    ensure_hint_font();
     // Two lines by default: long hints wrap.
     HWND control = CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_LEFT, x, y,
                                    width, S(lines * (kFontPt + 6)), parent, nullptr,
@@ -656,7 +677,8 @@ void EditorApp::update_enabled_controls() {
 
 bool EditorApp::handle_command(int control_id, int notification) {
     if (handle_word_list_command(control_id, notification) ||
-        handle_phrase_command(control_id, notification)) {
+        handle_phrase_command(control_id, notification) ||
+        handle_punctuation_command(control_id, notification)) {
         return true;
     }
     switch (control_id) {

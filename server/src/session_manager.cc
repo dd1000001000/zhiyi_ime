@@ -34,6 +34,7 @@
 #include <cxxime/pinyin_resource.h>
 #include <cxxime/pinyin_scheme.h>
 #include <cxxime/problem_log.h>
+#include <cxxime/punctuation.h>
 #include <cxxime/query_trace.h>
 #include <cxxime/translator.h>
 #include <cxxime/user_data_merge.h>
@@ -179,38 +180,6 @@ bool read_user_data_file(const std::string& name, std::string* contents) {
     }
     CloseHandle(file);
     return succeeded;
-}
-
-void parse_punct_section(const nlohmann::json& j, const char* section,
-                         std::unordered_map<std::string, cxxime::PunctEntry>& target) {
-    if (!j.contains(section) || !j[section].is_object())
-        return;
-    for (auto it = j[section].begin(); it != j[section].end(); ++it) {
-        std::string key = it.key();
-        const nlohmann::json& val = it.value();
-        if (!val.is_object()) continue;
-        cxxime::PunctEntry entry{};
-        if (val.contains("commit") && val["commit"].is_string()) {
-            entry.type = cxxime::PunctType::COMMIT;
-            entry.commit = val["commit"].get<std::string>();
-        } else if (val.contains("pair") && val["pair"].is_array()) {
-            entry.type = cxxime::PunctType::PAIR;
-            for (const auto& item : val["pair"]) {
-                if (item.is_string())
-                    entry.pair.push_back(item.get<std::string>());
-            }
-        } else if (val.contains("alternatives") && val["alternatives"].is_array()) {
-            entry.type = cxxime::PunctType::ALTERNATIVES;
-            for (const auto& item : val["alternatives"]) {
-                if (item.is_string())
-                    entry.alternatives.push_back(item.get<std::string>());
-            }
-        } else {
-            CXXIME_LOG(L"Punct: unknown entry type for key '%S'", key.c_str());
-            continue;
-        }
-        target[key] = std::move(entry);
-    }
 }
 
 std::string manifest_role_path(const cxxime::DictionaryManifest& manifest,
@@ -542,28 +511,12 @@ bool load_dictionary_resources(const std::string& manifest_path, const std::stri
     return true;
 }
 
-std::shared_ptr<const cxxime::PunctMapping> load_punctuation_mapping(const std::string& path) {
-    if (path.empty()) return nullptr;
-
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        CXXIME_LOG(L"SharedResources: punctuation file not found: %S", path.c_str());
-        return nullptr;
-    }
-
-    try {
-        nlohmann::json j = nlohmann::json::parse(file);
-        auto mapping = std::make_shared<cxxime::PunctMapping>();
-
-        parse_punct_section(j, "half_shape", mapping->half_shape);
-
-        CXXIME_LOG(L"SharedResources: punctuation loaded (%zu entries)",
-                   mapping->half_shape.size());
-        return mapping;
-    } catch (const nlohmann::json::exception& e) {
-        CXXIME_LOG(L"SharedResources: punctuation parse error: %S", e.what());
-        return nullptr;
-    }
+// The punctuation table with Settings' custom punctuation (issue #43); none without the table.
+std::shared_ptr<const cxxime::PunctMapping> custom_punctuation(
+    const std::shared_ptr<const cxxime::PunctMapping>& table, const cxxime::Config& config) {
+    if (!table) return nullptr;
+    return std::make_shared<cxxime::PunctMapping>(
+        cxxime::apply_punctuation_config(*table, config.punctuation));
 }
 
 std::shared_ptr<const cxxime::SymbolTable> load_symbol_table(const std::string& path) {
@@ -591,7 +544,8 @@ bool SharedResources::load(const std::string& dict_path,
 
     // Load punctuation mapping (non-fatal)
     std::string loaded_punct_path = cxxime::data_path("punctuation.json");
-    auto loaded_punct_mapping = load_punctuation_mapping(loaded_punct_path);
+    std::shared_ptr<const cxxime::PunctMapping> loaded_punct_table =
+        cxxime::load_punctuation_file(loaded_punct_path);
     auto loaded_symbol_table = load_symbol_table(cxxime::data_path("symbols.json"));
     // English word mode learning (corrections picked, words kept as typed); process-wide.
     if (!cxxime::EnglishLearning::open_shared(cxxime::user_data_path("learning_english.json"))) {
@@ -610,8 +564,9 @@ bool SharedResources::load(const std::string& dict_path,
         wubi_dict_path = std::move(dictionaries.wubi_dict_path);
         this->manifest_path = std::move(dictionaries.manifest_path);
         runtime = std::move(loaded_runtime);
-        punct_mapping = std::move(loaded_punct_mapping);
-        punct_path = punct_mapping ? std::move(loaded_punct_path) : std::string{};
+        punct_mapping = custom_punctuation(loaded_punct_table, *loaded_config);
+        punct_table = std::move(loaded_punct_table);
+        punct_path = punct_table ? std::move(loaded_punct_path) : std::string{};
         pending_runtime.reset();
         ++generation;
     }
@@ -644,13 +599,14 @@ SharedResources::dict_for_kind_locked(cxxime::UserDictKind kind) const {
 bool SharedResources::load_punctuation(const std::string& path) {
     if (path.empty()) return true;
 
-    auto mapping = load_punctuation_mapping(path);
-    if (!mapping)
+    std::shared_ptr<const cxxime::PunctMapping> table = cxxime::load_punctuation_file(path);
+    if (!table)
         return false;
 
     {
         std::lock_guard<std::mutex> lock(mutex);
-        punct_mapping = std::move(mapping);
+        punct_mapping = runtime ? custom_punctuation(table, runtime->config()) : table;
+        punct_table = std::move(table);
         punct_path = path;
     }
     return true;
@@ -1011,7 +967,9 @@ bool SharedResources::prepare_config(const std::shared_ptr<const cxxime::Config>
         cxxime::log_problem("config", "the dictionaries were reloaded meanwhile (saving again works)");
         return false;
     }
-    pending_runtime = PendingRuntime{std::move(next_runtime), next_config, base_generation};
+    pending_runtime = PendingRuntime{std::move(next_runtime), next_config,
+                                     custom_punctuation(punct_table, *next_config),
+                                     base_generation};
     return true;
 }
 
@@ -1024,6 +982,7 @@ bool SharedResources::commit_prepared_config(
         return false;
     }
     runtime = std::move(pending_runtime->runtime);
+    punct_mapping = std::move(pending_runtime->punct_mapping);
     pending_runtime.reset();
     ++generation;
     return true;
@@ -2031,6 +1990,10 @@ uint64_t SessionManager::client_capabilities(uint32_t id) {
     if (!entry) return 0;
     std::lock_guard<std::mutex> lock(entry->mutex);
     return entry->closing ? 0 : entry->client_capabilities;
+}
+
+std::shared_ptr<const cxxime::PunctMapping> SessionManager::punctuation_table() const {
+    return shared_.snapshot().punct_mapping;
 }
 
 cxxime::CandidatePage SessionManager::search_candidates(const std::string& input) {

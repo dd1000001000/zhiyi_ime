@@ -41,10 +41,13 @@ private:
     struct PendingRuntime {
         std::shared_ptr<const cxxime::EngineRuntimeState> runtime;
         std::shared_ptr<const cxxime::Config> requested_config;
+        std::shared_ptr<const cxxime::PunctMapping> punct_mapping;
         std::uint64_t base_generation = 0;
     };
 
     std::shared_ptr<const cxxime::EngineRuntimeState> runtime;
+    // data/punctuation.json, and the table sessions use: it with Settings' custom punctuation.
+    std::shared_ptr<const cxxime::PunctMapping> punct_table;
     std::shared_ptr<const cxxime::PunctMapping> punct_mapping;
     std::string punct_path;   // Stored for reload
     std::string dict_path;    // Stored for dictionary reload
@@ -216,6 +219,9 @@ public:
     bool set_voice_capture(uint32_t id, bool capturing);
     // What the session's client can do (kClientCapability*); 0 when there is no such session.
     uint64_t client_capabilities(uint32_t id);
+    // The punctuation table sessions use (Settings' custom punctuation applied); none without
+    // data/punctuation.json.
+    std::shared_ptr<const cxxime::PunctMapping> punctuation_table() const;
 
     // Long pinyin with the continuation model in the background (laya_rerank.h): after a key of
     // a client that can fetch a page without one (kClientCapabilityCandidateRefresh), the paths

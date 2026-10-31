@@ -201,11 +201,15 @@ an=ang 时，`zan` 仍会出“张”；wang=huang 不和其他组叠加。模�
 
 ## 高级
 
-和微软拼音的“高级”设置一样，两项都默认打开（配置文件 `advanced.u_mode`、`advanced.v_mode`），见 [U 模式和 V 模式](uv-mode.md)。
+**U 模式和 V 模式**：和微软拼音的“高级”设置一样，两项都默认打开（配置文件 `advanced.u_mode`、`advanced.v_mode`），见 [U 模式和 V 模式](uv-mode.md)。
 
 - **U 模式输入**：先打 `u`，按笔画（h 横、s 竖、p 撇、n 捺、z 折）或部件读音输入不认识的字，候选后面写着读音；`uu` 加缩写输入符号。
 - **V 模式输入**：先打 `v`，输入中文数字、金额、日期（含农历）、时间、算式和字符编码，候选用 a、b、c 选。
 - 双拼和五笔下按 Shift+U / Shift+V。
+
+**自定义标点**：中文标点下除 `/` 以外的 31 个符号键各打出什么，半角、全角分开设，像搜狗的“自定义标点”。
+点“自定义标点…”打开一张表，左键单击格子修改（两个字符中间加空格表示成对，填键本身就是英文），单击“输入中途”切换
+拼音打到一半时英文字符接在编码后还是先上屏候选，右键单击恢复默认（配置文件 `punctuation.keys`）。规则见 [自定义标点](punctuation.md)。
 
 ## 隐私
 
@@ -249,6 +253,7 @@ an=ang 时，`zan` 仍会出“张”；wang=huang 不和其他组叠加。模�
 | `engine.fuzzy_pinyin` / `engine.fuzzy_groups` | true / `[]` | 模糊音开关与组合（`z_zh`、`c_ch`、`s_sh`、`n_l`、`l_r`、`f_h`、`an_ang`、`en_eng`、`in_ing`、`wang_huang`） |
 | `engine.wubi_code_hint` | false | 五笔候选后显示剩余编码 |
 | `initial_state.full_shape` / `chinese_punct` | false / true | 启动时的全角与中文标点状态 |
+| `punctuation.keys` | `[]` | 自定义标点：改过的键（`key`，以及 `half` / `full` 的值、`join_code`），只存和默认不同的部分，见 [自定义标点](punctuation.md) |
 | `style.font_point` | 14 | 候选字号 |
 | `style.layout` | vertical | 候选竖排（vertical）或横排（horizontal） |
 | `learning.chinese_target` / `english_target` | 空 | 学习模式：中文 / 英文候选的翻译语言（`en` `ja` `ko` `fr` `de` `es` `ru` / `zh` …），空为关闭 |

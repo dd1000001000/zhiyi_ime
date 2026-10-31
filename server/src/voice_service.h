@@ -26,6 +26,7 @@
 #include <thread>
 
 #include <cxxime/config.h>
+#include <cxxime/punct_types.h>
 #include <cxxime/voice_recognizer.h>
 
 #include "voice_overlay.h"
@@ -37,8 +38,13 @@ public:
     struct Sessions {
         std::function<bool(uint32_t id, bool capturing)> set_capture;
         std::function<uint64_t(uint32_t id)> capabilities;
-        // Chinese punctuation on (else the text's punctuation is made ASCII).
-        std::function<bool(uint32_t id)> chinese_punct;
+        // What the session's punctuation types (else the text's punctuation is made ASCII).
+        struct Punctuation {
+            bool chinese = true;      // Chinese punctuation on
+            bool full_shape = false;
+            std::shared_ptr<const cxxime::PunctMapping> table;  // with the custom punctuation
+        };
+        std::function<Punctuation(uint32_t id)> punctuation;
     };
 
     VoiceService();

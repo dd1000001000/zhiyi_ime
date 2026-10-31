@@ -13,6 +13,7 @@ add_executable(cxxime-settings WIN32
     editor_word_list_panel.cc
     editor_phrase_panel.cc
     editor_advanced_panel.cc
+    editor_punctuation.cc
     editor_gpu.cc
     data_move.cc
     data_move.h

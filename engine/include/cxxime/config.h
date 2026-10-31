@@ -10,6 +10,7 @@
 #include <cxxime/diagnostics_config.h>
 #include <cxxime/ipc_protocol.h>
 #include <cxxime/keyboard_shortcut.h>
+#include <cxxime/punct_types.h>
 
 namespace cxxime {
 
@@ -341,6 +342,11 @@ struct Config {
         bool v_mode = true;  // numbers, dates, times, formulas, codes
     };
     AdvancedConfig advanced;
+
+    // Settings' custom punctuation (issue #43, punctuation.h, docs/punctuation.md): the keys set
+    // differently from data/punctuation.json, one entry per key. Written as one JSON array so a
+    // settings file replaces the whole list.
+    std::vector<PunctuationKeyConfig> punctuation;
 
     // Color scheme loaded from themes.json.
     // Fields default to -1 = "not set" (resolved to Weasel-style fallbacks in load_themes).

@@ -229,9 +229,15 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
         return session_mgr_.set_voice_capture(id, capturing);
     };
     voice_sessions.capabilities = [this](uint32_t id) { return session_mgr_.client_capabilities(id); };
-    voice_sessions.chinese_punct = [this](uint32_t id) {
+    voice_sessions.punctuation = [this](uint32_t id) {
         const auto [status, ime_status] = session_mgr_.get_ime_status(id);
-        return status != cxxime::IPCStatus::OK || ime_status.chinese_punct();
+        VoiceService::Sessions::Punctuation punctuation;
+        if (status == cxxime::IPCStatus::OK) {
+            punctuation.chinese = ime_status.chinese_punct();
+            punctuation.full_shape = ime_status.full_shape();
+        }
+        punctuation.table = session_mgr_.punctuation_table();
+        return punctuation;
     };
     if (!voice_.start(std::move(voice_sessions), initial_config)) {
         CXXIME_LOG(L"%s", L"voice: window failed to start");

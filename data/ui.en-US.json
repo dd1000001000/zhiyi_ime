@@ -408,5 +408,19 @@
     "advanced.u_mode": "U mode",
     "advanced.u_mode_hint": "Type u, then a character's strokes or the readings of its parts: h horizontal, s vertical, p left-falling, n dot, z turning; uspnp gives 少, umumu gives 林. uu and an abbreviation types symbols (uudw: units). Shift+U in shuangpin and Wubi.",
     "advanced.v_mode": "V mode",
-    "advanced.v_mode_hint": "Type v, then a number, date, time or formula: v123 gives 一百二十三 and 壹佰贰拾叁, v2026.10.31 dates and the lunar date, v12:34 times, v1+2*3 the result. Choose with a, b, c. Shift+V in shuangpin and Wubi."
+    "advanced.v_mode_hint": "Type v, then a number, date, time or formula: v123 gives 一百二十三 and 壹佰贰拾叁, v2026.10.31 dates and the lunar date, v12:34 times, v1+2*3 the result. Choose with a, b, c. Shift+V in shuangpin and Wubi.",
+    "punct.card": "Custom punctuation",
+    "punct.hint": "What these keys type with Chinese punctuation, at half and full width. Pressed in the middle of pinyin, a key typing a Chinese character commits the candidate first; a key typing an English character goes by the In pinyin column: it joins the code (C++, name@) or commits the candidate first. / opens the symbol menu.",
+    "punct.reset_all": "Reset all",
+    "punct.reset_all_confirm": "Reset the {count} changed keys?",
+    "punct.col_key": "Key",
+    "punct.col_half": "Half width",
+    "punct.col_full": "Full width",
+    "punct.col_join": "In pinyin",
+    "punct.join_code": "Joins the code",
+    "punct.join_commit": "Commits first",
+    "punct.open": "Custom punctuation…",
+    "punct.all_default": "All as default",
+    "punct.changed": "{count} keys changed",
+    "punct.table_hint": "Click a Half width or Full width cell to change it: what the key types; two values with a space between make a pair (left and right in turn); the key itself is English. Click In pinyin to switch it. Right-click a cell for its default (on Key: the whole row). Changed cells are blue."
 }

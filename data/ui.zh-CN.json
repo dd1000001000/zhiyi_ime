@@ -408,5 +408,19 @@
     "advanced.u_mode": "U 模式输入",
     "advanced.u_mode_hint": "先打 u，再按笔画或部件的读音输入不认识的字：h 横、s 竖、p 撇、n 捺（点）、z 折，如 uspnp 出“少”，umumu 出“林”；uu 加缩写输入符号，如 uudw 出单位。双拼和五笔下按 Shift+U。",
     "advanced.v_mode": "V 模式输入",
-    "advanced.v_mode_hint": "先打 v，再输入数字、日期、时间或算式：v123 出“一百二十三”“壹佰贰拾叁”，v2026.10.31 出各种日期写法和农历，v12:34 出时间，v1+2*3 出结果。候选用 a、b、c 选。双拼和五笔下按 Shift+V。"
+    "advanced.v_mode_hint": "先打 v，再输入数字、日期、时间或算式：v123 出“一百二十三”“壹佰贰拾叁”，v2026.10.31 出各种日期写法和农历，v12:34 出时间，v1+2*3 出结果。候选用 a、b、c 选。双拼和五笔下按 Shift+V。",
+    "punct.card": "自定义标点",
+    "punct.hint": "中文标点下按这些键打出的字符，半角、全角分开设置。拼音打到一半时按下：打出中文字符的键先上屏候选；打出英文字符的键看“输入中途”一栏，接在编码后（如 C++、name@）或先上屏候选。/ 留给符号面板。",
+    "punct.reset_all": "全部恢复默认",
+    "punct.reset_all_confirm": "把改过的 {count} 个键全部恢复默认？",
+    "punct.col_key": "按键",
+    "punct.col_half": "中文半角",
+    "punct.col_full": "中文全角",
+    "punct.col_join": "输入中途",
+    "punct.join_code": "接在编码后",
+    "punct.join_commit": "先上屏候选",
+    "punct.open": "自定义标点…",
+    "punct.all_default": "全部为默认",
+    "punct.changed": "已修改 {count} 个键",
+    "punct.table_hint": "左键单击“中文半角”“中文全角”的格子修改：填要打出的字符，两个字符中间加空格表示成对（左右交替），填按键本身就是英文；单击“输入中途”切换。右键单击格子恢复默认（在“按键”上恢复整行）。改过的显示为蓝色。"
 }

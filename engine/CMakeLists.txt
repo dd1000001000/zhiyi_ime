@@ -50,6 +50,7 @@ add_library(cxxime-engine STATIC
     src/ascii_composer.cc
     src/short_code_cache.cc
     src/output_composer.cc
+    src/punctuation.cc
     src/symbol_processor.cc
     src/symbol_table.cc
 )

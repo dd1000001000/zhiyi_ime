@@ -25,6 +25,7 @@
 #include <cxxime/output_composer.h>
 #include <cxxime/pinyin_resource.h>
 #include <cxxime/pinyin_scheme.h>
+#include <cxxime/punctuation.h>
 #include <cxxime/symbol_table.h>
 #include <cxxime/wubi_input_policy.h>
 #include <cxxime/wubi_processor.h>
@@ -101,17 +102,52 @@ static bool is_numpad_text_key(uint32_t keycode) {
            keycode == VK_DECIMAL;
 }
 
-static bool is_inline_ascii_character(char ch) {
-    static constexpr char kInlineCharacters[] = "`~@#$%^&*_+{}|";
-    return std::strchr(kInlineCharacters, ch) != nullptr;
+// The punctuation table's entry for a printable key (issue #43, punctuation.h): with Chinese
+// punctuation on, from the half- or full-width table.
+static const PunctEntry* punctuation_entry(char ch, const OutputOptions& opts) {
+    if (!opts.chinese_punct || !opts.punct_mapping) return nullptr;
+    const auto& table =
+        opts.full_shape ? opts.punct_mapping->full_shape : opts.punct_mapping->half_shape;
+    const auto it = table.find(std::string(1, ch));
+    return it == table.end() ? nullptr : &it->second;
 }
 
-// A key the punctuation table turns into Chinese punctuation right now (half-shape Chinese
-// punctuation). Typed during a composition it commits the candidate and the punctuation instead
-// of staying in the composition as a literal technical character.
-static bool has_chinese_punctuation(char ch, const OutputOptions& opts) {
-    return opts.chinese_punct && !opts.full_shape && opts.punct_mapping &&
-           opts.punct_mapping->half_shape.count(std::string(1, ch)) > 0;
+// What an entry types now; `advance` moves a pair to its other half and alternatives on.
+static std::string punctuation_text(const PunctEntry& entry, const std::string& key,
+                                    Context& context, bool advance) {
+    switch (entry.type) {
+    case PunctType::COMMIT:
+        return entry.commit;
+    case PunctType::PAIR: {
+        const bool opened = context.pair_open[key];
+        if (advance) context.pair_open[key] = !opened;
+        return entry.pair[opened ? 1 : 0];
+    }
+    case PunctType::ALTERNATIVES: {
+        const int index = context.alt_index[key] % static_cast<int>(entry.alternatives.size());
+        if (advance) context.alt_index[key] = index + 1;
+        return entry.alternatives[index];
+    }
+    }
+    return key;
+}
+
+// What a printable key types now: its value in the punctuation table, else the key itself, at
+// full width in full-shape mode. Every rule about the key goes by this value (issue #43).
+static std::string key_value(char ch, const OutputOptions& opts, Context& context, bool advance) {
+    if (const PunctEntry* entry = punctuation_entry(ch, opts)) {
+        return punctuation_text(*entry, std::string(1, ch), context, advance);
+    }
+    return opts.full_shape ? OutputComposer::to_full_width(ch) : std::string(1, ch);
+}
+
+// Whether the key's English value, typed during a composition, joins the code as literal text
+// (C++, name@example) instead of committing the candidate before it: the table's join_code,
+// which Settings can change per key.
+static bool joins_code(char ch, const OutputOptions& opts) {
+    static const PunctMapping kDefaultTable;
+    const PunctMapping& table = opts.punct_mapping ? *opts.punct_mapping : kDefaultTable;
+    return table.join_code.find(ch) != std::string::npos;
 }
 
 static bool is_ascii_digit_or_symbol(char ch) {
@@ -664,12 +700,14 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
     }
 
     // Full-shape mode is an explicit literal-symbol input mode. Handle idle main-keyboard
-    // symbols before Chinese punctuation and the backslash Symbol trigger.
+    // symbols before the backslash Symbol trigger: their value in the full-width punctuation
+    // table (issue #43), where an English value is the key itself, left to the application.
     if (!event.is_key_up && !context_.is_composing() && opts.full_shape && normalized &&
-        is_ascii_symbol(*normalized) && !is_numpad_text_key(event.keycode) &&
-        handle_full_shape(event, context_, opts)) {
+        is_ascii_symbol(*normalized) && !is_numpad_text_key(event.keycode)) {
+        const bool typed = handle_punctuation(event, context_, opts) ||
+                           handle_full_shape(event, context_, opts);
         record_total_us(trace_, total_start, trace_enabled_);
-        return ProcessResult::COMMITTED;
+        return typed ? ProcessResult::COMMITTED : ProcessResult::REJECTED;
     }
 
     // Check if AsciiComposer committed text (e.g. Shift toggle with code style)
@@ -846,28 +884,8 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
         !processor_code_key &&
         normalized && is_ascii_digit_or_symbol(*normalized) &&
         !is_main_candidate_command(event, context_)) {
-        const bool has_candidates = context_.candidate_count() > 0;
-        const bool start_inline = (is_inline_ascii_character(*normalized) &&
-                                   !has_chinese_punctuation(*normalized, opts)) ||
-                                  is_numpad_text_key(event.keycode) || !has_candidates;
-        if (opts.full_shape && !is_numpad_text_key(event.keycode)) {
-            if (handle_full_shape(event, context_, opts)) {
-                routed_result = ProcessResult::COMMITTED;
-            }
-        } else if (start_inline) {
-            if (context_.composition().raw_input_size() < kMaxInputCodeLength) {
-                context_.enter_inline_ascii(true);
-                context_.insert_preedit(*normalized);
-                context_.clear_translation();
-                context_.reset_pagination();
-            }
-            routed_result = ProcessResult::ACCEPTED;
-        } else {
-            if (!handle_punctuation(event, context_, opts)) {
-                commit_with_punctuation(context_, std::string(1, *normalized));
-            }
-            routed_result = ProcessResult::COMMITTED;
-        }
+        routed_result =
+            type_into_composition(*normalized, is_numpad_text_key(event.keycode), opts);
     }
 
     const bool plain_letter_key = !event.is_key_up && !event.is_shift() && !event.is_ctrl() &&
@@ -934,28 +952,9 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
     if (result == ProcessResult::REJECTED &&
         context_.composition_scheme() == CompositionScheme::kSymbol && normalized &&
         is_ascii_digit_or_symbol(*normalized)) {
-        const bool has_candidates = context_.candidate_count() > 0;
-        const bool start_inline = (is_inline_ascii_character(*normalized) &&
-                                   !has_chinese_punctuation(*normalized, opts)) ||
-                                  plain_main_zero || is_numpad_text_key(event.keycode);
-        if (opts.full_shape && !is_numpad_text_key(event.keycode)) {
-            if (handle_full_shape(event, context_, opts)) {
-                result = ProcessResult::COMMITTED;
-            }
-        } else if (has_candidates && !start_inline) {
-            if (!handle_punctuation(event, context_, opts)) {
-                commit_with_punctuation(context_, std::string(1, *normalized));
-            }
-            result = ProcessResult::COMMITTED;
-        } else {
-            if (context_.composition().raw_input_size() < kMaxInputCodeLength) {
-                context_.enter_inline_ascii(true);
-                context_.insert_preedit(*normalized);
-                context_.clear_translation();
-                context_.reset_pagination();
-            }
-            result = ProcessResult::ACCEPTED;
-        }
+        result = type_into_composition(
+            *normalized,
+            is_numpad_text_key(event.keycode) || (plain_main_zero && !opts.full_shape), opts);
     }
     const std::optional<CandidateNavigationRequest> navigation =
         context_.take_candidate_navigation();
@@ -1165,70 +1164,56 @@ void Engine::commit_with_punctuation(Context& context, const std::string& output
 
 bool Engine::handle_punctuation(const KeyEvent& event, Context& context,
                                 const OutputOptions& opts) {
-    // Guard: key-up
-    if (event.is_key_up)
+    if (event.is_key_up || event.is_ctrl() || event.is_alt())
         return false;
-
-    // Guard: modifier keys
-    if (event.is_ctrl() || event.is_alt())
-        return false;
-
-    // Semantic punctuation mappings apply only in half-shape Chinese punctuation mode.
-    if (!opts.chinese_punct || opts.full_shape)
-        return false;
-
-    // Step 1: convert virtual key to character.
     const std::optional<char> normalized = normalize_ascii_key(event);
     if (!normalized)
         return false;
-    const char ch = *normalized;
 
-    // Step 2: check punct_mapping
-    if (!opts.punct_mapping)
-        return false;
-
-    // Step 3: select mapping table
-    std::string key(1, ch);
-    const PunctEntry* entry = nullptr;
-    auto it = opts.punct_mapping->half_shape.find(key);
-    if (it != opts.punct_mapping->half_shape.end())
-        entry = &it->second;
-
-    // Step 4: not found
+    // Chinese punctuation: the key's value in the half- or full-width table (issue #43).
+    const PunctEntry* entry = punctuation_entry(*normalized, opts);
     if (!entry)
         return false;
-
-    // Step 5: a period right after a number is a decimal point (3.14, issue #32).
-    if (context.active_input().empty() && key == "." &&
+    const std::string key(1, *normalized);
+    std::string output = punctuation_text(*entry, key, context, false);
+    if (context.active_input().empty() && output == "\xE3\x80\x82" /* 。 */ &&
         std::isdigit(static_cast<unsigned char>(context.last_committed_char))) {
+        // The period right after a number is a decimal point (3.14, issue #32).
+        output = opts.full_shape ? OutputComposer::to_full_width('.') : std::string(".");
+    } else {
+        output = punctuation_text(*entry, key, context, true);
+    }
+    // An English value that is the key itself goes to the application as typed when idle, as
+    // with English punctuation.
+    if (output == key && !context.is_composing())
         return false;
-    }
 
-    // Step 6: process punct type
-    std::string output;
-    switch (entry->type) {
-    case PunctType::COMMIT:
-        output = entry->commit;
-        break;
-    case PunctType::PAIR: {
-        bool opened = context.pair_open[key];
-        int idx = opened ? 1 : 0;
-        output = entry->pair[idx];
-        context.pair_open[key] = !opened;
-        break;
-    }
-    case PunctType::ALTERNATIVES: {
-        int idx = context.alt_index[key] % static_cast<int>(entry->alternatives.size());
-        output = entry->alternatives[idx];
-        context.alt_index[key] = idx + 1;
-        break;
-    }
-    }
-
-    // Step 7: commit
     commit_with_punctuation(context, output);
-    CXXIME_LOG(L"handle_punctuation: key='%c' -> '%S'", ch, output.c_str());
+    CXXIME_LOG(L"handle_punctuation: key='%c' -> '%S'", *normalized, output.c_str());
     return true;
+}
+
+// A printable key typed during a composition, by what it types now (issue #43,
+// docs/punctuation.md): an English value joins the code as literal text when the key is set
+// to (C++, name@example), and so does any key with nothing to choose (a full-width value then
+// still commits the code); any other value commits the candidate and then itself. A `literal`
+// key (the numeric keypad) always joins.
+ProcessResult Engine::type_into_composition(char ch, bool literal, const OutputOptions& opts) {
+    std::string value = literal ? std::string(1, ch) : key_value(ch, opts, context_, false);
+    const bool english = is_ascii_text(value);
+    const bool has_candidates = context_.candidate_count() > 0;
+    if (literal || (english && joins_code(ch, opts)) || (!has_candidates && !opts.full_shape)) {
+        if (!english) value.assign(1, ch);
+        if (context_.composition().raw_input_size() + value.size() <= kMaxInputCodeLength) {
+            context_.enter_inline_ascii(true);
+            for (const char c : value) context_.insert_preedit(c);
+            context_.clear_translation();
+            context_.reset_pagination();
+        }
+        return ProcessResult::ACCEPTED;
+    }
+    commit_with_punctuation(context_, key_value(ch, opts, context_, true));
+    return ProcessResult::COMMITTED;
 }
 
 bool Engine::handle_full_shape(const KeyEvent& event, Context& context, const OutputOptions& opts) {
@@ -1252,6 +1237,10 @@ bool Engine::handle_full_shape(const KeyEvent& event, Context& context, const Ou
 
     // Step 2: range check
     if (static_cast<unsigned char>(ch) < 0x20 || static_cast<unsigned char>(ch) > 0x7e)
+        return false;
+    // A symbol with Chinese punctuation on types its value in the full-width table
+    // (handle_punctuation), which may be the key itself.
+    if (punctuation_entry(ch, opts))
         return false;
 
     // Step 3: full-width conversion

@@ -60,6 +60,13 @@ private:
     void create_advanced_panel(HWND panel);
     void populate_advanced();
     void read_advanced();
+    // Custom punctuation (editor_punctuation.cc, issue #43): the Advanced page's second card,
+    // which opens the table of keys.
+    int create_punctuation_card(HWND panel, int top);
+    void populate_punctuation();
+    void run_punctuation_table();
+    static LRESULT CALLBACK punctuation_table_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
+    bool handle_punctuation_command(int control_id, int notification);
     void rebuild_phrase_panel();
     void populate_phrase_switches();
     void read_phrase_switches();
@@ -197,6 +204,9 @@ private:
     HFONT hHintFont_ = nullptr;
     std::vector<HWND> hints_;  // secondary text, drawn smaller and gray
     HWND make_hint(const wchar_t* text, int x, int y, int width, HWND parent, int lines = 2);
+    // How many lines make_hint needs for `text` in that place.
+    int hint_lines(const wchar_t* text, int x, int width, HWND parent);
+    void ensure_hint_font();
     int panel_ = 0;
     // Moved to a screen of another DPI while the window is dragged: the pages are built again
     // when it is let go (apply_dpi), not on every screen it crosses.
@@ -263,6 +273,9 @@ private:
     HWND hPhraseWeek_ = nullptr;
     HWND hUMode_ = nullptr;  // advanced.u_mode
     HWND hVMode_ = nullptr;  // advanced.v_mode
+    // data/punctuation.json, and how many keys the custom punctuation (punctuation in config_) sets.
+    std::shared_ptr<PunctMapping> punctuation_defaults_;
+    HWND hPunctChanged_ = nullptr;
 
     // Learning
     struct PackState {

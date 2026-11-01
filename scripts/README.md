@@ -8,7 +8,7 @@
 | 脚本 | 职责 |
 |------|------|
 | `fetch_onnxruntime.py` | 下载 ONNX Runtime 到 `third_party/onnxruntime/` |
-| `fetch_model.py` | 从 GitHub Release 下载 Laya 模型到 `models/laya/` |
+| `fetch_model.py` | 从 [zhiyi_models](https://github.com/dd1000001000/zhiyi_models) 的 Release 下载 Laya 模型到 `models/laya/` |
 | `dictionary_bundle_layout.py` | 运行时词典文件与 manifest 角色的共享清单 |
 | `prepare_dictionary_bundle.py` | 并行准备拼音、五笔运行时词典并生成 manifest |
 | `build_pinyin_topn.py` | 生成供 `topn_builder` 使用的拼音 Top-N 中间索引 |

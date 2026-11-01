@@ -168,7 +168,7 @@ JSON 配置（`default.json` + `themes.json`），设置编辑器（Win32 原生
 | nlohmann/json | 配置解析 | 头文件 only |
 | miniz | 备份与词库包读写 | 源码编译（bundled in third_party/） |
 | ONNX Runtime | Laya 模型推理 | `scripts/fetch_onnxruntime.py` 下载 |
-| Laya 模型 | 上文推荐 | `scripts/fetch_model.py` 从 GitHub Release 下载 |
+| Laya 模型 | 上文推荐 | `scripts/fetch_model.py` 从 zhiyi_models 的 GitHub Release 下载 |
 | Python 3.10+ | 词典数据工具 | 可选（仅构建词典时需要） |
 
 ---

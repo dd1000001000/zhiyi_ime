@@ -5,7 +5,8 @@ models/ngram/.
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ and models/ngram/ for release uploads
 
 The model (laya.int8g.onnx ~92 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
-published as a GitHub release asset. The training code and data are not published.
+published as a release asset of github.com/dd1000001000/zhiyi_models. The training code and data
+are not published.
 """
 import argparse
 import hashlib
@@ -21,7 +22,7 @@ FILES = ["laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json", "unified_v
 # The decoder graphs of the 1.5.4-1.5.8 model: removed from models/laya (the packager ships them when present).
 OLD_FILES = ["laya_decoder.int8.onnx", "laya_decoder_memory.int8.onnx", "laya_decoder_step.int8.onnx"]
 ASSET = "laya-ml-pumpkin-1026-int8g.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/model-ml-pumpkin-1026/{ASSET}"
+URL = f"https://github.com/dd1000001000/zhiyi_models/releases/download/model-ml-pumpkin-1026/{ASSET}"
 # SHA-256 of the graph: 知意 ML-pumpkin-1026 (after 1.5.18; 1.5.12-1.5.18 shipped 1.4V2-Long-L12 from
 # model-zhen-long-l12, 1.5.9-1.5.11 1.4V2-Long-L18 from model-zhen-long-l18). 1.4V2-Long-L12 (the
 # unified model 1.4V2, mmBERT-small, width 384, 12 of its 22 encoder layers) trained further on
@@ -38,7 +39,7 @@ ONNX_SHA256 = "bbf51918f88873ea550618bb23d4932851ee3c0497bad5478bf8823ff4dc7a06"
 NGRAM_DEST = os.path.join(ROOT, "models", "ngram")
 NGRAM_FILE = "zh.ngram"
 NGRAM_ASSET = "zhiyi-ngram-zh-1017.zip"
-NGRAM_URL = f"https://github.com/dd1000001000/zhiyi_ime/releases/download/ngram-zh-1017/{NGRAM_ASSET}"
+NGRAM_URL = f"https://github.com/dd1000001000/zhiyi_models/releases/download/ngram-zh-1017/{NGRAM_ASSET}"
 NGRAM_SHA256 = "0a9e5c151d7dc90665358b3f6ab10436520457a26e9cfe1fa2054d6c046f72cd"
 
 

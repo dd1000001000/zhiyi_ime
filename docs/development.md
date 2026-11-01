@@ -20,7 +20,7 @@ IMM 兼容模块）、构建脚本，以及生成运行时词典的工具（`dat
 
 ```cmd
 python scripts\fetch_onnxruntime.py   :: ONNX Runtime 1.24.4（DirectML 版）+ DirectML.dll -> third_party\onnxruntime\
-python scripts\fetch_model.py         :: Laya 模型（GitHub Release model-ml-pumpkin-1026）-> models\laya\
+python scripts\fetch_model.py         :: Laya 模型（zhiyi_models 的 Release model-ml-pumpkin-1026）-> models\laya\
 build_laya.bat                        :: Ninja Release 构建，产物在 build\
 ```
 
@@ -49,8 +49,8 @@ build_laya.bat                        :: Ninja Release 构建，产物在 build\
 - 模型只看上文和候选词，不看拼音或已打的字母（“猜词”提示词，模型目录的 `rl_agent_config.json` 中
   `"zhiyi_prompt": "guess"`）。训练时中文上文是上一句加本句，
   英文是最后 192 个字符；中文候选是输入法实际给出的第一页（全拼、末音节不完整、简拼和混打）。
-- 模型权重随 [Release model-ml-pumpkin-1026](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-ml-pumpkin-1026)
-  发布（1.5.12–1.5.18 的 [model-zhen-long-l12](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l12)；1.5.9–1.5.11 的 [model-zhen-long-l18](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l18)）（`scripts/fetch_model.py`）；训练代码与训练、评测数据涉及第三方语料版权，不公开。
+- 模型权重随 [Release model-ml-pumpkin-1026](https://github.com/dd1000001000/zhiyi_models/releases/tag/model-ml-pumpkin-1026)
+  发布（1.5.12–1.5.18 的 [model-zhen-long-l12](https://github.com/dd1000001000/zhiyi_models/releases/tag/model-zhen-long-l12)；1.5.9–1.5.11 的 [model-zhen-long-l18](https://github.com/dd1000001000/zhiyi_models/releases/tag/model-zhen-long-l18)）（`scripts/fetch_model.py`）；训练代码与训练、评测数据涉及第三方语料版权，不公开。
 - 上文：开始输入时，TSF 模块读取输入框里光标前（有选中文字时为选区之前）最多 256 个字（`SET_CONTEXT`），
   模型取其中最后 128 个字 / 192 个英文字符。程序不允许读取时，改用之前上屏的文字，换到另一个输入框时清空；
   密码框和标为私密的输入框不读取。实现见 `tsf/src/text_before_caret.cpp`。

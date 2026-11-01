@@ -64,11 +64,11 @@ ng1017+1.4V2-Long-L18 在 1.4V2-Long-L18 上加了一个词语 n-gram（三元�
 
 知意 1.4V2-Long-L12（[Release model-zhen-long-l12](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-zhen-long-l12)，Apache-2.0，含 safetensors 版）是 1.5.12–1.5.18 的默认模型，1.4V2 只保留 12 层编码器（22 层 → 12 层）的新模型。选词用微调过的 Qwen3.5-9B 老师在约 377 万条数据上蒸馏：1.4V2-Long-L18 的约 170 万条之外，新加约 172 万条 SkyPile、LCCC、C4、SODA 的文本，和约 35 万条 [FineWeb](https://huggingface.co/datasets/HuggingFaceFW/fineweb)、[FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2)（ODC-By 1.0）的近年网页，中英文约 3:1。组句头由另一个微调过、按字写出所打汉字的 Qwen3.5-9B 老师蒸馏，用了约 431 万条组句数据，其中 220 万条带老师打分。加上 ng1017 后在输入法引擎里端到端，它和 ng1017+1.4V2-Long-L18 打平：中文词和两个词 87.7%（87.6%），长句 74.9%（74.5%），英文 89.5%（90.2%），全打声母 76.3%（77.7%），英文只打前几个字母 75.7%（77.3%），差别都在抽样误差之内；CPU 上一页 10.4 ms（14.7 ms），快约三成，模型文件 84 MB（96 MB）。1.5.12–1.5.18 输入法带的是 ng1017+1.4V2-Long-L12。
 
-<img src="docs/media/choice2.zh-CN.svg" alt="新选词测试集：(a) 中文词和两个词 (b) 中文长句 (c) 英文单词 (d) 中文全打声母 (e) 英文只打前几个字母 (f) CPU 每页耗时；只按词频、Rime + 雾凇、Rime + 雾凇 + 知意模型、原始 Laya、1.4V2-Long-L18、ng1017+1.4V2-Long-L18、ng1017+1.4V2-Long-L12 与 ng1017+ML-pumpkin-1026" width="100%">
+<img src="docs/media/choice2.zh-CN.svg" alt="新选词测试集：(a) 中文词和两个词 (b) 中文长句 (c) 英文单词 (d) 中文全打声母 (e) 英文只打前几个字母 (f) CPU 每页耗时；只按词频、Rime + 雾凇、Rime + 雾凇 + 知意模型、原始 Laya、ng1017+1.4V2-Long-L12、ng1017+ML-pumpkin-1026 与 ng1017+ML-Flash-1031" width="100%">
 
-多语言预览版 [知意 1.4V2-ML-Preview-1024](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-ml-preview-1024)在 Long-L12 上加了繁体中文、日文、韩文、越南文的选词和繁体、日文的组句；第二版 [知意 ML-pumpkin-1026](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-ml-pumpkin-1026) 补了繁体组句和韩文的数据，是现在输入法的默认模型（用它的简体和英文）。繁体和日文的词语 n-gram 见 [ngram-ml-1024](https://github.com/dd1000001000/zhiyi_ime/releases/tag/ngram-ml-1024)：
+多语言预览版 [知意 1.4V2-ML-Preview-1024](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-ml-preview-1024)在 Long-L12 上加了繁体中文、日文、韩文、越南文的选词和繁体、日文的组句；第二版 [知意 ML-pumpkin-1026](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-ml-pumpkin-1026) 补了繁体组句和韩文的数据，是现在输入法的默认模型（用它的简体和英文）；8 层的 [知意 ML-Flash-1031](https://github.com/dd1000001000/zhiyi_ime/releases/tag/model-ml-flash-1031) 可以缓存上文，每次按键的 CPU 耗时约为 pumpkin 的三分之一（未接入输入法）。繁体和日文的词语 n-gram 见 [ngram-ml-1024](https://github.com/dd1000001000/zhiyi_ime/releases/tag/ngram-ml-1024)：
 
-<img src="docs/media/ml_pumpkin.zh-CN.svg" alt="知意 ML-pumpkin-1026 与 1.4V2-ML-Preview-1024 各语言的短句（选词）和长句（整句）正确率：简体中文、英文、繁体中文、日文、韩文、越南文" width="100%">
+<img src="docs/media/ml_pumpkin.zh-CN.svg" alt="知意 ML-pumpkin-1026、ML-Flash-1031 与 1.4V2-ML-Preview-1024 各语言的短句（选词）和长句（整句）正确率：简体中文、英文、繁体中文、日文、韩文、越南文" width="100%">
 
 
 ## 离线翻译模型
@@ -107,7 +107,7 @@ ng1017+1.4V2-Long-L18 在 1.4V2-Long-L18 上加了一个词语 n-gram（三元�
 - [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small)：上文推荐模型的编码器 mmBERT-small（MIT）
 - [LMT-60](https://huggingface.co/NiuTrans/LMT-60-0.6B)（NiuTrans）：离线翻译模型的底座（Apache-2.0）
 - [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B)（腾讯混元）：离线翻译的第 1 版模型（1.8B）和蒸馏用的老师模型（7B，v4 起还有 [30B-A3B](https://huggingface.co/tencent/Hy-MT2-30B-A3B)）（Apache-2.0）
-- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B)（通义千问）：知意 1.4V2-Long-L18 / Long-L12 / ML-pumpkin-1026 选词和 Long-L12 / ML-pumpkin-1026 组句头蒸馏用的老师模型，经 LoRA 微调（Apache-2.0）
+- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B)（通义千问）：知意 1.4V2-Long-L18 / Long-L12 / ML-pumpkin-1026 / ML-Flash-1031 选词和 Long-L12 / ML-pumpkin-1026 / ML-Flash-1031 组句头蒸馏用的老师模型，经 LoRA 微调（Apache-2.0）
 - [幽默输入法](https://github.com/Sraw/youmo-ime)：词语 n-gram 的底座（它的拼音语言模型）和混合用的工具（LGPL-2.1-or-later）；其底座来自 [libime](https://github.com/fcitx/libime)（LGPL-2.1-or-later），混入的网页来自 [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2)（ODC-By）和 [Common Crawl](https://commoncrawl.org)
 - [CSL](https://github.com/ydli-ai/CSL)（中文科学文献数据集，Apache-2.0）：词语 n-gram 混入的科研文本
 - [rime-stroke（五笔画）](https://github.com/rime/rime-stroke)（LGPL-3.0）、开放词典网的[汉语拆字字典](https://github.com/kfcd/chaizi)（CC BY 3.0）、[pinyin-data](https://github.com/mozillazg/pinyin-data)（MIT）：U 模式的笔画、拆字和读音

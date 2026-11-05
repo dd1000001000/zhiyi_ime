@@ -4,7 +4,8 @@ models/ngram/.
   python scripts/fetch_model.py            # download the release assets and verify them
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ and models/ngram/ for release uploads
 
-The model (laya.int8g.onnx ~92 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
+The model (laya.int8g.onnx and laya.one.fused.int8g.onnx, ~75 MB each) and the n-gram (zh.ngram ~79 MB) are too
+large for git; each is
 published as a release asset of github.com/dd1000001000/zhiyi_models. The training code and data
 are not published.
 """
@@ -18,19 +19,23 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEST = os.path.join(ROOT, "models", "laya")
-FILES = ["laya.int8g.onnx", "tokenizer.json", "rl_agent_config.json", "unified_vocab.json"]
+# laya.int8g.onnx: the whole graph (on a graphics card); laya.one.fused.int8g.onnx: the one graph with the context's
+# KV cache, run on the CPU (engine/src/laya/reranker.h). The release's plain one graph (laya.one.int8g.onnx) is not
+# needed: the CPU takes the fused one.
+FILES = ["laya.int8g.onnx", "laya.one.fused.int8g.onnx", "tokenizer.json", "rl_agent_config.json", "unified_vocab.json"]
 # The decoder graphs of the 1.5.4-1.5.8 model: removed from models/laya (the packager ships them when present).
 OLD_FILES = ["laya_decoder.int8.onnx", "laya_decoder_memory.int8.onnx", "laya_decoder_step.int8.onnx"]
-ASSET = "laya-ml-pumpkin-1026-int8g.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_models/releases/download/model-ml-pumpkin-1026/{ASSET}"
-# SHA-256 of the graph: 知意 ML-pumpkin-1026 (after 1.5.18; 1.5.12-1.5.18 shipped 1.4V2-Long-L12 from
-# model-zhen-long-l12, 1.5.9-1.5.11 1.4V2-Long-L18 from model-zhen-long-l18). 1.4V2-Long-L12 (the
-# unified model 1.4V2, mmBERT-small, width 384, 12 of its 22 encoder layers) trained further on
-# Traditional Chinese, Japanese, Korean and Vietnamese word choice and Traditional / Japanese
-# composition, both heads distilled from Qwen3.5-9B LoRA teachers. The engine reads its zh / en side
-# only: unified_vocab.json keeps Long-L12's readings, the new tables are under "ml". int8, 126963
-# embedding rows, the tokenizer of 1.4V2-Long-L18.
-ONNX_SHA256 = "bbf51918f88873ea550618bb23d4932851ee3c0497bad5478bf8823ff4dc7a06"
+ASSET = "laya-ml-flash-1103-int8g.zip"
+URL = f"https://github.com/dd1000001000/zhiyi_models/releases/download/model-ml-flash-1103/{ASSET}"
+# SHA-256 of the graphs: 知意 ML-Flash-1103 (after 1.6.3; 1.6.0-1.6.3 shipped ML-pumpkin-1026 from
+# model-ml-pumpkin-1026, 1.5.12-1.5.18 1.4V2-Long-L12, 1.5.9-1.5.11 1.4V2-Long-L18). ML-pumpkin-1026 (12 encoder
+# layers of mmBERT-small, width 384; Simplified / Traditional Chinese, English, Japanese, Korean, Vietnamese) cut to 8
+# layers with a prefix mask (the leading block, the context, attends only to itself, so its keys and values are
+# cached per context) and one head shared by word choice and composition, distilled from Qwen3.5-9B LoRA teachers;
+# trained further on rows typed without context. The engine reads its zh / en side only: the other tables of
+# unified_vocab.json are under "ml". int8, 126963 embedding rows, the tokenizer of 1.4V2-Long-L18.
+ONNX_SHA256 = "6396bffede92d3120c25d5ded1c96bd65e18081c17adf0d81ddd34c41afe3db7"
+ONE_SHA256 = "d08f7a0e7036f4617aa20db5ec8c4019b53605382d37c46050515e572edaeacc"
 
 # The word n-gram scored next to the word choice (laya.ngram, engine/src/laya/ngram.h), ng1017: Youmo
 # IME's pinyin language model (LGPL-2.1-or-later, on libime's) with science text mixed in (CSL
@@ -67,7 +72,8 @@ def pack():
 def matches():
     if not all(os.path.exists(os.path.join(DEST, f)) for f in FILES):
         return False
-    return sha256(os.path.join(DEST, "laya.int8g.onnx")) == ONNX_SHA256
+    return (sha256(os.path.join(DEST, "laya.int8g.onnx")) == ONNX_SHA256 and
+            sha256(os.path.join(DEST, "laya.one.fused.int8g.onnx")) == ONE_SHA256)
 
 
 def fetch_ngram():

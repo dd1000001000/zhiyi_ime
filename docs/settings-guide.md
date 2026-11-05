@@ -293,6 +293,7 @@ an=ang 时，`zan` 仍会出“张”；wang=huang 不和其他组叠加。模�
 | `laya.device` | 空 | 空 = CPU；否则为显卡名（同型号的第二块为 `<型号> #2`），用 DirectML 在这块卡上推理，输入固定为 256 个 token、32 个候选（不够的补齐，更长时从最早的上文截掉）；这块卡不在或失败时用 CPU |
 | `laya.min_gpu_memory_mb` | 1000 | “常规”页“推理设备”列出的显卡至少要有这么多 MB 自带显存（DirectML，不含核显；模型在显卡上约占 500 MB）。只影响列出哪些卡，已选的卡照常使用 |
 | `laya.cache` | true | 把模型权重按本机 CPU 打包后的副本和分词器的紧凑镜像存在 `%LOCALAPPDATA%\zhiyi\laya-cache`（首次启动生成，约 140 MB），以后启动直接映射，服务端少占约 100 MB 内存、少花约 0.8 s；false = 每次启动在内存里打包和解析，不写缓存 |
+| `laya.context_cache` | true | 模型目录里有一图（`laya.one.fused.int8g.onnx` 或 `laya.one.int8g.onnx`，带上文的 KV 缓存）时，CPU 上用它代替整图：上文只算一次，之后每次按键只算已打的拼音和候选；false = 每次按键用整图连上文一起重算。显卡上总用整图 |
 | `laya.max_candidates` | 0 | 模型查看的前几个候选（其中覆盖全部输入的参与比较）；0 = 每页候选数的 2 倍 |
 | `laya.rank_prior_weight` / `laya.english_rank_prior_weight` | 0 / 0.2 | 引擎排位先验的权重（模型分数加上 权重 × log P(正确词排第 r 位)）；0 = 只看模型 |
 | `laya.sentence_score_weight` / `laya.sentence_min_chars` | 1.0 / 4 | 长句：没有词典词覆盖全部输入、引擎组出的整句至少这么多字时，模型分数加上 权重 × 引擎整句分数（ln）；0 = 只看模型 |

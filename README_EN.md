@@ -83,7 +83,7 @@
 
 The word-choice models, word n-grams and offline translation models are Zhiyi's own and live in a repository of their
 own, [zhiyi_models](https://github.com/dd1000001000/zhiyi_models), with their structure, training data, results and downloads. The IME ships the
-word-choice model ML-pumpkin-1026 and the word n-gram ng1017; learning mode's offline translation uses v4-1026,
+word-choice model ML-Flash-1103 and the word n-gram ng1017; learning mode's offline translation uses v4-1026,
 downloaded on the Learning page of Settings.
 
 ## Installation
@@ -115,7 +115,7 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small): the recommendation model's encoder, mmBERT-small (MIT)
 - [LMT-60](https://huggingface.co/NiuTrans/LMT-60-0.6B) (NiuTrans): the base of the offline translation model (Apache-2.0)
 - [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B) (Tencent Hunyuan): the first offline translation model (1.8B) and the teachers it was distilled from (7B, and [30B-A3B](https://huggingface.co/tencent/Hy-MT2-30B-A3B) from v4) (Apache-2.0)
-- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B) (Qwen): the teachers Zhiyi 1.4V2-Long-L18's, Long-L12's, ML-pumpkin-1026's and ML-Flash-1031's word choice and Long-L12's, ML-pumpkin-1026's and ML-Flash-1031's composition were distilled from, fine-tuned with LoRA (Apache-2.0)
+- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B) (Qwen): the teachers Zhiyi 1.4V2-Long-L18's, Long-L12's, ML-pumpkin-1026's, ML-Flash-1031's and ML-Flash-1103's word choice and Long-L12's, ML-pumpkin-1026's, ML-Flash-1031's and ML-Flash-1103's composition were distilled from, fine-tuned with LoRA (Apache-2.0)
 - [Youmo IME](https://github.com/Sraw/youmo-ime): the base of the word n-gram (its pinyin language model) and the tool that mixed it (LGPL-2.1-or-later); that base comes from [libime](https://github.com/fcitx/libime) (LGPL-2.1-or-later) and pages of [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) (ODC-By) and [Common Crawl](https://commoncrawl.org)
 - [CSL](https://github.com/ydli-ai/CSL) (Chinese Scientific Literature, Apache-2.0): the science text mixed into the word n-gram
 - [rime-stroke](https://github.com/rime/rime-stroke) (LGPL-3.0), the [Chinese character splits](https://github.com/kfcd/chaizi) of kaifangcidian.com (CC BY 3.0) and [pinyin-data](https://github.com/mozillazg/pinyin-data) (MIT): the strokes, splits and readings of U mode

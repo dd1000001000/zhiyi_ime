@@ -23,6 +23,7 @@
 namespace laya {
 
 const char* const kInstructionsGuess = "Which candidate word most likely comes next after the text so far?";
+const char* const kOneGraphFiles[2] = {"laya.one.fused.int8g.onnx", "laya.one.int8g.onnx"};
 
 namespace {
 
@@ -140,6 +141,16 @@ bool has_input(const Ort::Session& session, const char* name) {
   return false;
 }
 
+// An input's shape (free dimensions as -1); empty when the graph has no such input.
+std::vector<int64_t> input_shape(const Ort::Session& session, const char* name) {
+  Ort::AllocatorWithDefaultOptions alloc;
+  for (size_t i = 0, n = session.GetInputCount(); i < n; ++i) {
+    if (std::string(session.GetInputNameAllocated(i, alloc).get()) == name)
+      return session.GetInputTypeInfo(i).GetTensorTypeAndShapeInfo().GetShape();
+  }
+  return {};
+}
+
 bool has_output(const Ort::Session& session, const char* name) {
   Ort::AllocatorWithDefaultOptions alloc;
   for (size_t i = 0, n = session.GetOutputCount(); i < n; ++i) {
@@ -211,7 +222,43 @@ Reranker::Reranker(const RerankerOptions& opt) {
   std::error_code vocab_ec;
   const bool unified_files = std::filesystem::exists(
       std::filesystem::path(utf8_to_wide(opt.model_dir)) / L"unified_vocab.json", vocab_ec);
-  if (opt.gpu_device >= 0) {
+  std::string one_file;  // the one graph on the CPU
+  for (const char* f : kOneGraphFiles) {
+    if (opt.gpu_device >= 0 || !opt.context_cache || !unified_files || !one_file.empty()) break;
+    if (std::filesystem::exists(std::filesystem::path(utf8_to_wide(opt.model_dir)) / utf8_to_wide(f), vocab_ec))
+      one_file = f;
+  }
+  if (!one_file.empty()) {
+    // Only a graph with both heads and the ctx-first format (the block is the context alone);
+    // any other (a choice-only one graph) leaves the whole graph to run.
+    try {
+      std::ifstream vf(std::filesystem::path(utf8_to_wide(opt.model_dir)) / L"unified_vocab.json");
+      if (nlohmann::json::parse(vf).value("choice_format", std::string()) != "ctx-first")
+        throw std::runtime_error("not the ctx-first format");
+      session_ = std::make_unique<Ort::Session>(*env_, utf8_to_wide(opt.model_dir + "/" + one_file).c_str(),
+                                                session_options(opt));
+      // past_enc_k (encoder layers, 1, heads, past, head_dim), past_choice_k (head layers, ...).
+      const auto enc = input_shape(*session_, "past_enc_k");
+      const auto head = input_shape(*session_, "past_choice_k");
+      if (enc.size() != 5 || head.size() != 5 || enc[0] <= 0 || head[0] <= 0 || enc[2] <= 0 || enc[4] <= 0 ||
+          head[2] != enc[2] || head[4] != enc[4] || !has_input(*session_, "past_mask") ||
+          !has_input(*session_, "unit_ids") || !has_input(*session_, "slot_pos") ||
+          !has_output(*session_, "char_logits"))
+        throw std::runtime_error("not a one graph with both heads");
+      enc_layers_ = enc[0];
+      head_layers_ = head[0];
+      heads_ = enc[2];
+      head_dim_ = enc[4];
+      one_ = true;
+      load_note_ += one_file + " with the context's cache, weights packed on the heap";
+    } catch (const std::exception& e) {
+      session_.reset();
+      load_note_ += one_file + " not used (" + e.what() + "); ";
+    }
+  }
+  if (one_) {
+    // the one graph, loaded above
+  } else if (opt.gpu_device >= 0) {
     // The prepacked cache is a CPU layout; the card gets the model as it is, patched in memory.
     std::vector<char> model = read_file(model_path);
     clear_reshape_allowzero(model);
@@ -416,6 +463,7 @@ std::vector<float> Reranker::score(const std::string& context, const std::vector
 
 bool Reranker::run(Sequence seq, std::vector<float>* logits, std::vector<float>* char_logits,
                    size_t* chars, Encoded* encoded) const {
+  if (one_) return run_one(seq, logits, char_logits, chars);
   const int64_t used = static_cast<int64_t>(seq.ids.size());
   const int64_t K = static_cast<int64_t>(seq.markers.size());
   const int64_t S = static_cast<int64_t>(seq.slots.size());
@@ -502,6 +550,127 @@ bool Reranker::run(Sequence seq, std::vector<float>* logits, std::vector<float>*
     encoded->unit_ids.clear();
     for (int64_t j = 0; j < S; ++j)
       encoded->unit_ids.push_back(seq.units[static_cast<size_t>(seq.slots[static_cast<size_t>(j)])]);
+  }
+  return true;
+}
+
+std::shared_ptr<const ContextKV> Reranker::context_kv(const std::vector<int64_t>& ids,
+                                                       const std::vector<int64_t>& units) const {
+  {
+    std::lock_guard<std::mutex> lk(contexts_mutex_);
+    for (size_t i = 0; i < contexts_.size(); ++i) {
+      if (contexts_[i]->ids != ids) continue;
+      std::rotate(contexts_.begin(), contexts_.begin() + static_cast<std::ptrdiff_t>(i),
+                  contexts_.begin() + static_cast<std::ptrdiff_t>(i) + 1);
+      return contexts_.front();
+    }
+  }
+  // Context mode: the block as the new tokens, the past a placeholder of one position that
+  // past_mask leaves out (the graph takes no zero-length past), no markers or slots read.
+  const int64_t n = static_cast<int64_t>(ids.size());
+  std::vector<float> enc_past(static_cast<size_t>(enc_layers_ * heads_ * head_dim_), 0.0f);
+  std::vector<float> head_past(static_cast<size_t>(head_layers_ * heads_ * head_dim_), 0.0f);
+  std::vector<int64_t> in_ids = ids, in_units = units, zero{0};
+  bool no_past[1] = {false};
+  const int64_t s_ids[2] = {1, n}, s_one[2] = {1, 1};
+  const int64_t s_enc[5] = {enc_layers_, 1, heads_, 1, head_dim_}, s_head[5] = {head_layers_, 1, heads_, 1, head_dim_};
+  std::vector<Ort::Value> in;
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, in_ids.data(), in_ids.size(), s_ids, 2));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, in_units.data(), in_units.size(), s_ids, 2));
+  for (int i = 0; i < 2; ++i)
+    in.push_back(Ort::Value::CreateTensor<float>(*mem_, enc_past.data(), enc_past.size(), s_enc, 5));
+  for (int i = 0; i < 2; ++i)
+    in.push_back(Ort::Value::CreateTensor<float>(*mem_, head_past.data(), head_past.size(), s_head, 5));
+  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, no_past, 1, s_one, 2));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, zero.data(), 1, s_one, 2));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, zero.data(), 1, s_one, 2));
+  const char* in_names[9] = {"input_ids", "unit_ids", "past_enc_k", "past_enc_v", "past_choice_k",
+                             "past_choice_v", "past_mask", "marker_pos", "slot_pos"};
+  const char* out_names[4] = {"present_enc_k", "present_enc_v", "present_choice_k", "present_choice_v"};
+  auto out = session_->Run(Ort::RunOptions{nullptr}, in_names, in.data(), in.size(), out_names, 4);
+  auto kv = std::make_shared<ContextKV>();
+  kv->ids = ids;
+  std::vector<float>* dst[4] = {&kv->enc_k, &kv->enc_v, &kv->choice_k, &kv->choice_v};
+  for (size_t i = 0; i < 4; ++i) {
+    const auto info = out[i].GetTensorTypeAndShapeInfo();
+    const auto shape = info.GetShape();
+    if (shape.size() != 5 || shape[3] != n) return nullptr;
+    const float* d = out[i].GetTensorData<float>();
+    dst[i]->assign(d, d + info.GetElementCount());
+  }
+  std::lock_guard<std::mutex> lk(contexts_mutex_);
+  contexts_.insert(contexts_.begin(), kv);
+  if (contexts_.size() > kContextCacheEntries) contexts_.resize(kContextCacheEntries);
+  return kv;
+}
+
+bool Reranker::run_one(const Sequence& seq, std::vector<float>* logits, std::vector<float>* char_logits,
+                       size_t* chars) const {
+  // The leading block: up to and including the first [SEP]. Markers and slots come after it.
+  const auto sep = std::find(seq.ids.begin(), seq.ids.end(), tok_->sep_id());
+  if (sep == seq.ids.end()) return false;
+  const size_t n = static_cast<size_t>(sep - seq.ids.begin()) + 1;
+  const size_t R = seq.ids.size() - n;
+  if (R == 0 || seq.units.size() != seq.ids.size()) return false;
+  for (int64_t p : seq.markers)
+    if (p < static_cast<int64_t>(n)) return false;
+  for (int64_t p : seq.slots)
+    if (p < static_cast<int64_t>(n)) return false;
+  const std::shared_ptr<const ContextKV> kv =
+      context_kv(std::vector<int64_t>(seq.ids.begin(), seq.ids.begin() + static_cast<std::ptrdiff_t>(n)),
+                 std::vector<int64_t>(seq.units.begin(), seq.units.begin() + static_cast<std::ptrdiff_t>(n)));
+  if (!kv) return false;
+
+  // Key mode: the rest of the sequence, positions continuing after the block; markers and slots
+  // counted from its start (at least one each: unread placeholders at 0).
+  const int64_t K = static_cast<int64_t>(seq.markers.size());
+  const int64_t S = static_cast<int64_t>(seq.slots.size());
+  const int64_t P = static_cast<int64_t>(n);
+  std::vector<int64_t> ids(seq.ids.begin() + static_cast<std::ptrdiff_t>(n), seq.ids.end());
+  std::vector<int64_t> units(seq.units.begin() + static_cast<std::ptrdiff_t>(n), seq.units.end());
+  std::vector<int64_t> pos, slot_pos;
+  for (int64_t p : seq.markers) pos.push_back(p - P);
+  for (int64_t p : seq.slots) slot_pos.push_back(p - P);
+  if (pos.empty()) pos.push_back(0);
+  if (slot_pos.empty()) slot_pos.push_back(0);
+  std::unique_ptr<bool[]> past_mask(new bool[n]);
+  std::fill(past_mask.get(), past_mask.get() + n, true);
+  const int64_t s_ids[2] = {1, static_cast<int64_t>(R)}, s_past[2] = {1, P};
+  const int64_t s_mark[2] = {1, static_cast<int64_t>(pos.size())}, s_slot[2] = {1, static_cast<int64_t>(slot_pos.size())};
+  const int64_t s_enc[5] = {enc_layers_, 1, heads_, P, head_dim_}, s_head[5] = {head_layers_, 1, heads_, P, head_dim_};
+  auto past = [&](const std::vector<float>& v, const int64_t* shape) {
+    return Ort::Value::CreateTensor<float>(*mem_, const_cast<float*>(v.data()), v.size(), shape, 5);
+  };
+  std::vector<Ort::Value> in;
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, ids.data(), ids.size(), s_ids, 2));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, units.data(), units.size(), s_ids, 2));
+  in.push_back(past(kv->enc_k, s_enc));
+  in.push_back(past(kv->enc_v, s_enc));
+  in.push_back(past(kv->choice_k, s_head));
+  in.push_back(past(kv->choice_v, s_head));
+  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, past_mask.get(), n, s_past, 2));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, pos.data(), pos.size(), s_mark, 2));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, slot_pos.data(), slot_pos.size(), s_slot, 2));
+  const char* in_names[9] = {"input_ids", "unit_ids", "past_enc_k", "past_enc_v", "past_choice_k",
+                             "past_choice_v", "past_mask", "marker_pos", "slot_pos"};
+  std::vector<const char*> out_names;
+  if (logits) out_names.push_back("logits");
+  if (char_logits) out_names.push_back("char_logits");
+  if (out_names.empty()) return false;
+  auto out = session_->Run(Ort::RunOptions{nullptr}, in_names, in.data(), in.size(), out_names.data(),
+                           out_names.size());
+  size_t next = 0;
+  if (logits) {
+    const float* l = out[next++].GetTensorData<float>();
+    logits->assign(l, l + K);
+  }
+  if (char_logits) {
+    const Ort::Value& v = out[next++];
+    const auto shape = v.GetTensorTypeAndShapeInfo().GetShape();  // (1, slots, chars)
+    const size_t C = shape.size() == 3 ? static_cast<size_t>(shape[2]) : 0;
+    const float* c = v.GetTensorData<float>();
+    char_logits->assign(c, c + static_cast<size_t>(S) * C);
+    if (chars) *chars = C;
   }
   return true;
 }

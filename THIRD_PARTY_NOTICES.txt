@@ -283,7 +283,7 @@ https://huggingface.co/datasets/HuggingFaceFW/fineweb, and FineWeb-2 (Penedo et 
 https://huggingface.co/datasets/HuggingFaceFW/fineweb-2, both ODC-By 1.0; its composition text
 from SkyPile-150B and LCCC.
 
-Zhiyi ML-pumpkin-1026 (release model-ml-pumpkin-1026, the model in the installer since 1.6.0) is
+Zhiyi ML-pumpkin-1026 (release model-ml-pumpkin-1026, the model in the installer of 1.6.0-1.6.3) is
 1.4V2-Long-L12 trained further with Traditional Chinese, Japanese, Korean and Vietnamese word
 choice and Traditional Chinese and Japanese composition; Zhiyi IME uses its Simplified Chinese and
 English. Its rows were scored by the two Qwen3.5-9B teachers above, retrained with LoRA; only their
@@ -294,6 +294,13 @@ readings of the new languages came from librime (BSD-3-Clause) with rime-luna-pi
 rime-bopomofo, rime-cangjie, rime-quick, rime-cantonese and rime-essay, the Cangjie 3 / Quick 3
 tables of fcitx5-table-extra, libchewing, Mozc and its dictionary, pypinyin, OpenCC and SudachiPy;
 these only produced training rows and none of them is in the model.
+
+Zhiyi ML-Flash-1103 (release model-ml-flash-1103, the model in the installer since 1.6.4) is
+ML-pumpkin-1026 with 8 of its encoder layers, a prefix mask and one head for word choice and
+composition, trained further on the same rows and on rows typed without context. Its rows were
+scored by the two Qwen3.5-9B teachers above and by a 12-layer model of our own trained from them;
+only their scores were used, none of their weights are in the model. Its text, candidate lists
+and readings came from the same sources as ML-pumpkin-1026's.
 
 
 Word n-gram (ngram/zh.ngram)

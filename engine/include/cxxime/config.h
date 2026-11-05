@@ -236,6 +236,12 @@ struct Config {
         // cache (built on first start, ~340 MB on disk). ONNX Runtime maps that file instead of
         // packing the weights onto the heap at every start: ~200 MB less private memory.
         bool cache = true;
+        // On the CPU, the model's one graph with a KV cache when it is in model_dir
+        // (laya.one.fused.int8g.onnx or laya.one.int8g.onnx, engine/src/laya/reranker.h): the
+        // context is computed once and each key runs only the typed input and the candidates
+        // (ML-Flash-1103, a page with 100 characters of context, 4 threads: 4.7 -> 3.4 ms). Off, or on a graphics card, the whole
+        // graph (onnx) reads the context again on every key.
+        bool context_cache = true;
         // English word mode (see EnglishConfig): completions are reranked too.
         bool english = true;
         int english_context_chars = 192;   // English needs more characters for the same context

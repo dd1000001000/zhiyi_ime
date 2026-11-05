@@ -11,6 +11,11 @@
 // file, unified_vocab.json names it) reads to write one character at a time (encode / decode).
 // A unified model exported with the choice head only (export_unified.py --choice_only) has no
 // slot_pos input and no char_logits output: it has no continuation (has_continuation()).
+// A prefix-mask model (ML-Flash-1103) also comes as ONE graph with a KV cache (bench
+// prefix_one.py, kOneGraphFiles): the sequence's leading block, [CLS] context [SEP], attends
+// only to itself, so its keys and values are computed once per context (context mode) and each
+// key runs only the rest of the sequence, the typed units and the candidates (key mode). On the
+// CPU that graph replaces the whole one when it is beside it (RerankerOptions::context_cache).
 #pragma once
 
 #include <cstdint>
@@ -60,6 +65,13 @@ struct Encoded {
 };
 inline size_t cache_bytes(const Encoded& e) { return e.bytes(); }
 
+// The one graph's cache of one context (its leading block): every layer's keys and values,
+// (layers, 1, heads, n, head_dim) for the encoder and the head. About 30 KB a token.
+struct ContextKV {
+  std::vector<int64_t> ids;  // the block's tokens (the key)
+  std::vector<float> enc_k, enc_v, choice_k, choice_v;
+};
+
 // The KV cache of one reading (decode with the step graphs): the memory's cross-attention keys
 // and values, computed on the first call, and the self-attention keys and values of every path
 // the last call wrote, by its characters. The next call reads them instead of every earlier
@@ -83,7 +95,16 @@ struct RerankerOptions {
   // candidates): DirectML compiles the whole graph for a fixed shape, and runs it about ten
   // times slower when shapes vary.
   int gpu_device = -1;
+  // On the CPU, the one graph with the context's KV cache (kOneGraphFiles, the first found in
+  // model_dir) instead of onnx_file. The card keeps the whole graph: DirectML is fast only
+  // with fixed shapes, and the one graph's fused attention is wrong there.
+  bool context_cache = true;
 };
+
+// The one graph's files, in order of preference: with ONNX Runtime's fused attention and
+// rotary operators (about 22% faster a key on the CPU), then the plain one.
+extern const char* const kOneGraphFiles[2];
+constexpr size_t kContextCacheEntries = 4;  // contexts kept (the choice's and the composition's blocks differ)
 
 constexpr int kGpuSequenceLength = 256;
 constexpr int kGpuMarkers = 32;
@@ -142,6 +163,7 @@ class Reranker {
   const BpeTokenizer& tokenizer() const { return *tok_; }
   const std::string& load_note() const { return load_note_; }  // how the model was loaded (log)
   bool on_gpu() const { return gpu_; }
+  bool context_cached() const { return one_; }  // the one graph with the context's cache
 
  private:
   void append_slots(Sequence& seq, const std::vector<Unit>& units) const;
@@ -149,6 +171,11 @@ class Reranker {
   Sequence continuation_sequence(const std::string& context, const std::vector<Unit>& units) const;
   bool run(Sequence seq, std::vector<float>* logits, std::vector<float>* char_logits,
            size_t* chars, Encoded* encoded) const;
+  // run() with the one graph: the block's cache (from contexts_, or context mode), then key mode.
+  bool run_one(const Sequence& seq, std::vector<float>* logits, std::vector<float>* char_logits,
+               size_t* chars) const;
+  std::shared_ptr<const ContextKV> context_kv(const std::vector<int64_t>& ids,
+                                              const std::vector<int64_t>& units) const;
   std::vector<std::vector<float>> decode_cached(const Encoded& encoded, const std::vector<std::vector<int>>& prefixes,
                                                 size_t slot, DecoderCache& cache) const;
 
@@ -173,6 +200,11 @@ class Reranker {
   bool slot_pos_input_ = false;  // ... and slot_pos (not a choice-only unified model)
   bool char_logits_output_ = false;  // the graph gives char_logits (a continuation head)
   bool memory_output_ = false;  // the graph gives memory / slot_vec (a decoder model)
+  bool one_ = false;  // the one graph (context / key mode)
+  // Its past inputs' sizes: encoder and head layers, heads, head_dim.
+  int64_t enc_layers_ = 0, head_layers_ = 0, heads_ = 0, head_dim_ = 0;
+  mutable std::mutex contexts_mutex_;
+  mutable std::vector<std::shared_ptr<const ContextKV>> contexts_;  // most recent first
 };
 
 }  // namespace laya

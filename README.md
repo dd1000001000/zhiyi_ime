@@ -59,7 +59,7 @@
 
 上文推荐的选词模型、词语 n-gram 和离线翻译模型都是知意自己训练的，放在单独的仓库
 [zhiyi_models](https://github.com/dd1000001000/zhiyi_models)：各版模型的结构、训练数据、评测结果和下载都在那里。输入法现在带的是选词模型
-ML-pumpkin-1026 和词语 n-gram ng1017；学习模式的离线翻译用 v4-1026，在设置的“学习”页下载。
+ML-Flash-1103 和词语 n-gram ng1017；学习模式的离线翻译用 v4-1026，在设置的“学习”页下载。
 
 ## 安装说明
 
@@ -87,7 +87,7 @@ ML-pumpkin-1026 和词语 n-gram ng1017；学习模式的离线翻译用 v4-1026
 - [mmBERT](https://huggingface.co/jhu-clsp/mmBERT-small)：上文推荐模型的编码器 mmBERT-small（MIT）
 - [LMT-60](https://huggingface.co/NiuTrans/LMT-60-0.6B)（NiuTrans）：离线翻译模型的底座（Apache-2.0）
 - [Hy-MT2](https://huggingface.co/tencent/Hy-MT2-7B)（腾讯混元）：离线翻译的第 1 版模型（1.8B）和蒸馏用的老师模型（7B，v4 起还有 [30B-A3B](https://huggingface.co/tencent/Hy-MT2-30B-A3B)）（Apache-2.0）
-- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B)（通义千问）：知意 1.4V2-Long-L18 / Long-L12 / ML-pumpkin-1026 / ML-Flash-1031 选词和 Long-L12 / ML-pumpkin-1026 / ML-Flash-1031 组句头蒸馏用的老师模型，经 LoRA 微调（Apache-2.0）
+- [Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B)（通义千问）：知意 1.4V2-Long-L18 / Long-L12 / ML-pumpkin-1026 / ML-Flash-1031 / ML-Flash-1103 选词和 Long-L12 / ML-pumpkin-1026 / ML-Flash-1031 / ML-Flash-1103 组句头蒸馏用的老师模型，经 LoRA 微调（Apache-2.0）
 - [幽默输入法](https://github.com/Sraw/youmo-ime)：词语 n-gram 的底座（它的拼音语言模型）和混合用的工具（LGPL-2.1-or-later）；其底座来自 [libime](https://github.com/fcitx/libime)（LGPL-2.1-or-later），混入的网页来自 [FineWeb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2)（ODC-By）和 [Common Crawl](https://commoncrawl.org)
 - [CSL](https://github.com/ydli-ai/CSL)（中文科学文献数据集，Apache-2.0）：词语 n-gram 混入的科研文本
 - [rime-stroke（五笔画）](https://github.com/rime/rime-stroke)（LGPL-3.0）、开放词典网的[汉语拆字字典](https://github.com/kfcd/chaizi)（CC BY 3.0）、[pinyin-data](https://github.com/mozillazg/pinyin-data)（MIT）：U 模式的笔画、拆字和读音

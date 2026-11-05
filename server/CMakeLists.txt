@@ -60,6 +60,13 @@ if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/laya.int8g.onnx)
     if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/unified_vocab.json)
         list(APPEND LAYA_MODEL_FILES unified_vocab.json)
     endif()
+    # The one graph with the context's KV cache, run on the CPU instead of the whole graph
+    # (engine/src/laya/reranker.h kOneGraphFiles).
+    foreach(file laya.one.fused.int8g.onnx laya.one.int8g.onnx)
+        if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/${file})
+            list(APPEND LAYA_MODEL_FILES ${file})
+        endif()
+    endforeach()
     set(LAYA_MODEL_OUTPUTS)
     foreach(file ${LAYA_MODEL_FILES})
         set(out ${CMAKE_CURRENT_BINARY_DIR}/laya/${file})

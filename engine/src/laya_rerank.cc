@@ -95,6 +95,7 @@ laya::RerankerOptions model_options(const Config& config) {
     opt.onnx_file = config.laya.onnx;
     opt.intra_threads = (std::max)(1, config.laya.threads);
     if (config.laya.cache) opt.cache_dir = laya_cache_dir();
+    opt.context_cache = config.laya.context_cache;
     return opt;
 }
 
@@ -144,7 +145,8 @@ std::shared_ptr<laya::Reranker> get_model(const Config& config) {
     laya::RerankerOptions opt = model_options(config);
     const std::string device = config.laya.device;
     const std::string ngram_file = ngram_path(config);
-    const std::string key = opt.model_dir + "|" + opt.onnx_file + "|" + device + "|" + ngram_file;
+    const std::string key = opt.model_dir + "|" + opt.onnx_file + "|" + device + "|" + ngram_file + "|" +
+                            (opt.context_cache ? "one" : "whole");
     State& s = state();
     std::lock_guard<std::mutex> lk(s.mu);
     if (s.model_key != key) {  // first use, or the configured model or device changed

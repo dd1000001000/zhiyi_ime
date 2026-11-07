@@ -37,7 +37,7 @@ constexpr int kLearnedBoost = 1500000;
 // A tentative word that the dictionary query no longer lists: shown as a weak completion.
 constexpr int kLearnedAbsentScore = 50000000;
 // Frequencies in [30M, 75M) are the pinyin ranking groups of 15,000,000 each; a boost stays
-// inside the group (candidate-selection.md).
+// inside the group (docs/candidate-ordering.md).
 constexpr int kRankingGroupSpan = 15000000;
 constexpr int kRankingGroupsBegin = 30000000;
 constexpr int kRankingGroupsEnd = 75000000;

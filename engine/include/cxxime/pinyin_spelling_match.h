@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
 // How a typed pinyin string reads a word's syllables, the way the dictionary ranking reads an
-// input (candidate-selection.md): every syllable typed in full, as its initial (z / zh), a
+// input (docs/candidate-ordering.md): every syllable typed in full, as its initial (z / zh), a
 // final 儿 typed as r, and the last typed syllable may be unfinished. Used to find learned
 // words for any way of typing them: 现在 (xian:zai) learned once answers "xz", "xianz" and
 // "xianzai".

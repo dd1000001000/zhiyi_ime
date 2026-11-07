@@ -1438,8 +1438,9 @@ TranslationResult Engine::translate_composition(const CompositionState& state,
     if (runtime_->config().wubi_code_hint) {
         add_wubi_code_hints(state.active().input, result);
     }
-    // Laya: reorder the first page by context. Later pages keep the translator's order,
-    // so page 1 stays a permutation of the original first page.
+    // Laya: reorder the first page by context, choosing among the laya_candidate_count()
+    // candidates fetched above (so the pick may come from what would have been page 2). Later
+    // pages keep the translator's order after the candidates already shown.
     if (laya_page) {
         LayaApplyOptions options;
         options.slots = request.scheme == CompositionScheme::kPinyin;

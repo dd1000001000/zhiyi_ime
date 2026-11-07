@@ -199,7 +199,7 @@ struct ProcessKeyResult {
 - 系统词隐藏：`disable_system_entry` / `restore_system_entry`（持久化到 `disabled_pinyin.tsv` / `disabled_wubi.tsv`）
 - 手动候选顺序：`query_candidate_order` / `replace_candidate_order` / `clear_candidate_order`（持久化到 `candidate_order_pinyin.tsv` / `candidate_order_wubi.tsv`，`expected_version` 乐观并发控制）
 
-拼音与五笔资源在加载时都会载入对应的用户词库、候选偏好、手动候选顺序与系统词隐藏文件；`SharedResources::load()` 任一类用户数据加载失败都会使服务启动失败。手动候选顺序的语义与优先级见 [候选排序设计](candidate-ordering.md)。
+拼音与五笔资源在加载时都会载入对应的用户词库、候选偏好、手动候选顺序与系统词隐藏文件；`SharedResources::load()` 任一类用户数据加载失败都会使服务启动失败。手动候选顺序的语义与优先级见 [候选排序](candidate-ordering.md)。
 
 ---
 

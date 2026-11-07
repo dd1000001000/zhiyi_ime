@@ -7,7 +7,7 @@
 - **拼音**：在 Syllabifier 之前插入两层内存查询（用户词多路索引 + Top-N 索引），命中时跳过路径枚举和词典扫描。
 - **五笔**：无独立 Top-N 文件，快速路径由构建期预排序的完整前缀索引（`wubi86.dict.idx`）承担——运行时二分定位后直接读取排序好的 postings，不实时评分、不扫描全表；查询结果在 `WubiTranslator` 内以快照缓存复用。
 
-快速路径只改变**获取与合并**方式，不改变 [候选排序设计](candidate-ordering.md) 的四层优先级：默认排序 → 学习偏好 → 手动固定 → 分页。
+快速路径只改变**获取与合并**方式，不改变 [候选排序](candidate-ordering.md) 的顺序：默认排序 → 学习偏好 → 手动固定 → 全拼长词提前 → 上文推荐（第一页） → 固定位置的候选 → 分页。
 
 ## 架构
 
@@ -119,7 +119,7 @@ mixed code 码型：声母增强简拼（`shrf`）、首音节展开（`shurf`�
 |----|------|------|------|
 | 完整 | 60,000,000 | 词的每个音节都被 key 覆盖，打全或只打声母 | `qianm` → 前面、千米；`jde` → 觉得 |
 | 补全 | 45,000,000 | 最后一个音节没打完（`ni` → 年、`buzhida` → 不知道），或 key 本身能切成完整音节却用了声母（`zhou` → 最后 = z+hou） | 运行时对每个输入同样做末音节补全；Rime 在有全拼切法时去掉简拼 |
-| （组句） | 45,000,000 起，补全之下 | 运行时组出的、覆盖全部输入的句子（不在索引里，见 [候选词选词算法](candidate-selection.md#组句)） | `nikanx` → 你看下 |
+| （组句） | 45,000,000 起，补全之下 | 运行时组出的、覆盖全部输入的句子（不在索引里，见 [候选排序](candidate-ordering.md#组句)） | `nikanx` → 你看下 |
 | 更长的词 | 30,000,000 | 词比 key 长；运行时每次查询只保留分数最高的 3 个（`kMaxExtensionCandidates`） | `xianzhan` → 先占领 |
 | 生僻单字 | 0 | 词频不超过 100 的单字，只取对数分的百分之一，排在所有词之后 | `de` → …锝、等、定额，然后才是 㝵 |
 
@@ -241,7 +241,7 @@ bool is_indexable_key(const std::string& pinyin) {
 4. 按 `Candidate.text` 去重
 5. 缓存候选超过当前页时设置 `truncated=true`
 
-快速路径命中后，拼音仍按统一顺序应用学习偏好与手动固定（见 [候选排序设计](candidate-ordering.md)）。
+快速路径命中后，拼音仍按统一顺序应用学习偏好与手动固定（见 [候选排序](candidate-ordering.md)）。
 
 ### 五笔集成
 
@@ -317,4 +317,4 @@ live_path_count = 0
 - **失效**：`user_dict_version` / `candidate_preference_version` / `manual_candidate_order_version` / `disabled_system_entry_version` 任一变化后条目不再命中
 - **非缓存场景**：deadline 命中或 deadline_exceeded 时不写入
 
-详细机制见 [候选词选词算法 — 查询页缓存](candidate-selection.md#查询页缓存)。
+详细机制见 [候选排序 — 查询页缓存](candidate-ordering.md#查询页缓存)。

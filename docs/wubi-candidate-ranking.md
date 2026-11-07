@@ -2,15 +2,15 @@
 
 ## 在最终排序中的位置
 
-本文档描述五笔**随包默认排序**（[候选排序设计](candidate-ordering.md) 的第 3 层）：无个性化数据时，五笔候选按什么规则排列。它由构建期 `wubi_ranking.py` 审计固化进 `wubi86.dict.idx` 的预排序 postings，运行时直接读取、不做实时评分。
+本文档描述五笔**随包默认排序**（见 [候选排序](candidate-ordering.md#2-默认排序五笔)）：无个性化数据时，五笔候选按什么规则排列。它由构建期 `wubi_ranking.py` 审计固化进 `wubi86.dict.idx` 的预排序 postings，运行时直接读取、不做实时评分。
 
 最终呈现顺序的完整链路为：
 
 ```text
-五笔默认排序（本文档） → 学习偏好（第 2 层） → 手动固定（第 1 层） → 分页（第 4 层）
+五笔默认排序（本文档） → 学习偏好 → 手动固定 → 上文推荐（第一页） → 固定位置的候选 → 分页
 ```
 
-学习偏好与手动固定的数据结构和应用时机见 [候选排序设计](candidate-ordering.md) 与 [用户词库与候选偏好](user-dictionary.md)；前缀索引的运行时查询见 [短输入快速路径](short-input-fast-path.md)。
+学习偏好与手动固定的数据结构和应用时机见 [候选排序](candidate-ordering.md) 与 [用户词库与候选偏好](user-dictionary.md)；前缀索引的运行时查询见 [短输入快速路径](short-input-fast-path.md)。
 
 ## 目标
 

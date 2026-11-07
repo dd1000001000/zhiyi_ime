@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
-// Candidates at fixed places on the page (docs/candidate-order.md): the user's custom phrases
+// Candidates at fixed places on the page (docs/candidate-ordering.md): the user's custom phrases
 // (phrases.ini, "dh,1=..."), the date and time (rq / sj / xq) and an English word typed in
 // Chinese mode (english.position_in_pinyin). They go in after the ranking (the translator's
 // order, learning, the user's manual order, the context model), which never sees or moves them,

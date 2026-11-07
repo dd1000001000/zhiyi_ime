@@ -230,8 +230,7 @@ cxx-ime/
 
 ## 7. 相关文档
 
-- [候选排序设计](candidate-ordering.md) — 手动固定 / 学习偏好 / 默认排序 / 分页的四层优先级
-- [候选词选词算法](candidate-selection.md) — 查询管道与路径枚举
+- [候选排序](candidate-ordering.md) — 查词与默认排序、学习偏好与手动固定、上文推荐、固定位置的候选、分页
 - [查询预算与候选收集](query-control.md) — QueryBudget、TopKCollector、扫描限制、超时检查点
 - [中英文切换机制](ascii-composer.md) — AsciiComposer 配置与状态同步链路
 - [词典系统设计](dictionary.md) — 三层架构、二进制格式、查询流程

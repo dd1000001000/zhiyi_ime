@@ -285,10 +285,10 @@ Scan budget 和 TopK 由 `make_budget()` 自动管理，无需手动设置。Dea
 
 ## 与候选查询管道的集成
 
-详见 [候选词选词算法](candidate-selection.md)。Deadline 检查点嵌入在四步流程的每一步之间：
+详见 [候选排序 — 默认排序：拼音](candidate-ordering.md#1-默认排序拼音)。Deadline 检查点嵌入在四步流程的每一步之间：
 
 1. **拼写图构建** — Syllabifier `build_graph()` 无 deadline 检查（BFS 阶段耗时稳定，非瓶颈）
-2. **路径枚举** — `enumerate_paths()` 路径上限 256 + 首次调用检查 + 其后每 32 次递归检查 deadline，过期时返回已生成路径
+2. **路径枚举** — `enumerate_paths()`（按优先队列由好到差逐条产出）路径上限 256 + 首次调用检查 + 其后每展开 32 步检查 deadline，过期时返回已生成路径
 3. **路径过滤** — 每条路径 `has_prefix` 前检查 deadline
 4. **候选查找** — 循环前检查 + 每条路径 `lookup_by_ids` 前检查 + 扫描中每 `check_interval` 条检查
 

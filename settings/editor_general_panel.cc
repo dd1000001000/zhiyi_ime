@@ -51,7 +51,6 @@ enum ControlId {
     kHorizontalId,
     kAutostartId,
     kLayaId,
-    kDeviceId,
     kExactPinyinId,
     kSwitchKeyId = 1101,
     kStyleKeyId,
@@ -170,7 +169,7 @@ void EditorApp::create_general_panel(HWND panel) {
                                     "general.theme", "general.font_size", "general.layout",
                                     "general.page_size", "general.language", "general.english",
                                     "general.emoji",
-                                    "general.laya", "general.device", "general.startup"});
+                                    "general.laya", "general.startup"});
     int y = card_begin(panel, kPanelPadTop, tr("general.card_input"));
     RECT panel_client = {};
     GetClientRect(panel, &panel_client);
@@ -247,18 +246,6 @@ void EditorApp::create_general_panel(HWND panel) {
     y += kRowH;
     make_hint(tr("general.exact_pinyin_hint"), laya_x, y - S(6), S(480), panel, 1);
     y += S(20);
-    // Graphics card (editor_gpu.cc): no row when this computer has none to offer.
-    load_gpu_choices();
-    hDevice_ = nullptr;
-    hDeviceHint_ = nullptr;
-    if (!gpu_choices_.empty()) {
-        const int device_x = make_aligned_label(tr("general.device"), x0, labels, y, panel);
-        hDevice_ = make_combo(kDeviceId, device_x, y, S(440), panel);
-        fill_device_combo();
-        y += kRowH;
-        hDeviceHint_ = make_hint(tr("general.device_hint"), device_x, y - S(6), S(480), panel, 1);
-        y += S(20);
-    }
     const int startup_x = make_aligned_label(tr("general.startup"), x0, labels, y, panel);
     hAutostart_ = make_check(kAutostartId, tr("general.autostart"), startup_x, y, S(300), panel);
     y += kRowH;
@@ -512,7 +499,6 @@ void EditorApp::populate_controls() {
     set_check(hAutostart_, config_.autostart);
     set_check(hLaya_, config_.laya.enable);
     set_check(hExactPinyin_, config_.laya.exact_pinyin_first);
-    populate_device();
 
     set_switch_key_boxes(config_);
     combo_set_index(hPageUpKey_, page_key_index(kPageUpKeys, config_.page_up_key));
@@ -563,7 +549,6 @@ bool EditorApp::read_controls(bool report_errors) {
     c.autostart = get_check(hAutostart_);
     c.laya.enable = get_check(hLaya_);
     c.laya.exact_pinyin_first = get_check(hExactPinyin_);
-    c.laya.device = selected_device();
     const KeyChoice choices[kSwitchKeyCount] = {
         key_capture_get(hSwitchKey_), key_capture_get(hStyleKey_), key_capture_get(hPunctKey_),
         key_capture_get(hShapeKey_), key_capture_get(hVoiceKey_)};
@@ -668,9 +653,6 @@ void EditorApp::update_enabled_controls() {
     for (HWND group : hFuzzyGroups_) {
         EnableWindow(group, fuzzy);
     }
-    if (hDevice_) {
-        EnableWindow(hDevice_, get_check(hLaya_) && !gpu_testing_ && !gpu_choices_.empty());
-    }
     // Grayed out (keeping its check mark) while context recommendation is off.
     EnableWindow(hExactPinyin_, get_check(hLaya_));
 }
@@ -703,11 +685,6 @@ bool EditorApp::handle_command(int control_id, int notification) {
                 load_ui_strings(ui_language_);
                 PostMessageW(hwnd_, kRebuildUiMessage, 0, 0);
             }
-        }
-        return true;
-    case kDeviceId:
-        if (notification == CBN_SELCHANGE) {
-            on_device_selected();
         }
         return true;
     case kDataChangeId:

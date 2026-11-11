@@ -195,7 +195,9 @@ struct Config {
     // Users control only trace_mode; rotation and thresholds remain package settings.
     DiagnosticsConfig diagnostics;
 
-    // Laya context reranking of the first pinyin page (server side, CPU ONNX model).
+    // Laya context reranking of the first pinyin page (server side, ONNX model on the CPU; since
+    // 1.6.5 the CPU only: laya.device and laya.min_gpu_memory_mb are gone, the installer ships
+    // only the one graph below).
     struct LayaConfig {
         bool enable = true;
         std::string model_dir = "laya";        // relative to the server executable's directory
@@ -226,12 +228,6 @@ struct Config {
         // forgotten after this many seconds without typing (0 = kept).
         int context_memory_seconds = 60;
         int threads = 4;          // ONNX Runtime intra-op threads
-        // "" = the CPU; otherwise the name of the graphics card that runs the model (DirectML,
-        // gpu_adapters.h). When that card is missing or fails, the CPU is used.
-        std::string device;
-        // laya.min_gpu_memory_mb: Settings offers cards with at least this much memory of their
-        // own (gpu_adapters.h).
-        int min_gpu_memory_mb = 1000;
         // Keep a copy of the model with its weights packed for this CPU in the local app data
         // cache (built on first start, ~340 MB on disk). ONNX Runtime maps that file instead of
         // packing the weights onto the heap at every start: ~200 MB less private memory.
@@ -239,8 +235,9 @@ struct Config {
         // On the CPU, the model's one graph with a KV cache when it is in model_dir
         // (laya.one.fused.int8g.onnx or laya.one.int8g.onnx, engine/src/laya/reranker.h): the
         // context is computed once and each key runs only the typed input and the candidates
-        // (ML-Flash-1103, a page with 100 characters of context, 4 threads: 4.7 -> 3.4 ms). Off, or on a graphics card, the whole
-        // graph (onnx) reads the context again on every key.
+        // (ML-Flash-1103, a page with 100 characters of context, 4 threads: 4.7 -> 3.4 ms). Off, the
+        // whole graph (onnx) reads the context again on every key - when it is there (installs
+        // have only the one graph, which then runs anyway).
         bool context_cache = true;
         // English word mode (see EnglishConfig): completions are reranked too.
         bool english = true;

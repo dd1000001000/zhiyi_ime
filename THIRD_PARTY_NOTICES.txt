@@ -250,7 +250,7 @@ The trained weights in models/laya/ and of every model below are 知意输入法
 are licensed under the Apache License, Version 2.0 (data/licenses/Apache-2.0.txt) since
 2026-10-20 (GPL-3.0-only before). The upstream parts below keep their licenses.
 
-The model in models/laya/ (laya.int8g.onnx, laya_decoder.int8.onnx,
+The model in models/laya/ (laya.int8g.onnx, laya.one.fused.int8g.onnx, laya_decoder.int8.onnx,
 laya_decoder_memory.int8.onnx, laya_decoder_step.int8.onnx, tokenizer.json,
 unified_vocab.json, rl_agent_config.json)
 has the Laya decision-model architecture on the mmBERT-small encoder. It was

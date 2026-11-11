@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <regex>
 #include <thread>
 
@@ -378,7 +379,34 @@ struct LlamaServer::Impl {
     HANDLE job = nullptr;
     HANDLE process = nullptr;
     Http http;
+    std::mutex page_mutex;
+    std::string last_page;  // the context and languages of the last page (page_key)
 };
+
+namespace {
+
+// What the prompts of a page share besides the instruction: its context and its languages.
+std::string page_key(const std::vector<Item>& items, const std::string& context) {
+    std::string key = context;
+    for (const Item& item : items) key += "\x1f" + item.source + ">" + item.target;
+    return key;
+}
+
+// A /completion answer (the student prompt) into a translation, with its parts of speech.
+void read_completion(const nlohmann::json& answer, const Item& item, Translation* out) {
+    if (!answer.is_object() || !answer.contains("content") || !answer["content"].is_string()) return;
+    out->text = clean_translation(item.text, answer["content"].get<std::string>());
+    if (answer.contains("pos_top") && answer["pos_top"].is_array()) {
+        for (const auto& tag : answer["pos_top"]) {
+            if (tag.is_object() && tag.contains("tag") && tag["tag"].is_string() && tag.contains("prob") &&
+                tag["prob"].is_number()) {
+                out->pos.emplace_back(tag["tag"].get<std::string>(), tag["prob"].get<float>());
+            }
+        }
+    }
+}
+
+}  // namespace
 
 LlamaServer::LlamaServer() : impl_(new Impl) {
     impl_->http.session = WinHttpOpen(L"ZhiyiIME", WINHTTP_ACCESS_TYPE_NO_PROXY,
@@ -404,6 +432,10 @@ void LlamaServer::stop() {
         WaitForSingleObject(impl_->process, 5000);
         CloseHandle(impl_->process);
         impl_->process = nullptr;
+    }
+    {
+        std::lock_guard<std::mutex> lock(impl_->page_mutex);
+        impl_->last_page.clear();  // a new server holds no context
     }
     device_.clear();
 }
@@ -479,36 +511,56 @@ std::vector<Translation> LlamaServer::translate(const std::vector<Item>& items,
                                                 const std::string& context, int timeout_ms) {
     std::vector<Translation> results(items.size());
     if (!running()) return results;
+    const nlohmann::json student_body = {
+        {"n_predict", 48},
+        {"temperature", 0},
+        {"top_k", 1},
+        {"repeat_penalty", 1.05},
+        {"stop", {"<|im_end|>"}},
+        {"pos", true},  // the parts of speech, from a runtime that knows them
+    };
+    // The first page of a new context on the processor: one request with all the prompts and
+    // "shared_prefix" (the patched runtime, scripts/llama_server_pos): the instruction and the
+    // context they start with are computed once, not once per candidate (Ryzen 9600X, 4 threads,
+    // 7 candidates: 272 -> 202 ms). The next pages of the same context go one request each: the
+    // server gives each the slot that already holds that prefix (169 ms; shared, the prefix step
+    // costs one more round, 184). On a graphics card the prompt is cheap and the extra round is
+    // not (60 -> 80 ms): one request each there too. A runtime without the patch answers the
+    // shared request all the same.
+    if (prompt_ == kStudentPrompt && device_ == kCpuDevice && items.size() > 1) {
+        const std::string key = page_key(items, context);
+        bool fresh = false;
+        {
+            std::lock_guard<std::mutex> lock(impl_->page_mutex);
+            fresh = key != impl_->last_page;
+            impl_->last_page = key;
+        }
+        if (fresh) {
+            nlohmann::json body = student_body;
+            body["prompt"] = nlohmann::json::array();
+            for (const Item& item : items) body["prompt"].push_back(student_prompt(item, context));
+            body["shared_prefix"] = true;
+            const std::string text = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
+            DWORD status = 0;
+            const std::string response = impl_->http.request(L"/completion", &text, timeout_ms, &status);
+            const nlohmann::json answers = nlohmann::json::parse(response, nullptr, false);
+            if (status == 200 && answers.is_array() && answers.size() == items.size()) {
+                for (size_t i = 0; i < items.size(); ++i) read_completion(answers[i], items[i], &results[i]);
+            }
+            return results;
+        }
+    }
     std::vector<std::thread> threads;
     for (size_t i = 0; i < items.size(); ++i) {
-        threads.emplace_back([this, &items, &results, &context, timeout_ms, i] {
+        threads.emplace_back([this, &items, &results, &context, &student_body, timeout_ms, i] {
             if (prompt_ == kStudentPrompt) {
-                const nlohmann::json body = {
-                    {"prompt", student_prompt(items[i], context)},
-                    {"n_predict", 48},
-                    {"temperature", 0},
-                    {"top_k", 1},
-                    {"repeat_penalty", 1.05},
-                    {"stop", {"<|im_end|>"}},
-                    {"pos", true},  // the parts of speech, from a runtime that knows them
-                };
+                nlohmann::json body = student_body;
+                body["prompt"] = student_prompt(items[i], context);
                 const std::string text = body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
                 DWORD status = 0;
                 const std::string response = impl_->http.request(L"/completion", &text, timeout_ms, &status);
                 if (status != 200) return;
-                const nlohmann::json answer = nlohmann::json::parse(response, nullptr, false);
-                if (answer.is_object() && answer.contains("content") && answer["content"].is_string()) {
-                    results[i].text = clean_translation(items[i].text, answer["content"].get<std::string>());
-                    if (answer.contains("pos_top") && answer["pos_top"].is_array()) {
-                        for (const auto& tag : answer["pos_top"]) {
-                            if (tag.is_object() && tag.contains("tag") && tag["tag"].is_string() &&
-                                tag.contains("prob") && tag["prob"].is_number()) {
-                                results[i].pos.emplace_back(tag["tag"].get<std::string>(),
-                                                            tag["prob"].get<float>());
-                            }
-                        }
-                    }
-                }
+                read_completion(nlohmann::json::parse(response, nullptr, false), items[i], &results[i]);
                 return;
             }
             const nlohmann::json body = {

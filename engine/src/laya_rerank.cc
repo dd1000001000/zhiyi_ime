@@ -23,7 +23,6 @@
 #include <cxxime/config.h>
 #include <cxxime/data_path.h>
 #include <cxxime/english_lexicon.h>
-#include <cxxime/gpu_adapters.h>
 #include <cxxime/pinyin_composer.h>
 #include <cxxime/segmentor.h>
 #include <cxxime/translation_result.h>
@@ -89,50 +88,48 @@ std::string resolve_model_dir(const std::string& dir) {
 // machine-specific (the packed layout depends on the CPU), so not in what users back up.
 std::string laya_cache_dir() { return local_data_path("laya-cache"); }
 
+// The one graph with the context's KV cache (laya/reranker.h kOneGraphFiles) in `dir`.
+bool has_one_graph(const std::string& dir) {
+    for (const char* f : {"laya.one.fused.int8g.onnx", "laya.one.int8g.onnx"}) {
+        std::error_code ec;
+        if (std::filesystem::exists(std::filesystem::path(laya::utf8_to_wide(dir)) / laya::utf8_to_wide(f), ec))
+            return true;
+    }
+    return false;
+}
+
+bool has_file(const std::string& dir, const std::string& name) {
+    std::error_code ec;
+    return std::filesystem::exists(std::filesystem::path(laya::utf8_to_wide(dir)) / laya::utf8_to_wide(name), ec);
+}
+
 laya::RerankerOptions model_options(const Config& config) {
     laya::RerankerOptions opt;
     opt.model_dir = resolve_model_dir(config.laya.model_dir);
     opt.onnx_file = config.laya.onnx;
     opt.intra_threads = (std::max)(1, config.laya.threads);
     if (config.laya.cache) opt.cache_dir = laya_cache_dir();
-    opt.context_cache = config.laya.context_cache;
+    // The installer ships only the one graph (1.6.5: the model runs on the CPU only, so the
+    // whole graph the graphics card took is left out): without the whole graph, the one graph
+    // runs whatever laya.context_cache says.
+    opt.context_cache = config.laya.context_cache || !has_file(opt.model_dir, opt.onnx_file);
     return opt;
 }
 
 // onnxruntime.dll is delay-loaded: make sure it and the model exist before any ONNX Runtime
 // call (otherwise the delay-load helper raises an SEH exception). Returns what is missing.
 std::wstring missing_model_file(const laya::RerankerOptions& opt) {
-    const std::filesystem::path dir(laya::utf8_to_wide(opt.model_dir));
-    for (const std::string& f : {std::string("tokenizer.json"), std::string("rl_agent_config.json"), opt.onnx_file}) {
-        std::error_code ec;
-        if (!std::filesystem::exists(dir / laya::utf8_to_wide(f), ec)) return laya::utf8_to_wide(f);
+    for (const std::string& f : {std::string("tokenizer.json"), std::string("rl_agent_config.json")}) {
+        if (!has_file(opt.model_dir, f)) return laya::utf8_to_wide(f);
     }
+    // the whole graph, or the one graph (which needs the unified model's vocabulary)
+    if (!has_file(opt.model_dir, opt.onnx_file) &&
+        !(has_one_graph(opt.model_dir) && has_file(opt.model_dir, "unified_vocab.json")))
+        return laya::utf8_to_wide(opt.onnx_file);
     if (!LoadLibraryExW(L"onnxruntime.dll", nullptr,
                         LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS))
         return L"onnxruntime.dll";
     return {};
-}
-
-// The model on the graphics card called `name`; nullptr (and a log line) when the card is
-// missing or fails.
-std::shared_ptr<laya::Reranker> load_on_gpu(laya::RerankerOptions opt, const std::string& name,
-                                            std::string* error = nullptr) {
-    // The card chosen in Settings, whatever laya.min_gpu_memory_mb is now.
-    const std::vector<GpuAdapter> adapters = list_gpu_adapters(0);
-    const GpuAdapter* adapter = find_gpu_adapter(adapters, name);
-    if (!adapter) {
-        laya_log(L"graphics card " + laya::utf8_to_wide(name) + L" not found");
-        if (error) *error = "graphics card not found";
-        return nullptr;
-    }
-    opt.gpu_device = static_cast<int>(adapter->index);
-    try {
-        return std::make_shared<laya::Reranker>(opt);
-    } catch (const std::exception& e) {
-        laya_log(L"graphics card " + laya::utf8_to_wide(name) + L" failed: " + laya::utf8_to_wide(e.what()));
-        if (error) *error = e.what();
-        return nullptr;
-    }
 }
 
 // laya.ngram as a path ("" when off).
@@ -143,13 +140,12 @@ std::string ngram_path(const Config& config) {
 // Returns the shared model, starting a background load on first use. nullptr until ready.
 std::shared_ptr<laya::Reranker> get_model(const Config& config) {
     laya::RerankerOptions opt = model_options(config);
-    const std::string device = config.laya.device;
     const std::string ngram_file = ngram_path(config);
-    const std::string key = opt.model_dir + "|" + opt.onnx_file + "|" + device + "|" + ngram_file + "|" +
+    const std::string key = opt.model_dir + "|" + opt.onnx_file + "|" + ngram_file + "|" +
                             (opt.context_cache ? "one" : "whole");
     State& s = state();
     std::lock_guard<std::mutex> lk(s.mu);
-    if (s.model_key != key) {  // first use, or the configured model or device changed
+    if (s.model_key != key) {  // first use, or the configured model changed
         s.model_key = key;
         s.model.reset();
         s.ngram.reset();
@@ -169,13 +165,11 @@ std::shared_ptr<laya::Reranker> get_model(const Config& config) {
         return nullptr;
     }
     s.loading = true;
-    std::thread([opt, key, device, ngram_file] {
+    std::thread([opt, key, ngram_file] {
         std::shared_ptr<laya::Reranker> model;
         auto t0 = std::chrono::steady_clock::now();
-        // A card that is missing or fails falls back to the CPU.
-        if (!device.empty()) model = load_on_gpu(opt, device);
         try {
-            if (!model) model = std::make_shared<laya::Reranker>(opt);
+            model = std::make_shared<laya::Reranker>(opt);
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - t0).count();
             laya_log(L"model loaded from " + laya::utf8_to_wide(opt.model_dir) + L" in " +
@@ -207,36 +201,8 @@ std::shared_ptr<laya::Reranker> get_model(const Config& config) {
         st.failed = !model;
         st.stats.model_ready = static_cast<bool>(model);
         st.stats.model_failed = !model;
-        st.stats.on_gpu = model && model->on_gpu();
     }).detach();
     return nullptr;
-}
-
-// One typical first page for the speed test (about 200 tokens): 100 characters of context and
-// 20 candidates. Median of 15 runs after 3 warm-up runs; -1 when the model fails.
-double median_score_ms(const laya::Reranker& model) {
-    const std::string context =
-        u8"今天下午我们在会议室讨论了下一个版本的计划，大家都觉得输入法的候选还可以更准确一些，"
-        u8"尤其是同音词比较多的时候，所以决定先收集一些常见的例子，再看看模型在这些句子上的表现，然后";
-    const std::vector<std::string> candidates = {
-        u8"权利", u8"权力", u8"全力", u8"拳力", u8"泉里", u8"全立", u8"权利人", u8"权力机关", u8"全力以赴",
-        u8"权利义务", u8"犬类", u8"劝离", u8"全理", u8"权例", u8"全例", u8"权立", u8"泉力", u8"券里",
-        u8"圈里", u8"全利"};
-    std::vector<double> times;
-    try {
-        for (int i = 0; i < 18; ++i) {
-            const auto t0 = std::chrono::steady_clock::now();
-            if (model.score(context, "quan'li", candidates).size() != candidates.size()) return -1.0;
-            if (i >= 3)
-                times.push_back(std::chrono::duration<double, std::milli>(
-                                    std::chrono::steady_clock::now() - t0).count());
-        }
-    } catch (const std::exception& e) {
-        laya_log(L"speed test failed: " + laya::utf8_to_wide(e.what()));
-        return -1.0;
-    }
-    std::sort(times.begin(), times.end());
-    return times[times.size() / 2];
 }
 
 // "jintian" -> "jin'tian", the format the model was trained with.
@@ -285,44 +251,6 @@ void LayaRerank::set_capture(CaptureFn capture) {
     State& s = state();
     std::lock_guard<std::mutex> lk(s.mu);
     s.capture = std::move(capture);
-}
-
-std::string LayaRerank::model_id(const Config& config) const {
-    const laya::RerankerOptions opt = model_options(config);
-    std::error_code ec;
-    const auto size = std::filesystem::file_size(
-        std::filesystem::path(laya::utf8_to_wide(opt.model_dir)) / laya::utf8_to_wide(opt.onnx_file), ec);
-    return ec ? std::string() : std::to_string(size);
-}
-
-LayaGpuTest LayaRerank::test_gpu(const Config& config, const std::string& adapter) {
-    LayaGpuTest result;
-    laya::RerankerOptions opt = model_options(config);
-    const std::wstring missing = missing_model_file(opt);
-    if (!missing.empty()) {
-        result.error = "missing " + laya::wide_to_utf8(missing);
-        return result;
-    }
-    {
-        std::shared_ptr<laya::Reranker> gpu = load_on_gpu(opt, adapter, &result.error);
-        if (!gpu) return result;
-        result.gpu_ms = median_score_ms(*gpu);
-    }  // the card's memory is released before the CPU copy is loaded
-    if (result.gpu_ms < 0) {
-        result.error = "the model does not run on this graphics card";
-        return result;
-    }
-    try {
-        laya::Reranker cpu(opt);
-        result.cpu_ms = median_score_ms(cpu);
-    } catch (const std::exception& e) {
-        result.error = e.what();
-        return result;
-    }
-    result.faster = result.cpu_ms > 0 && result.gpu_ms < result.cpu_ms;
-    laya_log(L"speed test on " + laya::utf8_to_wide(adapter) + L": " + std::to_wstring(result.gpu_ms) +
-             L" ms, CPU " + std::to_wstring(result.cpu_ms) + L" ms");
-    return result;
 }
 
 LayaRerankStats LayaRerank::stats() const {

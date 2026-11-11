@@ -43,15 +43,7 @@ struct LayaRerankStats {
     long long calls = 0;
     long long reordered = 0;
     double last_ms = 0.0;
-    bool on_gpu = false;  // the model runs on the graphics card named by laya.device
     bool ngram_ready = false;  // laya.ngram loaded with the model
-};
-
-struct LayaGpuTest {
-    bool faster = false;  // runs on the card and is faster than the CPU (Settings warns otherwise)
-    double gpu_ms = -1.0;
-    double cpu_ms = -1.0;
-    std::string error;  // why the card cannot be used (log text), empty when it ran
 };
 
 class LayaRerank {
@@ -113,14 +105,6 @@ public:
 
     // Starts loading the model in the background (no-op when already loaded or loading).
     void preload(const Config& config);
-
-    // Settings: loads the model on `adapter` (gpu_adapters.h) and on the CPU in turn, outside the
-    // shared model, and times a typical first page on each. Takes a few seconds; blocks.
-    LayaGpuTest test_gpu(const Config& config, const std::string& adapter);
-
-    // Settings: tells the configured model file apart (its size in bytes, empty when missing), so
-    // a speed test recorded with another model is run again rather than shown.
-    std::string model_id(const Config& config) const;
 
     LayaRerankStats stats() const;
 

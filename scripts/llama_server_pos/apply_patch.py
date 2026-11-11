@@ -154,5 +154,35 @@ edit('tools/server/server-context.cpp', [
         res->verbose           = slot.task->params.verbose;
         res->stream            = slot.task->params.stream;
         res->include_usage     = slot.task->params.include_usage;"""),
+    # "shared_prefix" (Zhiyi IME 1.6.5): several prompts in one /completion request share their
+    # common start, computed once (the grouping b11480 has for /decision)
+    ("""            tasks.push_back(std::move(task));
+        }
+
+        rd.post_tasks(std::move(tasks));
+    } catch (const std::exception & e) {
+        res->error(format_error_response(e.what(), ERROR_TYPE_INVALID_REQUEST));
+        return res;
+    }
+
+    bool stream = json_value(data, "stream", false);""",
+     """            tasks.push_back(std::move(task));
+        }
+
+        // Zhiyi: "shared_prefix": true with several prompts - their common token prefix (an IME page: the
+        // instruction and the context before its candidates) is computed once and copied to the others,
+        // which compute only their own tokens (the decision endpoint's grouping)
+        if (json_value(data, "shared_prefix", false) && tasks.size() > 1 &&
+                std::none_of(tasks.begin(), tasks.end(), [](const server_task & t) { return t.is_parent(); })) {
+            tasks = server_decision_group_tasks(std::move(tasks), params.n_parallel);
+        }
+
+        rd.post_tasks(std::move(tasks));
+    } catch (const std::exception & e) {
+        res->error(format_error_response(e.what(), ERROR_TYPE_INVALID_REQUEST));
+        return res;
+    }
+
+    bool stream = json_value(data, "stream", false);"""),
 ])
 print('patched', sys.argv[1])

@@ -1,11 +1,11 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
-// Where the Laya model (laya.device) and the voice model (voice.device) can run: the CPU, or a
+// Where the voice model (voice.device) can run: the CPU, or a
 // graphics card through DirectML. Cards offered: hardware adapters that create a Direct3D 12
 // device (feature level 11_0), do not share system memory (Direct3D 12's UMA: integrated
 // graphics, which were slower than the CPU in our measurements) and have at least the given
-// memory of their own (laya.min_gpu_memory_mb, voice.min_gpu_memory_mb; about 1 GB by default:
-// the Laya model takes about 500 MB on a card, the voice model less). A card is listed once
+// memory of their own (voice.min_gpu_memory_mb; about 1 GB by default: the voice model takes
+// less than 500 MB on a card). The Laya model ran on a card too until 1.6.5. A card is listed once
 // even when Windows enumerates it more than once (a virtual display driver adds a view of it
 // without a PCI address); two cards of the same model are both listed. dxgi.dll, d3d12.dll
 // and the D3DKMT functions are looked up on demand: processes that never ask (the text
@@ -24,7 +24,7 @@ constexpr std::uint64_t kDefaultMinGpuMemoryMb = 1000;
 
 struct GpuAdapter {
     std::string name;  // UTF-8 description ("NVIDIA GeForce RTX 5070 Ti")
-    // The laya.device value: the name, or "<name> #2" for the second card of the same model
+    // The voice.device value: the name, or "<name> #2" for the second card of the same model
     // (in enumeration order, which follows the PCI slots).
     std::string key;
     unsigned index = 0;               // IDXGIFactory1::EnumAdapters1 index (DirectML device_id)

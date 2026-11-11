@@ -21,9 +21,7 @@
 
 - **Context-aware recommendation**: a small model running on your computer reads the text before
   the caret, puts the most likely candidate first and marks it with a blue-purple star (权利 / 权力 /
-  全力). The model works offline; nothing you type leaves your computer. With a dedicated graphics
-  card the model can run on it instead (DirectML: NVIDIA, AMD and Intel cards; Settings tests the
-  speed first and uses the card only when it is faster than the CPU).
+  全力). The model runs on the CPU and works offline; nothing you type leaves your computer.
 - **Learning mode (candidate translations)**: each candidate shows what it means in another language,
   with English part-of-speech labels (n. v. adj. …) and up to three common senses, so you pick up a
   language while typing. Chinese candidates can be shown in English, Japanese, Korean, French,
@@ -128,7 +126,7 @@ Zhiyi IME is a modified version of [CxxIME](https://github.com/deanxyuan/cxx-ime
 - [Cantonese Wikipedia](https://zh-yue.wikipedia.org) (CC BY-SA 4.0): part of the text of ML-pumpkin-1026's Jyutping composition
 - [wordfreq](https://github.com/rspeer/wordfreq): English word frequencies (CC BY-SA 4.0)
 - [ONNX Runtime](https://github.com/microsoft/onnxruntime): model inference (MIT)
-- [DirectML](https://github.com/microsoft/DirectML): inference on graphics cards (Microsoft DirectML
+- [DirectML](https://github.com/microsoft/DirectML): voice recognition on graphics cards (Microsoft DirectML
   license, redistributable)
 
 The learning-mode language packs were generated offline by large language models (GLM, Gemma), then

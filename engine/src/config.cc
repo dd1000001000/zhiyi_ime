@@ -366,9 +366,6 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(l, "context_memory_seconds", config.laya.context_memory_seconds);
         config.laya.context_memory_seconds = (std::max)(0, config.laya.context_memory_seconds);
         load_int(l, "threads", config.laya.threads);
-        load_string(l, "device", config.laya.device);
-        load_int(l, "min_gpu_memory_mb", config.laya.min_gpu_memory_mb);
-        config.laya.min_gpu_memory_mb = std::clamp(config.laya.min_gpu_memory_mb, 0, 1 << 20);
         load_bool(l, "cache", config.laya.cache);
         load_bool(l, "context_cache", config.laya.context_cache);
         load_bool(l, "english", config.laya.english);
@@ -783,8 +780,6 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["context_chars"] = config.laya.context_chars;
     j["laya"]["context_memory_seconds"] = config.laya.context_memory_seconds;
     j["laya"]["threads"] = config.laya.threads;
-    j["laya"]["device"] = config.laya.device;
-    j["laya"]["min_gpu_memory_mb"] = config.laya.min_gpu_memory_mb;
     j["laya"]["cache"] = config.laya.cache;
     j["laya"]["context_cache"] = config.laya.context_cache;
     j["laya"]["english"] = config.laya.english;

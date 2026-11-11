@@ -3,7 +3,9 @@
 // Offline translation of candidates the language pack has no translation for
 // (docs/learning-mode.md): the downloaded model run by llama.cpp's llama-server.exe
 // (translator_files.h) on a graphics card or the CPU, asked over HTTP on 127.0.0.1 with a random
-// key. One request per candidate; the server's parallel slots translate a page at once.
+// key. One request per candidate; the server's parallel slots translate a page at once. On the
+// processor, the first page of a new context is one request with "shared_prefix" (the patched
+// runtime computes the prompts' common start once).
 #ifndef CXXIME_MACHINE_TRANSLATION_H_
 #define CXXIME_MACHINE_TRANSLATION_H_
 

@@ -148,14 +148,6 @@ private:
     void on_pack_action(int pack_index);
     bool handle_learning_command(int control_id, int notification);
     bool handle_learning_message(UINT message, WPARAM wparam, LPARAM lparam);
-    void load_gpu_choices();
-    void populate_device();
-    void fill_device_combo();
-    void show_device_result(double gpu_ms, double cpu_ms);
-    void show_device_hint(const wchar_t* text);
-    std::string selected_device() const;
-    void on_device_selected();
-    bool handle_gpu_message(UINT message, WPARAM wparam, LPARAM lparam);
     // Data location (editor_data_folder.cc)
     void create_data_card(HWND panel, int y);
     void show_data_folder();
@@ -234,12 +226,6 @@ private:
     HWND hAutostart_ = nullptr;  // startup.autostart
     HWND hLaya_ = nullptr;  // laya.enable (Chinese and English)
     HWND hExactPinyin_ = nullptr;  // laya.exact_pinyin_first
-    // laya.device (editor_gpu.cc): only created when this computer has a card to offer
-    HWND hDevice_ = nullptr;
-    HWND hDeviceHint_ = nullptr;
-    std::vector<GpuAdapter> gpu_choices_;  // the combo's items after "CPU"
-    bool gpu_testing_ = false;
-    bool device_warning_ = false;  // the hint says the card is slower than the CPU
     std::vector<UiLanguage> languages_;
     HWND hDataFolder_ = nullptr, hDataHint_ = nullptr;
     HWND hDataChange_ = nullptr, hDataDefault_ = nullptr;

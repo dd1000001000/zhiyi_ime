@@ -21,7 +21,8 @@ llama.cpp b11480 (https://github.com/ggml-org/llama.cpp), Windows x64 Vulkan bui
 libraries it loads. MIT License (LICENSE-llama.cpp.txt); libomp.dll is LLVM OpenMP (LICENSE-LLVM-OpenMP.txt).
 llama-server.exe, llama-server-impl.dll, llama-common.dll and mtmd.dll are built by Zhiyi IME from llama.cpp
 b11480 with a small patch: given "pos": true, /completion also returns the parts of speech of the text being
-translated, from the part-of-speech head stored in the model's GGUF (zhiyi.pos_head.*). The patch and how to
+translated, from the part-of-speech head stored in the model's GGUF (zhiyi.pos_head.*); given several prompts
+and "shared_prefix": true, their common start is computed once (since Zhiyi IME 1.6.5). The patch and how to
 build it are in https://github.com/dd1000001000/zhiyi_ime (scripts/llama_server_pos). The other libraries are
 those of llama.cpp's release llama-b11480-bin-win-vulkan-x64.zip. msvcp140.dll, vcruntime140.dll and
 vcruntime140_1.dll are the Microsoft Visual C++ runtime, redistributed with the program.

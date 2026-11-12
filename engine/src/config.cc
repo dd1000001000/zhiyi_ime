@@ -528,6 +528,8 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
     if (j.contains("voice") && j["voice"].is_object()) {
         auto& voice = j["voice"];
         load_bool(voice, "enable", config.voice_enable);
+        load_string(voice, "model", config.voice_model);
+        if (config.voice_model != "qwen3-asr") config.voice_model = "sensevoice";
         load_string(voice, "device", config.voice_device);
         load_string(voice, "language", config.voice_language);
         load_bool(voice, "itn", config.voice_itn);
@@ -909,6 +911,7 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["learning"]["space_languages"] = config.translation_space_languages;
     j["learning"]["digits_type_translation"] = config.digits_type_translation;
     j["voice"]["enable"] = config.voice_enable;
+    j["voice"]["model"] = config.voice_model;
     j["voice"]["device"] = config.voice_device;
     j["voice"]["language"] = config.voice_language;
     j["voice"]["itn"] = config.voice_itn;

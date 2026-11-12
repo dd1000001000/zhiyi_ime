@@ -307,6 +307,7 @@ private:
     HWND hVoiceAction_ = nullptr, hVoiceRemove_ = nullptr;
     HWND hVoiceDevice_ = nullptr, hVoiceLanguage_ = nullptr, hVoiceItn_ = nullptr;
     HWND hVoiceDeviceHint_ = nullptr;
+    HWND hVoiceModel_ = nullptr, hVoiceModelHint_ = nullptr;  // voice.model, and what the model is
     std::vector<GpuAdapter> voice_choices_;  // the device combo's items after the CPU
     bool voice_device_warning_ = false;      // the hint says the card is slower than the CPU
     double voice_cpu_ms_ = 0;                // the CPU's time, when it was timed alone

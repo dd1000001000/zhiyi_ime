@@ -4,12 +4,17 @@
 
 ## 用法
 
-1. 在“设置 > 语音输入”下载语音模型（约 240 MB），勾选“开启语音输入”。
+1. 在“设置 > 语音输入”选一个语音模型并下载，勾选“开启语音输入”（1.6.6 起两个模型可选，`voice.model`）：
+   - **SenseVoice-Small**（约 240 MB，默认）：说完后整段识别，CPU 上一句话约 0.1 秒；
+   - **Qwen3-ASR-0.6B**（约 680 MB）：识别更准，说话时文字实时显示在语音条上；只在 CPU 上运行，说完后一般 0.5～1 秒出字。
 2. 在“设置 > 按键”给“语音输入”设一个快捷键（默认没有）。和另外四个切换键一样，可以是单独轻按 Shift 或 Ctrl，
    也可以是 Ctrl / Alt 组合、Shift + Space 或 F1–F11。点按键框右侧的箭头可以选右 Ctrl 这类只认一侧的键。
 3. 在输入框里按快捷键开始说话。屏幕下方（输入框所在的屏幕）出现语音条：左边是麦克风，中间的波形在有人说话时跳动、
    没人说话时是一条平线，右边是停止键。
 4. 再按一次快捷键，或者用鼠标点语音条上的停止键，结束说话。语音条显示“正在识别”，一般不到一秒。
+
+   用 Qwen3-ASR 时，说话过程中每 2 秒把已经录到的整段重新识别一次，识别出的文字显示在语音条的波形和停止键之间
+   （太长时只显示末尾）；说完后再把整段识别一次，这一次的结果放进输入框。
 
    说完停顿 2 秒没有人声，录音也会自动结束，识别出的文字直接上屏（配置项 `voice.auto_stop_ms`，
    0 为不自动结束）；还没开口时至少等 5 秒。
@@ -48,6 +53,19 @@
 - **模型**：SenseVoice-Small（阿里巴巴通义实验室 FunAudioLLM），k2-fsa sherpa-onnx 导出的 int8 ONNX 版本。
   支持普通话、英语、粤语以及中英混说，自动加标点；其他方言暂不支持。
   “识别语言”可以选自动、普通话、英语、粤语。
+- **Qwen3-ASR-0.6B**（阿里巴巴通义千问团队）：知意从官方权重导出的 ONNX 混合精度版本（音频编码器 8 位；解码器的注意力投影和
+  `down_proj` 8 位，其余 4 位；输入词表和输出层共用一份），没有重新训练，发布为本仓库的
+  `voice-qwen3-asr-0.6b-preview`。识别语言同上（“自动”时由模型判断，支持的语言更多）；数字的写法由模型决定，
+  “写成阿拉伯数字”一项不起作用。各测试集均匀抽 200 句的错误率（中文字错率 / 英文词错率，%）：
+
+  | 模型 | AISHELL-1 | FLEURS 普通话 | LibriSpeech test-clean | FLEURS 英语 |
+  |---|---|---|---|---|
+  | SenseVoice-Small int8 | 4.12 | 7.87 | 3.62 | 9.42 |
+  | Qwen3-ASR-0.6B 混合精度 | **2.77** | **6.58** | **2.15** | **5.77** |
+
+  官方 BF16 版为 2.67 / 6.46 / 1.97 / 5.58。每句耗时（Ryzen 5 9600X，4 线程）中位数约 0.66 秒，SenseVoice 约 0.07 秒。
+  边说边出字按官方的流式做法：每次把录到的整段重新识别，第三次起把上一次的结果去掉最后 5 个词元作为回答的开头，
+  所以已经出来的字基本不会再变。
 - **数字**：默认把数字和日期写成阿拉伯数字（“下午3点”“10月15号”），可以在“语音输入”页关掉（`voice.itn`）。
 - **标点**：跟随中英文标点状态。英文标点时，识别结果里的全角标点换成半角（`，` → `, `）。
 - **有没有人声**：Silero VAD（v4）逐 32 毫秒判断有没有人说话，只用来决定波形跳不跳、整段录音有没有人声；
@@ -60,7 +78,7 @@
   DirectML 每遇到一种新的录音长度要先准备一次，而每次说话的长度都不一样，所以显卡往往比 CPU 慢（一台
   RTX 5070 Ti 约 0.2 秒，CPU 约 0.05 秒），一般用 CPU 就好。显卡上只用基础的图优化（ONNX Runtime 1.24 更高级的
   优化在 DirectML 上建这个模型时会崩溃）；显卡加载失败时 server 自动改用 CPU。
-- 模型在第一次说话时加载（边录边加载），10 分钟不用后从内存卸载。
+- 模型在第一次说话时加载（边录边加载），10 分钟不用后从内存卸载。Qwen3-ASR 加载约 1.5 秒，加载后约占 1 GB 内存。
 
 ## 模型文件
 
@@ -69,8 +87,14 @@
 文件放在本机数据目录的 `voice\v<版本>\`，`voice\voice.json` 记着装好的版本
 （`engine/include/cxxime/voice_files.h`）。更新时新版本装在旁边，旧版本在不用后删除。
 
+Qwen3-ASR 在同一个发布里另有一份签名清单 `voice-qwen3-asr.json`（`.sig`），文件是 `qwen3-asr-encoder.onnx`、
+`qwen3-asr-decoder.onnx`（两个 ONNX 图）、`qwen3-asr-tokens.txt`（各词元的字节）、`qwen3-asr-mel.bin`（梅尔滤波器）、
+`qwen3-asr.json`（音频前后的提示词元）、`silero_vad.onnx`（和 SenseVoice 的同一个文件）和许可证，装在本机数据目录的
+`voice-qwen3-asr\v<版本>\`。1.6.6 之前的版本只读 `voice.json`，也不会动这个文件夹。
+
 许可：SenseVoice-Small 为 FunASR 模型开源协议 1.1（可以使用、复制、修改和分享，须注明出处和作者并保留模型名称），
-Silero VAD 为 MIT 许可；许可证全文随模型下载（`LICENSE-SenseVoice.txt`、`LICENSE-silero-vad.txt`）。
+Qwen3-ASR-0.6B 为 Apache-2.0，Silero VAD 为 MIT 许可；许可证全文随模型下载（`LICENSE-SenseVoice.txt`、
+`LICENSE-Qwen3-ASR.txt`、`LICENSE-silero-vad.txt`）。
 
 ## 实现
 
@@ -80,9 +104,12 @@ Silero VAD 为 MIT 许可；许可证全文随模型下载（`LICENSE-SenseVoice
   所有按键都被引擎吃掉，Esc 表示放弃。还在用旧输入法组件的程序由引擎自己认语音快捷键（`engine.cc`）。
 - **录音和识别**（`server/src/voice_service.cc`）：zhiyi-server 用 WASAPI 共享模式打开默认麦克风，由 Windows
   转成 16 kHz 单声道（`voice_recorder.cc`）；识别用知意自带的 ONNX Runtime（和推荐模型同一份，CPU 或 DirectML），
-  前处理（Kaldi 滤波器组、7 帧拼接）和 CTC 解码在 `engine/src/voice_recognizer.cc`。
+  前处理（Kaldi 滤波器组、7 帧拼接）和 CTC 解码在 `engine/src/voice_recognizer.cc`。Qwen3-ASR 在
+  `engine/src/qwen_asr.cc`：前处理照官方处理器（Whisper 式 128 维对数梅尔谱，补到 30 秒），编码器出音频向量后，
+  解码器带 KV 缓存逐个生成词元（贪心）；边说边出字的那几次在 server 的工作线程上依次进行，一次没做完下一次就等着。
 - **语音条**（`voice_overlay.cc`）：server 里一个不抢焦点的置顶分层窗口，软件绘制（Direct2D），跟随候选窗口的主题。
 - **文字**（`tsf/src/text_service_voice.cpp`）：快捷键的回应说开始录音后，输入法组件每 100 毫秒问一次
   （`VOICE_STATUS`），拿到文字后作为自己的组字显示（带下划线）；输入框换了就告诉 server 放弃（`VOICE_CANCEL`）。
 
-开发时可以用私有工具 `voice_smoke <模型目录> <显卡序号或 -1> file.wav...` 直接识别 16 kHz 单声道 WAV 文件。
+开发时可以用私有工具 `voice_smoke <模型目录> <显卡序号或 -1> file.wav...` 直接识别 16 kHz 单声道 WAV 文件；
+`voice_smoke --qwen <模型目录> [--stream] file.wav...` 用 Qwen3-ASR，`--stream` 还打印每 2 秒的边说边出字结果。

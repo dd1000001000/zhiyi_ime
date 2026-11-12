@@ -188,7 +188,13 @@ Status download_translator_file(const TranslatorFile& file, const std::wstring& 
 //   voice.json.sig  signed like latest.json
 //   the files: model.int8.onnx, tokens.txt, silero_vad.onnx (all three required) and the
 //   models' licenses (LICENSE-*.txt)
+// Qwen3-ASR (from 1.6.6, voice.model "qwen3-asr") is in the same release, voice-qwen3-asr.json
+// (+ .sig, the same format): qwen3-asr-encoder.onnx, qwen3-asr-decoder.onnx, qwen3-asr-tokens.txt,
+// qwen3-asr-mel.bin, qwen3-asr.json and silero_vad.onnx (all six required; the VAD is the same
+// file as SenseVoice's) and its license. Older versions read only voice.json.
 inline constexpr char kVoiceReleasePath[] = "voice/";  // under kDownloadPrefix
+inline constexpr char kVoiceManifestFile[] = "voice.json";
+inline constexpr char kQwenVoiceManifestFile[] = "voice-qwen3-asr.json";
 
 struct VoiceManifest {
     std::uint32_t version = 0;
@@ -198,16 +204,18 @@ struct VoiceManifest {
     std::uint64_t total_size() const;
 };
 
+// qwen: voice-qwen3-asr.json's files instead of voice.json's.
 bool parse_voice_manifest(const std::string& text, const std::string& download_prefix,
-                          VoiceManifest* manifest);
+                          VoiceManifest* manifest, bool qwen = false);
 
 struct VoiceCheckResult {
     Status status = Status::kNetwork;
     VoiceManifest manifest;
 };
 
-// Downloads and verifies voice.json (blocking; run on a worker thread).
-VoiceCheckResult check_voice();
+// Downloads and verifies voice.json, or voice-qwen3-asr.json with qwen (blocking; run on a worker
+// thread).
+VoiceCheckResult check_voice(bool qwen = false);
 
 // %USERPROFILE%\zhiyi\update-state.json: a version the user skipped, and the version being
 // installed (so the next settings start can say it was updated).

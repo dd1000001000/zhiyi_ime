@@ -206,7 +206,7 @@ std::uint64_t VoiceManifest::total_size() const {
 }
 
 bool parse_voice_manifest(const std::string& text, const std::string& download_prefix,
-                          VoiceManifest* manifest) {
+                          VoiceManifest* manifest, bool qwen) {
     const nlohmann::json json = nlohmann::json::parse(text, nullptr, false);
     if (!manifest || !json.is_object()) return false;
     VoiceManifest parsed;
@@ -221,9 +221,14 @@ bool parse_voice_manifest(const std::string& text, const std::string& download_p
         (!parsed.min_app.empty() && !is_release_version(parsed.min_app))) {
         return false;
     }
-    // The three model files by name, and licenses: plain names, nothing else.
-    auto allowed = [](const std::string& name) {
-        if (name == "model.int8.onnx" || name == "tokens.txt" || name == "silero_vad.onnx") return true;
+    // The model's files by name, and licenses: plain names, nothing else.
+    static const char* const kSenseVoice[] = {"model.int8.onnx", "tokens.txt", "silero_vad.onnx"};
+    static const char* const kQwen[] = {"qwen3-asr-encoder.onnx", "qwen3-asr-decoder.onnx", "qwen3-asr-tokens.txt",
+                                        "qwen3-asr-mel.bin",      "qwen3-asr.json",         "silero_vad.onnx"};
+    const std::vector<std::string> required = qwen ? std::vector<std::string>(std::begin(kQwen), std::end(kQwen))
+                                                   : std::vector<std::string>(std::begin(kSenseVoice), std::end(kSenseVoice));
+    auto allowed = [&](const std::string& name) {
+        if (std::find(required.begin(), required.end(), name) != required.end()) return true;
         if (name.size() > 64 || name.rfind("LICENSE-", 0) != 0 ||
             name.compare(name.size() - 4, 4, ".txt") != 0) {
             return false;
@@ -232,7 +237,7 @@ bool parse_voice_manifest(const std::string& text, const std::string& download_p
             return std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '-' || c == '_';
         });
     };
-    int required = 0;
+    int count = 0;
     for (const nlohmann::json& item : *files) {
         if (!item.is_object() || !item.contains("file") || !item["file"].is_string() ||
             !item.contains("sha256") || !item["sha256"].is_string() || !item.contains("size") ||
@@ -248,10 +253,10 @@ bool parse_voice_manifest(const std::string& text, const std::string& download_p
         for (const TranslatorFile& seen : parsed.files) {
             if (seen.file == file.file) return false;
         }
-        if (file.file.rfind("LICENSE-", 0) != 0) ++required;
+        if (file.file.rfind("LICENSE-", 0) != 0) ++count;
         parsed.files.push_back(std::move(file));
     }
-    if (required != 3) return false;
+    if (count != static_cast<int>(required.size())) return false;
     *manifest = std::move(parsed);
     return true;
 }

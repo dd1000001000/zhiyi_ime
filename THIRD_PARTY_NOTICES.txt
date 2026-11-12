@@ -323,13 +323,21 @@ Voice input models (downloaded separately, not in the installer)
 ----------------------------------------------------------------
 
 Settings > Voice input downloads these from the release tagged "voice" of
-https://github.com/dd1000001000/zhiyi_ime, unchanged, each with its license file:
+https://github.com/dd1000001000/zhiyi_ime, each with its license file:
 
 - SenseVoice-Small (model.int8.onnx, tokens.txt), Tongyi Speech Lab, Alibaba Group
   (FunAudioLLM), https://github.com/FunAudioLLM/SenseVoice ; the int8 ONNX export of k2-fsa
   sherpa-onnx, https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17 .
   License: FunASR Model Open Source License, Version 1.1
   https://github.com/modelscope/FunASR/blob/main/MODEL_LICENSE
+  Unchanged.
+- Qwen3-ASR-0.6B (qwen3-asr-encoder.onnx, qwen3-asr-decoder.onnx, qwen3-asr-tokens.txt,
+  qwen3-asr-mel.bin, qwen3-asr.json), Qwen Team, Alibaba Group,
+  https://huggingface.co/Qwen/Qwen3-ASR-0.6B . License: Apache License 2.0.
+  Modified by Zhiyi IME: the official weights exported to ONNX and quantized (weight-only,
+  8-bit and 4-bit blocks of 32), the tied input embedding read from the output layer's
+  weight; the tokenizer, mel filters and prompt ids written out from the official
+  processor (Qwen/Qwen3-ASR-0.6B-hf). No retraining.
 - Silero VAD v4 (silero_vad.onnx), Silero Team, https://github.com/snakers4/silero-vad .
   License: MIT License.
 

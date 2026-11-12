@@ -383,21 +383,21 @@ TranslatorCheckResult check_translator() {
     return result;
 }
 
-VoiceCheckResult check_voice() {
+VoiceCheckResult check_voice(bool qwen) {
     VoiceCheckResult result;
     bool test = false;
     const std::string base = release_base(&test);
     const std::string prefix = test ? base : std::string(kDownloadPrefix);
     std::string manifest_text;
     std::string signature;
-    result.status = fetch(prefix + kVoiceReleasePath + "voice.json", kManifestLimit, &manifest_text);
+    const std::string name = qwen ? kQwenVoiceManifestFile : kVoiceManifestFile;
+    result.status = fetch(prefix + kVoiceReleasePath + name, kManifestLimit, &manifest_text);
     if (result.status == Status::kOk) {
-        result.status =
-            fetch(prefix + kVoiceReleasePath + "voice.json.sig", kSignatureLimit, &signature);
+        result.status = fetch(prefix + kVoiceReleasePath + name + ".sig", kSignatureLimit, &signature);
     }
     if (result.status != Status::kOk) return result;
     if (!verify_signature(manifest_text, trim(signature), builtin_public_key()) ||
-        !parse_voice_manifest(manifest_text, prefix, &result.manifest)) {
+        !parse_voice_manifest(manifest_text, prefix, &result.manifest, qwen)) {
         result.status = Status::kInvalid;
     }
     return result;

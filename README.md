@@ -104,5 +104,5 @@ ML-Flash-1103 和词语 n-gram ng1017；学习模式的离线翻译用 v4-1026�
 学习模式的语言包由大语言模型（GLM、Gemma）离线生成后经自动检查和人工修订，词表按 GPL-3.0 公开在
 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary)。
 
-知意输入法按 [GPL-3.0-only](LICENSE) 发布。知意自己训练的模型（各版上文推荐模型、离线翻译模型 v2、v3、v4）的权重按 [Apache-2.0](data/licenses/Apache-2.0.txt) 发布（2026-10-20 前为 GPL-3.0-only）；词语 n-gram ng1017 随其底座按 [LGPL-2.1-or-later](data/licenses/LGPL-2.1.txt) 发布；语音模型（SenseVoice-Small、Silero VAD）和 llama.cpp 运行库不是知意训练的，保持各自的许可，许可证随下载附带。各组件的完整声明见 [NOTICE](NOTICE) 和
+知意输入法按 [GPL-3.0-only](LICENSE) 发布。知意自己训练的模型（各版上文推荐模型、离线翻译模型 v2、v3、v4）的权重按 [Apache-2.0](data/licenses/Apache-2.0.txt) 发布（2026-10-20 前为 GPL-3.0-only）；词语 n-gram ng1017 随其底座按 [LGPL-2.1-or-later](data/licenses/LGPL-2.1.txt) 发布；语音模型（SenseVoice-Small、Qwen3-ASR-0.6B、Silero VAD）和 llama.cpp 运行库不是知意训练的，保持各自的许可，许可证随下载附带。各组件的完整声明见 [NOTICE](NOTICE) 和
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt)。开发与构建说明见 [docs/development.md](docs/development.md)。

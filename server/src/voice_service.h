@@ -12,9 +12,16 @@
 // text shows a message and ends. The model is loaded on first use and unloaded after a while
 // unused; recording, loading and recognizing run on threads of their own, never on the IPC
 // thread.
+//
+// voice.model picks the recognizer (voice_files.h). With Qwen3-ASR (qwen_asr.h) the recording so
+// far is recognized again every 2 s while listening (on the worker, one at a time; a step still
+// running when the next is due makes it wait) and the text goes to the bar (VoiceOverlay::
+// show_partial); when recording ends the whole recording is recognized once more for the text
+// that goes in.
 #ifndef CXXIME_SERVER_VOICE_SERVICE_H_
 #define CXXIME_SERVER_VOICE_SERVICE_H_
 
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -27,6 +34,8 @@
 
 #include <cxxime/config.h>
 #include <cxxime/punct_types.h>
+#include <cxxime/qwen_asr.h>
+#include <cxxime/voice_files.h>
 #include <cxxime/voice_recognizer.h>
 
 #include "voice_overlay.h"
@@ -88,6 +97,9 @@ private:
     void recording_failed(uint64_t generation, VoiceRecorder::Error error);
     bool ensure_detector(std::string* error);
     bool ensure_recognizer(std::string* error);
+    // The text while speaking, on the worker (Qwen only).
+    void stream_step(uint64_t generation);
+    cxxime::voice::VoiceModel model_kind();
     std::string tidy(std::string text, uint32_t owner);
 
     Sessions sessions_;
@@ -111,7 +123,11 @@ private:
     cxxime::voice::SpeechDetector detector_;
     std::wstring detector_model_;
     std::unique_ptr<cxxime::voice::SpeechRecognizer> recognizer_;
+    std::unique_ptr<cxxime::voice::QwenRecognizer> qwen_;
     std::wstring recognizer_model_;
+    // The text while speaking: a step is queued or running (set by the recorder's thread).
+    std::atomic<bool> step_pending_{false};
+    uint64_t streamed_generation_ = 0;  // the recording qwen_->start() was called for
     std::string recognizer_device_;
     std::chrono::steady_clock::time_point last_used_{};
 };

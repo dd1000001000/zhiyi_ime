@@ -120,6 +120,9 @@ struct Config {
     // Voice input (docs/voice-input.md): the server records while the voice key is on and turns
     // the speech into text with the downloaded model (voice_recognizer.h, voice_files.h).
     bool voice_enable = false;            // voice.enable
+    // voice.model: "sensevoice" (SenseVoice-Small) or "qwen3-asr" (Qwen3-ASR-0.6B, the text shown
+    // while speaking, CPU only); voice_files.h.
+    std::string voice_model = "sensevoice";
     std::string voice_device;             // voice.device: "" the CPU, else a card key (gpu_adapters.h)
     std::string voice_language = "auto";  // voice.language: auto, zh, en or yue
     bool voice_itn = true;                // voice.itn: numbers and dates as digits ("3点")

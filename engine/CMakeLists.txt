@@ -88,6 +88,7 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         src/laya/reranker.cpp
         src/machine_translation.cc
         src/voice_recognizer.cc
+        src/qwen_asr.cc
         src/voice_files.cc
     )
     # Offline translation (machine_translation.h): llama-server.exe over HTTP on 127.0.0.1.

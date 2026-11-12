@@ -110,11 +110,12 @@ void VoiceService::run() {
                 CXXIME_LOG(L"%s", L"voice: the client did not take the text");
                 expired = drop_locked();
             }
-            unload = phase_ == Phase::kIdle && recognizer_ && now - last_used_ > kModelIdle;
+            unload = phase_ == Phase::kIdle && (recognizer_ || qwen_) && now - last_used_ > kModelIdle;
         }
         if (expired) release_capture(expired);
         if (unload) {
             recognizer_.reset();
+            qwen_.reset();
             recognizer_model_.clear();
             CXXIME_LOG(L"%s", L"voice: model unloaded (unused)");
         }
@@ -183,7 +184,7 @@ void VoiceService::toggle(uint32_t id) {
     } else if (!sessions_.capabilities ||
                (sessions_.capabilities(id) & cxxime::kClientCapabilityVoiceInput) == 0) {
         refused = VoiceOverlay::Message::kRestartProgram;
-    } else if (!cxxime::voice::find_installed(nullptr)) {
+    } else if (!cxxime::voice::find_installed(cxxime::voice::parse_voice_model(config->voice_model), nullptr)) {
         refused = VoiceOverlay::Message::kNoModel;
     }
     if (refused) {
@@ -267,9 +268,14 @@ uint32_t VoiceService::take_status(uint32_t id, std::string* text) {
     return cxxime::kVoiceDone;
 }
 
+cxxime::voice::VoiceModel VoiceService::model_kind() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return cxxime::voice::parse_voice_model(config_ ? config_->voice_model : std::string());
+}
+
 bool VoiceService::ensure_detector(std::string* error) {
     cxxime::voice::InstalledModel installed;
-    if (!cxxime::voice::find_installed(&installed)) {
+    if (!cxxime::voice::find_installed(model_kind(), &installed)) {
         if (error) *error = "model not installed";
         return false;
     }
@@ -280,8 +286,9 @@ bool VoiceService::ensure_detector(std::string* error) {
 }
 
 bool VoiceService::ensure_recognizer(std::string* error) {
+    const cxxime::voice::VoiceModel kind = model_kind();
     cxxime::voice::InstalledModel installed;
-    if (!cxxime::voice::find_installed(&installed)) {
+    if (!cxxime::voice::find_installed(kind, &installed)) {
         if (error) *error = "model not installed";
         return false;
     }
@@ -291,6 +298,27 @@ bool VoiceService::ensure_recognizer(std::string* error) {
         if (config_) device = config_->voice_device;
     }
     last_used_ = std::chrono::steady_clock::now();
+    if (kind == cxxime::voice::VoiceModel::kQwen) {
+        // The CPU only (its 4-bit weights have no DirectML kernels).
+        if (qwen_ && recognizer_model_ == installed.model) return true;
+        recognizer_.reset();
+        qwen_.reset();
+        auto qwen = std::make_unique<cxxime::voice::QwenRecognizer>();
+        const auto start = std::chrono::steady_clock::now();
+        if (!qwen->load({installed.model, installed.decoder, installed.tokens, installed.mel, installed.config},
+                        cxxime::voice::cpu_threads(), error)) {
+            return false;
+        }
+        CXXIME_LOG(L"voice: Qwen3-ASR loaded in %lld ms",
+                   static_cast<long long>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                              std::chrono::steady_clock::now() - start)
+                                              .count()));
+        qwen_ = std::move(qwen);
+        recognizer_model_ = installed.model;
+        streamed_generation_ = 0;
+        return true;
+    }
+    qwen_.reset();
     if (recognizer_ && recognizer_model_ == installed.model && recognizer_device_ == device) return true;
     recognizer_.reset();
     auto recognizer = std::make_unique<cxxime::voice::SpeechRecognizer>();
@@ -342,14 +370,22 @@ void VoiceService::begin_recording(uint64_t generation) {
         return;
     }
     VoiceRecorder::Listener listener;
+    const bool streaming = model_kind() == cxxime::voice::VoiceModel::kQwen;
+    step_pending_ = false;
     // voice.auto_stop_ms without speech ends it (before any speech, at least kQuietBeforeSpeech:
     // time to begin).
     static constexpr std::chrono::milliseconds kQuietBeforeSpeech{5000};
     using Clock = std::chrono::steady_clock;
-    listener.level = [this, generation, auto_stop_ms, started = Clock::now(),
-                      last_speech = Clock::time_point{}, ended = false](float level,
-                                                                        bool speaking) mutable {
+    // The text while speaking: every kStepWindows windows (2 s) once someone has spoken.
+    static constexpr int kStepWindows = 2 * cxxime::voice::kSampleRate / static_cast<int>(cxxime::voice::kVadWindow);
+    listener.level = [this, generation, auto_stop_ms, streaming, started = Clock::now(),
+                      last_speech = Clock::time_point{}, ended = false, windows = 0,
+                      spoke = false](float level, bool speaking) mutable {
         overlay_.add_level(level, speaking);
+        spoke = spoke || speaking;
+        if (streaming && ++windows % kStepWindows == 0 && spoke && !step_pending_.exchange(true)) {
+            post([this, generation] { stream_step(generation); });
+        }
         if (auto_stop_ms <= 0 || ended) return;
         const auto now = Clock::now();
         if (speaking) last_speech = now;
@@ -375,6 +411,51 @@ void VoiceService::begin_recording(uint64_t generation) {
     recorder_.start(&detector_, max_seconds, std::move(listener));
     // The model, while the user speaks (the first time takes about a second).
     if (!ensure_recognizer(&error)) CXXIME_LOG(L"voice: model failed to load: %S", error.c_str());
+}
+
+void VoiceService::stream_step(uint64_t generation) {
+    uint32_t owner = 0;
+    std::string language = "auto";
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (generation != generation_ || phase_ != Phase::kListening) {
+            step_pending_ = false;
+            return;
+        }
+        owner = owner_;
+        if (config_) language = config_->voice_language;
+    }
+    std::string error;
+    if (!ensure_recognizer(&error) || !qwen_) {
+        step_pending_ = false;
+        return;
+    }
+    if (streamed_generation_ != generation) {
+        qwen_->start(cxxime::voice::parse_language(language));
+        streamed_generation_ = generation;
+    }
+    const std::vector<float> samples = recorder_.snapshot();
+    std::string text;
+    const auto start = std::chrono::steady_clock::now();
+    const bool ok = qwen_->partial(samples.data(), samples.size(), &text, &error);
+    last_used_ = std::chrono::steady_clock::now();
+    step_pending_ = false;
+    if (!ok) {
+        CXXIME_LOG(L"voice: text while speaking failed: %S", error.c_str());
+        return;
+    }
+    CXXIME_LOG(L"voice: %.1f s so far recognized in %lld ms", samples.size() / 16000.0,
+               static_cast<long long>(
+                   std::chrono::duration_cast<std::chrono::milliseconds>(last_used_ - start).count()));
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (generation != generation_ || phase_ != Phase::kListening) return;
+    }
+    text = tidy(std::move(text), owner);
+    const int length = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+    std::wstring wide(static_cast<std::size_t>((std::max)(0, length)), L'\0');
+    if (length > 0) MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), wide.data(), length);
+    overlay_.show_partial(wide);
 }
 
 void VoiceService::recording_failed(uint64_t generation, VoiceRecorder::Error error) {
@@ -422,9 +503,10 @@ void VoiceService::finish_recording(uint64_t generation) {
     std::string error;
     std::string text;
     const auto start = std::chrono::steady_clock::now();
+    const cxxime::voice::Language spoken = cxxime::voice::parse_language(language);
     if (!ensure_recognizer(&error) ||
-        !recognizer_->transcribe(samples.data(), samples.size(), cxxime::voice::parse_language(language),
-                                 itn, &text, &error)) {
+        !(qwen_ ? qwen_->transcribe(samples.data(), samples.size(), spoken, &text, &error)
+                : recognizer_->transcribe(samples.data(), samples.size(), spoken, itn, &text, &error))) {
         CXXIME_LOG(L"voice: recognition failed: %S", error.c_str());
         end(VoiceOverlay::Message::kFailed);
         return;

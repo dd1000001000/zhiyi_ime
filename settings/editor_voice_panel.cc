@@ -1,9 +1,10 @@
 // Copyright (c) 2026 Zhiyi IME Contributors. GPL-3.0-only.
 //
 // The Voice input page (docs/voice-input.md): turn it on, the voice key set on the Keys page,
-// download, update and remove the model (update.h: the release tagged "voice"; voice_files.h:
-// where it goes), and where and how it recognizes: the CPU or a graphics card (DirectML), the
-// language, numbers as digits. The longest recording (voice.max_seconds) is only in the file.
+// the model (voice.model: SenseVoice-Small or Qwen3-ASR-0.6B), download, update and remove it
+// (update.h: the release tagged "voice"; voice_files.h: where it goes), and where and how it
+// recognizes: the CPU or a graphics card (DirectML; SenseVoice only), the language, numbers as
+// digits (SenseVoice only). The longest recording (voice.max_seconds) is only in the file.
 //
 // Choosing a card times the model there and on the CPU (voice::time_recognition, 5 s of sound)
 // as the General page does for the recommendation model; the hint shows both, in the warning
@@ -47,6 +48,7 @@ enum ControlId {
     kVoiceDeviceId,
     kVoiceLanguageId,
     kVoiceItnId,
+    kVoiceModelId,
 };
 
 constexpr UINT kVoiceCheckedMessage = WM_APP + 100;    // lParam: VoiceChecked*
@@ -76,7 +78,15 @@ struct VoiceTested {
     double cpu_ms = 0.0;  // 0: not timed, or it failed
 };
 
-fs::path voice_root() { return fs::path(utf8_to_wstr(local_data_dir())) / voice::kVoiceDir; }
+fs::path voice_root(voice::VoiceModel model) {
+    return fs::path(utf8_to_wstr(local_data_dir())) / voice::voice_model_dir(model);
+}
+
+// The model chosen in the combo (its items in VoiceModel order).
+voice::VoiceModel chosen_model(HWND combo) {
+    return combo && SendMessageW(combo, CB_GETCURSEL, 0, 0) == 1 ? voice::VoiceModel::kQwen
+                                                                  : voice::VoiceModel::kSenseVoice;
+}
 
 // What the speed tests are kept for: the installed model's version ("" without one).
 std::string model_id() {
@@ -154,9 +164,9 @@ bool same_sha256(const fs::path& path, const std::string& sha256) {
 // Downloads `manifest` into voice\v<N> and points voice.json at it. Files the installed version
 // already has (same SHA-256) are linked, not downloaded again.
 VoiceInstalled install(const update::VoiceManifest& manifest, const std::atomic<bool>* cancel,
-                       HWND window) {
+                       HWND window, voice::VoiceModel model) {
     VoiceInstalled result;
-    const fs::path root = voice_root();
+    const fs::path root = voice_root(model);
     const fs::path downloads = root / L"download";
     const std::wstring version = L"v" + std::to_wstring(manifest.version);
     const fs::path staging = root / (version + L".new");
@@ -176,7 +186,7 @@ VoiceInstalled install(const update::VoiceManifest& manifest, const std::atomic<
                      static_cast<LPARAM>(total >> 20));
     };
     voice::InstalledModel installed;
-    const bool have = voice::find_installed(&installed);
+    const bool have = voice::find_installed(model, &installed);
     for (const update::TranslatorFile& file : manifest.files) {
         const fs::path target = staging / fs::u8path(file.file);
         const fs::path old = have ? fs::path(installed.dir) / fs::u8path(file.file) : fs::path();
@@ -235,7 +245,7 @@ void EditorApp::create_voice_panel(HWND panel) {
     const int x0 = kPanelPadLeft;
     RECT client = {};
     GetClientRect(panel, &client);
-    const int labels = label_width({"voice.key", "voice.device", "voice.language"});
+    const int labels = label_width({"voice.key", "voice.model", "voice.device", "voice.language"});
 
     int y = card_begin(panel, kPanelPadTop, tr("voice.card"));
     hVoiceEnable_ = make_check(kVoiceEnableId, tr("voice.enable"), x0, y, S(440), panel);
@@ -252,6 +262,12 @@ void EditorApp::create_voice_panel(HWND panel) {
     y = card_end(panel, y);
 
     y = card_begin(panel, y, tr("voice.card_model"));
+    const int model_x = make_aligned_label(tr("voice.model"), x0, labels, y, panel);
+    hVoiceModel_ = make_combo(kVoiceModelId, model_x, y, S(420), panel);
+    combo_add(hVoiceModel_, tr("voice.model_sensevoice"));
+    combo_add(hVoiceModel_, tr("voice.model_qwen"));
+    combo_set_index(hVoiceModel_, 0);
+    y += kRowH;
     hVoiceStatus_ = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_LEFT | SS_ENDELLIPSIS,
                                     x0, y + S(5), client.right - x0 - S(240), S(kFontPt + 8), panel,
                                     nullptr, GetModuleHandle(nullptr), nullptr);
@@ -260,7 +276,7 @@ void EditorApp::create_voice_panel(HWND panel) {
     hVoiceRemove_ = make_button(kVoiceRemoveId, tr("learning.remove"), client.right - x0 - S(78), y,
                                 S(78), panel);
     y += kRowH;
-    make_hint(tr("voice.model_hint"), x0, y - S(4), S(560), panel, 2);
+    hVoiceModelHint_ = make_hint(tr("voice.model_hint"), x0, y - S(4), S(560), panel, 2);
     y += S(2 * (kFontPt + 6) + 8);
 
     const int device_x = make_aligned_label(tr("voice.device"), x0, labels, y, panel);
@@ -321,6 +337,10 @@ void EditorApp::show_voice_device_hint(const wchar_t* text, bool warning) {
 
 // The hint for the device chosen now: a card's recorded times, else what choosing one does.
 void EditorApp::show_voice_device() {
+    if (chosen_model(hVoiceModel_) == voice::VoiceModel::kQwen) {
+        show_voice_device_hint(tr("voice.device_hint_qwen"), false);
+        return;
+    }
     const int index = combo_index(hVoiceDevice_);
     if (index > 0 && index <= static_cast<int>(voice_choices_.size())) {
         const nlohmann::json state = read_test_state();
@@ -342,8 +362,12 @@ void EditorApp::show_voice_device() {
 
 // Times the chosen device: a card and then the CPU, or the CPU alone.
 void EditorApp::start_voice_test() {
+    // SenseVoice only: Qwen3-ASR runs on the CPU.
     voice::InstalledModel installed;
-    if (voice_busy_ != VoiceBusy::kNone || !voice::find_installed(&installed)) return;
+    if (voice_busy_ != VoiceBusy::kNone || chosen_model(hVoiceModel_) != voice::VoiceModel::kSenseVoice ||
+        !voice::find_installed(&installed)) {
+        return;
+    }
     const int index = combo_index(hVoiceDevice_);
     auto* tested = new VoiceTested;
     tested->model = model_id();
@@ -370,7 +394,9 @@ void EditorApp::start_voice_test() {
 
 void EditorApp::populate_voice() {
     if (!hVoiceEnable_) return;
-    set_check(hVoiceEnable_, config_.voice_enable && voice::find_installed(nullptr));
+    const voice::VoiceModel model = voice::parse_voice_model(config_.voice_model);
+    combo_set_index(hVoiceModel_, model == voice::VoiceModel::kQwen ? 1 : 0);
+    set_check(hVoiceEnable_, config_.voice_enable && voice::find_installed(model, nullptr));
     int device = 0;
     for (std::size_t i = 0; i < voice_choices_.size(); ++i) {
         if (voice_choices_[i].key == config_.voice_device) device = static_cast<int>(i) + 1;
@@ -389,7 +415,9 @@ void EditorApp::populate_voice() {
 
 void EditorApp::read_voice(Config& config) {
     if (!hVoiceEnable_) return;
-    config.voice_enable = voice::find_installed(nullptr) && get_check(hVoiceEnable_);
+    const voice::VoiceModel model = chosen_model(hVoiceModel_);
+    config.voice_model = voice::voice_model_name(model);
+    config.voice_enable = voice::find_installed(model, nullptr) && get_check(hVoiceEnable_);
     const int device = combo_index(hVoiceDevice_);
     config.voice_device = device > 0 && device <= static_cast<int>(voice_choices_.size())
                               ? voice_choices_[static_cast<std::size_t>(device - 1)].key
@@ -408,8 +436,11 @@ void EditorApp::show_voice_key() {
 
 void EditorApp::show_voice_state() {
     if (!hVoiceStatus_) return;
+    const voice::VoiceModel model = chosen_model(hVoiceModel_);
+    const bool qwen = model == voice::VoiceModel::kQwen;
     voice::InstalledModel installed;
-    const bool have = voice::find_installed(&installed);
+    const bool have = voice::find_installed(model, &installed);
+    if (hVoiceModelHint_) SetWindowTextW(hVoiceModelHint_, tr(qwen ? "voice.model_hint_qwen" : "voice.model_hint"));
     std::wstring status;
     const wchar_t* action = nullptr;
     switch (voice_busy_) {
@@ -425,7 +456,7 @@ void EditorApp::show_voice_state() {
         break;
     case VoiceBusy::kNone:
         if (!have) {
-            status = tr("voice.missing");
+            status = tr(qwen ? "voice.missing_qwen" : "voice.missing");
             action = tr("learning.download");
         } else {
             status = fill(tr("voice.installed"), {std::to_wstring(installed.version)});
@@ -452,7 +483,9 @@ void EditorApp::show_voice_state() {
     ShowWindow(hVoiceRemove_, have && voice_busy_ == VoiceBusy::kNone ? SW_SHOW : SW_HIDE);
     // Voice input needs the model; the device is timed with it.
     EnableWindow(hVoiceEnable_, have && voice_busy_ == VoiceBusy::kNone);
-    EnableWindow(hVoiceDevice_, have && voice_busy_ == VoiceBusy::kNone);
+    EnableWindow(hVoiceDevice_, have && !qwen && voice_busy_ == VoiceBusy::kNone);
+    EnableWindow(hVoiceItn_, !qwen);  // Qwen3-ASR writes numbers as it does
+    EnableWindow(hVoiceModel_, voice_busy_ == VoiceBusy::kNone);
     if (!have) set_check(hVoiceEnable_, false);
 }
 
@@ -461,8 +494,9 @@ void EditorApp::start_voice_check() {
     voice_note_.clear();
     show_voice_state();
     const HWND window = hwnd_;
-    std::thread([window] {
-        auto* checked = new VoiceChecked{update::check_voice()};
+    const bool qwen = chosen_model(hVoiceModel_) == voice::VoiceModel::kQwen;
+    std::thread([window, qwen] {
+        auto* checked = new VoiceChecked{update::check_voice(qwen)};
         if (!PostMessageW(window, kVoiceCheckedMessage, 0, reinterpret_cast<LPARAM>(checked))) delete checked;
     }).detach();
 }
@@ -476,9 +510,10 @@ void EditorApp::start_voice_install() {
     show_voice_state();
     const HWND window = hwnd_;
     const auto cancel = voice_cancel_;
-    std::thread([window, cancel] {
+    const voice::VoiceModel model = chosen_model(hVoiceModel_);
+    std::thread([window, cancel, model] {
         auto* done = new VoiceInstalled;
-        const update::VoiceCheckResult checked = update::check_voice();
+        const update::VoiceCheckResult checked = update::check_voice(model == voice::VoiceModel::kQwen);
         if (checked.status != update::Status::kOk) {
             done->status = checked.status;
         } else if (!checked.manifest.min_app.empty() &&
@@ -486,7 +521,7 @@ void EditorApp::start_voice_install() {
             done->status = update::Status::kInvalid;
             done->error = fill(tr("voice.needs_app"), {utf8_to_wstr(checked.manifest.min_app)});
         } else {
-            *done = install(checked.manifest, cancel.get(), window);
+            *done = install(checked.manifest, cancel.get(), window, model);
         }
         if (!PostMessageW(window, kVoiceInstalledMessage, 0, reinterpret_cast<LPARAM>(done))) delete done;
     }).detach();
@@ -498,7 +533,7 @@ void EditorApp::remove_voice() {
         return;
     }
     std::error_code error;
-    fs::remove_all(voice_root(), error);
+    fs::remove_all(voice_root(chosen_model(hVoiceModel_)), error);
     set_check(hVoiceEnable_, false);
     voice_remote_known_ = false;
     voice_cpu_ms_ = 0;
@@ -531,13 +566,22 @@ bool EditorApp::handle_voice_command(int control_id, int notification) {
     case kVoiceLanguageId:
     case kVoiceItnId:
         return true;
+    case kVoiceModelId:
+        if (notification == CBN_SELCHANGE) {
+            // The other model's state: checked again when asked.
+            voice_remote_known_ = false;
+            voice_note_.clear();
+            show_voice_state();
+            show_voice_device();
+        }
+        return true;
     case kVoiceActionId:
         if (notification != BN_CLICKED) return true;
         if (voice_busy_ == VoiceBusy::kDownloading) {
             if (voice_cancel_) voice_cancel_->store(true);
         } else if (voice_busy_ == VoiceBusy::kNone) {
             voice::InstalledModel installed;
-            const bool have = voice::find_installed(&installed);
+            const bool have = voice::find_installed(chosen_model(hVoiceModel_), &installed);
             if (!have || (voice_remote_known_ && voice_remote_.version > installed.version)) {
                 start_voice_install();
             } else {

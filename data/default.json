@@ -85,6 +85,7 @@
     },
     "voice": {
         "enable": false,
+        "model": "sensevoice",
         "device": "",
         "language": "auto",
         "itn": true,

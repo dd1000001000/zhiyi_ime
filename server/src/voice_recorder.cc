@@ -65,6 +65,11 @@ std::vector<float> VoiceRecorder::stop(bool* heard) {
     return out;
 }
 
+std::vector<float> VoiceRecorder::snapshot() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return samples_;
+}
+
 void VoiceRecorder::deliver(const float* samples, std::size_t count, std::size_t max_samples) {
     std::lock_guard<std::mutex> lock(mutex_);
     const std::size_t room = max_samples > samples_.size() ? max_samples - samples_.size() : 0;

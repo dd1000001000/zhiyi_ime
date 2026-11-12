@@ -36,8 +36,18 @@ bool safe_dir(const std::string& dir) {
 
 }  // namespace
 
-bool find_installed(InstalledModel* installed) {
-    const std::wstring root = wide(local_data_dir()) + wide(kVoiceDir) + L"\\";
+VoiceModel parse_voice_model(const std::string& name) {
+    return name == "qwen3-asr" ? VoiceModel::kQwen : VoiceModel::kSenseVoice;
+}
+
+const char* voice_model_name(VoiceModel model) { return model == VoiceModel::kQwen ? "qwen3-asr" : "sensevoice"; }
+
+const char* voice_model_dir(VoiceModel model) { return model == VoiceModel::kQwen ? kQwenVoiceDir : kVoiceDir; }
+
+bool find_installed(InstalledModel* installed) { return find_installed(VoiceModel::kSenseVoice, installed); }
+
+bool find_installed(VoiceModel model, InstalledModel* installed) {
+    const std::wstring root = wide(local_data_dir()) + wide(voice_model_dir(model)) + L"\\";
     std::ifstream file{std::filesystem::path(root + wide(kVoiceInstalled))};
     const nlohmann::json state = nlohmann::json::parse(file, nullptr, false);
     if (!state.is_object() || !state.contains("dir") || !state["dir"].is_string() ||
@@ -45,11 +55,21 @@ bool find_installed(InstalledModel* installed) {
         return false;
     }
     InstalledModel found;
+    found.kind = model;
     found.dir = root + wide(state["dir"].get<std::string>()) + L"\\";
-    found.model = found.dir + wide(kVoiceModelFile);
-    found.tokens = found.dir + wide(kVoiceTokensFile);
     found.vad = found.dir + wide(kVoiceVadFile);
     found.version = state.value("version", 0u);
+    if (model == VoiceModel::kQwen) {
+        found.model = found.dir + wide(kQwenEncoderFile);
+        found.decoder = found.dir + wide(kQwenDecoderFile);
+        found.tokens = found.dir + wide(kQwenTokensFile);
+        found.mel = found.dir + wide(kQwenMelFile);
+        found.config = found.dir + wide(kQwenConfigFile);
+        if (!file_exists(found.decoder) || !file_exists(found.mel) || !file_exists(found.config)) return false;
+    } else {
+        found.model = found.dir + wide(kVoiceModelFile);
+        found.tokens = found.dir + wide(kVoiceTokensFile);
+    }
     if (!file_exists(found.model) || !file_exists(found.tokens) || !file_exists(found.vad)) return false;
     if (installed) *installed = std::move(found);
     return true;

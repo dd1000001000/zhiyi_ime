@@ -30,6 +30,10 @@ constexpr float kButton = 34.0f;      // the microphone and stop circles
 constexpr float kSideGap = 9.0f;      // from the bar's end to a circle
 constexpr float kBottomGap = 72.0f;   // above the bottom of the work area
 constexpr int kBars = 22;
+// With the text while speaking: a wider bar, a short waveform, the text between it and the stop
+// button.
+constexpr float kPartialBarWidth = 560.0f;
+constexpr int kPartialBars = 8;
 constexpr float kTextSize = 13.0f;
 
 template <typename T>
@@ -91,6 +95,7 @@ struct VoiceOverlay::Impl {
     Mode mode = Mode::kHidden;
     Message message = Message::kNoSpeech;
     std::deque<float> levels;  // newest last; 0 while nobody speaks
+    std::wstring partial;      // the text while speaking
     cxxime::Theme theme;
     bool english = false;
     bool shown_changed = false;  // the mode changed: placed again
@@ -111,6 +116,8 @@ struct VoiceOverlay::Impl {
     float scale = 1.0f;
     D2D1_POINT_2F stop_center = {};  // DIPs, window coordinates
     bool stop_visible = false;
+    std::wstring fitted_for, fitted;  // the text while speaking, and the part of it that fits
+    float fitted_scale = 0.0f;
 
     void run();
     static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
@@ -154,6 +161,7 @@ void VoiceOverlay::show_listening() {
         std::lock_guard<std::mutex> lock(impl_->mutex);
         impl_->mode = Impl::Mode::kListening;
         impl_->levels.assign(kBars, 0.0f);
+        impl_->partial.clear();
         impl_->shown_changed = true;
     }
     if (impl_->hwnd) PostMessageW(impl_->hwnd, kUpdateMessage, 0, 0);
@@ -163,6 +171,15 @@ void VoiceOverlay::add_level(float level, bool speaking) {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     impl_->levels.push_back(speaking ? level : 0.0f);
     while (impl_->levels.size() > static_cast<std::size_t>(kBars)) impl_->levels.pop_front();
+}
+
+void VoiceOverlay::show_partial(const std::wstring& text) {
+    {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        if (impl_->mode != Impl::Mode::kListening || impl_->partial == text) return;
+        impl_->partial = text;
+    }
+    if (impl_->hwnd) PostMessageW(impl_->hwnd, kUpdateMessage, 0, 0);
 }
 
 void VoiceOverlay::show_recognizing() {
@@ -400,10 +417,12 @@ void VoiceOverlay::Impl::render() {
     Message shown_message;
     cxxime::Theme colors;
     bool in_english;
+    std::wstring partial_text;
     std::array<float, kBars> wanted = {};
     {
         std::lock_guard<std::mutex> lock(mutex);
         now = mode;
+        partial_text = partial;
         shown_message = message;
         colors = theme;
         in_english = english;
@@ -441,6 +460,8 @@ void VoiceOverlay::Impl::render() {
         text = strings.messages[static_cast<int>(shown_message)];
         bar_width = (std::min)(560.0f, (std::max)(200.0f, kSideGap + kButton + 12.0f +
                                                               text_width(text, format) + 22.0f));
+    } else if (now == Mode::kListening && !partial_text.empty()) {
+        bar_width = kPartialBarWidth;
     }
     const float width_dip = bar_width + 2 * kShadow;
     const float height_dip = kBarHeight + 2 * kShadow;
@@ -518,18 +539,55 @@ void VoiceOverlay::Impl::render() {
         const cxxime::Color on_accent = colors.hilited_text;
         if (now == Mode::kListening) {
             draw_microphone(left, color(accent), color(on_accent));
-            // The waveform: newest on the right; a dot where nobody spoke.
+            // The waveform: newest on the right; a dot where nobody spoke. With text, the last
+            // kPartialBars of it, then the text.
+            const bool with_text = !partial_text.empty();
+            const int bars = with_text ? kPartialBars : kBars;
             const float from = left.x + kButton / 2 + 14.0f;
-            const float to = stop_center.x - kButton / 2 - 14.0f;
-            const float step = (to - from) / kBars;
+            const float to = with_text ? from + 7.0f * bars : stop_center.x - kButton / 2 - 14.0f;
+            const float step = (to - from) / bars;
             brush->SetColor(color(accent, 0.9f));
-            for (int i = 0; i < kBars; ++i) {
+            for (int i = 0; i < bars; ++i) {
                 const float x = from + step * (i + 0.5f);
-                const float h = 3.0f + shown_levels[i] * (kBarHeight - 22.0f);
+                const float h = 3.0f + shown_levels[kBars - bars + i] * (kBarHeight - 22.0f);
                 target->FillRoundedRectangle(
                     D2D1::RoundedRect(D2D1::RectF(x - 1.5f, middle - h / 2, x + 1.5f, middle + h / 2),
                                       1.5f, 1.5f),
                     brush);
+            }
+            if (with_text) {
+                // The end of the text when it does not fit.
+                const float text_from = to + 10.0f;
+                const float text_to = stop_center.x - kButton / 2 - 12.0f;
+                // Fitted once per text (and scale), not every frame: the fewest characters cut
+                // from the start, found by halving.
+                if (partial_text != fitted_for || scale != fitted_scale) {
+                    fitted_for = partial_text;
+                    fitted_scale = scale;
+                    fitted = partial_text;
+                    const float room = text_to - text_from;
+                    if (text_width(fitted, format) > room) {
+                        auto tail = [&](std::size_t cut) {
+                            // Not inside a surrogate pair.
+                            if (cut < partial_text.size() && partial_text[cut] >= 0xDC00 && partial_text[cut] <= 0xDFFF) ++cut;
+                            return L"\u2026" + partial_text.substr(cut);
+                        };
+                        std::size_t low = 1, high = partial_text.size();
+                        while (low < high) {
+                            const std::size_t middle_cut = (low + high) / 2;
+                            if (text_width(tail(middle_cut), format) > room) {
+                                low = middle_cut + 1;
+                            } else {
+                                high = middle_cut;
+                            }
+                        }
+                        fitted = tail(low);
+                    }
+                }
+                const std::wstring& shown = fitted;
+                brush->SetColor(color(colors.text));
+                target->DrawText(shown.c_str(), static_cast<UINT32>(shown.size()), format,
+                                 D2D1::RectF(text_from, kShadow, text_to, kShadow + kBarHeight), brush);
             }
             // Stop: a square in a circle.
             brush->SetColor(color(mix(colors.background, colors.text, pressed ? 0.24f : hover ? 0.16f : 0.08f)));

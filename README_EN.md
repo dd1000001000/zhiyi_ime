@@ -133,6 +133,6 @@ The learning-mode language packs were generated offline by large language models
 checked automatically and corrected by hand; the word lists are open under GPL-3.0 at
 [zhiyi-glossary](https://github.com/dd1000001000/zhiyi-glossary).
 
-Zhiyi IME is licensed under [GPL-3.0-only](LICENSE). The weights of the models Zhiyi trained itself (every recommendation model, offline translation models v2, v3 and v4) are licensed under [Apache-2.0](data/licenses/Apache-2.0.txt) (GPL-3.0-only until 2026-10-20); the word n-gram ng1017 is licensed under [LGPL-2.1-or-later](data/licenses/LGPL-2.1.txt) like its base; the voice models (SenseVoice-Small, Silero VAD) and the llama.cpp runtime are not Zhiyi's and keep their own licenses, which come with the download; full notices are in [NOTICE](NOTICE) and
+Zhiyi IME is licensed under [GPL-3.0-only](LICENSE). The weights of the models Zhiyi trained itself (every recommendation model, offline translation models v2, v3 and v4) are licensed under [Apache-2.0](data/licenses/Apache-2.0.txt) (GPL-3.0-only until 2026-10-20); the word n-gram ng1017 is licensed under [LGPL-2.1-or-later](data/licenses/LGPL-2.1.txt) like its base; the voice models (SenseVoice-Small, Qwen3-ASR-0.6B, Silero VAD) and the llama.cpp runtime are not Zhiyi's and keep their own licenses, which come with the download; full notices are in [NOTICE](NOTICE) and
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt). Development and build notes:
 [docs/development.md](docs/development.md).

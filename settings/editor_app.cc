@@ -388,6 +388,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(page_down_key);
     KEEP_PAGE_EDIT(voice_enable);
     KEEP_PAGE_EDIT(voice_device);
+    KEEP_PAGE_EDIT(voice_model);
     KEEP_PAGE_EDIT(voice_language);
     KEEP_PAGE_EDIT(voice_itn);
     KEEP_PAGE_EDIT(voice_key_mode);

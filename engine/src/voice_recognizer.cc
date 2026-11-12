@@ -16,6 +16,8 @@
 #include <dml_provider_factory.h>
 #include <onnxruntime_cxx_api.h>
 
+#include "voice_ort.h"
+
 namespace cxxime {
 namespace voice {
 
@@ -204,6 +206,12 @@ Language parse_language(const std::string& name) {
     if (name == "yue") return Language::kCantonese;
     return Language::kAuto;
 }
+
+namespace detail {
+
+Ort::Env& voice_ort_env() { return ort_env(); }
+
+}  // namespace detail
 
 bool runtime_available() {
     return LoadLibraryExW(L"onnxruntime.dll", nullptr,

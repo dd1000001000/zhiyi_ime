@@ -43,6 +43,8 @@ public:
     void start(cxxime::voice::SpeechDetector* detector, int max_seconds, Listener listener);
     // Ends recording: the samples (16 kHz, [-1, 1]) and whether the detector heard speech.
     std::vector<float> stop(bool* heard);
+    // The samples so far, while recording (for the text while speaking).
+    std::vector<float> snapshot();
     bool recording() const { return thread_.joinable(); }
 
 private:

@@ -376,14 +376,17 @@ void VoiceService::begin_recording(uint64_t generation) {
     // time to begin).
     static constexpr std::chrono::milliseconds kQuietBeforeSpeech{5000};
     using Clock = std::chrono::steady_clock;
-    // The text while speaking: every kStepWindows windows (2 s) once someone has spoken.
-    static constexpr int kStepWindows = 2 * cxxime::voice::kSampleRate / static_cast<int>(cxxime::voice::kVadWindow);
+    // The text while speaking: a step once someone has spoken, the next as soon as the last is
+    // done and kStepWindows more windows (0.5 s) were recorded.
+    static constexpr int kStepWindows = cxxime::voice::kSampleRate / 2 / static_cast<int>(cxxime::voice::kVadWindow);
     listener.level = [this, generation, auto_stop_ms, streaming, started = Clock::now(),
-                      last_speech = Clock::time_point{}, ended = false, windows = 0,
+                      last_speech = Clock::time_point{}, ended = false, windows = 0, stepped = 0,
                       spoke = false](float level, bool speaking) mutable {
         overlay_.add_level(level, speaking);
         spoke = spoke || speaking;
-        if (streaming && ++windows % kStepWindows == 0 && spoke && !step_pending_.exchange(true)) {
+        ++windows;
+        if (streaming && spoke && windows - stepped >= kStepWindows && !step_pending_.exchange(true)) {
+            stepped = windows;
             post([this, generation] { stream_step(generation); });
         }
         if (auto_stop_ms <= 0 || ended) return;
@@ -504,8 +507,11 @@ void VoiceService::finish_recording(uint64_t generation) {
     std::string text;
     const auto start = std::chrono::steady_clock::now();
     const cxxime::voice::Language spoken = cxxime::voice::parse_language(language);
+    // Qwen after text while speaking: what those steps computed is reused.
+    const bool streamed = qwen_ && streamed_generation_ == generation;
     if (!ensure_recognizer(&error) ||
-        !(qwen_ ? qwen_->transcribe(samples.data(), samples.size(), spoken, &text, &error)
+        !(qwen_ ? (streamed ? qwen_->finish(samples.data(), samples.size(), &text, &error)
+                            : qwen_->transcribe(samples.data(), samples.size(), spoken, &text, &error))
                 : recognizer_->transcribe(samples.data(), samples.size(), spoken, itn, &text, &error))) {
         CXXIME_LOG(L"voice: recognition failed: %S", error.c_str());
         end(VoiceOverlay::Message::kFailed);

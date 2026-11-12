@@ -30,10 +30,14 @@ constexpr std::size_t kHidden = 1024;
 constexpr int kLayers = 28;
 constexpr int64_t kKvHeads = 8;
 constexpr int64_t kHeadDim = 128;
-// The official streaming defaults: no previous text for the first 2 calls, then the previous
-// text without its last 5 tokens.
-constexpr int kUnfixedChunks = 2;
+// The official streaming defaults (2 chunks of 2 s without the previous text, then the previous
+// text without its last 5 tokens), by the recording's length since the calls come as often as
+// they keep up rather than every 2 s.
+constexpr std::size_t kUnfixedSamples = 2 * 2 * 16000;
 constexpr std::size_t kUnfixedTokens = 5;
+// An encoder window: 8 chunks of 100 frames, 13 rows each.
+constexpr std::size_t kWindowFrames = 800;
+constexpr std::size_t kWindowRows = 104;
 constexpr double kPi = 3.14159265358979323846;
 
 struct Dft {
@@ -67,8 +71,11 @@ struct MelCache {
 };
 
 // The processor's features (make_runtime.py mel() is the same in numpy).
+// *top_out: the maximum the features were floored by (8 below it); *stable_out: the frames that
+// stay as they are while the recording grows.
 std::vector<float> log_mel(const float* samples, std::size_t count, const std::vector<float>& filters,
-                           MelCache* cache, std::size_t* mel_len_out, std::size_t* frames_out) {
+                           MelCache* cache, std::size_t* mel_len_out, std::size_t* frames_out,
+                           float* top_out = nullptr, std::size_t* stable_out = nullptr) {
     std::vector<float> x(samples, samples + count);
     if (x.size() < kMinSamples) x.resize(kMinSamples, 0.0f);
     const std::size_t n = x.size();
@@ -137,6 +144,8 @@ std::vector<float> log_mel(const float* samples, std::size_t count, const std::v
     }
     *mel_len_out = mel_len;
     if (frames_out) *frames_out = frames;
+    if (top_out) *top_out = top;
+    if (stable_out) *stable_out = stable;
     return out;
 }
 
@@ -203,11 +212,22 @@ struct QwenRecognizer::Impl {
     std::vector<int64_t> eos{151643, 151645};
     std::vector<int64_t> lang_zh, lang_en, lang_yue;
 
+    // The decoder's keys and values (by decoder input index, past_* only) for the first `length`
+    // positions of the prompt: the prompt's start and the audio of the encoder windows that are
+    // whole (8 s each, kWindowRows rows; windows do not see each other, so a whole one stays as
+    // it is while the recording grows, as long as the features' floor `top` stays the same).
+    struct KvCache {
+        int64_t length = 0;
+        std::size_t windows = 0;
+        float top = 0.0f;
+        std::vector<std::vector<float>> data;
+    };
+
     // Text while speaking.
     Language language = Language::kAuto;
-    int calls = 0;
     std::vector<int64_t> raw;  // what the model wrote last (language header included when auto)
     MelCache cache;
+    KvCache kv;
 
     const std::vector<int64_t>* forced(Language l) const {
         switch (l) {
@@ -254,11 +274,22 @@ struct QwenRecognizer::Impl {
         return trim(fix_repeats(text));
     }
 
-    bool encode(const float* samples, std::size_t count, MelCache* mel_cache, std::vector<float>* audio,
-                int64_t* rows, std::string* error);
-    bool decode(const std::vector<float>& audio, int64_t rows, const std::vector<int64_t>& answer_start,
-                const std::vector<int64_t>* language_suffix, std::size_t max_new, std::vector<int64_t>* out,
-                std::string* error);
+    // The encoder on the features from frame `from` (a multiple of kWindowFrames) on.
+    bool run_encoder(const std::vector<float>& mel, std::size_t frames, std::size_t mel_len, std::size_t from,
+                     std::vector<float>* audio, int64_t* rows, std::string* error);
+    // Greedy decoding: `ids` follow the cache's positions (all of the prompt without one), the
+    // audio's rows go to its <|audio_pad|> ids. With keep > the cache's length, the cache then
+    // holds the first `keep` positions.
+    bool decode(const std::vector<int64_t>& ids, const float* audio, int64_t rows, KvCache* cache, int64_t keep,
+                std::size_t max_new, std::vector<int64_t>* out, std::string* error);
+    std::vector<int64_t> prompt_tail(int64_t rows, const std::vector<int64_t>* language_suffix,
+                                     const std::vector<int64_t>& answer_start) const {
+        std::vector<int64_t> ids(static_cast<std::size_t>(rows), audio_pad);
+        ids.insert(ids.end(), suffix.begin(), suffix.end());
+        if (language_suffix) ids.insert(ids.end(), language_suffix->begin(), language_suffix->end());
+        ids.insert(ids.end(), answer_start.begin(), answer_start.end());
+        return ids;
+    }
 };
 
 QwenRecognizer::QwenRecognizer() = default;
@@ -358,16 +389,23 @@ bool QwenRecognizer::load(const QwenFiles& files, int threads, std::string* erro
     return true;
 }
 
-bool QwenRecognizer::Impl::encode(const float* samples, std::size_t count, MelCache* mel_cache,
-                                  std::vector<float>* audio, int64_t* rows, std::string* error) {
-    std::size_t mel_len = 0, frames = 0;
-    std::vector<float> mel = log_mel(samples, count, filters, mel_cache, &mel_len, &frames);
+bool QwenRecognizer::Impl::run_encoder(const std::vector<float>& mel, std::size_t frames, std::size_t mel_len,
+                                       std::size_t from, std::vector<float>* audio, int64_t* rows,
+                                       std::string* error) {
+    const std::size_t part = frames - from;
+    std::vector<float> slice;
+    const float* data = mel.data();
+    if (from > 0) {
+        slice.resize(kMel * part);
+        for (std::size_t m = 0; m < kMel; ++m) std::copy_n(mel.data() + m * frames + from, part, slice.data() + m * part);
+        data = slice.data();
+    }
     const Ort::MemoryInfo memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-    const int64_t mel_shape[] = {1, static_cast<int64_t>(kMel), static_cast<int64_t>(frames)};
-    int64_t length = static_cast<int64_t>(mel_len);
+    const int64_t mel_shape[] = {1, static_cast<int64_t>(kMel), static_cast<int64_t>(part)};
+    int64_t length = static_cast<int64_t>(mel_len - from);
     const int64_t one[] = {1};
     Ort::Value inputs[] = {
-        Ort::Value::CreateTensor<float>(memory, mel.data(), mel.size(), mel_shape, 3),
+        Ort::Value::CreateTensor<float>(memory, const_cast<float*>(data), kMel * part, mel_shape, 3),
         Ort::Value::CreateTensor<int64_t>(memory, &length, 1, one, 1),
     };
     const char* input_names[] = {"mel", "mel_len"};
@@ -379,8 +417,8 @@ bool QwenRecognizer::Impl::encode(const float* samples, std::size_t count, MelCa
             if (error) *error = "unexpected encoder output";
             return false;
         }
-        const float* data = out[0].GetTensorData<float>();
-        audio->assign(data, data + shape[0] * shape[1]);
+        const float* rows_data = out[0].GetTensorData<float>();
+        audio->assign(rows_data, rows_data + shape[0] * shape[1]);
         *rows = shape[0];
     } catch (const Ort::Exception& e) {
         if (error) *error = std::string("onnxruntime: ") + e.what();
@@ -389,17 +427,10 @@ bool QwenRecognizer::Impl::encode(const float* samples, std::size_t count, MelCa
     return true;
 }
 
-bool QwenRecognizer::Impl::decode(const std::vector<float>& audio, int64_t rows,
-                                  const std::vector<int64_t>& answer_start,
-                                  const std::vector<int64_t>* language_suffix, std::size_t max_new,
-                                  std::vector<int64_t>* out, std::string* error) {
+bool QwenRecognizer::Impl::decode(const std::vector<int64_t>& ids, const float* audio, int64_t rows,
+                                  KvCache* cache, int64_t keep, std::size_t max_new, std::vector<int64_t>* out,
+                                  std::string* error) {
     out->clear();
-    std::vector<int64_t> ids = prefix;
-    ids.insert(ids.end(), static_cast<std::size_t>(rows), audio_pad);
-    ids.insert(ids.end(), suffix.begin(), suffix.end());
-    if (language_suffix) ids.insert(ids.end(), language_suffix->begin(), language_suffix->end());
-    ids.insert(ids.end(), answer_start.begin(), answer_start.end());
-
     const Ort::MemoryInfo memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     std::vector<const char*> input_names, output_names;
     for (const std::string& n : decoder_inputs) input_names.push_back(n.c_str());
@@ -418,6 +449,7 @@ bool QwenRecognizer::Impl::decode(const std::vector<float>& audio, int64_t rows,
             return false;
         }
     }
+    const int64_t cached = cache && cache->data.size() == decoder_inputs.size() ? cache->length : 0;
     float empty = 0.0f;
     std::vector<float> no_audio(kHidden, 0.0f);
     std::vector<Ort::Value> previous;
@@ -426,25 +458,44 @@ bool QwenRecognizer::Impl::decode(const std::vector<float>& audio, int64_t rows,
         for (std::size_t step = 0;; ++step) {
             std::vector<Ort::Value> inputs;
             const int64_t ids_shape[] = {1, step == 0 ? static_cast<int64_t>(ids.size()) : 1};
-            const int64_t audio_shape[] = {step == 0 ? rows : 1, static_cast<int64_t>(kHidden)};
-            const int64_t past_shape[] = {1, kKvHeads, 0, kHeadDim};
+            const int64_t audio_shape[] = {step == 0 && rows > 0 ? rows : 1, static_cast<int64_t>(kHidden)};
+            const int64_t past_shape[] = {1, kKvHeads, cached, kHeadDim};
             for (std::size_t i = 0; i < decoder_inputs.size(); ++i) {
                 const std::string& name = decoder_inputs[i];
                 if (name == "input_ids") {
-                    inputs.push_back(Ort::Value::CreateTensor<int64_t>(memory, step == 0 ? ids.data() : &token,
+                    inputs.push_back(Ort::Value::CreateTensor<int64_t>(memory, step == 0 ? const_cast<int64_t*>(ids.data()) : &token,
                                                                        step == 0 ? ids.size() : 1, ids_shape, 2));
                 } else if (name == "audio") {
-                    float* data = step == 0 ? const_cast<float*>(audio.data()) : no_audio.data();
-                    const std::size_t size = step == 0 ? audio.size() : no_audio.size();
+                    const bool real = step == 0 && rows > 0;
+                    float* data = real ? const_cast<float*>(audio) : no_audio.data();
+                    const std::size_t size = real ? static_cast<std::size_t>(rows) * kHidden : no_audio.size();
                     inputs.push_back(Ort::Value::CreateTensor<float>(memory, data, size, audio_shape, 2));
                 } else if (step == 0) {
-                    inputs.push_back(Ort::Value::CreateTensor<float>(memory, &empty, 0, past_shape, 4));
+                    float* data = cached > 0 ? cache->data[i].data() : &empty;
+                    const std::size_t size = cached > 0 ? cache->data[i].size() : 0;
+                    inputs.push_back(Ort::Value::CreateTensor<float>(memory, data, size, past_shape, 4));
                 } else {
                     inputs.push_back(std::move(previous[static_cast<std::size_t>(from_output[i])]));
                 }
             }
             previous = decoder->Run(Ort::RunOptions{nullptr}, input_names.data(), inputs.data(), inputs.size(),
                                     output_names.data(), output_names.size());
+            if (step == 0 && cache && keep > cached) {
+                // The first `keep` positions of the keys and values, for the next call.
+                cache->data.assign(decoder_inputs.size(), {});
+                for (std::size_t i = 0; i < decoder_inputs.size(); ++i) {
+                    if (from_output[i] < 0) continue;
+                    const Ort::Value& present = previous[static_cast<std::size_t>(from_output[i])];
+                    const int64_t total = present.GetTensorTypeAndShapeInfo().GetShape()[2];
+                    const float* data = present.GetTensorData<float>();
+                    std::vector<float>& kept = cache->data[i];
+                    kept.resize(static_cast<std::size_t>(kKvHeads * keep * kHeadDim));
+                    for (int64_t h = 0; h < kKvHeads; ++h) {
+                        std::copy_n(data + h * total * kHeadDim, keep * kHeadDim, kept.data() + h * keep * kHeadDim);
+                    }
+                }
+                cache->length = keep;
+            }
             const float* logits = previous[0].GetTensorData<float>();
             const std::size_t vocab = static_cast<std::size_t>(previous[0].GetTensorTypeAndShapeInfo().GetElementCount());
             token = static_cast<int64_t>(std::max_element(logits, logits + vocab) - logits);
@@ -467,26 +518,41 @@ bool QwenRecognizer::transcribe(const float* samples, std::size_t count, Languag
         return false;
     }
     if (count == 0) return true;
+    Impl& m = *impl_;
+    std::size_t mel_len = 0, frames = 0;
+    const std::vector<float> mel = log_mel(samples, count, m.filters, nullptr, &mel_len, &frames);
     std::vector<float> audio;
     int64_t rows = 0;
-    if (!impl_->encode(samples, count, nullptr, &audio, &rows, error)) return false;
+    if (!m.run_encoder(mel, frames, mel_len, 0, &audio, &rows, error)) return false;
+    const std::vector<int64_t>* forced = m.forced(language);
+    std::vector<int64_t> ids = m.prefix;
+    const std::vector<int64_t> tail = m.prompt_tail(rows, forced, {});
+    ids.insert(ids.end(), tail.begin(), tail.end());
     const std::size_t max_new = 16 + 8 * (count / kSampleRate + 1);
     std::vector<int64_t> out;
-    const std::vector<int64_t>* forced = impl_->forced(language);
-    if (!impl_->decode(audio, rows, {}, forced, (std::min<std::size_t>)(max_new, 512), &out, error)) return false;
-    *text = impl_->text_of(out, forced != nullptr);
+    if (!m.decode(ids, audio.data(), rows, nullptr, 0, (std::min<std::size_t>)(max_new, 512), &out, error)) return false;
+    *text = m.text_of(out, forced != nullptr);
     return true;
 }
 
 void QwenRecognizer::start(Language language) {
     if (!impl_) return;
     impl_->language = language;
-    impl_->calls = 0;
     impl_->raw.clear();
     impl_->cache = MelCache();
+    impl_->kv = Impl::KvCache();
 }
 
 bool QwenRecognizer::partial(const float* samples, std::size_t count, std::string* text, std::string* error) {
+    return step(samples, count, false, text, error);
+}
+
+bool QwenRecognizer::finish(const float* samples, std::size_t count, std::string* text, std::string* error) {
+    return step(samples, count, true, text, error);
+}
+
+bool QwenRecognizer::step(const float* samples, std::size_t count, bool final, std::string* text,
+                          std::string* error) {
     text->clear();
     if (!loaded()) {
         if (error) *error = "model not loaded";
@@ -494,9 +560,10 @@ bool QwenRecognizer::partial(const float* samples, std::size_t count, std::strin
     }
     if (count == 0) return true;
     Impl& m = *impl_;
-    // The previous text without its last tokens (more if they would cut a character).
+    // The previous text without its last tokens (more if they would cut a character); none for the
+    // final text, decoded afresh as transcribe() does.
     std::vector<int64_t> start;
-    if (m.calls >= kUnfixedChunks && !m.raw.empty()) {
+    if (!final && count >= kUnfixedSamples && !m.raw.empty()) {
         std::size_t back = kUnfixedTokens;
         for (;;) {
             const std::size_t end = m.raw.size() > back ? m.raw.size() - back : 0;
@@ -508,16 +575,37 @@ bool QwenRecognizer::partial(const float* samples, std::size_t count, std::strin
             ++back;
         }
     }
+    std::size_t mel_len = 0, frames = 0, stable = 0;
+    float top = 0.0f;
+    const std::vector<float> mel = log_mel(samples, count, m.filters, &m.cache, &mel_len, &frames, &top, &stable);
+    // The whole windows of the last call stay when the floor is the same (else all again).
+    if (m.kv.windows > 0 && (top != m.kv.top || m.kv.windows * kWindowFrames >= mel_len)) m.kv = Impl::KvCache();
+    const std::size_t from = m.kv.windows * kWindowFrames;
     std::vector<float> audio;
     int64_t rows = 0;
-    if (!m.encode(samples, count, &m.cache, &audio, &rows, error)) return false;
+    if (!m.run_encoder(mel, frames, mel_len, from, &audio, &rows, error)) return false;
+    const std::vector<int64_t>* forced = m.forced(m.language);
+    std::vector<int64_t> ids;
+    if (m.kv.length == 0) ids = m.prefix;
+    const std::vector<int64_t> tail = m.prompt_tail(rows, forced, start);
+    ids.insert(ids.end(), tail.begin(), tail.end());
+    // Windows whose frames are all recorded (and not the end of the features): kept for the next call.
+    const std::size_t whole = (std::min)(stable, mel_len) / kWindowFrames;
+    const int64_t keep = whole > m.kv.windows
+                             ? static_cast<int64_t>(m.prefix.size() + whole * kWindowRows)
+                             : 0;
     const std::size_t max_new = 16 + 8 * (count / kSampleRate + 1);
     std::vector<int64_t> out;
-    const std::vector<int64_t>* forced = m.forced(m.language);
-    if (!m.decode(audio, rows, start, forced, (std::min<std::size_t>)(max_new, 512), &out, error)) return false;
+    if (!m.decode(ids, audio.data(), rows, &m.kv, keep, (std::min<std::size_t>)(max_new, 512), &out, error)) {
+        m.kv = Impl::KvCache();
+        return false;
+    }
+    if (keep > 0) {
+        m.kv.windows = whole;
+        m.kv.top = top;
+    }
     m.raw = start;
     m.raw.insert(m.raw.end(), out.begin(), out.end());
-    ++m.calls;
     *text = m.text_of(m.raw, forced != nullptr);
     return true;
 }

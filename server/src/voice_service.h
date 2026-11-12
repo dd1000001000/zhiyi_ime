@@ -14,10 +14,10 @@
 // thread.
 //
 // voice.model picks the recognizer (voice_files.h). With Qwen3-ASR (qwen_asr.h) the recording so
-// far is recognized again every 2 s while listening (on the worker, one at a time; a step still
-// running when the next is due makes it wait) and the text goes to the bar (VoiceOverlay::
-// show_partial); when recording ends the whole recording is recognized once more for the text
-// that goes in.
+// far is recognized again while listening, one step at a time on the worker: the next as soon as
+// the last is done and 0.5 s more was recorded (about every 0.3 s for a sentence of 10 s), and the
+// text goes to the bar (VoiceOverlay::show_partial); when recording ends the whole recording is
+// recognized once more for the text that goes in.
 #ifndef CXXIME_SERVER_VOICE_SERVICE_H_
 #define CXXIME_SERVER_VOICE_SERVICE_H_
 

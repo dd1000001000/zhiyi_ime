@@ -21,9 +21,14 @@
 //
 // Text while speaking (start() / partial()) follows the official streaming method
 // (qwen_asr.inference Qwen3ASRModel.streaming_transcribe): each time it is called, the whole
-// recording so far goes through the model again, and from the third call on the previous output,
-// without its last 5 tokens, is given as the start of the answer, so the text does not jump
-// around. The final text (transcribe()) is the whole recording decoded afresh.
+// recording so far goes through the model again, and once the recording is 4 s long (the
+// official 2 chunks of 2 s) the previous output, without its last 5 tokens, is given as the start
+// of the answer, so the text does not jump around. The final text (transcribe(), finish()) is the
+// whole recording decoded afresh.
+//
+// While speaking, the encoder's 8 s windows that are whole (they do not see each other) and the
+// decoder's keys and values for the prompt up to them are kept between calls, so a call costs
+// about the same however long the recording is (0.2 to 0.45 s on a Ryzen 5 9600X, 4 threads).
 #ifndef CXXIME_QWEN_ASR_H_
 #define CXXIME_QWEN_ASR_H_
 
@@ -66,11 +71,17 @@ public:
                     std::string* error);
 
     // Text while speaking: start() when recording starts, then partial() with the whole recording
-    // so far each time it has grown (every 2 s or so).
+    // so far each time it has grown (voice input: as soon as the last call is done and 0.5 s more
+    // was recorded).
     void start(Language language);
     bool partial(const float* samples, std::size_t count, std::string* text, std::string* error);
+    // The final text after start() / partial(): as transcribe() (the whole recording decoded afresh),
+    // reusing what the calls before computed for the encoder windows that were already whole.
+    bool finish(const float* samples, std::size_t count, std::string* text, std::string* error);
 
 private:
+    bool step(const float* samples, std::size_t count, bool final, std::string* text, std::string* error);
+
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

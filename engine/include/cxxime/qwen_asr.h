@@ -2,7 +2,7 @@
 //
 // Voice input with Qwen3-ASR-0.6B (voice.model "qwen3-asr"; docs/voice-input.md): the official
 // weights (Qwen Team, Alibaba; Apache-2.0) exported to ONNX and quantized without retraining
-// (release voice-qwen3-asr-0.6b-preview of the main repository), run on the CPU:
+// (the qwen3-asr-* files of the release tagged "voice", voice_files.h), run on the CPU:
 //
 //   qwen3-asr-encoder.onnx  mel (1, 128, F; F a multiple of 100), mel_len (1,) int64
 //                           -> audio (A, 1024): the audio encoder (8-bit)

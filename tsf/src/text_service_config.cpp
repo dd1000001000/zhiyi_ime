@@ -130,6 +130,14 @@ LRESULT CALLBACK TextService::_config_window_proc(HWND hwnd, UINT msg, WPARAM wp
         }
         return 0;
     }
+    if (msg == cxxime_tsf::WM_CXXIME_RESUME_COMPOSITION && service) {
+        // Only while still typing in an input box: the focus on another document has ended the
+        // composition, a new gap hides it again (a key since has shown them already, harmless).
+        if (service->_activated && service->_inputFocused && service->_composing) {
+            service->refresh_candidates_from_server();
+        }
+        return 0;
+    }
     if (msg == cxxime_tsf::WM_CXXIME_KEYBOARD_STATE && service) {
         if (!service->_activated) return 0;
         if (wp != 0) service->_open_keyboard("switch_key");

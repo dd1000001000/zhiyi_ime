@@ -30,6 +30,12 @@ classify_effective_edit_target_change(const EffectiveEditTargetSnapshot& current
     return EffectiveEditTargetAction::kUnchanged;
 }
 
+bool resumes_after_focus_gap(const EffectiveEditTargetSnapshot& kept,
+                             const EffectiveEditTargetSnapshot& next) {
+    return kept.valid() && next.valid() && kept.document_identity == next.document_identity &&
+           kept.context_identity == next.context_identity;
+}
+
 const char* effective_edit_target_action_name(EffectiveEditTargetAction action) {
     switch (action) {
     case EffectiveEditTargetAction::kUnchanged:

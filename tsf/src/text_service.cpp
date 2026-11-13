@@ -323,6 +323,7 @@ STDMETHODIMP TextService::Deactivate() {
     invalidate_composition_edit_requests();
     _activated = false;
     _inputFocused = false;
+    _focusGapTarget = {};
     _inputTargetUnavailable = false;
     _stop_state_poll_timer();
     _unregister_conversion_compartment_sink();

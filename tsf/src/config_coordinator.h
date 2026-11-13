@@ -25,6 +25,10 @@ constexpr UINT WM_CXXIME_KEYBOARD_STATE = WM_APP + 0x318;
 // A key Windows keeps from input methods, from the thread key hook (TextService::
 // _take_hooked_key): wParam the key, lParam a TextService::AltKeyEvent.
 constexpr UINT WM_CXXIME_ALT_KEY = WM_APP + 0x319;
+// The document focus came back to the composition after a gap (TextService::
+// _resume_composition_after_focus_gap). The candidates are shown again outside the focus
+// notification, where the document may be locked.
+constexpr UINT WM_CXXIME_RESUME_COMPOSITION = WM_APP + 0x31A;
 constexpr UINT_PTR TIMER_CXXIME_INPUT_INDICATOR_REFRESH = 0xC317;
 // A conversion mode change from outside is judged a moment later (TextService::
 // _settle_conversion_change): restored by a focus change, or set by a program.

@@ -408,6 +408,9 @@ private:
                                             const char* source);
     bool _synchronize_effective_edit_target_from_thread_mgr(const char* source);
     void _clear_effective_edit_target(const char* source, bool target_unavailable = false);
+    bool _suspend_composition_for_focus_gap();
+    void _resume_composition_after_focus_gap(
+        const cxxime_tsf::EffectiveEditTargetSnapshot& suspended);
     void _release_effective_edit_target();
     cxxime_tsf::EffectiveEditTargetBindings _effective_edit_target_bindings(
         const cxxime_tsf::EffectiveEditTargetSnapshot& target) const;
@@ -494,6 +497,10 @@ private:
     ITfDocumentMgr* _effectiveDocumentMgr = nullptr;
     ITfContext* _effectiveContext = nullptr;
     cxxime_tsf::EffectiveEditTargetSnapshot _effectiveEditTarget;
+    // The document focus went to none while typing (Excel opening a cell for the first key, #45):
+    // the composition and the engine keep it; the same document and context focused again
+    // resume it, any other target clears it as before.
+    cxxime_tsf::EffectiveEditTargetSnapshot _focusGapTarget;
     ITfCompartment* _conversionCompartment = nullptr;
     ITfSource* _conversionCompartmentSource = nullptr;
     ITfCompartment* _openCloseCompartment = nullptr;

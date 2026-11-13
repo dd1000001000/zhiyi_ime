@@ -140,6 +140,7 @@ STDMETHODIMP TextService::OnCompositionTerminated(TfEditCookie ecWrite,
                              (normalization_requested && FAILED(normalization_result)));
 
     _composing = false;
+    _focusGapTarget = {};  // nothing left to resume
     _emptyCompositionPlaceholderActive = false;
     _voiceComposition = false;  // the program kept the voice text
     _voiceText.clear();

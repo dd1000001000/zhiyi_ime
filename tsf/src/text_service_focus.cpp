@@ -8,6 +8,7 @@
 #include <cxxime/diagnostics_config.h>
 
 #include "candidate_ui_element.h"
+#include "config_coordinator.h"
 
 namespace {
 
@@ -127,6 +128,7 @@ void TextService::_release_effective_edit_target() {
 }
 
 void TextService::_clear_effective_edit_target(const char* source, bool target_unavailable) {
+    _focusGapTarget = {};
     _end_key_gestures();
     _stop_voice_poll(true);  // the recording was for the input box left
     invalidate_composition_edit_requests();
@@ -178,6 +180,10 @@ void TextService::_clear_effective_edit_target(const char* source, bool target_u
 bool TextService::_synchronize_effective_edit_target(ITfContext* event_context,
                                                      ITfDocumentMgr* event_document_mgr,
                                                      const char* source) {
+    // A focus gap ends with whatever is focused now: the composition's own document and
+    // context resume it below, anything else clears it (the previous target is still kept).
+    const cxxime_tsf::EffectiveEditTargetSnapshot focus_gap = _focusGapTarget;
+    _focusGapTarget = {};
     ITfDocumentMgr* document_mgr = nullptr;
     ITfContext* context = nullptr;
 
@@ -308,10 +314,49 @@ bool TextService::_synchronize_effective_edit_target(ITfContext* event_context,
         repaired = repaired && repaired_bindings.healthy();
         _trace_effective_edit_target_sync(source, action, previous, next, bindings, repaired);
     }
+    if (cxxime_tsf::resumes_after_focus_gap(focus_gap, next)) {
+        _resume_composition_after_focus_gap(focus_gap);
+    }
 
     context->Release();
     document_mgr->Release();
     return true;
+}
+
+// The document focus went to none while typing. Excel does this for the first key in a cell:
+// the composition starts in the sheet, the focus leaves for a moment and comes back to the same
+// document and context with the cell open (#45). Other input methods (Microsoft's sample, Weasel,
+// Mozc) keep the composition over a document focus change and only hide their windows; so does
+// this one while the focus is nowhere. The focus on another document still ends it (the rebind
+// in _synchronize_effective_edit_target), as do a key with no input box and the thread losing
+// the focus (_clear_effective_edit_target).
+bool TextService::_suspend_composition_for_focus_gap() {
+    if (!_composing || _voiceComposition || _voicePolling || !_effectiveEditTarget.valid()) {
+        return false;
+    }
+    _focusGapTarget = _effectiveEditTarget;
+    _inputFocused = false;
+    ++_uiTargetGeneration;
+    if (_uiTargetGeneration == 0) {
+        ++_uiTargetGeneration;
+    }
+    _hide_candidate_window("hide:focus_gap");
+    _end_reading_ui_element("hide:focus_gap_reading");
+    _update_state_poll_timer();
+    _enqueue_event_trace("focus_gap", "action=suspend");
+    return true;
+}
+
+void TextService::_resume_composition_after_focus_gap(
+    const cxxime_tsf::EffectiveEditTargetSnapshot& suspended) {
+    char detail[96] = {};
+    std::snprintf(detail, sizeof(detail), "action=resume composing=%d view_changed=%d",
+                  _composing ? 1 : 0,
+                  suspended.view_window != _effectiveEditTarget.view_window ? 1 : 0);
+    _enqueue_event_trace("focus_gap", detail);
+    if (_composing && _configWindow) {
+        PostMessageW(_configWindow, cxxime_tsf::WM_CXXIME_RESUME_COMPOSITION, 0, 0);
+    }
 }
 
 bool TextService::_synchronize_effective_edit_target_from_thread_mgr(const char* source) {
@@ -358,6 +403,9 @@ STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr* pDocMgrFocus,
     UNREFERENCED_PARAMETER(pDocMgrPrevFocus);
     _note_focus_change();  // the IMM layer may restore this box's own mode now
     if (!_activated) {
+        return S_OK;
+    }
+    if (!pDocMgrFocus && _suspend_composition_for_focus_gap()) {
         return S_OK;
     }
 

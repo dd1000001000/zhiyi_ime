@@ -81,7 +81,7 @@
 
 The word-choice models, word n-grams and offline translation models are Zhiyi's own and live in a repository of their
 own, [zhiyi_models](https://github.com/dd1000001000/zhiyi_models), with their structure, training data, results and downloads. The IME ships the
-word-choice model ML-Flash-1103 and the word n-gram ng1017; learning mode's offline translation uses v4-1026,
+word-choice model ML-Flash-1103 and the word n-gram ng1017; learning mode's offline translation uses v4-1113-RL,
 downloaded on the Learning page of Settings.
 
 ## Installation

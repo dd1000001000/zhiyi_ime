@@ -2290,13 +2290,19 @@ void SessionManager::start_background_continuation(RefreshNotifier notifier) {
         [this](uint32_t id, const std::string& key) { continuation_done(id, key); });
     cxxime::LayaRerank::instance().set_continuation_in_background(true);
     next_words_worker_ = std::make_unique<NextWordsWorker>(
-        [](const NextWordsWorker::Request& request) {
+        [source = next_words_source_](const NextWordsWorker::Request& request) {
+            if (source) return source(request.context, request.lang, request.count);
             return cxxime::LayaRerank::instance().next_words(request.runtime->config(), request.context,
                                                              request.lang, request.count);
         },
         [this](uint32_t id, uint64_t generation, std::vector<std::string> words) {
             next_words_done(id, generation, std::move(words));
         });
+}
+
+void SessionManager::set_next_words_source(NextWordsSource source) {
+    std::lock_guard<std::mutex> lock(continuation_mutex_);
+    next_words_source_ = std::move(source);
 }
 
 void SessionManager::stop_background_continuation() {
@@ -2359,7 +2365,12 @@ void SessionManager::schedule_next_words(uint32_t id, SessionEntry& entry, const
     if (!runtime) return note("no runtime");
     const cxxime::Config& config = runtime->config();
     if (!config.laya.enable || !config.laya.next_words) return note("off in the settings");
-    if (!cxxime::LayaRerank::instance().has_next_words()) return note("the model has no decoder");
+    bool has_source = false;
+    {
+        std::lock_guard<std::mutex> lock(continuation_mutex_);
+        has_source = static_cast<bool>(next_words_source_);
+    }
+    if (!has_source && !cxxime::LayaRerank::instance().has_next_words()) return note("the model has no decoder");
     entry.next_lang = lang;
     NextWordsWorker::Request request;
     request.generation = entry.next_generation;

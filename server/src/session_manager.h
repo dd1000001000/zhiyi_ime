@@ -243,6 +243,11 @@ public:
     // tools).
     void start_background_continuation(RefreshNotifier notifier);
     void stop_background_continuation();
+    // Where the next words (联想) come from: the model (LayaRerank::next_words) unless set here
+    // (tests). Set before start_background_continuation.
+    using NextWordsSource = std::function<std::vector<std::string>(const std::string& context,
+                                                                   const std::string& lang, size_t count)>;
+    void set_next_words_source(NextWordsSource source);
     // REFRESH_CANDIDATES: the session's composition and candidates, no key; the first page
     // composed again with the model's sentence first when its scores are in for this very
     // composition. Only here does the page change: a key the client sent before (a space for
@@ -367,6 +372,7 @@ private:
     std::unique_ptr<ContinuationWorker> continuation_worker_;
     std::unique_ptr<NextWordsWorker> next_words_worker_;  // under continuation_mutex_
     RefreshNotifier refresh_notifier_;
+    NextWordsSource next_words_source_;  // under continuation_mutex_
 };
 
 #endif // CXXIME_SESSION_MANAGER_H_

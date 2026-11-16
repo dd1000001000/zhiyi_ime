@@ -34,6 +34,7 @@ void TextService::_hide_external_candidate_window(const char* reason) {
 }
 
 void TextService::_hide_candidate_window(const char* reason) {
+    _predicting = false;
     if (_localCandidateWindow) {
         _localCandidateWindow->reset_placement();
     }
@@ -297,8 +298,13 @@ bool TextService::refresh_candidates_from_server() {
     cxxime::IPCResponse response = {};
     if (!_ensure_ipc_session() ||
         !_client.refresh_candidates(_sessionId, response, _candidate_ui_context())) {
+        _enqueue_event_trace("ui_command", "refresh failed");
         return false;
     }
+    char detail[96] = {};
+    snprintf(detail, sizeof(detail), "refresh composing=%u predicting=%u candidates=%u", response.composing,
+             response.predicting, response.candidate_count);
+    _enqueue_event_trace("ui_command", detail);
     ITfContext* context = _current_edit_context_for_composition();
     BOOL eaten = FALSE;
     const bool applied = _apply_engine_response(context, response, &eaten);

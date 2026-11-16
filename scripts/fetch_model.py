@@ -4,7 +4,7 @@ models/ngram/.
   python scripts/fetch_model.py            # download the release assets and verify them
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ and models/ngram/ for release uploads
 
-The model (laya.one.fused.int8g.onnx, ~53 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
+The model (laya.one.next.slim.onnx, ~64 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
 published as a release asset of github.com/dd1000001000/zhiyi_models. The training code and data
 are not published.
 """
@@ -18,14 +18,19 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEST = os.path.join(ROOT, "models", "laya")
-# laya.one.fused.int8g.onnx: the one graph with the context's KV cache, run on the CPU (engine/src/laya/reranker.h);
-# since 1.6.5 the word choice runs only there, so the whole graph (laya.int8g.onnx) is no longer needed.
-FILES = ["laya.one.fused.int8g.onnx", "tokenizer.json", "rl_agent_config.json", "unified_vocab.json"]
+# laya.one.next.slim.onnx: the one graph with the context's KV cache and the next-word decoder, run on the CPU
+# (engine/src/laya/reranker.h, next_words.h); next_rows.json: the decoder's rows and each language's masks. Since 1.6.5
+# the word choice runs only there, so the whole graph (laya.int8g.onnx) is no longer needed.
+GRAPH = "laya.one.next.slim.onnx"
+FILES = [GRAPH, "next_rows.json", "tokenizer.json", "rl_agent_config.json", "unified_vocab.json"]
 # The decoder graphs of the 1.5.4-1.5.8 model: removed from models/laya (the packager ships them when present).
 OLD_FILES = ["laya_decoder.int8.onnx", "laya_decoder_memory.int8.onnx", "laya_decoder_step.int8.onnx"]
-ASSET = "laya-ml-flash-1103-slim.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_models/releases/download/model-ml-flash-1103/{ASSET}"
-# SHA-256 of the graph: the slim one graph of 知意 ML-Flash-1103 (from 1.6.6; 53 MB instead of 78 MB, the same model
+ASSET = "laya-ml-flash-next-preview-1114-slim.zip"
+URL = f"https://github.com/dd1000001000/zhiyi_models/releases/download/model-ml-flash-next-preview-1114/{ASSET}"
+# SHA-256 of the graph: the slim one graph of 知意 ml-flash-next-preview-1114 (from 1.7.0): ML-Flash-1103 trained further with a
+# 4-layer next-word decoder (all six languages) next to its word choice and composition, the decoder sharing the token
+# table (4-bit) as one graph (is_step / need_cross); word choice end to end as ML-Flash-1103's. Before: the slim one
+# graph of 知意 ML-Flash-1103 (1.6.6-1.6.7; 53 MB instead of 78 MB, the same model
 # without retraining: the token table 4-bit in blocks of 32, the head's attention in-projections 8-bit, float16 block
 # scales, an int32 vocabulary remap; 1.6.4-1.6.5 shipped the int8g zip's 78 MB graph, after 1.6.3; 1.6.0-1.6.3 shipped ML-pumpkin-1026 from
 # model-ml-pumpkin-1026, 1.5.12-1.5.18 1.4V2-Long-L12, 1.5.9-1.5.11 1.4V2-Long-L18). ML-pumpkin-1026 (12 encoder
@@ -34,7 +39,7 @@ URL = f"https://github.com/dd1000001000/zhiyi_models/releases/download/model-ml-
 # cached per context) and one head shared by word choice and composition, distilled from Qwen3.5-9B LoRA teachers;
 # trained further on rows typed without context. The engine reads its zh / en side only: the other tables of
 # unified_vocab.json are under "ml". int8, 126963 embedding rows, the tokenizer of 1.4V2-Long-L18.
-ONE_SHA256 = "71848e39db065232b4304f0deed9dcb6e9755424c2a24d29fb655a4be09877ee"
+ONE_SHA256 = "8c84eb0169980529fdba84d83234007e345ea651a0ae0638cf15930c807ce02d"
 
 # The word n-gram scored next to the word choice (laya.ngram, engine/src/laya/ngram.h), ng1017: Youmo
 # IME's pinyin language model (LGPL-2.1-or-later, on libime's) with science text mixed in (CSL
@@ -61,7 +66,7 @@ def pack():
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for f in FILES:
             z.write(os.path.join(DEST, f), f)
-    print(f"{out}\nlaya.one.fused.int8g.onnx sha256 {sha256(os.path.join(DEST, 'laya.one.fused.int8g.onnx'))}")
+    print(f"{out}\n{GRAPH} sha256 {sha256(os.path.join(DEST, GRAPH))}")
     out = os.path.join(ROOT, "build", NGRAM_ASSET)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(os.path.join(NGRAM_DEST, NGRAM_FILE), NGRAM_FILE)
@@ -71,7 +76,7 @@ def pack():
 def matches():
     if not all(os.path.exists(os.path.join(DEST, f)) for f in FILES):
         return False
-    return sha256(os.path.join(DEST, "laya.one.fused.int8g.onnx")) == ONE_SHA256
+    return sha256(os.path.join(DEST, GRAPH)) == ONE_SHA256
 
 
 def fetch_ngram():

@@ -82,6 +82,11 @@ bool is_candidate_command(cxxime::UiCommandType type) {
 
 bool command_is_allowed(const cxxime::UiPresentationSnapshot& snapshot,
                         cxxime::UiCommandType type) {
+    // A refresh asks the client to fetch its page: next words come after the window closed at
+    // the commit (the client checks it is still current).
+    if (type == cxxime::UiCommandType::kRefreshCandidates) {
+        return true;
+    }
     if (!is_candidate_command(type)) {
         return requests_visible_ui(snapshot);
     }
@@ -187,6 +192,37 @@ public:
         if (handler) {
             handler(0, nullptr, 0, router_revision);
         }
+    }
+
+    bool make_session_command(std::uint64_t session_id, cxxime::UiCommandType type, cxxime::UiEndpointId* endpoint,
+                              cxxime::UiCommand* command) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!running_ || session_id == 0 || !endpoint || !command) {
+            return false;
+        }
+        const RoutedSnapshot* latest = nullptr;
+        cxxime::UiEndpointId latest_endpoint = 0;
+        for (const auto& entry : sessions_) {
+            if (entry.first.session_id != session_id) continue;
+            if (!latest || entry.second.received_revision > latest->received_revision) {
+                latest = &entry.second;
+                latest_endpoint = entry.first.endpoint;
+            }
+        }
+        if (!latest) {
+            return false;
+        }
+        const cxxime::UiPresentationSnapshot& snapshot = latest->snapshot;
+        *endpoint = latest_endpoint;
+        *command = cxxime::UiCommand{};
+        command->session_id = snapshot.session_id;
+        command->session_generation = snapshot.session_generation;
+        command->target_generation = snapshot.target_generation;
+        command->composition_generation = snapshot.composition_generation;
+        command->presentation_generation = snapshot.presentation_generation;
+        command->candidate_revision = snapshot.candidate_revision;
+        command->type = type;
+        return true;
     }
 
     bool send_command(cxxime::UiEndpointId endpoint, const cxxime::UiCommand& command) {
@@ -423,6 +459,11 @@ void UiPresentationRouter::stop() { impl_->stop(); }
 bool UiPresentationRouter::send_command(cxxime::UiEndpointId endpoint,
                                         const cxxime::UiCommand& command) {
     return impl_->send_command(endpoint, command);
+}
+
+bool UiPresentationRouter::make_session_command(std::uint64_t session_id, cxxime::UiCommandType type,
+                                                cxxime::UiEndpointId* endpoint, cxxime::UiCommand* command) {
+    return impl_->make_session_command(session_id, type, endpoint, command);
 }
 
 void UiPresentationRouter::reconcile_system_ui(bool clear_presentation) {

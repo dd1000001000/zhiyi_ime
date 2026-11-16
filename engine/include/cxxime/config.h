@@ -242,6 +242,19 @@ struct Config {
         // whole graph (onnx) reads the context again on every key - when it is there (installs
         // have only the one graph, which then runs anyway).
         bool context_cache = true;
+        // Next words (联想, docs/next-words.md): after a word is committed, the words most likely to
+        // follow, as a page of candidates (digits pick one, Ctrl+digit types its translation in
+        // learning mode, the page goes on after each pick). The model's next-word decoder (a one
+        // graph with is_step, laya/next_words.h): at most page_size words, beam next_beam; in
+        // Chinese mode with the word n-gram's next_ngram_pool next words mixed in (ln P_decoder +
+        // next_ngram_weight * ln P_ngram; dev/flashnext_ime: pool 10, weight 0.75 on the dev rows);
+        // a word the decoder gives less than next_min_probability is not shown (the n-gram's own
+        // words stay), so the page may be shorter. Only a model with the decoder.
+        bool next_words = true;
+        double next_min_probability = 0.01;
+        double next_ngram_weight = 0.75;
+        int next_ngram_pool = 10;
+        int next_beam = 12;
         // English word mode (see EnglishConfig): completions are reranked too.
         bool english = true;
         int english_context_chars = 192;   // English needs more characters for the same context

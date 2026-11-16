@@ -264,7 +264,7 @@ void TextService::_publish_ui_presentation() {
     }
 
     bool candidate_visible = snapshot.ownership == cxxime::UiOwnership::kExternal &&
-                             _candidatePresentation.should_show_external_window(_composing) &&
+                             _candidatePresentation.should_show_external_window(_composing || _predicting) &&
                              has_flag(snapshot, cxxime::UiSnapshotFlag::kHasCaret);
     if (candidate_visible) {
         const bool was_pending = _candidatePresentation.caret_jump_pending();
@@ -385,11 +385,14 @@ bool TextService::_is_current_ui_command(const cxxime::UiCommand& command) const
                    cxxime_tsf::CandidatePresenter::kServer;
     case cxxime::UiCommandType::kCommitComposition:
     case cxxime::UiCommandType::kCancelComposition:
-    // A refresh for the presentation shown (a key since then brought newer candidates).
+    // A refresh for the presentation shown (a key since then brought newer candidates). With no
+    // composition it is the next words after a commit (the server answers with none when a key
+    // since has ended them): taken whatever the key-up of the committing key changed meanwhile.
     case cxxime::UiCommandType::kRefreshCandidates:
-        return command.composition_generation == _candidatePresentation.generation() &&
-               command.presentation_generation ==
-                   _candidatePresentation.presentation_generation();
+        return !_composing ||
+               (command.composition_generation == _candidatePresentation.generation() &&
+                command.presentation_generation ==
+                    _candidatePresentation.presentation_generation());
     default:
         return true;
     }
@@ -397,6 +400,13 @@ bool TextService::_is_current_ui_command(const cxxime::UiCommand& command) const
 
 void TextService::_handle_ui_command(const cxxime::UiCommand& command) {
     if (!_is_current_ui_command(command)) {
+        if (command.type == cxxime::UiCommandType::kRefreshCandidates) {
+            char detail[160] = {};
+            snprintf(detail, sizeof(detail), "refresh dropped target=%llu/%llu composing=%d",
+                     static_cast<unsigned long long>(command.target_generation),
+                     static_cast<unsigned long long>(_uiTargetGeneration), _composing ? 1 : 0);
+            _enqueue_event_trace("ui_command", detail);
+        }
         return;
     }
 

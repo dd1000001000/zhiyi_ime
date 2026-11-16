@@ -103,6 +103,14 @@ public:
                                          const std::vector<std::string>& texts)>;
     void set_capture(CaptureFn capture);
 
+    // Next words (联想, config.laya.next_words): after a commit, the words most likely to follow
+    // `context` in `lang` ("zh" in Chinese mode, with the word n-gram; "en" in English mode), at most
+    // k, best first, those below config.laya.next_min_probability left out (laya/next_words.h).
+    // Blocks for the model: call it off the key path. Empty when the model has no next-word
+    // decoder, is not loaded yet, or does not write `lang`.
+    std::vector<std::string> next_words(const Config& config, const std::string& context, const std::string& lang,
+                                        size_t k);
+    bool has_next_words() const;  // the loaded model has the decoder
     // Starts loading the model in the background (no-op when already loaded or loading).
     void preload(const Config& config);
 

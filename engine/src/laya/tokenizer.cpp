@@ -279,12 +279,19 @@ std::vector<int64_t> BpeTokenizer::encode(const std::string& text) const {
   return out;
 }
 
-void BpeTokenizer::encode_segment(const std::string& segment, std::vector<int64_t>& out) const {
-  // 2. Replace(" " -> "▁"), Metaspace: 不以 ▁ 开头则补一个, 再在每个 ▁ 前切开 (MergedWithNext)。
+std::vector<int64_t> BpeTokenizer::encode_no_prepend(const std::string& text) const {
+  std::vector<int64_t> out;
+  encode_segment(text, out, false);
+  return out;
+}
+
+void BpeTokenizer::encode_segment(const std::string& segment, std::vector<int64_t>& out, bool prepend) const {
+  // 2. Replace(" " -> "▁"), Metaspace: 不以 ▁ 开头则补一个 (prepend), 再在每个 ▁ 前切开 (MergedWithNext)。
   std::string norm = replace_all(segment, " ", kMeta);
-  if (norm.compare(0, kMeta.size(), kMeta) != 0) norm = kMeta + norm;
+  const bool starts_meta = norm.compare(0, kMeta.size(), kMeta) == 0;
+  if (prepend && !starts_meta) norm = kMeta + norm;
   size_t start = 0;
-  for (size_t pos = kMeta.size(); pos <= norm.size(); ++pos) {
+  for (size_t pos = prepend || starts_meta ? kMeta.size() : 1; pos <= norm.size(); ++pos) {
     bool boundary = pos == norm.size() || norm.compare(pos, kMeta.size(), kMeta) == 0;
     if (!boundary) continue;
     bpe_piece(norm.substr(start, pos - start), out);

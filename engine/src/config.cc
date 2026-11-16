@@ -368,6 +368,11 @@ static void apply_config_json(Config& config, nlohmann::json& j) {
         load_int(l, "threads", config.laya.threads);
         load_bool(l, "cache", config.laya.cache);
         load_bool(l, "context_cache", config.laya.context_cache);
+        load_bool(l, "next_words", config.laya.next_words);
+        load_double(l, "next_min_probability", config.laya.next_min_probability);
+        load_double(l, "next_ngram_weight", config.laya.next_ngram_weight);
+        load_int(l, "next_ngram_pool", config.laya.next_ngram_pool);
+        load_int(l, "next_beam", config.laya.next_beam);
         load_bool(l, "english", config.laya.english);
         load_int(l, "english_context_chars", config.laya.english_context_chars);
         load_bool(l, "continuation", config.laya.continuation);
@@ -784,6 +789,11 @@ static nlohmann::json build_config_json(const Config& config, bool include_diagn
     j["laya"]["threads"] = config.laya.threads;
     j["laya"]["cache"] = config.laya.cache;
     j["laya"]["context_cache"] = config.laya.context_cache;
+    j["laya"]["next_words"] = config.laya.next_words;
+    j["laya"]["next_min_probability"] = config.laya.next_min_probability;
+    j["laya"]["next_ngram_weight"] = config.laya.next_ngram_weight;
+    j["laya"]["next_ngram_pool"] = config.laya.next_ngram_pool;
+    j["laya"]["next_beam"] = config.laya.next_beam;
     j["laya"]["english"] = config.laya.english;
     j["laya"]["english_context_chars"] = config.laya.english_context_chars;
     j["laya"]["continuation"] = config.laya.continuation;

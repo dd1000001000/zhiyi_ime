@@ -29,6 +29,7 @@
 
 #include "laya/continuation_cache.h"
 #include "laya/model_sentences.h"
+#include "laya/next_words.h"
 #include "laya/ngram.h"
 #include "laya/reranker.h"
 #include "laya/slots.h"
@@ -54,6 +55,9 @@ struct State {
     std::shared_ptr<laya::Reranker> model;
     // The word n-gram next to it (laya.ngram), loaded with the model; nullptr when off or missing.
     std::shared_ptr<const laya::Ngram> ngram;
+    // Next words (联想): the model's next-word decoder with its rows (next_rows.json beside the
+    // model); nullptr when the model has none. Refers to `model` (kept with it).
+    std::shared_ptr<const laya::NextWords> next;
     std::string model_key;
     bool loading = false;
     bool failed = false;
@@ -90,7 +94,7 @@ std::string laya_cache_dir() { return local_data_path("laya-cache"); }
 
 // The one graph with the context's KV cache (laya/reranker.h kOneGraphFiles) in `dir`.
 bool has_one_graph(const std::string& dir) {
-    for (const char* f : {"laya.one.fused.int8g.onnx", "laya.one.int8g.onnx"}) {
+    for (const char* f : laya::kOneGraphFiles) {
         std::error_code ec;
         if (std::filesystem::exists(std::filesystem::path(laya::utf8_to_wide(dir)) / laya::utf8_to_wide(f), ec))
             return true;
@@ -149,6 +153,7 @@ std::shared_ptr<laya::Reranker> get_model(const Config& config) {
         s.model_key = key;
         s.model.reset();
         s.ngram.reset();
+        s.next.reset();
         s.stats.ngram_ready = false;
         s.failed = false;
         s.cache.clear();
@@ -191,12 +196,24 @@ std::shared_ptr<laya::Reranker> get_model(const Config& config) {
                 ngram.reset();
             }
         }
+        // The next-word decoder's rows, when the model has the decoder.
+        std::shared_ptr<laya::NextWords> next;
+        if (model && model->has_next()) {
+            const std::string rows = opt.model_dir + "/next_rows.json";
+            try {
+                next = std::make_shared<laya::NextWords>(*model, rows);
+                laya_log(L"next words: the model's decoder with " + laya::utf8_to_wide(rows));
+            } catch (const std::exception& e) {
+                laya_log(L"no next words (" + laya::utf8_to_wide(e.what()) + L")");
+            }
+        }
         State& st = state();
         std::lock_guard<std::mutex> lk(st.mu);
         if (st.model_key != key) return;  // configuration changed while loading
         st.loading = false;
         st.model = model;
         st.ngram = ngram;
+        st.next = next;
         st.stats.ngram_ready = static_cast<bool>(ngram);
         st.failed = !model;
         st.stats.model_ready = static_cast<bool>(model);
@@ -1098,6 +1115,40 @@ bool LayaRerank::apply_english(const Config& config, const std::string& context,
         ++s.stats.reordered;
     }
     return true;
+}
+
+bool LayaRerank::has_next_words() const {
+    State& s = state();
+    std::lock_guard<std::mutex> lk(s.mu);
+    return s.next != nullptr;
+}
+
+std::vector<std::string> LayaRerank::next_words(const Config& config, const std::string& context,
+                                                const std::string& lang, size_t k) {
+    std::shared_ptr<laya::Reranker> model = get_model(config);
+    std::shared_ptr<const laya::NextWords> next;
+    std::shared_ptr<const laya::Ngram> ngram;
+    {
+        State& s = state();
+        std::lock_guard<std::mutex> lk(s.mu);
+        if (s.model != model) return {};
+        next = s.next;
+        ngram = s.ngram;
+    }
+    if (!model || !next || k == 0 || !next->has_language(lang)) return {};
+    const auto& lc = config.laya;
+    std::vector<laya::NextWord> words;
+    try {
+        words = next->predict_mixed(context, lang, k, static_cast<size_t>((std::max)(1, lc.next_beam)), ngram.get(),
+                                    lc.next_ngram_weight, k, static_cast<size_t>((std::max)(0, lc.next_ngram_pool)),
+                                    lc.next_min_probability);
+    } catch (const std::exception& e) {
+        laya_log(L"next words failed: " + laya::utf8_to_wide(e.what()));
+        return {};
+    }
+    std::vector<std::string> out;
+    for (auto& w : words) out.push_back(std::move(w.text));
+    return out;
 }
 
 }  // namespace cxxime

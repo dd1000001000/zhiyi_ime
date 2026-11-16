@@ -28,6 +28,9 @@ class BpeTokenizer {
   explicit BpeTokenizer(const std::string& tokenizer_json_path, const std::string& cache_bin = {});
 
   std::vector<int64_t> encode(const std::string& text) const;
+  // Plain text (no added tokens) as it continues other text: no "▁" put in front (the
+  // tokenizer's prepend_scheme "never"; the next-word decoder's CJK words, bench next_flash.Enc.ids).
+  std::vector<int64_t> encode_no_prepend(const std::string& text) const;
 
   int64_t token_id(std::string_view token) const;  // 不存在时返回 -1
   int64_t cls_id() const { return hdr_->cls; }
@@ -61,7 +64,7 @@ class BpeTokenizer {
   void attach(const char* data, size_t size);
   std::string_view token_at(uint32_t index) const;
   const Merge* find_merge(uint64_t key) const;
-  void encode_segment(const std::string& segment, std::vector<int64_t>& out) const;
+  void encode_segment(const std::string& segment, std::vector<int64_t>& out, bool prepend = true) const;
   void bpe_piece(const std::string& piece, std::vector<int64_t>& out) const;
 
   std::string image_;           // owned image (built from JSON and not mapped)

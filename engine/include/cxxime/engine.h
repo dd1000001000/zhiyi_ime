@@ -69,6 +69,9 @@ public:
     void set_text_before_caret(const std::string& text);
     // Another input box whose text cannot be read: forget the context of the previous one.
     void clear_laya_context();
+    // Text typed outside a composition (a next word picked from the page after a commit, or its
+    // translation): it becomes context like a commit.
+    void note_committed_text(const std::string& text) { remember_commit(text); }
     // The last candidate pick, once (empty when nothing was picked since the last call).
     std::optional<CandidatePick> take_candidate_pick() {
         auto pick = last_pick_;

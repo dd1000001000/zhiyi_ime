@@ -3,6 +3,8 @@
 #include "session_manager.h"
 
 #include "continuation_worker.h"
+#include "next_words_worker.h"
+#include <windows.h>
 #include "machine_translator.h"
 #include "word_list_service.h"
 
@@ -40,6 +42,11 @@
 #include <cxxime/user_data_merge.h>
 #include <cxxime/user_lexicon.h>
 #include <cxxime/wubi_translator.h>
+
+namespace {
+// The context the next words read (the decoder takes its last 128 tokens).
+constexpr std::size_t kNextWordsContextChars = 256;
+}  // namespace
 
 namespace {
 
@@ -316,6 +323,90 @@ void add_glosses(const SessionEntry& entry, cxxime::CandidatePresentationPage& p
         MachineTranslator::instance().request(std::move(missing), context, config.mt_device,
                                               config.mt_idle_seconds, pos_labels(config));
     }
+}
+
+// Next words: a word of the page as a candidate (its translation: learning mode's Chinese or
+// English target).
+cxxime::Candidate next_word_candidate(const SessionEntry& entry, const std::string& word) {
+    cxxime::Candidate candidate;
+    candidate.text = word;
+    candidate.source =
+        entry.next_lang == "en" ? cxxime::CandidateSource::kEnglish : cxxime::CandidateSource::kPinyin;
+    return candidate;
+}
+
+// Next words: the page shown, with no composition (learning mode: with translations, asked from
+// the offline model like a candidate's, after the text just typed).
+void fill_next_words_presentation(const SessionEntry& entry, ProcessKeyResult& result) {
+    result.composing = false;
+    result.predicting = !entry.next_words.empty();
+    result.candidate_revision = entry.candidate_revision;
+    result.ime_status = entry.ime_status;
+    result.presentation = {};
+    if (!result.predicting) return;
+    const cxxime::Config* config = entry.resources.runtime ? &entry.resources.runtime->config() : nullptr;
+    cxxime::CandidatePresentationPage& page = result.presentation;
+    const int n = static_cast<int>(entry.next_words.size());
+    page.page_size = config ? (std::max)(1, config->page_size) : 9;
+    page.highlighted = 0;
+    page.extent = cxxime::make_candidate_extent(n, n, false);
+    for (const std::string& word : entry.next_words) {
+        cxxime::CandidatePresentationItem item;
+        item.text = word;
+        page.items.push_back(std::move(item));
+    }
+    if (!config || !learning_mode_shown(*config)) return;
+    const std::string context =
+        translator_enabled(*config)
+            ? entry.engine->laya_context(static_cast<std::size_t>(config->mt_context_chars))
+            : std::string();
+    std::vector<cxxime::mt::Item> missing;
+    for (cxxime::CandidatePresentationItem& item : page.items) {
+        const cxxime::Candidate candidate = next_word_candidate(entry, item.text);
+        bool asked = false;
+        item.gloss = shown_gloss(*config, candidate, context, &asked);
+        const std::string& target = gloss_target(*config, candidate);
+        if (item.gloss.empty() && !asked && translator_enabled(*config) && !target.empty() &&
+            cxxime::mt::translatable(candidate.text)) {
+            missing.push_back({target, candidate.text,
+                               candidate.source == cxxime::CandidateSource::kEnglish ? "en" : "zh"});
+        }
+    }
+    if (!missing.empty()) {
+        MachineTranslator::instance().request(std::move(missing), context, config->mt_device,
+                                              config->mt_idle_seconds, pos_labels(*config));
+    }
+}
+
+// A modifier key alone: it keeps the next words (Ctrl comes before Ctrl+digit).
+bool modifier_key(uint32_t vk) {
+    return vk == VK_SHIFT || vk == VK_CONTROL || vk == VK_MENU || vk == VK_LSHIFT || vk == VK_RSHIFT ||
+           vk == VK_LCONTROL || vk == VK_RCONTROL || vk == VK_LMENU || vk == VK_RMENU || vk == VK_LWIN ||
+           vk == VK_RWIN || vk == VK_CAPITAL;
+}
+
+// A main-row digit's place on the page (1 -> 0 ... 9 -> 8, 0 -> 9); -1 for any other key (the
+// numeric keypad's digits type digits).
+int next_word_digit(uint32_t vk) {
+    if (vk >= '1' && vk <= '9') return static_cast<int>(vk - '1');
+    if (vk == '0') return 9;
+    return -1;
+}
+
+// A commit that brings next words. Chinese mode: a picked candidate with letters or characters
+// (not raw letters, punctuation or digits). English (word) mode: a word committed with the space
+// after it (Space, or a completion picked; Engine::commit_english), not one ended by punctuation.
+bool commit_brings_next_words(const std::string& text, cxxime::CommitSource source, bool chinese) {
+    if (text.empty()) return false;
+    if (chinese) {
+        if (source != cxxime::CommitSource::kCandidate) return false;
+    } else if (text.back() != ' ') {
+        return false;
+    }
+    for (unsigned char c : text) {
+        if (c >= 0x80 || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) return true;
+    }
+    return false;
 }
 
 void fill_session_presentation(const SessionEntry& entry, ProcessKeyResult& result) {
@@ -833,7 +924,8 @@ uint32_t SessionManager::create_session(uint64_t client_capabilities) {
                                cxxime::kClientCapabilitySegmentedPreeditPresentation |
                                cxxime::kClientCapabilityCandidateRefresh |
                                cxxime::kClientCapabilityVoiceInput |
-                               cxxime::kClientCapabilityVoiceKey);
+                               cxxime::kClientCapabilityVoiceKey |
+                               cxxime::kClientCapabilityNextWords);
     entry->engine->set_voice_key_from_client(
         (entry->client_capabilities & cxxime::kClientCapabilityVoiceKey) != 0);
     const bool segmented_selection =
@@ -1854,6 +1946,41 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     // 3. set trace
     engine.set_trace_session_id(id);
 
+    // Next words: a digit picks a word of the page shown (in learning mode Ctrl+digit types its
+    // translation; learning.digits_type_translation swaps the two), Esc closes the page, any other
+    // key closes it and goes on as usual. A modifier alone keeps it. Any of these keys also drops
+    // a prediction still being computed.
+    if (!event.is_key_up && !modifier_key(event.keycode)) {
+        if (!s.next_words.empty() && !engine.context().is_composing()) {
+            const cxxime::Config* config = resources.runtime ? &resources.runtime->config() : nullptr;
+            const bool learning = config && learning_mode_shown(*config);
+            const bool swapped = learning && config->digits_type_translation;
+            const int index = event.is_alt() || event.is_shift() || (event.is_ctrl() && !learning)
+                                  ? -1
+                                  : next_word_digit(event.keycode);
+            if (index >= 0 && static_cast<size_t>(index) < s.next_words.size()) {
+                return commit_next_word(id, s, static_cast<size_t>(index), learning && event.is_ctrl() != swapped,
+                                        opts);
+            }
+            if (event.keycode == VK_ESCAPE && !event.is_ctrl() && !event.is_alt() && !event.is_shift()) {
+                s.next_words.clear();
+                ++s.next_generation;
+                ++s.candidate_revision;
+                ProcessKeyResult closed;
+                closed.status = cxxime::IPCStatus::OK;
+                closed.result = cxxime::ProcessResult::ACCEPTED;
+                closed.key_handled = true;
+                fill_next_words_presentation(s, closed);
+                return closed;
+            }
+        }
+        if (!s.next_words.empty()) {
+            s.next_words.clear();
+            ++s.candidate_revision;
+        }
+        ++s.next_generation;
+    }
+
     // 4. call Engine
     const bool was_composing = engine.context().is_composing();
     const auto key_start = std::chrono::steady_clock::now();
@@ -1946,10 +2073,13 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
         persist_english_word_mode(ret.ime_status.english_words());
     }
 
+    std::string next_lang;  // a word committed: next words in this language
     if (result == cxxime::ProcessResult::COMMITTED) {
         auto [raw, source] = engine.take_commit_text_with_source();
         ret.commit_text = cxxime::OutputComposer::transform(raw, opts, source);
         ret.composing = engine.context().is_composing();
+        const bool chinese = s.ime_status.chinese_mode();
+        if (!ret.composing && commit_brings_next_words(raw, source, chinese)) next_lang = chinese ? "zh" : "en";
     } else if (result == cxxime::ProcessResult::TOGGLE_PUNCT
             || result == cxxime::ProcessResult::TOGGLE_SHAPE
             || result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE
@@ -1960,8 +2090,15 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     } else {
         ret.composing = engine.context().is_composing();
     }
+    // A mode switch (a tapped Shift, the style keys) ends the next words.
+    if (!s.next_words.empty() && (shared_state_changed || result == cxxime::ProcessResult::SWITCH_INPUT_MODE)) {
+        s.next_words.clear();
+        ++s.next_generation;
+        ++s.candidate_revision;
+    }
     advance_candidate_revision(s, candidate_state_before);
     fill_session_presentation(s, ret);
+    if (!ret.composing && !s.next_words.empty()) fill_next_words_presentation(s, ret);
     if (!event.is_key_up) {
         track_input(s, &event, was_composing, result != cxxime::ProcessResult::REJECTED, ret,
                     pick);
@@ -1973,6 +2110,7 @@ ProcessKeyResult SessionManager::process_key(uint32_t id, const cxxime::KeyEvent
     }
 
     schedule_continuation(id, s);
+    if (!next_lang.empty()) schedule_next_words(id, s, next_lang);
     return ret;
 }
 
@@ -2094,6 +2232,11 @@ ProcessKeyResult SessionManager::select_candidate(uint32_t id, int index,
     align_session_to_global(s);
     advance_candidate_revision(s, candidate_state_before_alignment);
     auto opts = cxxime::OutputOptions::from(s.ime_status);
+    // A click on a next word types it.
+    if (!s.next_words.empty() && !s.engine->context().is_composing() && index >= 0 &&
+        static_cast<size_t>(index) < s.next_words.size()) {
+        return commit_next_word(id, s, static_cast<size_t>(index), false, opts);
+    }
     ProcessKeyResult ret;
     ret.status = cxxime::IPCStatus::OK;
     ret.ime_status = s.ime_status;
@@ -2146,14 +2289,25 @@ void SessionManager::start_background_continuation(RefreshNotifier notifier) {
         },
         [this](uint32_t id, const std::string& key) { continuation_done(id, key); });
     cxxime::LayaRerank::instance().set_continuation_in_background(true);
+    next_words_worker_ = std::make_unique<NextWordsWorker>(
+        [](const NextWordsWorker::Request& request) {
+            return cxxime::LayaRerank::instance().next_words(request.runtime->config(), request.context,
+                                                             request.lang, request.count);
+        },
+        [this](uint32_t id, uint64_t generation, std::vector<std::string> words) {
+            next_words_done(id, generation, std::move(words));
+        });
 }
 
 void SessionManager::stop_background_continuation() {
     std::unique_ptr<ContinuationWorker> worker;
+    std::unique_ptr<NextWordsWorker> next_worker;
     {
         std::lock_guard<std::mutex> lock(continuation_mutex_);
         worker = std::move(continuation_worker_);
+        next_worker = std::move(next_words_worker_);
     }
+    if (next_worker) next_worker->stop();
     if (!worker) return;
     cxxime::LayaRerank::instance().set_continuation_in_background(false);
     worker->stop();
@@ -2193,6 +2347,109 @@ void SessionManager::continuation_done(uint32_t id, const std::string& key) {
     notify();
 }
 
+void SessionManager::schedule_next_words(uint32_t id, SessionEntry& entry, const std::string& lang) {
+    entry.next_words.clear();
+    ++entry.next_generation;
+    // Debug output only (no log file): why a commit brought no next words.
+    auto note = [&](const char* why) {
+        OutputDebugStringA((std::string("[ZhiyiIME] next words: ") + why + " (" + lang + ")\n").c_str());
+    };
+    if ((entry.client_capabilities & cxxime::kClientCapabilityNextWords) == 0) return note("client cannot show them");
+    std::shared_ptr<const cxxime::EngineRuntimeState> runtime = entry.resources.runtime;
+    if (!runtime) return note("no runtime");
+    const cxxime::Config& config = runtime->config();
+    if (!config.laya.enable || !config.laya.next_words) return note("off in the settings");
+    if (!cxxime::LayaRerank::instance().has_next_words()) return note("the model has no decoder");
+    entry.next_lang = lang;
+    NextWordsWorker::Request request;
+    request.generation = entry.next_generation;
+    // Line breaks as the model learned them: Notepad and others give "\r" or "\r\n".
+    const std::string context = entry.engine->laya_context(kNextWordsContextChars);
+    for (std::size_t i = 0; i < context.size(); ++i) {
+        if (context[i] != '\r') {
+            request.context += context[i];
+        } else if (i + 1 >= context.size() || context[i + 1] != '\n') {
+            request.context += '\n';
+        }
+    }
+    request.lang = lang;
+    request.count = static_cast<size_t>((std::max)(1, (std::min)(config.page_size, 10)));
+    request.runtime = std::move(runtime);
+    std::lock_guard<std::mutex> lock(continuation_mutex_);
+    if (next_words_worker_) next_words_worker_->submit(id, std::move(request));
+}
+
+void SessionManager::next_words_done(uint32_t id, uint64_t generation, std::vector<std::string> words) {
+    auto entry = lookup_session(id);
+    if (!entry || words.empty()) return;
+    RefreshNotifier notifier;
+    {
+        std::lock_guard<std::mutex> lock(continuation_mutex_);
+        notifier = refresh_notifier_;
+    }
+    std::function<void()> notify = notifier ? notifier(id) : std::function<void()>();
+    if (!notify) {
+        OutputDebugStringA("[ZhiyiIME] next words: no client to tell\n");
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(entry->mutex);
+        // A key or a commit since: the words were for an earlier place.
+        if (entry->closing || generation != entry->next_generation || entry->engine->context().is_composing()) {
+            return;
+        }
+        entry->next_words = std::move(words);
+        ++entry->candidate_revision;
+    }
+    notify();
+}
+
+ProcessKeyResult SessionManager::commit_next_word(uint32_t id, SessionEntry& s, size_t index, bool translation,
+                                                  const cxxime::OutputOptions& opts) {
+    ProcessKeyResult ret;
+    ret.status = cxxime::IPCStatus::OK;
+    ret.ime_status = s.ime_status;
+    const cxxime::Config* config = s.resources.runtime ? &s.resources.runtime->config() : nullptr;
+    const std::string word = s.next_words[index];
+    std::string text = word;
+    if (translation) {
+        // Learning mode: the first sense of the translation the window shows.
+        std::string gloss;
+        bool spaced = false;
+        if (config) {
+            const cxxime::Candidate candidate = next_word_candidate(s, word);
+            const std::string context =
+                translator_enabled(*config)
+                    ? s.engine->laya_context(static_cast<std::size_t>(config->mt_context_chars))
+                    : std::string();
+            const auto senses = cxxime::decode_candidate_gloss(shown_gloss(*config, candidate, context));
+            if (!senses.empty()) gloss = senses.front().text;
+            const auto& languages = config->translation_space_languages;
+            spaced = std::find(languages.begin(), languages.end(), gloss_target(*config, candidate)) !=
+                     languages.end();
+        }
+        if (gloss.empty()) {  // no translation (yet): the key does nothing, the page stays
+            ret.result = cxxime::ProcessResult::ACCEPTED;
+            ret.key_handled = true;
+            fill_next_words_presentation(s, ret);
+            return ret;
+        }
+        text = gloss;
+        if (spaced && config->auto_space) text += ' ';
+    } else if (s.next_lang == "en") {
+        // As a word committed with Space: the next pick must not run into it ("we" "are").
+        text += ' ';
+    }
+    ret.commit_text = cxxime::OutputComposer::transform(text, opts, cxxime::CommitSource::kCandidate);
+    ret.result = cxxime::ProcessResult::COMMITTED;
+    ret.key_handled = true;
+    s.engine->note_committed_text(text);
+    ++s.candidate_revision;
+    schedule_next_words(id, s, s.next_lang);  // the next page follows, after the word or its translation
+    fill_next_words_presentation(s, ret);
+    return ret;
+}
+
 ProcessKeyResult SessionManager::refresh_candidates(uint32_t id) {
     auto entry = lookup_session(id);
     ProcessKeyResult ret;
@@ -2201,6 +2458,13 @@ ProcessKeyResult SessionManager::refresh_candidates(uint32_t id) {
     if (entry->closing) return ret;
     auto& s = *entry;
     ret.ime_status = s.ime_status;
+    // Next words came in (next_words_done): the page with no composition.
+    if (!s.engine->context().is_composing() && !s.next_words.empty()) {
+        ret.status = cxxime::IPCStatus::OK;
+        ret.result = cxxime::ProcessResult::ACCEPTED;
+        fill_next_words_presentation(s, ret);
+        return ret;
+    }
     if (!s.engine->context().is_composing()) {
         s.continuation_ready.clear();
         ret.status = cxxime::IPCStatus::ERR_ENGINE_PROCESS_FAILED;
@@ -2242,6 +2506,8 @@ ProcessKeyResult SessionManager::commit_composition(uint32_t id) {
     ret.status = cxxime::IPCStatus::OK;
     ret.ime_status = s.ime_status;
 
+    s.next_words.clear();
+    ++s.next_generation;
     const CandidateStateToken candidate_state_before = candidate_state_token(*s.engine);
     auto [raw, source] = s.engine->commit_composition_with_source();
     if (!raw.empty()) {
@@ -2263,6 +2529,8 @@ ProcessKeyResult SessionManager::clear_composition(uint32_t id) {
         return result;
     }
     std::lock_guard<std::mutex> lock(entry->mutex);
+    entry->next_words.clear();
+    ++entry->next_generation;
     const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
     entry->engine->clear_composition();
     advance_candidate_revision(*entry, candidate_state_before);
@@ -2299,6 +2567,8 @@ ProcessKeyResult SessionManager::focus_out(uint32_t id) {
         return result;
     }
     std::lock_guard<std::mutex> lock(entry->mutex);
+    entry->next_words.clear();
+    ++entry->next_generation;
     const CandidateStateToken candidate_state_before = candidate_state_token(*entry->engine);
     entry->engine->clear_composition();
     advance_candidate_revision(*entry, candidate_state_before);

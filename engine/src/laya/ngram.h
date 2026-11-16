@@ -12,6 +12,9 @@
 // Backoff as ARPA has it; no <s> (a text starts from no history).
 #pragma once
 
+#include <mutex>
+#include <utility>
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -39,6 +42,16 @@ class Ngram {
   // context alone.
   std::vector<double> score(const std::string& context, const std::vector<std::string>& texts) const;
 
+  // The k most likely next words after `context` (its last line's last kContextChars characters):
+  // from its best kNextStates states, every word with a trigram (u, v, w) or bigram (v, w) entry
+  // and the kNextUnigrams most likely words, each scored by P(w | u, v) summed over the states
+  // (weighted by their probability against the best), best first, with ln P. Only words of 2-6
+  // Han characters (U+4E00..U+9FFF): bench next_word/next_eval.py NgramNext.predict, the next-word
+  // decoder's n-gram pool.
+  static constexpr size_t kNextStates = 4;
+  static constexpr size_t kNextUnigrams = 3000;
+  std::vector<std::pair<std::string, double>> next_words(const std::string& context, size_t k) const;
+
   // The word's id, -1 for none.
   int64_t word(std::string_view text) const;
   // log10 P(w | v) and P(w | u v); u or v -1 for no history.
@@ -53,6 +66,13 @@ class Ngram {
   int64_t bigram(int64_t v, int64_t w) const;  // index, -1 for none
   // The states at the end of chars[0, n) run from `states` at position `start` (beam).
   std::vector<State> run(const std::vector<std::string>& chars, size_t start, std::vector<State> states) const;
+
+  std::string_view word_text(int64_t w) const {
+    return std::string_view(words_ + word_off_[w], word_off_[w + 1] - word_off_[w]);
+  }
+  bool next_word_text(int64_t w) const;  // 2-6 Han characters
+  mutable std::once_flag unigrams_once_;
+  mutable std::vector<int64_t> top_unigrams_;  // next_words: the kNextUnigrams most likely such words
 
   cxxime::MappedFile file_;
   uint32_t n1_ = 0, n2_ = 0, n3_ = 0;

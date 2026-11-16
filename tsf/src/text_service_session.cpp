@@ -86,7 +86,8 @@ bool TextService::_ensure_ipc_session() {
         cxxime::kClientCapabilitySegmentedPreeditPresentation |
         cxxime::kClientCapabilityCandidateRefresh |
         cxxime::kClientCapabilityVoiceInput |
-        cxxime::kClientCapabilityVoiceKey;
+        cxxime::kClientCapabilityVoiceKey |
+        cxxime::kClientCapabilityNextWords;
     if (!_client.start_session(session_id, kClientCapabilities) ||
         session_id == 0) {
         CXXIME_LOG(L"Failed to start IPC session");

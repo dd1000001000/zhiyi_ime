@@ -372,6 +372,8 @@ private:
     // keys before any program gets them and hands them to this text service.
     bool _wants_translation_keys() const;
     void _install_translation_key_hook();
+    // Next words: the page of a response with predicting set, at the caret (no composition).
+    bool _show_next_words(ITfContext* context, const cxxime::IPCResponse& response);
     void _remove_translation_key_hook();
     bool _take_translation_key(UINT message, const KBDLLHOOKSTRUCT& key);
     void _process_translation_key(UINT vk, bool key_up);
@@ -387,6 +389,8 @@ private:
     bool _ensure_text_edit_sink(ITfContext* context);
     bool _bind_text_edit_sink(ITfContext* context);
     void _unadvise_text_edit_sink();
+    // Next words: closes the page (the server forgets it) when shown.
+    void _close_next_words(const char* reason);
     bool _bind_text_layout_sink(ITfContext* context);
     void _unadvise_text_layout_sink();
     void _request_candidate_position_update(ITfContext* pic,
@@ -493,6 +497,9 @@ private:
     TfGuidAtom _focusedDisplayAttributeAtom = 0;
     TfGuidAtom _focusedConvertedDisplayAttributeAtom = 0;
     ITfContext* _textEditSinkContext = nullptr;
+    // The selection after this service's last write in _textEditSinkContext (OnEndEdit): the next
+    // words stay when the program only confirms it later, and close when the selection moves.
+    ITfRange* _ownSelection = nullptr;
     ITfContext* _textLayoutSinkContext = nullptr;
     ITfDocumentMgr* _effectiveDocumentMgr = nullptr;
     ITfContext* _effectiveContext = nullptr;
@@ -514,6 +521,9 @@ private:
     cxxime::IpcClient _client;
     uint32_t _sessionId = 0;
     bool _composing = false;
+    // Next words (联想): the candidate window shows the words that may follow the last commit, with
+    // no composition (IPCResponse::predicting); digits go to the server, which picks one.
+    bool _predicting = false;
     uint64_t _compositionEditGeneration = 0;
     unsigned int _pendingCompositionEdits = 0;
     bool _emptyCompositionPlaceholderActive = false;

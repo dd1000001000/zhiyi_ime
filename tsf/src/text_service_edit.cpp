@@ -34,6 +34,38 @@ STDMETHODIMP TextService::OnEndEdit(ITfContext* context, TfEditCookie edit_cooki
     if (!context || !edit_record) {
         return E_INVALIDARG;
     }
+    // Next words: remember where this service's writes leave the selection; a selection moved
+    // elsewhere (a click in the text, the arrows) closes the page. A program confirming the
+    // selection we left later (Chromium does) keeps it.
+    if (context == _textEditSinkContext) {
+        BOOL moved = FALSE;
+        if (SUCCEEDED(edit_record->GetSelectionStatus(&moved)) && moved) {
+            BOOL own = FALSE;
+            const bool own_write = SUCCEEDED(context->InWriteSession(_clientId, &own)) && own;
+            TF_SELECTION now = {};
+            ULONG got = 0;
+            if (SUCCEEDED(context->GetSelection(edit_cookie, TF_DEFAULT_SELECTION, 1, &now, &got)) && got == 1 &&
+                now.range) {
+                if (own_write) {
+                    if (_ownSelection) _ownSelection->Release();
+                    _ownSelection = nullptr;
+                    now.range->Clone(&_ownSelection);
+                } else if (_predicting && !_composing) {
+                    BOOL same_start = FALSE, same_end = FALSE;
+                    const bool same =
+                        _ownSelection &&
+                        SUCCEEDED(now.range->IsEqualStart(edit_cookie, _ownSelection, TF_ANCHOR_START, &same_start)) &&
+                        SUCCEEDED(now.range->IsEqualEnd(edit_cookie, _ownSelection, TF_ANCHOR_END, &same_end)) &&
+                        same_start && same_end;
+                    if (!same) {
+                        _enqueue_event_trace("text_edit", "selection=moved source=host action=close_next_words");
+                        _close_next_words("hide:next_words_selection_moved");
+                    }
+                }
+                now.range->Release();
+            }
+        }
+    }
     if (!_composing || !_composition || context != _textEditSinkContext) {
         return S_OK;
     }
@@ -155,8 +187,18 @@ bool TextService::_bind_text_edit_sink(ITfContext* context) {
     return true;
 }
 
+void TextService::_close_next_words(const char* reason) {
+    if (!_predicting) return;
+    if (_sessionId && _client.is_connected()) _client.clear_composition(_sessionId);
+    _hide_candidate_window(reason);
+}
+
 void TextService::_unadvise_text_edit_sink() {
     HRESULT hr = S_FALSE;
+    if (_ownSelection) {
+        _ownSelection->Release();
+        _ownSelection = nullptr;
+    }
     if (_textEditSinkContext) {
         ITfSource* source = nullptr;
         if (_dwTextEditSinkCookie != TF_INVALID_COOKIE &&

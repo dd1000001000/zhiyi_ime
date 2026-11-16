@@ -226,6 +226,7 @@ private:
     HWND hAutostart_ = nullptr;  // startup.autostart
     HWND hLaya_ = nullptr;  // laya.enable (Chinese and English)
     HWND hExactPinyin_ = nullptr;  // laya.exact_pinyin_first
+    HWND hNextWords_ = nullptr;    // laya.next_words
     std::vector<UiLanguage> languages_;
     HWND hDataFolder_ = nullptr, hDataHint_ = nullptr;
     HWND hDataChange_ = nullptr, hDataDefault_ = nullptr;

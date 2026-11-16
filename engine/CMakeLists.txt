@@ -85,6 +85,7 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         src/laya/slots.cpp
         src/laya/model_sentences.cpp
         src/laya/ngram.cpp
+        src/laya/next_words.cpp
         src/laya/reranker.cpp
         src/machine_translation.cc
         src/voice_recognizer.cc

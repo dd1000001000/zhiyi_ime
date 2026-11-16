@@ -271,9 +271,13 @@ bool ServerApp::initialize(const std::string& dict_path, const std::string& conf
     session_mgr_.start_background_continuation([this](uint32_t session_id) -> std::function<void()> {
         cxxime::UiEndpointId endpoint = {};
         cxxime::UiCommand command;
+        // The page shown; else (next words: the window closed at the commit) the session's latest
+        // snapshot.
         if (!ui_presentation_controller_.make_command(session_id,
                                                       cxxime::UiCommandType::kRefreshCandidates,
-                                                      &endpoint, &command)) {
+                                                      &endpoint, &command) &&
+            !ui_presentation_router_.make_session_command(session_id, cxxime::UiCommandType::kRefreshCandidates,
+                                                          &endpoint, &command)) {
             return {};
         }
         return [this, endpoint, command] { ui_presentation_router_.send_command(endpoint, command); };
@@ -495,7 +499,7 @@ cxxime::IPCResponse ServerApp::handle_request(const cxxime::IPCRequest& request)
 
         fill_process_response(r, &response);
         response.key_handled =
-            r.result == cxxime::ProcessResult::SWITCH_INPUT_MODE ||
+            r.key_handled || r.result == cxxime::ProcessResult::SWITCH_INPUT_MODE ||
             r.result == cxxime::ProcessResult::INPUT_MODE_SHORTCUT_HANDLED ||
             r.result == cxxime::ProcessResult::TOGGLE_ENGLISH_STYLE ||
             r.result == cxxime::ProcessResult::CYCLE_INPUT_STYLE;

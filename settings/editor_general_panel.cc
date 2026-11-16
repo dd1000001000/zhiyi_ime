@@ -52,6 +52,7 @@ enum ControlId {
     kAutostartId,
     kLayaId,
     kExactPinyinId,
+    kNextWordsId,
     kSwitchKeyId = 1101,
     kStyleKeyId,
     kPunctKeyId,
@@ -245,6 +246,10 @@ void EditorApp::create_general_panel(HWND panel) {
     hExactPinyin_ = make_check(kExactPinyinId, tr("general.exact_pinyin"), laya_x, y, S(440), panel);
     y += kRowH;
     make_hint(tr("general.exact_pinyin_hint"), laya_x, y - S(6), S(480), panel, 1);
+    y += S(20);
+    hNextWords_ = make_check(kNextWordsId, tr("general.next_words"), laya_x, y, S(440), panel);
+    y += kRowH;
+    make_hint(tr("general.next_words_hint"), laya_x, y - S(6), S(480), panel, 1);
     y += S(20);
     const int startup_x = make_aligned_label(tr("general.startup"), x0, labels, y, panel);
     hAutostart_ = make_check(kAutostartId, tr("general.autostart"), startup_x, y, S(300), panel);
@@ -499,6 +504,7 @@ void EditorApp::populate_controls() {
     set_check(hAutostart_, config_.autostart);
     set_check(hLaya_, config_.laya.enable);
     set_check(hExactPinyin_, config_.laya.exact_pinyin_first);
+    set_check(hNextWords_, config_.laya.next_words);
 
     set_switch_key_boxes(config_);
     combo_set_index(hPageUpKey_, page_key_index(kPageUpKeys, config_.page_up_key));
@@ -549,6 +555,7 @@ bool EditorApp::read_controls(bool report_errors) {
     c.autostart = get_check(hAutostart_);
     c.laya.enable = get_check(hLaya_);
     c.laya.exact_pinyin_first = get_check(hExactPinyin_);
+    c.laya.next_words = get_check(hNextWords_);
     const KeyChoice choices[kSwitchKeyCount] = {
         key_capture_get(hSwitchKey_), key_capture_get(hStyleKey_), key_capture_get(hPunctKey_),
         key_capture_get(hShapeKey_), key_capture_get(hVoiceKey_)};
@@ -655,6 +662,7 @@ void EditorApp::update_enabled_controls() {
     }
     // Grayed out (keeping its check mark) while context recommendation is off.
     EnableWindow(hExactPinyin_, get_check(hLaya_));
+    EnableWindow(hNextWords_, get_check(hLaya_));
 }
 
 bool EditorApp::handle_command(int control_id, int notification) {

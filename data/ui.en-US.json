@@ -62,6 +62,8 @@
     "general.laya_hint": "Reads the text before the caret to put the best candidate first",
     "general.exact_pinyin": "Only lift exact pinyin matches to the top",
     "general.exact_pinyin_hint": "With fuzzy pinyin on, fuzzy readings count as exact",
+    "general.next_words": "Show next words after a word",
+    "general.next_words_hint": "The words most likely to follow appear at the caret; the main digit keys pick one, keypad digits type digits",
     "general.device_cpu": "CPU ({0})",
     "general.device_cpus": "CPU ({1} × {0})",
     "general.device_gpu": "GPU ({0})",

@@ -134,6 +134,12 @@ struct SessionEntry {
     // A custom phrase was on a page of this input (a phone number, an address): the input is
     // not collected.
     bool input_private = false;
+    // Next words (联想, docs/next-words.md): the page shown after a commit (empty: none) and its
+    // language ("zh", "en"). next_generation counts what may end it (keys, commits): a result
+    // computed for an older one is dropped.
+    std::vector<std::string> next_words;
+    std::string next_lang;
+    uint64_t next_generation = 0;
 };
 
 void apply_resource_snapshot(SessionEntry& entry, const SharedResourceSnapshot& resources);
@@ -152,11 +158,17 @@ struct ProcessKeyResult {
     cxxime::CandidatePresentationPage presentation;
     uint64_t candidate_revision = 0;
     cxxime::ImeStatus ime_status;
+    // Next words: `presentation` is the page of words that may follow the last commit, with no
+    // composition (SessionEntry::next_words).
+    bool predicting = false;
+    // The key was used up with no commit (Esc closing the next words).
+    bool key_handled = false;
     // The voice key or Esc while recording (Engine::take_voice_request).
     cxxime::Engine::VoiceRequest voice_request = cxxime::Engine::VoiceRequest::kNone;
 };
 
 class ContinuationWorker;
+class NextWordsWorker;
 
 class SessionManager {
 public:
@@ -334,6 +346,13 @@ private:
     // After a key or a pick: the composition's continuation work to the worker, if any.
     void schedule_continuation(uint32_t id, SessionEntry& entry);
     void continuation_done(uint32_t id, const std::string& key);
+    // Next words: after a word was committed in `lang`, asks for the words that may follow
+    // (clients with kClientCapabilityNextWords, a model with the decoder, laya.next_words on).
+    void schedule_next_words(uint32_t id, SessionEntry& entry, const std::string& lang);
+    void next_words_done(uint32_t id, uint64_t generation, std::vector<std::string> words);
+    // Types next word `index` (or its translation) from the page shown; the next page follows.
+    ProcessKeyResult commit_next_word(uint32_t id, SessionEntry& entry, size_t index, bool translation,
+                                      const cxxime::OutputOptions& opts);
 
     SharedResources shared_;
     std::unordered_map<uint32_t, std::shared_ptr<SessionEntry>> sessions_;
@@ -346,6 +365,7 @@ private:
     ConfigPatchHandler config_patch_handler_;
     std::mutex continuation_mutex_;
     std::unique_ptr<ContinuationWorker> continuation_worker_;
+    std::unique_ptr<NextWordsWorker> next_words_worker_;  // under continuation_mutex_
     RefreshNotifier refresh_notifier_;
 };
 

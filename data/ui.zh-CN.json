@@ -62,6 +62,8 @@
     "general.laya_hint": "本机小模型读光标前的文字，把最合适的候选排第一（带星标）；关闭可省内存",
     "general.exact_pinyin": "只把拼音完全对上的候选提到首位",
     "general.exact_pinyin_hint": "开了模糊音时，模糊读法也算对上",
+    "general.next_words": "打完一个词后显示联想",
+    "general.next_words_hint": "在光标处列出接下来最可能打的词，主键盘数字键选词；小键盘数字照常打数字",
     "general.device_cpu": "CPU（{0}）",
     "general.device_cpus": "CPU（{1} × {0}）",
     "general.device_gpu": "GPU（{0}）",

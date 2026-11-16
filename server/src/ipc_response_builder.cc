@@ -87,7 +87,8 @@ void fill_process_response_fields(const ProcessKeyResult& result,
         response->status = cxxime::IPCStatus::ERR_ENGINE_PROCESS_FAILED;
         return;
     }
-    if (!result.composing) {
+    response->predicting = result.predicting && !result.composing ? 1u : 0u;
+    if (!result.composing && !result.predicting) {
         return;
     }
     std::size_t focused_start = result.focused_preedit_start_bytes;

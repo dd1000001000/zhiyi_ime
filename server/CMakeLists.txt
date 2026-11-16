@@ -4,6 +4,7 @@ add_executable(cxxime-server WIN32
     src/config_store.cc
     src/config_write_coordinator.cc
     src/continuation_worker.cc
+    src/next_words_worker.cc
     src/candidate_preference_save_worker.cc
     src/diagnostic_log_maintenance_worker.cc
     src/input_method_hotkey.cc
@@ -51,18 +52,20 @@ if(LAYA_ORT_RUNTIME_FILES)
     )
 endif()
 set(LAYA_MODEL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/models/laya CACHE PATH "Laya model directory (laya.int8g.onnx, tokenizer.json, rl_agent_config.json, unified_vocab.json)")
-if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/laya.int8g.onnx)
+if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/tokenizer.json)
     # Copied by a file-level rule (not POST_BUILD), so replacing the model updates the copy
     # without relinking the server.
-    set(LAYA_MODEL_FILES laya.int8g.onnx tokenizer.json rl_agent_config.json)
+    set(LAYA_MODEL_FILES tokenizer.json rl_agent_config.json)
     # The unified model (choice + long-pinyin continuation) reads its units and characters
     # from unified_vocab.json; without it the server keeps to the word choice.
     if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/unified_vocab.json)
         list(APPEND LAYA_MODEL_FILES unified_vocab.json)
     endif()
     # The one graph with the context's KV cache, run on the CPU instead of the whole graph
-    # (engine/src/laya/reranker.h kOneGraphFiles).
-    foreach(file laya.one.fused.int8g.onnx laya.one.int8g.onnx)
+    # (engine/src/laya/reranker.h kOneGraphFiles); the next-word one graph comes with
+    # next_rows.json (its rows' texts and each language's masks, engine/src/laya/next_words.h).
+    foreach(file laya.one.next.slim.onnx laya.one.next.w8.onnx next_rows.json laya.one.fused.int8g.onnx
+            laya.one.int8g.onnx laya.int8g.onnx)
         if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/${file})
             list(APPEND LAYA_MODEL_FILES ${file})
         endif()

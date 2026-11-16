@@ -249,6 +249,10 @@ constexpr uint64_t kClientCapabilityVoiceInput = 1ULL << 3;
 // kVoiceKeyPress / kVoiceKeyRelease / kVoiceKeyCancel: the engine leaves the voice shortcut and
 // a tapped modifier bound to toggle_voice alone for its sessions.
 constexpr uint64_t kClientCapabilityVoiceKey = 1ULL << 4;
+// Next words (联想, docs/next-words.md): the client shows a page of candidates with no composition
+// (IPCResponse::predicting) after a commit and fetches it on UiCommandType::kRefreshCandidates;
+// only its sessions get them (an older client keeps every key as before).
+constexpr uint64_t kClientCapabilityNextWords = 1ULL << 5;
 
 enum class PreeditPresentationFlag : uint32_t {
     SyllableBoundaries = 1u << 0,
@@ -374,6 +378,9 @@ struct IPCResponse {
     // text (UTF-8) when kVoiceDone.
     uint32_t voice_state = kVoiceIdle;
     char voice_text[kVoiceTextCapacity] = {};
+    // Next words: 1 when the candidates are the words that may follow the last commit, with no
+    // composition (composing 0): the client shows them at the caret; digits pick one.
+    uint32_t predicting = 0;
 };
 
 static_assert(std::is_standard_layout<IPCResponse>::value,

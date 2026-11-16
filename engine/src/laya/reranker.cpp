@@ -23,7 +23,8 @@
 namespace laya {
 
 const char* const kInstructionsGuess = "Which candidate word most likely comes next after the text so far?";
-const char* const kOneGraphFiles[2] = {"laya.one.fused.int8g.onnx", "laya.one.int8g.onnx"};
+const char* const kOneGraphFiles[kOneGraphFileCount] = {"laya.one.next.slim.onnx", "laya.one.next.w8.onnx",
+                                                        "laya.one.fused.int8g.onnx", "laya.one.int8g.onnx"};
 
 namespace {
 
@@ -133,20 +134,30 @@ void remove_stale_caches(const std::filesystem::path& root, const std::string& k
   }
 }
 
+// An input, or an overridable initializer: the next-word one graph gives every input a small
+// default, so ONNX Runtime lists them there and not among the inputs (fed by name the same way).
 bool has_input(const Ort::Session& session, const char* name) {
   Ort::AllocatorWithDefaultOptions alloc;
   for (size_t i = 0, n = session.GetInputCount(); i < n; ++i) {
     if (std::string(session.GetInputNameAllocated(i, alloc).get()) == name) return true;
   }
+  for (size_t i = 0, n = session.GetOverridableInitializerCount(); i < n; ++i) {
+    if (std::string(session.GetOverridableInitializerNameAllocated(i, alloc).get()) == name) return true;
+  }
   return false;
 }
 
-// An input's shape (free dimensions as -1); empty when the graph has no such input.
+// An input's shape (free dimensions as -1; an overridable initializer's: its default's); empty
+// when the graph has no such input.
 std::vector<int64_t> input_shape(const Ort::Session& session, const char* name) {
   Ort::AllocatorWithDefaultOptions alloc;
   for (size_t i = 0, n = session.GetInputCount(); i < n; ++i) {
     if (std::string(session.GetInputNameAllocated(i, alloc).get()) == name)
       return session.GetInputTypeInfo(i).GetTensorTypeAndShapeInfo().GetShape();
+  }
+  for (size_t i = 0, n = session.GetOverridableInitializerCount(); i < n; ++i) {
+    if (std::string(session.GetOverridableInitializerNameAllocated(i, alloc).get()) == name)
+      return session.GetOverridableInitializerTypeInfo(i).GetTensorTypeAndShapeInfo().GetShape();
   }
   return {};
 }
@@ -249,8 +260,23 @@ Reranker::Reranker(const RerankerOptions& opt) {
       head_layers_ = head[0];
       heads_ = enc[2];
       head_dim_ = enc[4];
+      if (!has_output(*session_, "present_enc_k")) {
+        if (!has_output(*session_, "present_3")) throw std::runtime_error("no present outputs");
+        static const char* const numbered[4] = {"present_0", "present_1", "present_2", "present_3"};
+        for (int i = 0; i < 4; ++i) present_names_[i] = numbered[i];
+      }
+      // The next-word decoder (export_flash_next.py): dec_past_k (layers, N, heads, past, head_dim).
+      const auto dec = input_shape(*session_, "dec_past_k");
+      if (has_input(*session_, "is_step") && has_input(*session_, "need_cross") && dec.size() == 5 && dec[0] > 0 &&
+          dec[2] > 0 && dec[4] > 0 && has_output(*session_, "cross_k_out")) {
+        next_graph_ = true;
+        next_layers_ = dec[0];
+        next_heads_ = dec[2];
+        next_head_dim_ = dec[4];
+      }
       one_ = true;
-      load_note_ += one_file + " with the context's cache, weights packed on the heap";
+      load_note_ += one_file + " with the context's cache" + std::string(next_graph_ ? " and the next-word decoder" : "") +
+                    ", weights packed on the heap";
     } catch (const std::exception& e) {
       session_.reset();
       load_note_ += one_file + " not used (" + e.what() + "); ";
@@ -555,11 +581,16 @@ bool Reranker::run(Sequence seq, std::vector<float>* logits, std::vector<float>*
 }
 
 std::shared_ptr<const ContextKV> Reranker::context_kv(const std::vector<int64_t>& ids,
-                                                       const std::vector<int64_t>& units) const {
+                                                       const std::vector<int64_t>& units, bool need_cross) const {
+  need_cross = need_cross && next_graph_;
   {
     std::lock_guard<std::mutex> lk(contexts_mutex_);
     for (size_t i = 0; i < contexts_.size(); ++i) {
       if (contexts_[i]->ids != ids) continue;
+      if (need_cross && !contexts_[i]->has_cross()) {  // computed again below, with them
+        contexts_.erase(contexts_.begin() + static_cast<std::ptrdiff_t>(i));
+        break;
+      }
       std::rotate(contexts_.begin(), contexts_.begin() + static_cast<std::ptrdiff_t>(i),
                   contexts_.begin() + static_cast<std::ptrdiff_t>(i) + 1);
       return contexts_.front();
@@ -584,14 +615,22 @@ std::shared_ptr<const ContextKV> Reranker::context_kv(const std::vector<int64_t>
   in.push_back(Ort::Value::CreateTensor<bool>(*mem_, no_past, 1, s_one, 2));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, zero.data(), 1, s_one, 2));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, zero.data(), 1, s_one, 2));
-  const char* in_names[9] = {"input_ids", "unit_ids", "past_enc_k", "past_enc_v", "past_choice_k",
-                             "past_choice_v", "past_mask", "marker_pos", "slot_pos"};
-  const char* out_names[4] = {"present_enc_k", "present_enc_v", "present_choice_k", "present_choice_v"};
-  auto out = session_->Run(Ort::RunOptions{nullptr}, in_names, in.data(), in.size(), out_names, 4);
+  std::vector<const char*> in_names = {"input_ids", "unit_ids", "past_enc_k", "past_enc_v", "past_choice_k",
+                                       "past_choice_v", "past_mask", "marker_pos", "slot_pos"};
+  std::vector<const char*> out_names(present_names_, present_names_ + 4);
+  bool cross_flag[1] = {true};
+  if (need_cross) {  // a bool scalar
+    in.push_back(Ort::Value::CreateTensor<bool>(*mem_, cross_flag, 1, nullptr, 0));
+    in_names.push_back("need_cross");
+    out_names.push_back("cross_k_out");
+    out_names.push_back("cross_v_out");
+  }
+  auto out = session_->Run(Ort::RunOptions{nullptr}, in_names.data(), in.data(), in.size(), out_names.data(),
+                           out_names.size());
   auto kv = std::make_shared<ContextKV>();
   kv->ids = ids;
-  std::vector<float>* dst[4] = {&kv->enc_k, &kv->enc_v, &kv->choice_k, &kv->choice_v};
-  for (size_t i = 0; i < 4; ++i) {
+  std::vector<float>* dst[6] = {&kv->enc_k, &kv->enc_v, &kv->choice_k, &kv->choice_v, &kv->cross_k, &kv->cross_v};
+  for (size_t i = 0; i < out_names.size(); ++i) {
     const auto info = out[i].GetTensorTypeAndShapeInfo();
     const auto shape = info.GetShape();
     if (shape.size() != 5 || shape[3] != n) return nullptr;
@@ -602,6 +641,75 @@ std::shared_ptr<const ContextKV> Reranker::context_kv(const std::vector<int64_t>
   contexts_.insert(contexts_.begin(), kv);
   if (contexts_.size() > kContextCacheEntries) contexts_.resize(kContextCacheEntries);
   return kv;
+}
+
+std::shared_ptr<const ContextKV> Reranker::next_context(const std::vector<int64_t>& block) const {
+  if (!next_graph_ || block.empty()) return nullptr;
+  try {
+    return context_kv(block, std::vector<int64_t>(block.size(), 0), true);
+  } catch (const std::exception&) {
+    return nullptr;
+  }
+}
+
+bool Reranker::next_step(const ContextKV& context, const std::vector<int64_t>& prev, int64_t step,
+                         const std::vector<float>& past_k, const std::vector<float>& past_v, std::vector<float>* logits,
+                         std::vector<float>* present_k, std::vector<float>* present_v) const {
+  if (!next_graph_ || !context.has_cross() || prev.empty() || step < 0) return false;
+  const int64_t N = static_cast<int64_t>(prev.size());
+  const int64_t L = next_layers_, H = next_heads_, D = next_head_dim_;
+  const int64_t T = static_cast<int64_t>(context.ids.size());
+  const int64_t P = step + 1;  // the masked placeholder + the earlier steps
+  const size_t per_layer = static_cast<size_t>(H * T * D);
+  if (context.cross_k.size() != static_cast<size_t>(L) * per_layer ||
+      past_k.size() != static_cast<size_t>(L * N * H * P * D) || past_v.size() != past_k.size())
+    return false;
+  // The context's cross keys and values, one copy per hypothesis: (L, N, H, T, D).
+  std::vector<float> ck(static_cast<size_t>(L * N) * per_layer), cv(ck.size());
+  for (int64_t l = 0; l < L; ++l) {
+    for (int64_t n = 0; n < N; ++n) {
+      const size_t src = static_cast<size_t>(l) * per_layer, dst = static_cast<size_t>(l * N + n) * per_layer;
+      std::copy_n(context.cross_k.begin() + static_cast<std::ptrdiff_t>(src), per_layer,
+                  ck.begin() + static_cast<std::ptrdiff_t>(dst));
+      std::copy_n(context.cross_v.begin() + static_cast<std::ptrdiff_t>(src), per_layer,
+                  cv.begin() + static_cast<std::ptrdiff_t>(dst));
+    }
+  }
+  std::vector<int64_t> prev_rows = prev, pos(static_cast<size_t>(N), step);
+  std::unique_ptr<bool[]> past_mask(new bool[static_cast<size_t>(N * P)]);
+  for (int64_t n = 0; n < N; ++n)
+    for (int64_t p = 0; p < P; ++p) past_mask[static_cast<size_t>(n * P + p)] = p > 0;
+  std::unique_ptr<bool[]> cross_mask(new bool[static_cast<size_t>(N * T)]);
+  std::fill(cross_mask.get(), cross_mask.get() + N * T, true);
+  bool is_step[1] = {true};
+  const int64_t s_n[1] = {N}, s_past[5] = {L, N, H, P, D}, s_pmask[2] = {N, P}, s_cross[5] = {L, N, H, T, D},
+                s_cmask[2] = {N, T};
+  std::vector<Ort::Value> in;
+  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, is_step, 1, nullptr, 0));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, prev_rows.data(), prev_rows.size(), s_n, 1));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, pos.data(), pos.size(), s_n, 1));
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, const_cast<float*>(past_k.data()), past_k.size(), s_past, 5));
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, const_cast<float*>(past_v.data()), past_v.size(), s_past, 5));
+  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, past_mask.get(), static_cast<size_t>(N * P), s_pmask, 2));
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, ck.data(), ck.size(), s_cross, 5));
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, cv.data(), cv.size(), s_cross, 5));
+  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, cross_mask.get(), static_cast<size_t>(N * T), s_cmask, 2));
+  const char* in_names[9] = {"is_step", "prev", "pos", "dec_past_k", "dec_past_v", "dec_past_mask",
+                             "cross_k", "cross_v", "cross_mask"};
+  const char* out_names[3] = {"logits", "present_0", "present_1"};
+  try {
+    auto out = session_->Run(Ort::RunOptions{nullptr}, in_names, in.data(), in.size(), out_names, 3);
+    std::vector<float>* dst[3] = {logits, present_k, present_v};
+    for (size_t i = 0; i < 3; ++i) {
+      const auto info = out[i].GetTensorTypeAndShapeInfo();
+      const float* d = out[i].GetTensorData<float>();
+      dst[i]->assign(d, d + info.GetElementCount());
+    }
+  } catch (const std::exception&) {
+    return false;
+  }
+  return present_k->size() == static_cast<size_t>(L * N * H * (P + 1) * D) && !logits->empty() &&
+         logits->size() % static_cast<size_t>(N) == 0;
 }
 
 bool Reranker::run_one(const Sequence& seq, std::vector<float>* logits, std::vector<float>* char_logits,

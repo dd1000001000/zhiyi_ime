@@ -605,7 +605,7 @@ bool key_held(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
 }  // namespace
 
 bool TextService::_wants_translation_keys() const {
-    return _composing && _configWindow &&
+    return (_composing || _predicting) && _configWindow &&
            (!_config.chinese_gloss_target.empty() || !_config.english_gloss_target.empty()) &&
            _config.layout != "horizontal";
 }

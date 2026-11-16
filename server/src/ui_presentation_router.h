@@ -28,6 +28,10 @@ public:
     void stop();
 
     bool send_command(cxxime::UiEndpointId endpoint, const cxxime::UiCommand& command);
+    // A command for the latest snapshot `session_id` sent, shown or not (next words: their page
+    // comes after the candidate window closed at the commit). False when it sent none.
+    bool make_session_command(std::uint64_t session_id, cxxime::UiCommandType type, cxxime::UiEndpointId* endpoint,
+                              cxxime::UiCommand* command);
     void reconcile_system_ui(bool clear_presentation);
 
 private:

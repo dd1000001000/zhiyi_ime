@@ -67,9 +67,14 @@ inline size_t cache_bytes(const Encoded& e) { return e.bytes(); }
 
 // The one graph's cache of one context (its leading block): every layer's keys and values,
 // (layers, 1, heads, n, head_dim) for the encoder and the head. About 30 KB a token.
+// A one graph with the next-word decoder (laya.one.next.*: has_next()) also gives the decoder's
+// cross-attention keys and values of the block, (decoder layers, 1, heads, n, head_dim), when
+// asked (next_context): empty until then.
 struct ContextKV {
   std::vector<int64_t> ids;  // the block's tokens (the key)
   std::vector<float> enc_k, enc_v, choice_k, choice_v;
+  std::vector<float> cross_k, cross_v;
+  bool has_cross() const { return !cross_k.empty(); }
 };
 
 // The KV cache of one reading (decode with the step graphs): the memory's cross-attention keys
@@ -101,9 +106,12 @@ struct RerankerOptions {
   bool context_cache = true;
 };
 
-// The one graph's files, in order of preference: with ONNX Runtime's fused attention and
-// rotary operators (about 22% faster a key on the CPU), then the plain one.
-extern const char* const kOneGraphFiles[2];
+// The one graph's files, in order of preference: the one graph with the next-word decoder
+// (ml-flash-next: word choice as ML-Flash-1103's one graph, plus is_step / need_cross; slim = its
+// token table 4 bits, then w8), then with ONNX Runtime's fused attention and rotary operators
+// (about 22% faster a key on the CPU), then the plain one.
+constexpr size_t kOneGraphFileCount = 4;
+extern const char* const kOneGraphFiles[kOneGraphFileCount];
 constexpr size_t kContextCacheEntries = 4;  // contexts kept (the choice's and the composition's blocks differ)
 
 constexpr int kGpuSequenceLength = 256;
@@ -164,6 +172,23 @@ class Reranker {
   const std::string& load_note() const { return load_note_; }  // how the model was loaded (log)
   bool on_gpu() const { return gpu_; }
   bool context_cached() const { return one_; }  // the one graph with the context's cache
+  // The one graph has the next-word decoder (laya.one.next.*: inputs is_step, need_cross).
+  bool has_next() const { return next_graph_; }
+  // Next words: the cache of a block [CLS] (language tag) context [SEP] with the decoder's
+  // cross keys and values (context mode with need_cross; reused from the word choice's cache
+  // when it is the same block). nullptr without the decoder or when the model fails. Thread-safe.
+  std::shared_ptr<const ContextKV> next_context(const std::vector<int64_t>& block) const;
+  // One decoder step for N hypotheses (is_step): prev[i] the row each wrote last (any at step 0),
+  // `step` their position, past_k / past_v the self-attention keys and values of the earlier
+  // steps, (decoder layers, N, heads, 1 + step, head_dim) with a masked placeholder first (at
+  // step 0 just the placeholder). Writes logits (N x rows: every row of the token table) and the
+  // keys and values with this step appended (same layout, 2 + step positions). Thread-safe.
+  bool next_step(const ContextKV& context, const std::vector<int64_t>& prev, int64_t step,
+                 const std::vector<float>& past_k, const std::vector<float>& past_v, std::vector<float>* logits,
+                 std::vector<float>* present_k, std::vector<float>* present_v) const;
+  int64_t next_layers() const { return next_layers_; }  // the decoder's layers, heads, head width
+  int64_t next_heads() const { return next_heads_; }
+  int64_t next_head_dim() const { return next_head_dim_; }
 
  private:
   void append_slots(Sequence& seq, const std::vector<Unit>& units) const;
@@ -174,8 +199,10 @@ class Reranker {
   // run() with the one graph: the block's cache (from contexts_, or context mode), then key mode.
   bool run_one(const Sequence& seq, std::vector<float>* logits, std::vector<float>* char_logits,
                size_t* chars) const;
-  std::shared_ptr<const ContextKV> context_kv(const std::vector<int64_t>& ids,
-                                              const std::vector<int64_t>& units) const;
+  // need_cross: the next-word decoder's cross keys and values too (a cached block without them is
+  // computed again).
+  std::shared_ptr<const ContextKV> context_kv(const std::vector<int64_t>& ids, const std::vector<int64_t>& units,
+                                              bool need_cross = false) const;
   std::vector<std::vector<float>> decode_cached(const Encoded& encoded, const std::vector<std::vector<int>>& prefixes,
                                                 size_t slot, DecoderCache& cache) const;
 
@@ -203,6 +230,10 @@ class Reranker {
   bool one_ = false;  // the one graph (context / key mode)
   // Its past inputs' sizes: encoder and head layers, heads, head_dim.
   int64_t enc_layers_ = 0, head_layers_ = 0, heads_ = 0, head_dim_ = 0;
+  // Its present outputs (present_enc_k ... present_choice_v; the next-word graph: present_0..3).
+  const char* present_names_[4] = {"present_enc_k", "present_enc_v", "present_choice_k", "present_choice_v"};
+  bool next_graph_ = false;  // the one graph with the next-word decoder
+  int64_t next_layers_ = 0, next_heads_ = 0, next_head_dim_ = 0;  // its decoder (dec_past_k's shape)
   mutable std::mutex contexts_mutex_;
   mutable std::vector<std::shared_ptr<const ContextKV>> contexts_;  // most recent first
 };

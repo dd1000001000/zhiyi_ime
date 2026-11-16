@@ -382,6 +382,7 @@ void EditorApp::refresh_config() {
     KEEP_PAGE_EDIT(autostart);
     KEEP_PAGE_EDIT(laya.enable);
     KEEP_PAGE_EDIT(laya.exact_pinyin_first);
+    KEEP_PAGE_EDIT(laya.next_words);
     KEEP_PAGE_EDIT(fuzzy_pinyin);
     KEEP_PAGE_EDIT(fuzzy_groups);
     KEEP_PAGE_EDIT(page_up_key);

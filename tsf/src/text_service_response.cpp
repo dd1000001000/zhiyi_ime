@@ -24,6 +24,63 @@ bool response_has_ime_status(cxxime::IPCStatus status) {
 
 } // namespace
 
+// Next words (docs/next-words.md): the candidate window at the caret with the words that may follow
+// the last commit. No composition: the caret comes from the selection (else the program's own
+// caret); no caret, no window. A program drawing its own candidates (UI-less mode) gets none.
+bool TextService::_show_next_words(ITfContext* context, const cxxime::IPCResponse& response) {
+    if (!context || (_activateFlags & TF_TMF_UIELEMENTENABLEDONLY) != 0) {
+        return false;
+    }
+    if (_predicting && response.candidate_revision == _candidatePresentation.candidate_revision()) {
+        return true;  // the same page (a key-up): already shown
+    }
+    cxxime_tsf::DecodedEnginePresentation decoded;
+    if (!cxxime_tsf::decode_engine_presentation(response, &decoded) || decoded.candidates.items.empty()) {
+        _hide_candidate_window("hide:next_words_empty");
+        return false;
+    }
+    cxxime_tsf::UiPresentationBatch ui_presentation_batch(*this);
+    _candidatePresentation.update_content(decoded.candidates, std::string(), 0, 0, response.candidate_revision,
+                                          static_cast<int>(response.page_current),
+                                          static_cast<int>(response.page_total), 0, 0, false,
+                                          decoded.letter_labels);
+    _sync_candidate_ui_element_snapshot();
+    if (!_publish_candidate_ui_element()) {
+        return false;  // the program shows them
+    }
+    RECT caret_rect = {};
+    bool caret_resolved = false;
+    if (EditSession* caret_session = new (std::nothrow) EditSession(this, context)) {
+        caret_session->set_action(EditSession::Action::QUERY_CARET);
+        HRESULT edit_result = E_FAIL;
+        const HRESULT request_result =
+            context->RequestEditSession(_clientId, caret_session, TF_ES_READ | TF_ES_SYNC, &edit_result);
+        if (SUCCEEDED(request_result) && SUCCEEDED(edit_result)) {
+            caret_resolved = caret_session->get_caret_rect(caret_rect);
+        }
+        caret_session->Release();
+    }
+    if (!caret_resolved) {
+        caret_resolved = _resolve_context_native_caret_rect(context, &caret_rect);
+    }
+    if (!caret_resolved) {
+        caret_rect = _resolve_caret_rect(context);
+        caret_resolved = cxxime_tsf::is_valid_caret_rect(caret_rect);
+    }
+    trace_caret_event("show_query", "next_words", caret_resolved, caret_resolved ? &caret_rect : nullptr,
+                      caret_resolved ? S_OK : E_FAIL, !caret_resolved);
+    if (!caret_resolved) {
+        _hide_candidate_window("hide:next_words_no_caret");
+        return false;
+    }
+    _predicting = true;
+    set_caret_rect(caret_rect);
+    _candidatePresentation.accept_caret(_candidatePresentation.generation());
+    _show_candidate_window("show:next_words");
+    _install_translation_key_hook();
+    return true;
+}
+
 bool TextService::_apply_engine_response(ITfContext* context, const cxxime::IPCResponse& response,
                                          BOOL* eaten, TsfTrace* trace) {
     if (!eaten || response.status == cxxime::IPCStatus::ERR_INVALID_SESSION) {
@@ -71,6 +128,14 @@ bool TextService::_apply_engine_response(ITfContext* context, const cxxime::IPCR
     }
     if (commit_continues) {
         _reset_trace_composition("commit_continue");
+    }
+
+    if (!response.composing && response.predicting) {
+        // Next words: the page after a commit, with no composition (the commit, if any, is in).
+        _show_next_words(context, response);
+        if (response.key_handled) *eaten = TRUE;
+        if (trace && !has_commit && response.key_handled) trace->result = TsfResult::HANDLED;
+        return true;
     }
 
     if (response.composing) {

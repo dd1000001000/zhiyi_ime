@@ -179,4 +179,67 @@ std::vector<double> Ngram::score(const std::string& context, const std::vector<s
   return out;
 }
 
+bool Ngram::next_word_text(int64_t w) const {
+  const std::string_view t = word_text(w);
+  size_t chars = 0;
+  for (size_t i = 0; i < t.size();) {
+    // three-byte UTF-8 in U+4E00..U+9FFF: E4 B8 80 .. E9 BF BF
+    const unsigned char c = static_cast<unsigned char>(t[i]);
+    if (c < 0xE4 || c > 0xE9 || i + 3 > t.size()) return false;
+    if (c == 0xE4 && static_cast<unsigned char>(t[i + 1]) < 0xB8) return false;
+    i += 3;
+    ++chars;
+  }
+  return chars >= 2 && chars <= 6;
+}
+
+std::vector<std::pair<std::string, double>> Ngram::next_words(const std::string& context, size_t k) const {
+  std::vector<std::pair<std::string, double>> out;
+  if (!words_ || k == 0) return out;
+  std::call_once(unigrams_once_, [this] {
+    for (int64_t w = 0; w < static_cast<int64_t>(n1_); ++w)
+      if (w != unk_ && next_word_text(w)) top_unigrams_.push_back(w);
+    const size_t keep = (std::min)(top_unigrams_.size(), kNextUnigrams);
+    std::partial_sort(top_unigrams_.begin(), top_unigrams_.begin() + static_cast<std::ptrdiff_t>(keep),
+                      top_unigrams_.end(), [this](int64_t a, int64_t b) { return p1_[a] > p1_[b]; });
+    top_unigrams_.resize(keep);
+  });
+  const size_t nl = context.find_last_of("\r\n");
+  std::vector<std::string> ctx = utf8_chars(nl == std::string::npos ? context : context.substr(nl + 1));
+  if (ctx.size() > kContextChars) ctx.erase(ctx.begin(), ctx.end() - static_cast<std::ptrdiff_t>(kContextChars));
+  std::vector<State> top{{-1, -1, 0.0}};
+  if (!ctx.empty()) top = run(ctx, 0, std::move(top));
+  std::stable_sort(top.begin(), top.end(), [](const State& a, const State& b) { return a.score > b.score; });
+  if (top.size() > kNextStates) top.resize(kNextStates);
+  if (top.empty()) return out;
+  const double base = top.front().score;
+  std::vector<int64_t> cand(top_unigrams_);
+  for (const State& st : top) {
+    if (st.v >= 0) {
+      for (uint32_t j = bi_start_[st.v]; j < bi_start_[st.v + 1]; ++j) cand.push_back(bi_w_[j]);
+      if (st.u >= 0) {
+        const int64_t b = bigram(st.u, st.v);
+        if (b >= 0)
+          for (uint32_t j = tri_start_[b]; j < tri_start_[b + 1]; ++j) cand.push_back(tri_w_[j]);
+      }
+    }
+  }
+  std::sort(cand.begin(), cand.end());
+  cand.erase(std::unique(cand.begin(), cand.end()), cand.end());
+  std::vector<std::pair<double, int64_t>> scored;
+  scored.reserve(cand.size());
+  for (int64_t w : cand) {
+    if (w == unk_ || !next_word_text(w)) continue;
+    double p = 0.0;
+    for (const State& st : top) p += std::pow(10.0, st.score - base) * std::pow(10.0, log10_p(st.u, st.v, w));
+    scored.emplace_back(p, w);
+  }
+  const size_t keep = (std::min)(k, scored.size());
+  std::partial_sort(scored.begin(), scored.begin() + static_cast<std::ptrdiff_t>(keep), scored.end(),
+                    [](const auto& a, const auto& b) { return a.first > b.first || (a.first == b.first && a.second < b.second); });
+  for (size_t i = 0; i < keep; ++i)
+    out.emplace_back(std::string(word_text(scored[i].second)), std::log((std::max)(scored[i].first, 1e-30)));
+  return out;
+}
+
 }  // namespace laya

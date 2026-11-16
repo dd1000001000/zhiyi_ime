@@ -800,8 +800,15 @@ ProcessResult Engine::process_key_event(const KeyEvent& event, const OutputOptio
     if (ascii_composer_.is_ascii_mode() && !context_.is_composing() && !event.is_key_up) {
         uint32_t vk = event.keycode;
 
-        // Letter keys (A-Z): commit as single ASCII char, respect Shift and CapsLock
+        // Letter keys (A-Z). Half-width: the program's own, as with no IME, so single-key
+        // shortcuts (Photoshop's B, issue #46) reach it and typing gives the same letter. Full
+        // width, or a letter of the temporary English after Shift in Chinese: the IME types it,
+        // respecting Shift and CapsLock.
         if (vk >= 'A' && vk <= 'Z') {
+            if (!opts.full_shape && !ascii_composer_.is_temporary_ascii()) {
+                record_total_us(trace_, total_start, trace_enabled_);
+                return ProcessResult::REJECTED;
+            }
             char ch = static_cast<char>(vk);
             // Shift XOR CapsLock means uppercase; neither or both means lowercase.
             bool upper = event.is_shift() != event.is_caps_lock();

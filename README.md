@@ -64,6 +64,8 @@ ml-flash-next-preview-1114 和词语 n-gram ng1017；学习模式的离线翻译
 
 **系统要求**：Windows 10 / 11（64 位）。
 
+第一次用，或者要在没有互联网的电脑上用翻译、语音，看 [新手入门](docs/getting-started.md)（带设置截图）。
+
 1. 从 [Releases](https://github.com/dd1000001000/zhiyi_ime/releases/latest) 下载最新的
    `zhiyi-v版本号-setup.exe`，双击运行并按提示安装（需要管理员权限）。
 2. 安装完成后按 `Win + 空格` 切换到“知意输入法”。也可以在“设置 > 时间和语言 > 语言和区域”中

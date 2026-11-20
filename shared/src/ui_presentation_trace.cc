@@ -142,6 +142,8 @@ void enqueue_ui_presentation_trace(const UiPresentationTrace& trace) {
     builder.rect_field("candidate_rect", trace.candidate_rect);
     builder.bool_field("candidate_rect_valid", trace.candidate_rect_valid);
     builder.uint_field("candidate_dpi", trace.candidate_dpi);
+    builder.uint_field("candidates", trace.candidates);
+    builder.uint_field("preedit_bytes", trace.preedit_bytes);
     enqueue_server_trace_json(json, builder.finish());
 }
 

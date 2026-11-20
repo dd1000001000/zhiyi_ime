@@ -488,6 +488,8 @@ private:
         trace.candidate_rect = candidate_rect;
         trace.candidate_rect_valid = candidate_rect_valid;
         trace.candidate_dpi = candidate_window_.dpi();
+        trace.candidates = snapshot.candidate_page.count;
+        trace.preedit_bytes = snapshot.preedit_length;
         cxxime::enqueue_ui_presentation_trace(trace);
     }
 

@@ -28,6 +28,8 @@ struct UiPresentationTrace {
     RECT candidate_rect = {};
     bool candidate_rect_valid = false;
     UINT candidate_dpi = 0;
+    std::uint32_t candidates = 0;     // the snapshot's candidates on the page
+    std::uint32_t preedit_bytes = 0;  // and its popup preedit
 };
 
 // Returns the current system time in 100-nanosecond units since the Windows epoch.

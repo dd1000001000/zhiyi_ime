@@ -436,9 +436,10 @@ void CandidateWindow::show() {
 
     ScopedDpiAwarenessContext dpi_context(GetWindowDpiAwarenessContext(hwnd_));
     const bool was_visible_before_show = IsWindowVisible(hwnd_) != FALSE;
-    const bool skip_redraw = skip_next_show_redraw_ && was_visible_before_show;
+    const bool restored = restore_if_minimized();
+    const bool skip_redraw = skip_next_show_redraw_ && was_visible_before_show && !restored;
 
-    if (!IsWindowVisible(hwnd_) && has_last_caret_rect_) {
+    if ((!was_visible_before_show || restored) && has_last_caret_rect_) {
         RECT wr = {};
         GetWindowRect(hwnd_, &wr);
         POINT target = {};
@@ -466,6 +467,19 @@ void CandidateWindow::hide() {
         ShowWindow(hwnd_, SW_HIDE);
     set_owner(nullptr);
     visible_candidate_count_ = 0;
+}
+
+// Another program can minimize the window (screen capture tools hide windows
+// that way). SWP_SHOWWINDOW never restores a minimized window, and SetWindowPos
+// on one changes only its minimized caption, so every later page would show as
+// an empty caption bar until the server restarts. Restore it without
+// activating it, and keep it hidden if it was hidden.
+bool CandidateWindow::restore_if_minimized() {
+    if (!hwnd_ || !IsIconic(hwnd_)) return false;
+    const bool visible = IsWindowVisible(hwnd_) != FALSE;
+    ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
+    if (!visible) ShowWindow(hwnd_, SW_HIDE);
+    return true;
 }
 
 void CandidateWindow::reset_placement() {
@@ -829,6 +843,7 @@ void CandidateWindow::update(const CandidatePage& page) {
         skip_next_show_redraw_ = false;
         return;
     }
+    restore_if_minimized();
     skip_next_show_redraw_ = IsWindowVisible(hwnd_) != FALSE;
     ScopedDpiAwarenessContext dpi_context(GetWindowDpiAwarenessContext(hwnd_));
     if (refresh_dpi_scale())
@@ -1281,6 +1296,9 @@ LRESULT CALLBACK CandidateWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM
             InvalidateRect(hwnd, nullptr, FALSE);
         }
         return 0;
+    case WM_SYSCOMMAND:
+        if ((wp & 0xFFF0) == SC_MINIMIZE) return 0;  // the popup is never minimized
+        break;
     case WM_MOUSEACTIVATE: return MA_NOACTIVATE;  // prevent focus theft on click
     case WM_NCHITTEST: return HTCLIENT;  // prevent resize cursor at edges
     case WM_ERASEBKGND: return 1;

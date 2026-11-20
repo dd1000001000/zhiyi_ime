@@ -80,10 +80,10 @@
             "ou": ["ou", "ob"]
         },
         "final_aliases_by_initial": {
-            "j": {"u": "v", "uan": "van", "ue": "ve", "un": "vn"},
-            "q": {"u": "v", "uan": "van", "ue": "ve", "un": "vn"},
-            "x": {"u": "v", "uan": "van", "ue": "ve", "un": "vn"},
-            "y": {"u": "v", "uan": "van", "ue": "ve", "un": "vn"}
+            "j": {"u": ["u", "v"], "uan": "van", "ue": "ve", "un": "vn"},
+            "q": {"u": ["u", "v"], "uan": "van", "ue": "ve", "un": "vn"},
+            "x": {"u": ["u", "v"], "uan": "van", "ue": "ve", "un": "vn"},
+            "y": {"u": ["u", "v"], "uan": "van", "ue": "ve", "un": "vn"}
         },
         "passthrough_syllables": ["f", "g", "i", "l", "n", "r", "u", "v"],
         "ignored_syllables": ["0", "1"],

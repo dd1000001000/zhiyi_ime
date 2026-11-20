@@ -4,6 +4,7 @@
 
 - `pinyin.full-pinyin.schema.json`：全拼方案的拼写代数（spelling algebra）规则，规则语法与 librime schema 兼容；本 README 自「文件结构」起的逐条说明即针对该文件。
 - `pinyin.<方案名>-shuangpin.schema.json`：微软（`microsoft`）、小鹤（`xiaohe`）、自然码（`ziranma`）、搜狗（`sogou`）、智能ABC（`abc`）五种双拼方案，各用 `initials` / `finals` / `zero_initials` / `final_aliases_by_initial` 等映射表描述，并声明 `passthrough_syllables`、`ignored_syllables`、`expected_collisions` 与 `fuzzy_groups`（模糊音组合，与全拼相同的名称和位）。
+  - `final_aliases_by_initial` 把某些声母后的韵母换成另一种写法再编码，值可以是一个韵母，也可以是韵母列表（每个都生成一个编码）。五个方案都写了 `"u": ["u", "v"]`：j/q/x/y 后面的 u 读 ü，按 u 键或按该方案的 ü 键都能打出来（如小鹤 `yu`、`yv` 都是“与”，微软 `yu`、`yy` 都是“与”；issue #49），和 Rime 双拼的 `derive/^([jqxy])u$/$1v/` 一样。
 
 每份 schema 都带 `scheme_id` 与 `speller.type`，字段集必须与实现完全一致（多一个少一个字段都会被拒绝）。JSON 不支持注释，因此每条规则的语义统一在此文档中描述。
 

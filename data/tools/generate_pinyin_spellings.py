@@ -530,18 +530,26 @@ def _shuangpin_encoder(schema, usage=None):
         initial_aliases = aliases.get(initial, {})
         if not isinstance(initial_aliases, dict):
             raise ValueError(f"speller.final_aliases_by_initial.{initial} must be an object")
-        final = initial_aliases.get(source_final, source_final)
-        if not isinstance(final, str) or not final:
-            raise ValueError(f"{syllable}: invalid final alias")
+        # An alias is one final or a list of them: "u": ["u", "v"] after j/q/x/y types ju with
+        # the u key or the ü key (issue #49), each a normal code.
+        if source_final in initial_aliases:
+            alias_finals = _mapping_values(
+                initial_aliases, source_final,
+                f"speller.final_aliases_by_initial.{initial}")
+            record("final_aliases_by_initial", f"{initial}:{source_final}")
+        else:
+            alias_finals = [source_final]
         initial_key = initials[initial]
         if not isinstance(initial_key, str) or len(initial_key) != 1:
             raise ValueError(f"speller.initials.{initial} must be one key")
         record("initials", initial)
-        record("finals", final)
-        if final != source_final:
-            record("final_aliases_by_initial", f"{initial}:{source_final}")
-        final_keys = _mapping_values(finals, final, "speller.finals")
-        return validate_codes([initial_key + key for key in final_keys], syllable)
+        codes = []
+        for final in alias_finals:
+            record("finals", final)
+            for key in _mapping_values(finals, final, "speller.finals"):
+                if initial_key + key not in codes:
+                    codes.append(initial_key + key)
+        return validate_codes(codes, syllable)
 
     return encode
 

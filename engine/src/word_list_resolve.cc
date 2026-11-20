@@ -19,6 +19,7 @@
 #include <cxxime/candidate_store.h>
 #include <cxxime/dict.h>
 #include <cxxime/english_lexicon.h>
+#include <cxxime/input_limits.h>
 #include <cxxime/ordinary_candidate.h>
 #include <cxxime/user_dict_validation.h>
 
@@ -410,7 +411,143 @@ std::vector<std::string> split_tabs(const std::string& line) {
     return fields;
 }
 
+bool english_known(const EnglishLexicon* english, const std::string& text) {
+    if (!english) return false;
+    for (const EnglishWord& w : english->lookup(english_key(text), 8, 0, true)) {
+        if (w.exact && w.text == text) return true;
+    }
+    return false;
+}
+
+std::string my_english_key(const std::string& text) { return std::string("en\x1f") + text; }
+
 }  // namespace
+
+std::string english_word_code(const std::string& text) { return english_key(text); }
+
+std::string my_word_key(const WordListEntry& entry, WordListLanguage language) {
+    if (language == WordListLanguage::kEnglish) return my_english_key(entry.text);
+    return entry.text + '\x1f' + entry.syllables + '\x1f' + entry.wubi;
+}
+
+ResolvedMyWords resolve_my_words(std::vector<MyWordLine> lines, const Dict* pinyin,
+                                 const Dict* wubi, const EnglishLexicon* english,
+                                 const ResolvedWordList* mine_zh, const ResolvedWordList* mine_en) {
+    ResolvedMyWords out;
+    Resolver resolver(pinyin, wubi);
+    std::vector<const std::string*> unread;
+    bool chinese = false;
+    for (const MyWordLine& line : lines) {
+        if (line.language != WordListLanguage::kChinese || line.problem != MyWordProblem::kNone) continue;
+        chinese = true;
+        if (line.syllables.empty() && usable_chinese_text(line.text)) unread.push_back(&line.text);
+    }
+    if (chinese) resolver.prepare_wubi();
+    resolver.prepare_readings(unread);
+
+    std::unordered_set<std::string> mine;
+    if (mine_zh) {
+        for (const WordListEntry& e : mine_zh->entries) mine.insert(my_word_key(e, WordListLanguage::kChinese));
+    }
+    if (mine_en) {
+        for (const WordListEntry& e : mine_en->entries) mine.insert(my_english_key(e.text));
+    }
+    std::unordered_set<std::string> seen;
+    for (MyWordLine& line : lines) {
+        line.status = MyWordStatus::kInvalid;
+        if (line.problem != MyWordProblem::kNone) continue;
+
+        if (line.language == WordListLanguage::kEnglish) {
+            if (!usable_english_text(line.text)) {
+                line.problem = line.text.size() > kMaxEnglishTextLength ? MyWordProblem::kTooLong
+                                                                        : MyWordProblem::kNotText;
+                continue;
+            }
+            line.code = english_key(line.text);
+            const std::string key = my_english_key(line.text);
+            if (!seen.insert(key).second) {
+                line.status = MyWordStatus::kRepeated;
+            } else if (mine.count(key)) {
+                line.status = MyWordStatus::kInList;
+            } else if (english_known(english, line.text)) {
+                line.status = MyWordStatus::kExisting;
+            } else {
+                line.status = MyWordStatus::kAdded;
+                WordListEntry entry;
+                entry.text = line.text;
+                entry.frequency = kWordListEnglishScore;
+                out.english.push_back(std::move(entry));
+            }
+            continue;
+        }
+
+        if (!usable_chinese_text(line.text)) {
+            line.problem = line.text.size() >= kCandidateTextCapacity ? MyWordProblem::kTooLong
+                                                                     : MyWordProblem::kNotText;
+            continue;
+        }
+        const std::size_t characters = codepoint_offsets(line.text).size() - 1;
+        std::string syllables = line.syllables;
+        bool guessed = false;
+        if (syllables.empty()) {
+            syllables = resolver.guess_reading(line.text);
+            guessed = !syllables.empty();
+        }
+        if (!syllables.empty() &&
+            (syllable_count(syllables) != characters || !resolver.pinyin_valid(syllables))) {
+            if (!line.written.empty()) {  // the pinyin written has a syllable there is not
+                line.problem = MyWordProblem::kNotPinyin;
+                continue;
+            }
+            syllables.clear();
+            guessed = false;
+        }
+        line.syllables = syllables;
+        line.guessed_reading = guessed;
+
+        WordListEntry entry;
+        entry.text = line.text;
+        bool existing = false;
+        if (!syllables.empty()) {
+            if (resolver.pinyin_has(line.text, syllables)) {
+                existing = true;
+                line.pinyin_known = true;
+            } else {
+                entry.syllables = syllables;
+                entry.guessed_reading = guessed;
+            }
+        }
+        line.wubi = resolver.wubi_code(line.text);
+        if (!line.wubi.empty()) {
+            if (resolver.wubi_has_text(line.text)) {
+                existing = true;
+                line.wubi_known = true;
+            } else {
+                entry.wubi = line.wubi;
+            }
+        }
+        if (entry.syllables.empty() && entry.wubi.empty()) {
+            if (existing) {
+                line.status = MyWordStatus::kExisting;
+            } else {
+                line.problem = MyWordProblem::kNoReading;
+            }
+            continue;
+        }
+        const std::string key = my_word_key(entry, WordListLanguage::kChinese);
+        if (!seen.insert(key).second) {
+            line.status = MyWordStatus::kRepeated;
+        } else if (mine.count(key)) {
+            line.status = MyWordStatus::kInList;
+        } else {
+            line.status = MyWordStatus::kAdded;
+            entry.frequency = default_chinese_frequency(characters);
+            out.chinese.push_back(std::move(entry));
+        }
+    }
+    out.lines = std::move(lines);
+    return out;
+}
 
 ResolvedWordList resolve_word_list(const WordListSource& source, const Dict* pinyin,
                                    const Dict* wubi, const EnglishLexicon* english) {

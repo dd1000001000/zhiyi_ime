@@ -4,6 +4,8 @@
 // index.json (each list's name, source, counts, enabled) and one <id>.tsv per list (the resolved
 // words, Zhiyi's own format). The enabled lists are applied to the dictionaries at start, after a
 // dictionary reload, and after every change made from the settings program (word_list_control.h).
+// My words (我的词表, issue #47) are two such lists, my-zh and my-en, added to word by word; they
+// take none of the imported lists' places, and a backup's My words is merged, not skipped.
 #ifndef CXXIME_SERVER_WORD_LIST_SERVICE_H_
 #define CXXIME_SERVER_WORD_LIST_SERVICE_H_
 

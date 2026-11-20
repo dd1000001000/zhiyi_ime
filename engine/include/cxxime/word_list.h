@@ -112,6 +112,82 @@ bool load_word_list(const std::string& path, ResolvedWordList* list);
 std::string word_list_contents(const ResolvedWordList& list);
 bool parse_word_list_contents(const std::string& contents, ResolvedWordList* list);
 
+// ---- My words (我的词表, issue #47) ----
+// Words and phrases the user types into the settings' Add words box, one a line, without a file.
+// They are kept as two lists of their own (my-zh, my-en: the lists are one language each) and
+// typed exactly as an imported list's words: the engine ranks them.
+//
+// A line: a Chinese word, optionally followed by its pinyin ("行长 hang zhang", "hang'zhang",
+// "hangzhang", tone marks or numbers dropped); or an English word or phrase as it is
+// ("machine learning"). Empty lines and lines starting with '#' are left out.
+
+inline constexpr char kMyChineseWordListId[] = "my-zh";
+inline constexpr char kMyEnglishWordListId[] = "my-en";
+// Word lines one Add takes (a request stays well within the 64 KiB control payload).
+inline constexpr std::size_t kMaxMyWordLines = 100;
+// The box's text, at most (100 lines of the longest words, with room for comments).
+inline constexpr std::size_t kMaxMyWordTextBytes = 32 * 1024;
+
+bool is_my_word_list_id(const std::string& id);
+
+enum class MyWordStatus {
+    kAdded,     // new: goes into My words
+    kExisting,  // the system dictionary has it (same word, same reading)
+    kInList,    // My words has it already
+    kRepeated,  // an earlier line of the box has it
+    kInvalid,   // see the problem
+};
+
+enum class MyWordProblem {
+    kNone,
+    kNotPinyin,      // the pinyin written is not pinyin
+    kSyllableCount,  // the pinyin has another number of syllables than the word characters
+    kNoReading,      // no pinyin written and none worked out (nor a Wubi code)
+    kExtraText,      // more than one word on the line
+    kMixed,          // Chinese with Latin letters (B站): a custom phrase does that
+    kNotText,        // not a word (control characters, symbols only, ...)
+    kTooLong,        // longer than a candidate may be (English: 64 characters)
+};
+
+struct MyWordLine {
+    std::size_t line = 0;  // 1-based, in the box
+    std::string text;
+    WordListLanguage language = WordListLanguage::kChinese;
+    MyWordStatus status = MyWordStatus::kInvalid;
+    MyWordProblem problem = MyWordProblem::kNone;
+    std::string written;       // Chinese: the pinyin as written ("" when none)
+    std::string syllables;     // Chinese: the reading, "a:li" (written or worked out)
+    std::string wubi;          // Chinese: the Wubi 86 code ("" when none)
+    bool guessed_reading = false;
+    // Chinese, added: the system dictionary has the word for pinyin (only its Wubi code is new),
+    // or for Wubi (only its reading is new).
+    bool pinyin_known = false;
+    bool wubi_known = false;
+    std::string code;          // English: what is typed for it (lowercase, no spaces)
+};
+
+// The box's lines (CRLF or LF). False when it holds more than kMaxMyWordLines word lines or more
+// than kMaxMyWordTextBytes; `lines` then holds nothing.
+bool parse_my_words(const std::string& text, std::vector<MyWordLine>* lines);
+
+struct ResolvedMyWords {
+    std::vector<MyWordLine> lines;
+    std::vector<WordListEntry> chinese;  // the lines kAdded, as entries of my-zh / my-en
+    std::vector<WordListEntry> english;
+};
+
+// Readings, Wubi codes and statuses of parsed lines. `mine_zh` / `mine_en`: My words now (null:
+// none), so what is there already is not added twice.
+ResolvedMyWords resolve_my_words(std::vector<MyWordLine> lines, const Dict* pinyin,
+                                 const Dict* wubi, const EnglishLexicon* english,
+                                 const ResolvedWordList* mine_zh, const ResolvedWordList* mine_en);
+
+// The key identifying an entry of My words: text and reading (Chinese), text (English).
+std::string my_word_key(const WordListEntry& entry, WordListLanguage language);
+
+// What the English lexicon matches a phrase by: lowercase, spaces left out ("machinelearning").
+std::string english_word_code(const std::string& text);
+
 // Words for the extension dictionaries.
 struct ExtensionWord {
     std::string text;

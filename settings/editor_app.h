@@ -53,6 +53,13 @@ private:
     void remove_word_list(std::size_t index);
     void show_guessed_readings(std::size_t index);
     bool handle_word_list_command(int control_id, int notification);
+    // My words (editor_my_words.cc, issue #47): words typed into a box, kept by the server as
+    // the lists my-zh / my-en and shown as one row, "我的词表".
+    void add_my_words();
+    void edit_my_words();
+    void set_my_words_enabled(bool enabled);
+    void remove_my_words();
+    static LRESULT CALLBACK my_words_dialog_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam);
     // Custom phrases (editor_phrase_panel.cc): phrases.ini, read when the page is shown and
     // written at once on each change; the switches are settings.
     void create_phrase_panel(HWND panel);

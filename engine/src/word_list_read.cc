@@ -656,6 +656,163 @@ WordListReadError parse_word_list(const std::string& bytes, const std::string& f
     return parse_text(text, source);
 }
 
+namespace {
+
+// A token of pinyin as people write it: ASCII letters with ' or - between syllables, tone marks
+// (zhāng, lǜ) or tone numbers (zhang1) -> plain lowercase letters ("zhang", "lv"). False when
+// it holds anything else.
+bool plain_pinyin(std::string_view token, std::string* plain) {
+    static const struct {
+        const char* marked;
+        char letter;
+    } kMarks[] = {
+        {"\xC4\x81", 'a'}, {"\xC3\xA1", 'a'}, {"\xC7\x8E", 'a'}, {"\xC3\xA0", 'a'},  // ā á ǎ à
+        {"\xC4\x93", 'e'}, {"\xC3\xA9", 'e'}, {"\xC4\x9B", 'e'}, {"\xC3\xA8", 'e'},  // ē é ě è
+        {"\xC4\xAB", 'i'}, {"\xC3\xAD", 'i'}, {"\xC7\x90", 'i'}, {"\xC3\xAC", 'i'},  // ī í ǐ ì
+        {"\xC5\x8D", 'o'}, {"\xC3\xB3", 'o'}, {"\xC7\x92", 'o'}, {"\xC3\xB2", 'o'},  // ō ó ǒ ò
+        {"\xC5\xAB", 'u'}, {"\xC3\xBA", 'u'}, {"\xC7\x94", 'u'}, {"\xC3\xB9", 'u'},  // ū ú ǔ ù
+        {"\xC7\x96", 'v'}, {"\xC7\x98", 'v'}, {"\xC7\x9A", 'v'}, {"\xC7\x9C", 'v'},  // ǖ ǘ ǚ ǜ
+        {"\xC3\xBC", 'v'},                                                           // ü
+        {"\xC5\x84", 'n'}, {"\xC5\x88", 'n'}, {"\xC7\xB9", 'n'},                     // ń ň ǹ
+        {"\xE1\xB8\xBF", 'm'},                                                       // ḿ
+    };
+    plain->clear();
+    bool letter = false;
+    for (std::size_t i = 0; i < token.size();) {
+        const unsigned char c = static_cast<unsigned char>(token[i]);
+        if (c < 0x80) {
+            if (std::isalpha(c)) {
+                *plain += static_cast<char>(std::tolower(c));
+                letter = true;
+            } else if (c == '\'' || c == '-') {
+                *plain += ' ';
+            } else if (c < '1' || c > '5') {  // a tone number is left out
+                return false;
+            }
+            ++i;
+            continue;
+        }
+        bool matched = false;
+        for (const auto& mark : kMarks) {
+            const std::size_t n = std::strlen(mark.marked);
+            if (token.compare(i, n, mark.marked) == 0) {
+                *plain += mark.letter;
+                letter = true;
+                i += n;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) return false;
+    }
+    return letter;
+}
+
+std::size_t syllables_in(const std::string& syllables) {
+    return syllables.empty() ? 0 : 1 + static_cast<std::size_t>(std::count(syllables.begin(), syllables.end(), ':'));
+}
+
+bool has_ascii_letter(std::string_view s) {
+    return std::any_of(s.begin(), s.end(), [](char c) {
+        const unsigned char u = static_cast<unsigned char>(c);
+        return u < 0x80 && std::isalpha(u) != 0;
+    });
+}
+
+MyWordLine parse_my_word_line(std::string_view line, std::size_t number) {
+    MyWordLine word;
+    word.line = number;
+    if (is_ascii(line)) {
+        // English: the word or phrase as written, its spaces made single.
+        word.language = WordListLanguage::kEnglish;
+        for (std::string_view token : tokens(line)) {
+            if (!word.text.empty()) word.text += ' ';
+            word.text.append(token.data(), token.size());
+        }
+        return word;
+    }
+    word.language = WordListLanguage::kChinese;
+    std::string written;
+    for (std::string_view token : tokens(line)) {
+        double weight = 0;
+        std::string plain;
+        if (is_ascii(token) && parse_number(token, &weight)) continue;  // a frequency: not used
+        if (plain_pinyin(token, &plain)) {
+            if (!written.empty()) written += ' ';
+            written += plain;
+            continue;
+        }
+        if (!word.text.empty()) {
+            word.problem = MyWordProblem::kExtraText;
+            continue;
+        }
+        word.text.assign(token.data(), token.size());
+    }
+    if (word.text.empty()) {  // pinyin alone ("nǐ hǎo"): no word
+        word.text.assign(line.data(), line.size());
+        word.problem = MyWordProblem::kNotText;
+        return word;
+    }
+    if (word.problem != MyWordProblem::kNone) return word;
+    if (has_ascii_letter(word.text)) {
+        word.problem = MyWordProblem::kMixed;
+        return word;
+    }
+    // Collapsed spaces between the syllables as written.
+    for (std::string_view part : tokens(written)) {
+        if (!word.written.empty()) word.written += ' ';
+        word.written.append(part.data(), part.size());
+    }
+    if (word.written.empty()) return word;
+    const std::size_t characters = codepoint_count(word.text);
+    word.syllables = pinyin_syllables(word.written, characters);
+    if (!word.syllables.empty() && syllables_in(word.syllables) == characters) return word;
+    word.syllables.clear();
+    // Pinyin, of another number of syllables, or not pinyin at all.
+    const auto real = [](const std::string& syllables) {
+        if (syllables.empty()) return false;
+        for (std::string_view part : split(syllables, ':')) {
+            if (!segmentor().is_syllable(std::string(part)) && part != "yo") return false;
+        }
+        return true;
+    };
+    const std::string as_written = pinyin_syllables(word.written, 0);
+    bool other_count = real(as_written) && syllables_in(as_written) != characters;
+    for (std::size_t n = 1; !other_count && n <= 2 * characters + 2; ++n) {
+        other_count = n != characters && real(pinyin_syllables(word.written, n));
+    }
+    word.problem = other_count ? MyWordProblem::kSyllableCount : MyWordProblem::kNotPinyin;
+    return word;
+}
+
+}  // namespace
+
+bool is_my_word_list_id(const std::string& id) {
+    return id == kMyChineseWordListId || id == kMyEnglishWordListId;
+}
+
+bool parse_my_words(const std::string& text, std::vector<MyWordLine>* lines) {
+    lines->clear();
+    if (text.size() > kMaxMyWordTextBytes) return false;
+    std::size_t number = 0;
+    for (std::string_view line : split_lines(text)) {
+        ++number;
+        line = trim(line);
+        // The ideographic space around a line too.
+        while (line.size() >= 3 && line.compare(0, 3, "\xE3\x80\x80") == 0) line = trim(line.substr(3));
+        while (line.size() >= 3 && line.compare(line.size() - 3, 3, "\xE3\x80\x80") == 0) {
+            line = trim(line.substr(0, line.size() - 3));
+        }
+        if (line.empty() || line[0] == '#') continue;
+        if (lines->size() == kMaxMyWordLines) {
+            lines->clear();
+            return false;
+        }
+        lines->push_back(parse_my_word_line(line, number));
+    }
+    return true;
+}
+
 WordListReadError read_word_list(const std::wstring& path, WordListSource* source) {
     *source = WordListSource{};
     const std::size_t slash = path.find_last_of(L"\\/");

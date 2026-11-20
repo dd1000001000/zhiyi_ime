@@ -283,9 +283,11 @@ void fill_counts(const cxxime::ResolvedWordList& list, cxxime::WordListInfo* inf
     info->guessed = list.stats.guessed;
 }
 
+// Imported lists of a language (My words is not one of them: it has no limit of lists).
 std::size_t count_language(const std::vector<cxxime::WordListInfo>& lists, const std::string& language) {
-    return static_cast<std::size_t>(std::count_if(
-        lists.begin(), lists.end(), [&](const auto& l) { return l.language == language; }));
+    return static_cast<std::size_t>(std::count_if(lists.begin(), lists.end(), [&](const auto& l) {
+        return l.language == language && !cxxime::is_my_word_list_id(l.id);
+    }));
 }
 
 // FNV-1a of the file's bytes, as hex: the same file is recognized when imported again.
@@ -372,6 +374,176 @@ void forget_learned(cxxime::Dict* dict, const std::unordered_set<std::string>& t
     }
 }
 
+// ---- My words (我的词表, word_list.h) ----
+
+const char* status_name(cxxime::MyWordStatus status) {
+    switch (status) {
+    case cxxime::MyWordStatus::kAdded:
+        return "added";
+    case cxxime::MyWordStatus::kExisting:
+        return "existing";
+    case cxxime::MyWordStatus::kInList:
+        return "in_list";
+    case cxxime::MyWordStatus::kRepeated:
+        return "repeated";
+    default:
+        return "invalid";
+    }
+}
+
+const char* problem_name(cxxime::MyWordProblem problem) {
+    switch (problem) {
+    case cxxime::MyWordProblem::kNotPinyin:
+        return "not_pinyin";
+    case cxxime::MyWordProblem::kSyllableCount:
+        return "syllable_count";
+    case cxxime::MyWordProblem::kNoReading:
+        return "no_reading";
+    case cxxime::MyWordProblem::kExtraText:
+        return "extra_text";
+    case cxxime::MyWordProblem::kMixed:
+        return "mixed";
+    case cxxime::MyWordProblem::kNotText:
+        return "not_text";
+    case cxxime::MyWordProblem::kTooLong:
+        return "too_long";
+    default:
+        return "";
+    }
+}
+
+// "a:li" -> "a li"
+std::string spaced(std::string syllables) {
+    std::replace(syllables.begin(), syllables.end(), ':', ' ');
+    return syllables;
+}
+
+cxxime::MyWordLineInfo line_info(const cxxime::MyWordLine& line) {
+    cxxime::MyWordLineInfo info;
+    info.line = static_cast<std::uint32_t>(line.line);
+    info.text = first_characters(line.text, 64);  // a line too long to be a word: its start
+    info.language = line.language == cxxime::WordListLanguage::kEnglish ? "en" : "zh";
+    info.status = status_name(line.status);
+    info.problem = problem_name(line.problem);
+    info.syllables = spaced(line.syllables);
+    info.wubi = line.wubi;
+    info.guessed = line.guessed_reading;
+    info.pinyin_known = line.pinyin_known;
+    info.wubi_known = line.wubi_known;
+    info.code = line.code;
+    return info;
+}
+
+cxxime::WordListLanguage my_list_language(const std::string& id) {
+    return id == cxxime::kMyEnglishWordListId ? cxxime::WordListLanguage::kEnglish
+                                              : cxxime::WordListLanguage::kChinese;
+}
+
+// My words of a language (`id` my-zh / my-en): an empty list when there is none yet.
+cxxime::ResolvedWordList load_mine(const std::vector<cxxime::WordListInfo>& lists, const std::string& id) {
+    cxxime::ResolvedWordList list;
+    const bool kept = std::any_of(lists.begin(), lists.end(), [&](const auto& l) { return l.id == id; });
+    if (!kept || !cxxime::load_word_list(list_path(id), &list)) {
+        list = cxxime::ResolvedWordList{};
+        list.language = my_list_language(id);
+    }
+    return list;
+}
+
+// Writes My words of a language and updates its entry in `lists` (the caller saves the index).
+// An empty list leaves `lists`; its file is named in `*emptied`, to delete once the index is saved.
+bool store_mine(std::vector<cxxime::WordListInfo>* lists, const std::string& id,
+                cxxime::ResolvedWordList list, std::vector<std::string>* emptied) {
+    auto it = std::find_if(lists->begin(), lists->end(), [&](const auto& l) { return l.id == id; });
+    if (list.entries.empty()) {
+        if (it != lists->end()) {
+            lists->erase(it);
+            emptied->push_back(id);
+        }
+        return true;
+    }
+    list.language = my_list_language(id);
+    list.name.clear();
+    list.stats = cxxime::WordListStats{};
+    for (const cxxime::WordListEntry& e : list.entries) {
+        list.stats.pinyin += e.syllables.empty() ? 0 : 1;
+        list.stats.wubi += e.wubi.empty() ? 0 : 1;
+        list.stats.guessed += e.guessed_reading ? 1 : 0;
+    }
+    list.stats.read = list.stats.added = list.entries.size();
+    if (!ensure_directory() || !cxxime::write_word_list(list_path(id), list)) return false;
+    if (it == lists->end()) {
+        cxxime::WordListInfo info;
+        info.id = id;
+        info.format = "manual";
+        info.enabled = true;
+        // My words first, Chinese before English.
+        const auto at = id == cxxime::kMyChineseWordListId
+                            ? lists->begin()
+                            : std::find_if(lists->begin(), lists->end(), [](const auto& l) {
+                                  return !cxxime::is_my_word_list_id(l.id);
+                              });
+        it = lists->insert(at, std::move(info));
+    }
+    fill_counts(list, &*it);
+    it->imported_at = local_time_text();  // the last change
+    return true;
+}
+
+// Chinese words leaving My words: what was learned of the ones no list has any more goes too.
+std::unordered_set<std::string> texts_only_removed(const std::vector<cxxime::WordListInfo>& lists,
+                                                   std::unordered_set<std::string> texts) {
+    for (const auto& info : lists) {
+        if (texts.empty()) break;
+        cxxime::ResolvedWordList list;
+        if (!cxxime::load_word_list(list_path(info.id), &list)) continue;
+        for (const auto& e : list.entries) texts.erase(e.text);
+    }
+    return texts;
+}
+
+bool same_word(const cxxime::WordListEntry& entry, const cxxime::MyWordInfo& word,
+               cxxime::WordListLanguage language) {
+    if (entry.text != word.text) return false;
+    return language == cxxime::WordListLanguage::kEnglish ||
+           (spaced(entry.syllables) == word.syllables && entry.wubi == word.wubi);
+}
+
+cxxime::MyWordInfo word_info(const cxxime::WordListEntry& entry, cxxime::WordListLanguage language) {
+    cxxime::MyWordInfo word;
+    word.language = language == cxxime::WordListLanguage::kEnglish ? "en" : "zh";
+    word.text = entry.text;
+    word.syllables = spaced(entry.syllables);
+    word.wubi = entry.wubi;
+    word.guessed = entry.guessed_reading;
+    return word;
+}
+
+std::string lowercase(std::string text) {
+    for (char& c : text) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return text;
+}
+
+// A word a search finds: its text holds the query (letters case-insensitive), or its pinyin
+// (without spaces) or Wubi code or English letters start with it.
+bool word_matches(const cxxime::WordListEntry& entry, const std::string& query) {
+    if (query.empty()) return true;
+    const std::string q = lowercase(query);
+    if (lowercase(entry.text).find(q) != std::string::npos) return true;
+    std::string letters;
+    for (char c : q) {
+        if (c != ' ' && c != '\'') letters += c;
+    }
+    if (letters.empty()) return false;
+    std::string pinyin;
+    for (char c : entry.syllables) {
+        if (c != ':') pinyin += c;
+    }
+    return (!pinyin.empty() && pinyin.rfind(letters, 0) == 0) ||
+           (!entry.wubi.empty() && entry.wubi.rfind(letters, 0) == 0) ||
+           cxxime::english_word_code(entry.text).rfind(letters, 0) == 0;
+}
+
 }  // namespace
 
 void apply_word_lists(cxxime::Dict* pinyin, cxxime::Dict* wubi) {
@@ -447,6 +619,36 @@ void merge_word_lists_backup(SessionManager* sessions, const std::string& conten
     }
     bool changed = false;
     for (auto& [info, words] : backup) {
+        // My words: the backup's words this computer does not have are added to its own.
+        if (cxxime::is_my_word_list_id(info.id)) {
+            cxxime::ResolvedWordList theirs;
+            if (!cxxime::parse_word_list_contents(words, &theirs)) continue;
+            const bool existed =
+                std::any_of(lists.begin(), lists.end(), [&](const auto& l) { return l.id == info.id; });
+            cxxime::ResolvedWordList mine = load_mine(lists, info.id);
+            std::unordered_set<std::string> keys;
+            for (const auto& e : mine.entries) keys.insert(cxxime::my_word_key(e, mine.language));
+            std::size_t added = 0;
+            for (auto& e : theirs.entries) {
+                if (keys.insert(cxxime::my_word_key(e, mine.language)).second) {
+                    mine.entries.push_back(std::move(e));
+                    ++added;
+                }
+            }
+            std::vector<std::string> emptied;
+            if (added == 0 || !store_mine(&lists, info.id, std::move(mine), &emptied)) {
+                if (skipped) ++*skipped;
+                continue;
+            }
+            if (!existed) {
+                for (auto& l : lists) {
+                    if (l.id == info.id) l.enabled = info.enabled;
+                }
+            }
+            changed = true;
+            if (imported) ++*imported;
+            continue;
+        }
         // Kept already (the same list, or one made from the same file), or no room for it.
         const bool kept = std::any_of(lists.begin(), lists.end(), [&](const auto& l) {
             return l.id == info.id || (!info.source_hash.empty() && l.source_hash == info.source_hash);
@@ -629,6 +831,155 @@ bool WordListService::handle_request(const std::string& payload, std::string* re
             result.words.emplace_back(e.text, std::move(pinyin_text));
             if (result.words.size() >= kMaxGuessedWords) break;
         }
+        result.succeeded = true;
+        break;
+    }
+
+    case cxxime::WordListOperation::kPreviewWords:
+    case cxxime::WordListOperation::kAddWords: {
+        std::vector<cxxime::MyWordLine> parsed;
+        if (!cxxime::parse_my_words(request.text, &parsed)) {
+            result.error_code = cxxime::kWordListErrorTooManyLines;
+            break;
+        }
+        cxxime::ResolvedWordList mine_zh = load_mine(lists, cxxime::kMyChineseWordListId);
+        cxxime::ResolvedWordList mine_en = load_mine(lists, cxxime::kMyEnglishWordListId);
+        const auto english = cxxime::EnglishLexicon::builtin();
+        cxxime::ResolvedMyWords resolved = cxxime::resolve_my_words(
+            std::move(parsed), pinyin.get(), wubi.get(), english.get(), &mine_zh, &mine_en);
+        for (const cxxime::MyWordLine& line : resolved.lines) result.lines.push_back(line_info(line));
+        if (request.operation == cxxime::WordListOperation::kPreviewWords) {
+            result.succeeded = true;
+            break;
+        }
+        if (resolved.chinese.empty() && resolved.english.empty()) {
+            result.error_code = cxxime::kWordListErrorNothingNew;
+            break;
+        }
+        std::vector<std::string> emptied;
+        bool stored = true;
+        if (!resolved.chinese.empty()) {
+            for (auto& e : resolved.chinese) mine_zh.entries.push_back(std::move(e));
+            stored = store_mine(&lists, cxxime::kMyChineseWordListId, std::move(mine_zh), &emptied);
+        }
+        if (stored && !resolved.english.empty()) {
+            for (auto& e : resolved.english) mine_en.entries.push_back(std::move(e));
+            stored = store_mine(&lists, cxxime::kMyEnglishWordListId, std::move(mine_en), &emptied);
+        }
+        if (!stored || !save_index(lists)) {
+            result.error_code = ERROR_WRITE_FAULT;
+            load_index(&lists);
+            break;
+        }
+        apply_locked(pinyin.get(), wubi.get());
+        result.succeeded = true;
+        break;
+    }
+
+    case cxxime::WordListOperation::kQueryWords: {
+        // Newest first, Chinese words before English ones.
+        std::size_t matched = 0;
+        for (const char* id : {cxxime::kMyChineseWordListId, cxxime::kMyEnglishWordListId}) {
+            const cxxime::ResolvedWordList mine = load_mine(lists, id);
+            for (auto e = mine.entries.rbegin(); e != mine.entries.rend(); ++e) {
+                if (!word_matches(*e, request.query)) continue;
+                if (matched >= request.offset && result.my_words.size() < request.limit) {
+                    result.my_words.push_back(word_info(*e, mine.language));
+                }
+                ++matched;
+            }
+        }
+        result.total = matched;
+        result.succeeded = true;
+        break;
+    }
+
+    case cxxime::WordListOperation::kSetReading: {
+        cxxime::ResolvedWordList mine = load_mine(lists, cxxime::kMyChineseWordListId);
+        const auto it = std::find_if(mine.entries.begin(), mine.entries.end(), [&](const auto& e) {
+            return same_word(e, request.word, cxxime::WordListLanguage::kChinese);
+        });
+        if (it == mine.entries.end()) {
+            result.error_code = ERROR_NOT_FOUND;
+            break;
+        }
+        const std::size_t index = static_cast<std::size_t>(it - mine.entries.begin());
+        std::vector<cxxime::MyWordLine> parsed;
+        if (!cxxime::parse_my_words(request.word.text + " " + request.pinyin, &parsed) || parsed.size() != 1 ||
+            parsed[0].written.empty()) {
+            result.error_code = cxxime::kWordListErrorReading;
+            result.problem = problem_name(cxxime::MyWordProblem::kNotPinyin);
+            break;
+        }
+        // Judged against My words without this entry: the same reading again is not "in the list".
+        cxxime::ResolvedWordList others = mine;
+        others.entries.erase(others.entries.begin() + static_cast<std::ptrdiff_t>(index));
+        cxxime::ResolvedMyWords resolved =
+            cxxime::resolve_my_words(std::move(parsed), pinyin.get(), wubi.get(), nullptr, &others, nullptr);
+        const cxxime::MyWordLine& line = resolved.lines[0];
+        if (line.status == cxxime::MyWordStatus::kInvalid) {
+            result.error_code = cxxime::kWordListErrorReading;
+            result.problem = problem_name(line.problem);
+            break;
+        }
+        if (line.status != cxxime::MyWordStatus::kAdded) {
+            result.error_code = cxxime::kWordListErrorReadingKnown;
+            break;
+        }
+        cxxime::WordListEntry changed = std::move(resolved.chinese[0]);
+        changed.frequency = mine.entries[index].frequency;
+        mine.entries[index] = std::move(changed);
+        std::vector<std::string> emptied;
+        if (!store_mine(&lists, cxxime::kMyChineseWordListId, std::move(mine), &emptied) || !save_index(lists)) {
+            result.error_code = ERROR_WRITE_FAULT;
+            load_index(&lists);
+            break;
+        }
+        apply_locked(pinyin.get(), wubi.get());
+        result.succeeded = true;
+        break;
+    }
+
+    case cxxime::WordListOperation::kRemoveWords: {
+        cxxime::ResolvedWordList mine_zh = load_mine(lists, cxxime::kMyChineseWordListId);
+        cxxime::ResolvedWordList mine_en = load_mine(lists, cxxime::kMyEnglishWordListId);
+        std::unordered_set<std::string> removed_texts;
+        std::size_t removed_zh = 0, removed_en = 0;
+        for (cxxime::ResolvedWordList* mine : {&mine_zh, &mine_en}) {
+            const bool english = mine->language == cxxime::WordListLanguage::kEnglish;
+            std::size_t& removed = english ? removed_en : removed_zh;
+            auto& entries = mine->entries;
+            const auto end = std::remove_if(entries.begin(), entries.end(), [&](const cxxime::WordListEntry& e) {
+                const bool gone = std::any_of(request.words.begin(), request.words.end(), [&](const auto& w) {
+                    return w.language == (english ? "en" : "zh") && same_word(e, w, mine->language);
+                });
+                if (gone) {
+                    ++removed;
+                    if (!english) removed_texts.insert(e.text);
+                }
+                return gone;
+            });
+            entries.erase(end, entries.end());
+        }
+        if (removed_zh + removed_en == 0) {
+            result.error_code = ERROR_NOT_FOUND;
+            break;
+        }
+        std::vector<std::string> emptied;
+        if ((removed_zh > 0 &&
+             !store_mine(&lists, cxxime::kMyChineseWordListId, std::move(mine_zh), &emptied)) ||
+            (removed_en > 0 &&
+             !store_mine(&lists, cxxime::kMyEnglishWordListId, std::move(mine_en), &emptied)) ||
+            !save_index(lists)) {
+            result.error_code = ERROR_WRITE_FAULT;
+            load_index(&lists);
+            break;
+        }
+        for (const std::string& id : emptied) DeleteFileW(widen(list_path(id)).c_str());
+        apply_locked(pinyin.get(), wubi.get());
+        const std::unordered_set<std::string> forgotten = texts_only_removed(lists, std::move(removed_texts));
+        forget_learned(pinyin.get(), forgotten);
+        forget_learned(wubi.get(), forgotten);
         result.succeeded = true;
         break;
     }

@@ -11,6 +11,7 @@ add_executable(cxxime-settings WIN32
     editor_backup.cc
     editor_voice_panel.cc
     editor_word_list_panel.cc
+    editor_my_words.cc
     editor_phrase_panel.cc
     editor_advanced_panel.cc
     editor_punctuation.cc

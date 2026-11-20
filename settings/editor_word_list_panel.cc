@@ -2,7 +2,8 @@
 //
 // The Word lists page (docs/settings-guide.md): the dictionaries the user imported (Sogou cell
 // dictionaries, Rime dictionaries, pinyin text exports, English word lists), each enabled or
-// disabled with its box, removed with its button. The server reads, keeps and applies them
+// disabled with its box, removed with its button; above them My words, the words typed in with
+// Add words (editor_my_words.cc). The server reads, keeps and applies them
 // (server/src/word_list_service.cc); a change takes effect at once, without Apply.
 
 #include "editor_app.h"
@@ -25,6 +26,11 @@ namespace settings {
 namespace {
 
 constexpr int kWordListImportId = 5030;
+// My words (editor_my_words.cc): one row for the lists my-zh and my-en.
+constexpr int kWordListAddWordsId = 5031;
+constexpr int kMyWordsCheckId = 5032;
+constexpr int kMyWordsEditId = 5033;
+constexpr int kMyWordsRemoveId = 5034;
 constexpr int kWordListCheckFirstId = 5100;   // one per list
 constexpr int kWordListViewFirstId = 5300;    // "readings": the pinyin worked out
 constexpr int kWordListRemoveFirstId = 5500;
@@ -96,6 +102,25 @@ std::wstring import_error_text(const WordListControlResult& result) {
     }
 }
 
+// The My words row's second line: "中文 12 个（五笔可打 10 个）· 英文 5 个 · 最近更改 …".
+std::wstring my_words_detail(const std::vector<WordListInfo>& lists) {
+    std::wstring text;
+    std::string time;
+    for (const WordListInfo& list : lists) {
+        if (!is_my_word_list_id(list.id)) continue;
+        if (!text.empty()) text += L" · ";
+        if (list.language == "en") {
+            text += fill(tr("wordlists.mine_en"), {{L"{count}", number(list.added)}});
+        } else {
+            text += fill(tr("wordlists.mine_zh"),
+                         {{L"{count}", number(list.added)}, {L"{wubi}", number(list.wubi)}});
+        }
+        time = (std::max)(time, list.imported_at);
+    }
+    if (!time.empty()) text += L" · " + fill(tr("wordlists.mine_time"), {{L"{time}", utf8_to_wstr(time)}});
+    return text;
+}
+
 std::wstring pick_word_list_file(HWND owner) {
     IFileOpenDialog* dialog = nullptr;
     if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
@@ -145,22 +170,50 @@ void EditorApp::create_word_list_panel(HWND panel) {
     const int width = client.right - x0 * 2;
     const int card_top = kPanelPadTop;
     int y = card_begin(panel, card_top, tr("wordlists.card"));
-    make_page_button(kWordListImportId, tr("wordlists.import"),
-                     client.right - kPanelPadLeft - S(130), card_top + S(10), S(130), S(28), panel);
-    make_hint(tr("wordlists.hint"), x0, y, width, panel, 3);
-    y += S(3 * (kFontPt + 6)) + S(10);
+    const int import_x = client.right - kPanelPadLeft - S(130);
+    make_page_button(kWordListImportId, tr("wordlists.import"), import_x, card_top + S(10), S(130), S(28),
+                     panel);
+    make_page_button(kWordListAddWordsId, tr("wordlists.add_words"), import_x - S(8) - S(110),
+                     card_top + S(10), S(110), S(28), panel);
+    // Each hint takes the lines it needs (the width and the language differ).
+    for (const char* key : {"wordlists.hint", "wordlists.hint_add"}) {
+        const int lines = hint_lines(tr(key), x0, width, panel);
+        make_hint(tr(key), x0, y, width, panel, lines);
+        y += S(lines * (kFontPt + 6)) + S(4);
+    }
+    y += S(6);
 
     if (word_lists_.empty()) {
         make_hint(tr(word_lists_loaded_ ? "wordlists.empty" : "wordlists.loading"), x0, y, width,
-                  panel, 1);
-        y += S(kFontPt + 6) + S(6);
+                  panel, 2);
+        y += S(2 * (kFontPt + 6)) + S(6);
     }
     const int remove_width = S(68);
     const int view_width = S(96);
     const int remove_x = client.right - kPanelPadLeft - remove_width;
     const int view_x = remove_x - S(8) - view_width;
+
+    // My words first: one row for both of its lists, checked when they are enabled.
+    const bool has_mine = std::any_of(word_lists_.begin(), word_lists_.end(),
+                                      [](const WordListInfo& l) { return is_my_word_list_id(l.id); });
+    if (has_mine) {
+        const bool enabled = std::any_of(word_lists_.begin(), word_lists_.end(), [](const WordListInfo& l) {
+            return is_my_word_list_id(l.id) && l.enabled;
+        });
+        const HWND check = make_check(kMyWordsCheckId, tr("wordlists.mine"), x0, y, view_x - x0 - S(8), panel);
+        set_check(check, enabled);
+        make_page_button(kMyWordsEditId, tr("wordlists.edit"), view_x, y - S(2), view_width, S(28), panel);
+        make_page_button(kMyWordsRemoveId, tr("wordlists.remove"), remove_x, y - S(2), remove_width, S(28),
+                         panel);
+        y += kRowH;
+        const std::wstring detail = my_words_detail(word_lists_);
+        const int lines = (std::min)(2, hint_lines(detail.c_str(), x0 + S(20), view_x - x0 - S(28), panel));
+        make_hint(detail.c_str(), x0 + S(20), y - S(6), view_x - x0 - S(28), panel, lines);
+        y += S(lines * (kFontPt + 6)) + S(8);
+    }
     for (int i = 0; i < static_cast<int>(word_lists_.size()) && i < kMaxWordListRows; ++i) {
         const WordListInfo& list = word_lists_[static_cast<std::size_t>(i)];
+        if (is_my_word_list_id(list.id)) continue;
         const HWND check = make_check(kWordListCheckFirstId + i, utf8_to_wstr(list.name).c_str(), x0,
                                       y, view_x - x0 - S(8), panel);
         set_check(check, list.enabled);
@@ -351,6 +404,25 @@ void EditorApp::show_guessed_readings(std::size_t index) {
 bool EditorApp::handle_word_list_command(int control_id, int notification) {
     if (control_id == kWordListImportId) {
         if (notification == BN_CLICKED) import_word_list();
+        return true;
+    }
+    if (control_id == kWordListAddWordsId) {
+        if (notification == BN_CLICKED) add_my_words();
+        return true;
+    }
+    if (control_id == kMyWordsEditId) {
+        if (notification == BN_CLICKED) edit_my_words();
+        return true;
+    }
+    if (control_id == kMyWordsRemoveId) {
+        if (notification == BN_CLICKED) remove_my_words();
+        return true;
+    }
+    if (control_id == kMyWordsCheckId) {
+        if (notification == BN_CLICKED) {
+            const HWND check = GetDlgItem(hPanels_[kWordListPanel], control_id);
+            if (check) set_my_words_enabled(get_check(check));
+        }
         return true;
     }
     const auto row = [&](int first) {

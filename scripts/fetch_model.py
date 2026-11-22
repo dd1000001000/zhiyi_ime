@@ -4,7 +4,7 @@ models/ngram/.
   python scripts/fetch_model.py            # download the release assets and verify them
   python scripts/fetch_model.py --pack     # maintainers: zip models/laya/ and models/ngram/ for release uploads
 
-The model (laya.one.next.slim.onnx, ~64 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
+The model (laya.one.w4.onnx with laya.next.head / step.w4.onnx, ~54 MB) and the n-gram (zh.ngram ~79 MB) are too large for git; each is
 published as a release asset of github.com/dd1000001000/zhiyi_models. The training code and data
 are not published.
 """
@@ -18,16 +18,24 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEST = os.path.join(ROOT, "models", "laya")
-# laya.one.next.slim.onnx: the one graph with the context's KV cache and the next-word decoder, run on the CPU
-# (engine/src/laya/reranker.h, next_words.h); next_rows.json: the decoder's rows and each language's masks. Since 1.6.5
-# the word choice runs only there, so the whole graph (laya.int8g.onnx) is no longer needed.
-GRAPH = "laya.one.next.slim.onnx"
-FILES = [GRAPH, "next_rows.json", "tokenizer.json", "rl_agent_config.json", "unified_vocab.json"]
-# The decoder graphs of the 1.5.4-1.5.8 model: removed from models/laya (the packager ships them when present).
-OLD_FILES = ["laya_decoder.int8.onnx", "laya_decoder_memory.int8.onnx", "laya_decoder_step.int8.onnx"]
-ASSET = "laya-ml-flash-next-preview-1114-slim.zip"
-URL = f"https://github.com/dd1000001000/zhiyi_models/releases/download/model-ml-flash-next-preview-1114/{ASSET}"
-# SHA-256 of the graph: the slim one graph of 知意 ml-flash-next-preview-1114 (from 1.7.0): ML-Flash-1103 trained further with a
+# laya.one.w4.onnx: the Lite one graph with the context's KV cache (word choice and composition), run on the CPU, and
+# its next-word decoder as laya.next.head.w4.onnx + laya.next.step.w4.onnx (engine/src/laya/reranker.h, next_words.h);
+# next_rows.json: the decoder's rows (zh / en modes). Since 1.6.5 the word choice runs only on the CPU, so the whole
+# graph (laya.int8g.onnx) is no longer needed. The zip's tokenizer.candidates.json is tokenizer.json with the
+# Metaspace prepend "never" (the engine's BpeTokenizer::encode_no_prepend): not extracted.
+GRAPH = "laya.one.w4.onnx"
+FILES = [GRAPH, "laya.next.head.w4.onnx", "laya.next.step.w4.onnx", "next_rows.json", "tokenizer.json",
+         "rl_agent_config.json", "unified_vocab.json"]
+# Removed from models/laya: the decoder graphs of the 1.5.4-1.5.8 model, and ml-flash-next's one graph (1.7.0-1.7.1),
+# which the engine and the packager would otherwise take first.
+OLD_FILES = ["laya_decoder.int8.onnx", "laya_decoder_memory.int8.onnx", "laya_decoder_step.int8.onnx",
+             "laya.one.next.slim.onnx"]
+ASSET = "laya-zhen-feather-preview-1121-slim.zip"
+URL = f"https://github.com/dd1000001000/zhiyi_models/releases/download/model-zhen-feather-preview-1121/{ASSET}"
+# SHA-256 of the graph: the slim one graph of 知意 zhen-feather-preview-1121, a Lite model (8 encoder layers of width
+# 256, mmBERT-small's tokenizer): zh-lite-next-preview-1120 (word choice, a 4-layer next-word decoder with a memory
+# table, single characters among its next words) trained further with whole-sentence composition; token table pruned
+# to the 116,118 rows its data uses, 4-bit. Before: the slim one graph of 知意 ml-flash-next-preview-1114 (1.7.0-1.7.1): ML-Flash-1103 trained further with a
 # 4-layer next-word decoder (all six languages) next to its word choice and composition, the decoder sharing the token
 # table (4-bit) as one graph (is_step / need_cross); word choice end to end as ML-Flash-1103's. Before: the slim one
 # graph of 知意 ML-Flash-1103 (1.6.6-1.6.7; 53 MB instead of 78 MB, the same model
@@ -39,7 +47,7 @@ URL = f"https://github.com/dd1000001000/zhiyi_models/releases/download/model-ml-
 # cached per context) and one head shared by word choice and composition, distilled from Qwen3.5-9B LoRA teachers;
 # trained further on rows typed without context. The engine reads its zh / en side only: the other tables of
 # unified_vocab.json are under "ml". int8, 126963 embedding rows, the tokenizer of 1.4V2-Long-L18.
-ONE_SHA256 = "8c84eb0169980529fdba84d83234007e345ea651a0ae0638cf15930c807ce02d"
+ONE_SHA256 = "98c615a1c2dfeb82de5c9f749e7910e3e900261a760ae82d43d2b63e9164a35c"
 
 # The word n-gram scored next to the word choice (laya.ngram, engine/src/laya/ngram.h), ng1017: Youmo
 # IME's pinyin language model (LGPL-2.1-or-later, on libime's) with science text mixed in (CSL

@@ -295,12 +295,24 @@ rime-bopomofo, rime-cangjie, rime-quick, rime-cantonese and rime-essay, the Cang
 tables of fcitx5-table-extra, libchewing, Mozc and its dictionary, pypinyin, OpenCC and SudachiPy;
 these only produced training rows and none of them is in the model.
 
-Zhiyi ML-Flash-1103 (release model-ml-flash-1103, the model in the installer since 1.6.4) is
+Zhiyi ML-Flash-1103 (release model-ml-flash-1103, the model in the installer of 1.6.4-1.6.7, and
+with a next-word decoder as ml-flash-next-preview-1114 in 1.7.0-1.7.1) is
 ML-pumpkin-1026 with 8 of its encoder layers, a prefix mask and one head for word choice and
 composition, trained further on the same rows and on rows typed without context. Its rows were
 scored by the two Qwen3.5-9B teachers above and by a 12-layer model of our own trained from them;
 only their scores were used, none of their weights are in the model. Its text, candidate lists
 and readings came from the same sources as ML-pumpkin-1026's.
+
+Zhiyi zhen-feather-preview-1121 (release model-zhen-feather-preview-1121, the model in the
+installer now, its slim files) is a smaller model of our own: 8 encoder layers of width 256 on
+mmBERT-small's tokenizer (Marone et al., 2025; MIT, https://huggingface.co/jhu-clsp/mmBERT-small),
+a 4-layer next-word decoder with a memory table, then whole-sentence composition. Its word-choice
+and composition rows were scored by Qwen3.5-9B teachers retrained with LoRA and its next-word
+rows by Qwen3-1.7B-Base (Apache-2.0); only their scores and words were used, none of their weights
+are in the model. Its text came from the sources above (SkyPile-150B, LCCC, C4, SODA, Tatoeba,
+FineWeb, FineWeb-2 (ODC-By 1.0), the Cantonese Wikipedia), with new rare-character rows from
+FineWeb-2 cmn_Hani; readings as ML-pumpkin-1026's. These only produced training rows; none of
+them is in the model.
 
 
 Word n-gram (ngram/zh.ngram)

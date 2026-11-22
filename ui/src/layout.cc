@@ -415,9 +415,11 @@ LayoutResult calculate_vertical_layout(HDC hdc,
         }
     }
 
+    // The width follows the content: min_width (a horizontal-layout floor) would leave an
+    // empty strip on the right of short words (#51). The preedit and the page buttons widen
+    // the window on their own.
     result.width = (widest_gloss > 0 ? gloss_x + widest_gloss : text_x + widest_text) +
                    cfg.hilite_padding_x + cfg.margin_x;
-    if (result.width < cfg.min_width) result.width = cfg.min_width;
     if (cfg.max_width > 0 && result.width > cfg.max_width) result.width = cfg.max_width;
     if (!result.rects.empty())
         y -= cfg.row_spacing;

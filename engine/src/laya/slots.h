@@ -56,6 +56,10 @@ class UnifiedVocab {
   bool context_first() const { return context_first_; }
   int choice_context_tokens() const { return choice_context_tokens_; }
   int choice_candidate_tokens() const { return choice_candidate_tokens_; }
+  // "choice_compact" (Lite: zh-lite-preview, zhen-feather): no [MASK] before a candidate, its tokens without the
+  // leading "▁" (BpeTokenizer::encode_no_prepend, the model's tokenizer.candidates.json), the marker at its first
+  // token, [UNK] for an empty one (bench student2.Encoder2.choice).
+  bool choice_compact() const { return choice_compact_; }
   // The decoder graph beside the model (export_unified_dec.py), "" for a continuation head.
   const std::string& decoder_file() const { return decoder_file_; }
   // The same decoder as two graphs that keep a KV cache (export_unified_dec_kv.py): the
@@ -77,6 +81,7 @@ class UnifiedVocab {
   bool context_first_ = false;
   int choice_context_tokens_ = 128;
   int choice_candidate_tokens_ = 16;
+  bool choice_compact_ = false;
   std::string decoder_file_;
   std::string decoder_memory_file_;
   std::string decoder_step_file_;

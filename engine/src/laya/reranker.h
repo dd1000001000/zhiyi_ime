@@ -16,6 +16,10 @@
 // only to itself, so its keys and values are computed once per context (context mode) and each
 // key runs only the rest of the sequence, the typed units and the candidates (key mode). On the
 // CPU that graph replaces the whole one when it is beside it (RerankerOptions::context_cache).
+// A Lite model (zhen-feather-preview-1121, bench export_slim.py) comes as three graphs: the one graph
+// (laya.one.w4.onnx, word choice and composition, plus its encoder's "hidden" output), and the
+// next-word decoder as laya.next.head.w4.onnx (hidden -> cross keys and values, with the memory
+// table's positions after the context's) and laya.next.step.w4.onnx (one decoder step).
 #pragma once
 
 #include <cstdint>
@@ -74,6 +78,11 @@ struct ContextKV {
   std::vector<int64_t> ids;  // the block's tokens (the key)
   std::vector<float> enc_k, enc_v, choice_k, choice_v;
   std::vector<float> cross_k, cross_v;
+  // The positions the decoder attends to (the block's, then a Lite head's memory positions) and
+  // which of them it reads.
+  int64_t cross_len = 0;
+  std::vector<uint8_t> cross_mask;
+  std::vector<float> hidden;  // a Lite one graph: the encoder's last layer over the block, (n, width)
   bool has_cross() const { return !cross_k.empty(); }
 };
 
@@ -110,7 +119,10 @@ struct RerankerOptions {
 // (ml-flash-next: word choice as ML-Flash-1103's one graph, plus is_step / need_cross; slim = its
 // token table 4 bits, then w8), then with ONNX Runtime's fused attention and rotary operators
 // (about 22% faster a key on the CPU), then the plain one.
-constexpr size_t kOneGraphFileCount = 4;
+// laya.one.w4.onnx: a Lite model's one graph (its next-word decoder in kNextHeadFile / kNextStepFile).
+constexpr size_t kOneGraphFileCount = 5;
+extern const char* const kNextHeadFile;  // "laya.next.head.w4.onnx"
+extern const char* const kNextStepFile;  // "laya.next.step.w4.onnx"
 extern const char* const kOneGraphFiles[kOneGraphFileCount];
 constexpr size_t kContextCacheEntries = 4;  // contexts kept (the choice's and the composition's blocks differ)
 
@@ -172,7 +184,8 @@ class Reranker {
   const std::string& load_note() const { return load_note_; }  // how the model was loaded (log)
   bool on_gpu() const { return gpu_; }
   bool context_cached() const { return one_; }  // the one graph with the context's cache
-  // The one graph has the next-word decoder (laya.one.next.*: inputs is_step, need_cross).
+  // The model has the next-word decoder: in the one graph (laya.one.next.*: inputs is_step,
+  // need_cross), or beside a Lite one graph (kNextHeadFile, kNextStepFile).
   bool has_next() const { return next_graph_; }
   // Next words: the cache of a block [CLS] (language tag) context [SEP] with the decoder's
   // cross keys and values (context mode with need_cross; reused from the word choice's cache
@@ -203,6 +216,8 @@ class Reranker {
   // computed again).
   std::shared_ptr<const ContextKV> context_kv(const std::vector<int64_t>& ids, const std::vector<int64_t>& units,
                                               bool need_cross = false) const;
+  // A Lite model: the next-word head over the block's hidden states -> kv's cross keys, values, mask.
+  bool head_cross(ContextKV& kv) const;
   std::vector<std::vector<float>> decode_cached(const Encoded& encoded, const std::vector<std::vector<int>>& prefixes,
                                                 size_t slot, DecoderCache& cache) const;
 
@@ -232,7 +247,8 @@ class Reranker {
   int64_t enc_layers_ = 0, head_layers_ = 0, heads_ = 0, head_dim_ = 0;
   // Its present outputs (present_enc_k ... present_choice_v; the next-word graph: present_0..3).
   const char* present_names_[4] = {"present_enc_k", "present_enc_v", "present_choice_k", "present_choice_v"};
-  bool next_graph_ = false;  // the one graph with the next-word decoder
+  bool next_graph_ = false;  // the next-word decoder (in the one graph, or Lite's two graphs)
+  std::unique_ptr<Ort::Session> next_head_, next_step_;  // Lite's decoder graphs (else in the one graph)
   int64_t next_layers_ = 0, next_heads_ = 0, next_head_dim_ = 0;  // its decoder (dec_past_k's shape)
   mutable std::mutex contexts_mutex_;
   mutable std::vector<std::shared_ptr<const ContextKV>> contexts_;  // most recent first

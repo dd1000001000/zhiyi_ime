@@ -19,6 +19,9 @@
 namespace laya {
 namespace {
 
+// A Lite model's word: at least this many characters by its rows' counts (next_onnx.py min_chars).
+constexpr int kMinWordChars = 2;
+
 const std::string kMeta = "\xE2\x96\x81";  // "▁"
 
 double log_add(double a, double b) {
@@ -68,8 +71,51 @@ NextWords::NextWords(const Reranker& model, const std::string& rows_json) : mode
     row_of_token_.emplace(tokens_[r], static_cast<int32_t>(r));
   }
   end_ = j.at("end").get<int32_t>();
+  if (end_ < 0 || static_cast<size_t>(end_) >= R) throw std::runtime_error("next_rows.json: end");
   max_word_tokens_ = j.value("max_word_tokens", static_cast<size_t>(6));
   context_tokens_ = j.value("context_tokens", static_cast<size_t>(128));
+  if (!j.contains("langs")) {  // a Lite model's rows: the zh and en modes
+    lite_ = true;
+    auto rows = [&](const char* key) {
+      std::vector<uint8_t> mask(R, 0);
+      for (int32_t r : j.at(key).get<std::vector<int32_t>>()) {
+        if (r < 0 || static_cast<size_t>(r) >= R) throw std::runtime_error("next_rows.json: mask row");
+        mask[static_cast<size_t>(r)] = 1;
+      }
+      return mask;
+    };
+    auto list = [&](const std::vector<uint8_t>& mask) {
+      std::vector<int32_t> out;
+      for (size_t r = 0; r < R; ++r)
+        if (mask[r]) out.push_back(static_cast<int32_t>(r));
+      return out;
+    };
+    auto per_row = [&](Lang& lg, const char* chars, const char* texts) {
+      lg.chars = j.at(chars).get<std::vector<int32_t>>();
+      lg.texts = j.at(texts).get<std::vector<std::string>>();
+      if (lg.chars.size() != R || lg.texts.size() != R) throw std::runtime_error("next_rows.json: row texts");
+    };
+    Lang zh;
+    zh.cjk = true;
+    zh.allow = rows("zh");
+    zh.allow[static_cast<size_t>(end_)] = 1;
+    zh.allow_rows = list(zh.allow);
+    per_row(zh, "chars_zh", "text_zh");
+    Lang en;
+    en.first = rows("en_start");
+    en.cont = rows("en_cont");
+    en.first[static_cast<size_t>(end_)] = 0;
+    en.cont[static_cast<size_t>(end_)] = 1;
+    en.allow.assign(R, 0);
+    for (size_t r = 0; r < R; ++r) en.allow[r] = en.first[r] | en.cont[r];
+    en.first_rows = list(en.first);
+    en.cont_rows = list(en.cont);
+    en.allow_rows = list(en.allow);
+    per_row(en, "chars_en", "text_en");
+    langs_.emplace("zh", std::move(zh));
+    langs_.emplace("en", std::move(en));
+    return;
+  }
   const auto cjk = j.value("cjk", std::vector<std::string>{});
   const auto tags = j.value("lang_tags", nlohmann::json::object());
   for (const std::string& code : j.at("langs").get<std::vector<std::string>>()) {
@@ -111,6 +157,11 @@ std::vector<int64_t> NextWords::block(const std::string& context, const std::str
 
 std::string NextWords::text(const std::vector<int32_t>& rows, const Lang& lang, const std::string& code) const {
   std::string s;
+  if (lite_) {  // the rows' texts (OnnxNext.text: Chinese without spaces, English trimmed, case kept)
+    for (int32_t r : rows) s += lang.texts[static_cast<size_t>(r)];
+    if (lang.cjk) s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
+    return trim_spaces(s);
+  }
   if (lang.cjk) {
     for (int32_t r : rows) s += body_[static_cast<size_t>(r)];
     return s;
@@ -146,7 +197,7 @@ std::vector<int32_t> NextWords::word_rows(const std::string& word, const Lang& l
       if (!lang.allow[static_cast<size_t>(r)]) return {};
     return rows;
   }
-  const bool vi = code == "vi";
+  const bool vi = code == "vi" && !lite_;
   if (rows[0] == end_ || !(vi ? lang.allow : lang.first)[static_cast<size_t>(rows[0])]) return {};
   for (size_t i = 1; i < rows.size(); ++i)
     if (rows[i] == end_ || !(vi ? lang.allow : lang.cont)[static_cast<size_t>(rows[i])]) return {};
@@ -161,7 +212,7 @@ std::vector<NextWord> NextWords::predict(const std::string& context, const std::
   const auto ctx = model_.next_context(block(context, code));
   if (!ctx) return {};
   const int64_t L = model_.next_layers(), H = model_.next_heads(), D = model_.next_head_dim();
-  const bool vi = code == "vi";
+  const bool vi = code == "vi" && !lite_;
   // The rows each step may write (bench OnnxNext.add): CJK any of the language's rows (the end
   // not first); spaced languages a word start first (Vietnamese any), then pieces or the end.
   std::vector<int32_t> step0, later;
@@ -177,6 +228,14 @@ std::vector<NextWord> NextWords::predict(const std::string& context, const std::
   }
   const std::vector<int32_t> only_end{end_};
   const size_t need = lang.cjk ? 2 : 1;
+  // A Lite model's Chinese step 0: the softmax over the rows and the end, the end then not picked.
+  const std::vector<int32_t>& norm0 = lite_ && lang.cjk ? lang.allow_rows : step0;
+  auto complete = [&](const std::vector<int32_t>& rows, const std::string& w) {
+    if (!lite_) return utf8_count(w) >= need;
+    int chars = 0;
+    for (int32_t r : rows) chars += lang.chars[static_cast<size_t>(r)];
+    return chars >= kMinWordChars;
+  };
 
   struct Hyp {
     double lp;
@@ -197,7 +256,7 @@ std::vector<NextWord> NextWords::predict(const std::string& context, const std::
     std::vector<Hyp> next;
     for (int64_t j = 0; j < N; ++j) {
       const float* x = logits.data() + static_cast<size_t>(j) * R;
-      const double lse = log_sum(x, allowed);
+      const double lse = log_sum(x, step == 0 ? norm0 : allowed);
       // The best `beam` of the allowed rows (at the last step only the end).
       const std::vector<int32_t>& pick_from = step == max_tok ? only_end : allowed;
       std::vector<std::pair<double, int32_t>> top;
@@ -211,7 +270,7 @@ std::vector<NextWord> NextWords::predict(const std::string& context, const std::
       for (const auto& [v, r] : top) {
         if (r == end_) {
           const std::string w = text(h.rows, lang, code);
-          if (utf8_count(w) >= need) {
+          if (complete(h.rows, w)) {
             auto it = done.find(w);
             const double cur = it == done.end() ? -std::numeric_limits<double>::infinity() : it->second;
             done[w] = log_add(cur, h.lp + v);

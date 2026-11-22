@@ -37,6 +37,7 @@ class BpeTokenizer {
   int64_t sep_id() const { return hdr_->sep; }
   int64_t mask_id() const { return hdr_->mask; }
   int64_t pad_id() const { return hdr_->pad; }
+  int64_t unk_id() const { return hdr_->unk; }
   const std::string& mask_token() const { return mask_token_; }
   bool mapped() const { return mapped_.is_open(); }  // the image came from cache_bin
 

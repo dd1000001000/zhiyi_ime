@@ -17,6 +17,13 @@
 //
 // next_rows.json: each row's token id and piece, the languages' tags and masks (allow / first /
 // cont row lists), the end row, max_word_tokens, context_tokens, the CJK languages.
+//
+// A Lite model's next_rows.json (zhen-feather, bench export_slim.py; reference
+// dev/release_zhnext_tools/next_onnx.py OnnxNext.generate) has two modes instead: zh (the "zh" rows
+// and the end at every step; at step 0 the end is in the softmax but never picked) and en
+// ("en_start" rows first, then "en_cont" rows or the end); each row's text (text_zh / text_en, a
+// word = its rows' texts joined, English trimmed) and characters (chars_zh / chars_en: a word needs
+// kMinWordChars of them).
 #pragma once
 #include <cstdint>
 #include <memory>
@@ -68,6 +75,8 @@ class NextWords {
  private:
   struct Lang {
     bool cjk = false;
+    std::vector<int32_t> chars;  // Lite: each row's characters (the word length counted with them)
+    std::vector<std::string> texts;  // Lite: each row's text
     std::vector<int64_t> tag;                     // its tag's token ids (none for zh, en)
     std::vector<uint8_t> allow, first, cont;      // per row
     std::vector<int32_t> allow_rows, first_rows, cont_rows;  // the same as row lists
@@ -82,6 +91,7 @@ class NextWords {
   std::vector<std::string> body_;     // row -> the piece without a leading "▁" (CJK text)
   std::unordered_map<int64_t, int32_t> row_of_token_;
   std::unordered_map<std::string, Lang> langs_;
+  bool lite_ = false;  // a Lite model's rows (two modes, row texts and character counts)
   int32_t end_ = 1;
   size_t max_word_tokens_ = 6;
   size_t context_tokens_ = 128;

@@ -93,6 +93,7 @@ UnifiedVocab::UnifiedVocab(const std::string& json_path) {
   context_first_ = j.value("choice_format", std::string()) == "ctx-first";
   choice_context_tokens_ = j.value("choice_context_tokens", choice_context_tokens_);
   choice_candidate_tokens_ = j.value("choice_candidate_tokens", choice_candidate_tokens_);
+  choice_compact_ = j.value("choice_compact", false);
   decoder_file_ = j.value("decoder", std::string());
   decoder_memory_file_ = j.value("decoder_memory", std::string());
   decoder_step_file_ = j.value("decoder_step", std::string());

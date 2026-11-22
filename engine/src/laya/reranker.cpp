@@ -24,7 +24,10 @@ namespace laya {
 
 const char* const kInstructionsGuess = "Which candidate word most likely comes next after the text so far?";
 const char* const kOneGraphFiles[kOneGraphFileCount] = {"laya.one.next.slim.onnx", "laya.one.next.w8.onnx",
-                                                        "laya.one.fused.int8g.onnx", "laya.one.int8g.onnx"};
+                                                        "laya.one.w4.onnx", "laya.one.fused.int8g.onnx",
+                                                        "laya.one.int8g.onnx"};
+const char* const kNextHeadFile = "laya.next.head.w4.onnx";
+const char* const kNextStepFile = "laya.next.step.w4.onnx";
 
 namespace {
 
@@ -274,8 +277,33 @@ Reranker::Reranker(const RerankerOptions& opt) {
         next_heads_ = dec[2];
         next_head_dim_ = dec[4];
       }
+      // A Lite one graph (its encoder's hidden states out): the decoder as two graphs beside it.
+      const std::filesystem::path model_root(utf8_to_wide(opt.model_dir));
+      if (!next_graph_ && has_output(*session_, "hidden") &&
+          std::filesystem::exists(model_root / utf8_to_wide(kNextHeadFile), vocab_ec) &&
+          std::filesystem::exists(model_root / utf8_to_wide(kNextStepFile), vocab_ec)) {
+        auto head = std::make_unique<Ort::Session>(*env_, (model_root / utf8_to_wide(kNextHeadFile)).c_str(),
+                                                   session_options(opt));
+        auto step = std::make_unique<Ort::Session>(*env_, (model_root / utf8_to_wide(kNextStepFile)).c_str(),
+                                                   session_options(opt));
+        const auto past = input_shape(*step, "past_k");  // (layers, N, heads, past, head_dim)
+        if (past.size() == 5 && past[0] > 0 && past[2] > 0 && past[4] > 0 && has_input(*head, "hidden") &&
+            has_input(*head, "input_ids") && has_output(*head, "cross_mask") && has_input(*step, "cross_mask") &&
+            has_output(*step, "present_k")) {
+          next_head_ = std::move(head);
+          next_step_ = std::move(step);
+          next_graph_ = true;
+          next_layers_ = past[0];
+          next_heads_ = past[2];
+          next_head_dim_ = past[4];
+        } else {
+          load_note_ += std::string(kNextHeadFile) + " / " + kNextStepFile + " not used (inputs); ";
+        }
+      }
       one_ = true;
-      load_note_ += one_file + " with the context's cache" + std::string(next_graph_ ? " and the next-word decoder" : "") +
+      load_note_ += one_file + " with the context's cache" +
+                    std::string(next_head_ ? " and the next-word decoder graphs"
+                                : next_graph_ ? " and the next-word decoder" : "") +
                     ", weights packed on the heap";
     } catch (const std::exception& e) {
       session_.reset();
@@ -381,7 +409,10 @@ Sequence Reranker::build(const std::string& context, const std::vector<std::stri
   const auto& tok = *tok_;
   const std::string& mask = tok.mask_token();
   if (vocab_ && vocab_->context_first()) {
-    // student2.Encoder2.choice: [CLS] context tail [SEP] slots [SEP] [MASK] " c" ... [SEP].
+    // student2.Encoder2.choice: [CLS] context tail [SEP] slots [SEP] [MASK] " c" ... [SEP]; the compact
+    // format (UnifiedVocab::choice_compact): [CLS] context tail [SEP] slots [SEP] c ... [SEP], each
+    // candidate without the leading "▁" and marked at its first token.
+    const bool compact = vocab_->choice_compact();
     Sequence seq;
     seq.ids.push_back(tok.cls_id());
     const auto ctx = tok.encode(replace_all(context, mask, " "));
@@ -390,11 +421,12 @@ Sequence Reranker::build(const std::string& context, const std::vector<std::stri
     seq.ids.push_back(tok.sep_id());
     append_slots(seq, units);
     for (const auto& c : candidates) {
-      auto t = tok.encode(replace_all(" " + c, mask, " "));
+      auto t = compact ? tok.encode_no_prepend(replace_all(c, mask, " ")) : tok.encode(replace_all(" " + c, mask, " "));
       if (t.size() > static_cast<size_t>(vocab_->choice_candidate_tokens()))
         t.resize(static_cast<size_t>(vocab_->choice_candidate_tokens()));
+      if (compact && t.empty()) t.push_back(tok.unk_id());
       seq.markers.push_back(static_cast<int64_t>(seq.ids.size()));
-      seq.ids.push_back(tok.mask_id());
+      if (!compact) seq.ids.push_back(tok.mask_id());
       seq.ids.insert(seq.ids.end(), t.begin(), t.end());
     }
     seq.ids.push_back(tok.sep_id());
@@ -587,8 +619,15 @@ std::shared_ptr<const ContextKV> Reranker::context_kv(const std::vector<int64_t>
     std::lock_guard<std::mutex> lk(contexts_mutex_);
     for (size_t i = 0; i < contexts_.size(); ++i) {
       if (contexts_[i]->ids != ids) continue;
-      if (need_cross && !contexts_[i]->has_cross()) {  // computed again below, with them
-        contexts_.erase(contexts_.begin() + static_cast<std::ptrdiff_t>(i));
+      if (need_cross && !contexts_[i]->has_cross()) {
+        if (next_head_ && !contexts_[i]->hidden.empty()) {  // Lite: the head over the kept hidden states
+          auto kv = std::make_shared<ContextKV>(*contexts_[i]);
+          if (!head_cross(*kv)) return nullptr;
+          contexts_.erase(contexts_.begin() + static_cast<std::ptrdiff_t>(i));
+          contexts_.insert(contexts_.begin(), kv);
+          return kv;
+        }
+        contexts_.erase(contexts_.begin() + static_cast<std::ptrdiff_t>(i));  // computed again below, with them
         break;
       }
       std::rotate(contexts_.begin(), contexts_.begin() + static_cast<std::ptrdiff_t>(i),
@@ -619,28 +658,76 @@ std::shared_ptr<const ContextKV> Reranker::context_kv(const std::vector<int64_t>
                                        "past_choice_v", "past_mask", "marker_pos", "slot_pos"};
   std::vector<const char*> out_names(present_names_, present_names_ + 4);
   bool cross_flag[1] = {true};
-  if (need_cross) {  // a bool scalar
+  if (need_cross && !next_head_) {  // a bool scalar
     in.push_back(Ort::Value::CreateTensor<bool>(*mem_, cross_flag, 1, nullptr, 0));
     in_names.push_back("need_cross");
     out_names.push_back("cross_k_out");
     out_names.push_back("cross_v_out");
   }
+  const size_t kv_outputs = out_names.size();
+  if (next_head_) out_names.push_back("hidden");  // Lite: kept for the next-word head
   auto out = session_->Run(Ort::RunOptions{nullptr}, in_names.data(), in.data(), in.size(), out_names.data(),
                            out_names.size());
   auto kv = std::make_shared<ContextKV>();
   kv->ids = ids;
   std::vector<float>* dst[6] = {&kv->enc_k, &kv->enc_v, &kv->choice_k, &kv->choice_v, &kv->cross_k, &kv->cross_v};
-  for (size_t i = 0; i < out_names.size(); ++i) {
+  for (size_t i = 0; i < kv_outputs; ++i) {
     const auto info = out[i].GetTensorTypeAndShapeInfo();
     const auto shape = info.GetShape();
     if (shape.size() != 5 || shape[3] != n) return nullptr;
     const float* d = out[i].GetTensorData<float>();
     dst[i]->assign(d, d + info.GetElementCount());
   }
+  if (kv->has_cross()) {  // the one graph's decoder reads the block's positions, all of them
+    kv->cross_len = n;
+    kv->cross_mask.assign(static_cast<size_t>(n), 1);
+  }
+  if (next_head_) {
+    const auto info = out[kv_outputs].GetTensorTypeAndShapeInfo();
+    const auto shape = info.GetShape();  // (1, n, width)
+    if (shape.size() != 3 || shape[1] != n) return nullptr;
+    const float* d = out[kv_outputs].GetTensorData<float>();
+    kv->hidden.assign(d, d + info.GetElementCount());
+    if (need_cross && !head_cross(*kv)) return nullptr;
+  }
   std::lock_guard<std::mutex> lk(contexts_mutex_);
   contexts_.insert(contexts_.begin(), kv);
   if (contexts_.size() > kContextCacheEntries) contexts_.resize(kContextCacheEntries);
   return kv;
+}
+
+bool Reranker::head_cross(ContextKV& kv) const {
+  // export_slim.py's head: hidden (1, n, width), input_ids (the memory table hashes the raw ids),
+  // attention_mask (int64) -> cross_k / cross_v (layers, 1, heads, n + memory positions, head_dim),
+  // cross_mask (1, n + memory positions).
+  const int64_t n = static_cast<int64_t>(kv.ids.size());
+  if (n == 0 || kv.hidden.empty() || kv.hidden.size() % static_cast<size_t>(n) != 0) return false;
+  const int64_t width = static_cast<int64_t>(kv.hidden.size()) / n;
+  std::vector<int64_t> ids = kv.ids, att(static_cast<size_t>(n), 1);
+  const int64_t s_hidden[3] = {1, n, width}, s_ids[2] = {1, n};
+  std::vector<Ort::Value> in;
+  in.push_back(Ort::Value::CreateTensor<float>(*mem_, kv.hidden.data(), kv.hidden.size(), s_hidden, 3));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, ids.data(), ids.size(), s_ids, 2));
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, att.data(), att.size(), s_ids, 2));
+  const char* in_names[3] = {"hidden", "input_ids", "attention_mask"};
+  const char* out_names[3] = {"cross_k", "cross_v", "cross_mask"};
+  try {
+    auto out = next_head_->Run(Ort::RunOptions{nullptr}, in_names, in.data(), in.size(), out_names, 3);
+    const auto ks = out[0].GetTensorTypeAndShapeInfo().GetShape();
+    const auto ms = out[2].GetTensorTypeAndShapeInfo().GetShape();
+    if (ks.size() != 5 || ks[1] != 1 || ms.size() != 2 || ms[1] != ks[3]) return false;
+    const size_t count = out[0].GetTensorTypeAndShapeInfo().GetElementCount();
+    const float* k = out[0].GetTensorData<float>();
+    const float* v = out[1].GetTensorData<float>();
+    kv.cross_k.assign(k, k + count);
+    kv.cross_v.assign(v, v + count);
+    kv.cross_len = ks[3];
+    const bool* m = out[2].GetTensorData<bool>();
+    kv.cross_mask.assign(m, m + ks[3]);
+  } catch (const std::exception&) {
+    return false;
+  }
+  return true;
 }
 
 std::shared_ptr<const ContextKV> Reranker::next_context(const std::vector<int64_t>& block) const {
@@ -658,8 +745,9 @@ bool Reranker::next_step(const ContextKV& context, const std::vector<int64_t>& p
   if (!next_graph_ || !context.has_cross() || prev.empty() || step < 0) return false;
   const int64_t N = static_cast<int64_t>(prev.size());
   const int64_t L = next_layers_, H = next_heads_, D = next_head_dim_;
-  const int64_t T = static_cast<int64_t>(context.ids.size());
+  const int64_t T = context.cross_len;
   const int64_t P = step + 1;  // the masked placeholder + the earlier steps
+  if (T <= 0 || context.cross_mask.size() != static_cast<size_t>(T)) return false;
   const size_t per_layer = static_cast<size_t>(H * T * D);
   if (context.cross_k.size() != static_cast<size_t>(L) * per_layer ||
       past_k.size() != static_cast<size_t>(L * N * H * P * D) || past_v.size() != past_k.size())
@@ -680,12 +768,14 @@ bool Reranker::next_step(const ContextKV& context, const std::vector<int64_t>& p
   for (int64_t n = 0; n < N; ++n)
     for (int64_t p = 0; p < P; ++p) past_mask[static_cast<size_t>(n * P + p)] = p > 0;
   std::unique_ptr<bool[]> cross_mask(new bool[static_cast<size_t>(N * T)]);
-  std::fill(cross_mask.get(), cross_mask.get() + N * T, true);
+  for (int64_t n = 0; n < N; ++n)
+    for (int64_t t = 0; t < T; ++t)
+      cross_mask[static_cast<size_t>(n * T + t)] = context.cross_mask[static_cast<size_t>(t)] != 0;
   bool is_step[1] = {true};
   const int64_t s_n[1] = {N}, s_past[5] = {L, N, H, P, D}, s_pmask[2] = {N, P}, s_cross[5] = {L, N, H, T, D},
                 s_cmask[2] = {N, T};
   std::vector<Ort::Value> in;
-  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, is_step, 1, nullptr, 0));
+  if (!next_step_) in.push_back(Ort::Value::CreateTensor<bool>(*mem_, is_step, 1, nullptr, 0));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, prev_rows.data(), prev_rows.size(), s_n, 1));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, pos.data(), pos.size(), s_n, 1));
   in.push_back(Ort::Value::CreateTensor<float>(*mem_, const_cast<float*>(past_k.data()), past_k.size(), s_past, 5));
@@ -694,11 +784,17 @@ bool Reranker::next_step(const ContextKV& context, const std::vector<int64_t>& p
   in.push_back(Ort::Value::CreateTensor<float>(*mem_, ck.data(), ck.size(), s_cross, 5));
   in.push_back(Ort::Value::CreateTensor<float>(*mem_, cv.data(), cv.size(), s_cross, 5));
   in.push_back(Ort::Value::CreateTensor<bool>(*mem_, cross_mask.get(), static_cast<size_t>(N * T), s_cmask, 2));
-  const char* in_names[9] = {"is_step", "prev", "pos", "dec_past_k", "dec_past_v", "dec_past_mask",
-                             "cross_k", "cross_v", "cross_mask"};
-  const char* out_names[3] = {"logits", "present_0", "present_1"};
+  // The one graph's decoder (is_step) or Lite's step graph: the same inputs under other names.
+  static const char* const one_in[9] = {"is_step", "prev", "pos", "dec_past_k", "dec_past_v", "dec_past_mask",
+                                        "cross_k", "cross_v", "cross_mask"};
+  static const char* const step_in[8] = {"prev", "pos", "past_k", "past_v", "past_mask", "cross_k", "cross_v",
+                                         "cross_mask"};
+  static const char* const one_out[3] = {"logits", "present_0", "present_1"};
+  static const char* const step_out[3] = {"logits", "present_k", "present_v"};
+  Ort::Session& session = next_step_ ? *next_step_ : *session_;
   try {
-    auto out = session_->Run(Ort::RunOptions{nullptr}, in_names, in.data(), in.size(), out_names, 3);
+    auto out = session.Run(Ort::RunOptions{nullptr}, next_step_ ? step_in : one_in, in.data(), in.size(),
+                           next_step_ ? step_out : one_out, 3);
     std::vector<float>* dst[3] = {logits, present_k, present_v};
     for (size_t i = 0; i < 3; ++i) {
       const auto info = out[i].GetTensorTypeAndShapeInfo();
@@ -739,7 +835,10 @@ bool Reranker::run_one(const Sequence& seq, std::vector<float>* logits, std::vec
   std::vector<int64_t> pos, slot_pos;
   for (int64_t p : seq.markers) pos.push_back(p - P);
   for (int64_t p : seq.slots) slot_pos.push_back(p - P);
-  if (pos.empty()) pos.push_back(0);
+  // No markers (composition): a compact graph adds a candidate embedding at every marker in key mode,
+  // so it gets none (marker_pos (1, 0)); the others take an unread placeholder.
+  const bool no_markers = pos.empty() && vocab_ && vocab_->choice_compact();
+  if (pos.empty() && !no_markers) pos.push_back(0);
   if (slot_pos.empty()) slot_pos.push_back(0);
   std::unique_ptr<bool[]> past_mask(new bool[n]);
   std::fill(past_mask.get(), past_mask.get() + n, true);
@@ -757,7 +856,8 @@ bool Reranker::run_one(const Sequence& seq, std::vector<float>* logits, std::vec
   in.push_back(past(kv->choice_k, s_head));
   in.push_back(past(kv->choice_v, s_head));
   in.push_back(Ort::Value::CreateTensor<bool>(*mem_, past_mask.get(), n, s_past, 2));
-  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, pos.data(), pos.size(), s_mark, 2));
+  int64_t no_marker = 0;
+  in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, no_markers ? &no_marker : pos.data(), pos.size(), s_mark, 2));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, slot_pos.data(), slot_pos.size(), s_slot, 2));
   const char* in_names[9] = {"input_ids", "unit_ids", "past_enc_k", "past_enc_v", "past_choice_k",
                              "past_choice_v", "past_mask", "marker_pos", "slot_pos"};

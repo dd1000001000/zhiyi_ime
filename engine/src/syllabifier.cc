@@ -119,6 +119,24 @@ static size_t after_separators(const std::string& input, size_t pos) {
     return pos;
 }
 
+// Whether a syllable typed in full (a normal or fuzzy spelling with a vowel, not an initial, a
+// letter reading, a completion or another erhua r) ends at `pos`. The search takes the positions in order, so every edge into
+// `pos` is in the graph when `pos` is.
+static bool follows_full_syllable(const SyllableGraph& graph, size_t pos) {
+    for (const auto& [start, ends] : graph) {
+        if (start >= pos) break;
+        auto it = ends.find(pos);
+        if (it == ends.end()) continue;
+        for (const auto& edge : it->second) {
+            const bool erhua = edge.syllable == "er" && pos - start == 1;
+            // A vowel: the dictionary's letter readings (g, r, f) are no syllables typed out.
+            const bool vowel = edge.syllable.find_first_of("aeiouv") != std::string::npos;
+            if (edge.type <= kFuzzySpelling && vowel && !erhua) return true;
+        }
+    }
+    return false;
+}
+
 Syllabifier::Syllabifier(const SpellingsIndex& spellings)
     : spellings_(spellings) {}
 
@@ -175,8 +193,10 @@ SyllableGraph Syllabifier::build_graph(const std::string& input,
 
         // Erhua: an r after a syllable spells 儿 in full (花儿 "huar", 哪儿 "nar", 一会儿
         // "yihuir"), a whole syllable like "er" typed out; the r-initial readings (华人, 纳入)
-        // stay as abbreviations.
-        if (pos > 0 && !remaining.empty() && remaining[0] == 'r' && !options.initials_only) {
+        // stay as abbreviations. After an initial only as the last letter (一会儿 "yhr"): in
+        // the middle ("zgrm") the r is an initial too, not 儿 (职工而没).
+        if (pos > 0 && !remaining.empty() && remaining[0] == 'r' && !options.initials_only &&
+            (after_separators(input, pos + 1) == input.size() || follows_full_syllable(graph, pos))) {
             const size_t end_pos = after_separators(input, pos + 1);
             graph[pos][end_pos].push_back(
                 {"er", kNormalSpelling, kErhuaCredibility, syllable_log_share("er")});

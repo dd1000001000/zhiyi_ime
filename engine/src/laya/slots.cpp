@@ -13,7 +13,7 @@ namespace laya {
 namespace {
 
 bool walk(const std::vector<std::string>& syl, const std::string& code, size_t i, size_t pos,
-          std::vector<Unit>& out) {
+          std::vector<Unit>& out, uint32_t* erhua) {
   if (i == syl.size()) return pos == code.size();
   const std::string& s = syl[i];
   const bool last = i + 1 == syl.size();
@@ -21,7 +21,18 @@ bool walk(const std::vector<std::string>& syl, const std::string& code, size_t i
   // the rest of the code wins (p2c_common.slot_units).
   if (code.compare(pos, s.size(), s) == 0) {
     out.push_back({'f', s});
-    if (walk(syl, code, i + 1, pos + s.size(), out)) return true;
+    if (walk(syl, code, i + 1, pos + s.size(), out, erhua)) return true;
+    out.pop_back();
+  }
+  // 儿 typed as r after a syllable typed in full (huar 花儿), or as the last letter after any
+  // (yhr 一会儿): the syllabifier's erhua edge, the syllable er in full, one letter.
+  if (s == "er" && !out.empty() && (out.back().kind == 'f' || pos + 1 == code.size()) &&
+      pos < code.size() && code[pos] == 'r') {
+    out.push_back({'f', s});
+    if (walk(syl, code, i + 1, pos + 1, out, erhua)) {
+      if (erhua && i < 32) *erhua |= 1u << i;
+      return true;
+    }
     out.pop_back();
   }
   for (size_t k = s.size() - 1; k >= 1; --k) {
@@ -29,7 +40,7 @@ bool walk(const std::vector<std::string>& syl, const std::string& code, size_t i
     if (!last && !initial) continue;
     if (code.compare(pos, k, s, 0, k) != 0) continue;
     out.push_back({'p', s.substr(0, k)});
-    if (walk(syl, code, i + 1, pos + k, out)) return true;
+    if (walk(syl, code, i + 1, pos + k, out, erhua)) return true;
     out.pop_back();
   }
   return false;
@@ -37,12 +48,17 @@ bool walk(const std::vector<std::string>& syl, const std::string& code, size_t i
 
 }  // namespace
 
-std::vector<Unit> slot_units(const std::vector<std::string>& syllables, const std::string& code) {
+std::vector<Unit> slot_units(const std::vector<std::string>& syllables, const std::string& code,
+                             uint32_t* erhua) {
   std::vector<Unit> out;
+  if (erhua) *erhua = 0;
   if (syllables.empty()) return out;
   for (const auto& s : syllables)
     if (s.empty()) return out;
-  if (!walk(syllables, code, 0, 0, out)) out.clear();
+  if (!walk(syllables, code, 0, 0, out, erhua)) {
+    out.clear();
+    if (erhua) *erhua = 0;
+  }
   return out;
 }
 

@@ -24,8 +24,11 @@ struct Unit {
 // p2c_common.slot_units: the unit of each syllable as it was typed in `code` (letters only, no
 // separators). Empty when the code does not spell the syllables that way (a fuzzy reading, or a
 // shuangpin key). A syllable before the last one may only be abbreviated to its initial (one
-// letter, or zh / ch / sh); the last one to any prefix.
-std::vector<Unit> slot_units(const std::vector<std::string>& syllables, const std::string& code);
+// letter, or zh / ch / sh); the last one to any prefix. A syllable er after one typed in full, or
+// the last one after any, may be typed as r (儿化: huar f:hua f:er, yhr p:y p:h f:er); `erhua`,
+// when given, gets bit i set for each such slot.
+std::vector<Unit> slot_units(const std::vector<std::string>& syllables, const std::string& code,
+                             uint32_t* erhua = nullptr);
 
 // English: one unit per typed letter (lowercased), at most max_slots.
 std::vector<Unit> letter_units(const std::string& typed, size_t max_slots);

@@ -411,6 +411,7 @@ struct PathSentences {
 };
 
 constexpr size_t kModelSentenceChars = 3;  // characters kept per slot (bench sim_free_sentences.py)
+constexpr float kNotWritten = -1e4f;  // below model_sentences.cpp kWritable: a character no row writes
 
 // The composer's lattice scorer (pinyin_composer.h): the slot scores of at most
 // laya.continuation_paths syllable paths per translation, from the shared cache or (not in the
@@ -437,7 +438,8 @@ public:
         // expansion of an initial ("g" as guo, gong, ge...) shares one model call, the unit's
         // characters being all those an expansion can start with.
         const std::string code = letters_only(path.input_code ? *path.input_code : input);
-        std::vector<laya::Unit> units = laya::slot_units(*path.syllables, code);
+        uint32_t erhua = 0;  // the slots of a 儿 typed as r (huar)
+        std::vector<laya::Unit> units = laya::slot_units(*path.syllables, code, &erhua);
         if (units.empty()) {  // shuangpin keys, a fuzzy reading: every syllable as typed in full
             for (const auto& s : *path.syllables) units.push_back({'f', s});
         }
@@ -454,7 +456,7 @@ public:
             if (!scores && background_) {
                 if (model_sentences_ > 0 && !prefix_tried_) {  // in the same work as the path
                     prefix_tried_ = true;
-                    add_prefix_reading(path, input, units);
+                    add_prefix_reading(path, input, units, erhua);
                 }
                 if (missing_keys_.insert(key).second) missing_.push_back(std::move(units));
                 trace_prepare(path, code, key, "(computed in the background)");
@@ -467,10 +469,10 @@ public:
             }
             it = cache_.emplace(key, std::move(scores)).first;
             if (model_sentences_ > 0 && it->second->size() == path.syllables->size()) {
-                add_model_sentences(path, input, it->second);
+                add_model_sentences(path, input, it->second, erhua);
                 if (!prefix_tried_) {
                     prefix_tried_ = true;
-                    add_prefix_reading(path, input, units);
+                    add_prefix_reading(path, input, units, erhua);
                 }
             }
         } else {
@@ -526,7 +528,12 @@ public:
     }
 
 private:
-    void add_model_sentences(const CompositionPath& path, const std::string& input, const SlotScores& scores) {
+    // `erhua`: the slots of a 儿 typed as r, where the rows write 儿 only, as the dictionary's
+    // candidates do (keep_erhua_characters in pinyin_translator.cc; not 职工而没 for "zhigongr...").
+    void add_model_sentences(const CompositionPath& path, const std::string& input, SlotScores scores,
+                             uint32_t erhua) {
+        if (erhua) scores = only_er_child(scores, erhua);
+        if (!scores) return;
         PathSentences ps;
         for (const auto& s : *path.syllables) {
             if (!ps.syllables.empty()) ps.syllables += ':';
@@ -543,7 +550,8 @@ private:
     // for 婴 ying): the composer reads it as that syllable only, so the head also reads it as a
     // prefix (p:zu: every syllable it starts) for its own sentences. One model call more per
     // composition (in the background as the paths'), not counted in laya.continuation_paths.
-    void add_prefix_reading(const CompositionPath& path, const std::string& input, std::vector<laya::Unit> units) {
+    void add_prefix_reading(const CompositionPath& path, const std::string& input, std::vector<laya::Unit> units,
+                            uint32_t erhua) {
         if (units.empty() || units.back().kind != 'f') return;
         const laya::UnifiedVocab& vocab = *model_->vocab();
         const int64_t full = vocab.unit_id(units.back());
@@ -563,7 +571,24 @@ private:
             scores = run_continuation(*model_, context_, units);
             cache_continuation(key, scores);
         }
-        if (scores->size() == path.syllables->size()) add_model_sentences(path, input, scores);
+        if (scores->size() == path.syllables->size()) add_model_sentences(path, input, scores, erhua);
+    }
+
+    // The slot scores with every character but 儿 unwritable in the slots of `erhua`; nullptr when
+    // the head has no 儿.
+    SlotScores only_er_child(const SlotScores& scores, uint32_t erhua) const {
+        const int er = model_->vocab()->char_index("儿");
+        if (!scores || er < 0) return nullptr;
+        auto out = std::make_shared<std::vector<std::vector<float>>>(*scores);
+        for (size_t i = 0; i < out->size() && i < 32; ++i) {
+            if (!(erhua & (1u << i))) continue;
+            auto& slot = (*out)[i];
+            if (static_cast<size_t>(er) >= slot.size()) return nullptr;
+            const float keep = slot[static_cast<size_t>(er)];
+            std::fill(slot.begin(), slot.end(), kNotWritten);
+            slot[static_cast<size_t>(er)] = keep;
+        }
+        return out;
     }
 
     void trace_prepare(const CompositionPath& path, const std::string& code, const std::string& key,

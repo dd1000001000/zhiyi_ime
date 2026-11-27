@@ -49,6 +49,7 @@ enum ControlId {
     kVoiceLanguageId,
     kVoiceItnId,
     kVoiceModelId,
+    kVoiceImportId,
 };
 
 constexpr UINT kVoiceCheckedMessage = WM_APP + 100;    // lParam: VoiceChecked*
@@ -163,8 +164,9 @@ bool same_sha256(const fs::path& path, const std::string& sha256) {
 
 // Downloads `manifest` into voice\v<N> and points voice.json at it. Files the installed version
 // already has (same SHA-256) are linked, not downloaded again.
+// With `package`, the files are copied from that offline package instead (issue #52).
 VoiceInstalled install(const update::VoiceManifest& manifest, const std::atomic<bool>* cancel,
-                       HWND window, voice::VoiceModel model) {
+                       HWND window, voice::VoiceModel model, const update::OfflinePackage* package = nullptr) {
     VoiceInstalled result;
     const fs::path root = voice_root(model);
     const fs::path downloads = root / L"download";
@@ -199,7 +201,9 @@ VoiceInstalled install(const update::VoiceManifest& manifest, const std::atomic<
             if (fs::exists(download, error) && same_sha256(download, file.sha256)) {
                 progress(file.size, file.size);
             } else {
-                result.status = update::download_translator_file(file, download.wstring(), progress, cancel);
+                result.status = package ? update::extract_offline_file(*package, file.file, file.size, file.sha256,
+                                                                       download.wstring(), progress, cancel)
+                                        : update::download_translator_file(file, download.wstring(), progress, cancel);
                 if (result.status != update::Status::kOk) return result;
             }
             if (!CreateHardLinkW(target.c_str(), download.c_str(), nullptr)) {
@@ -275,6 +279,10 @@ void EditorApp::create_voice_panel(HWND panel) {
     hVoiceAction_ = make_button(kVoiceActionId, L"", client.right - x0 - S(206), y, S(120), panel);
     hVoiceRemove_ = make_button(kVoiceRemoveId, tr("learning.remove"), client.right - x0 - S(78), y,
                                 S(78), panel);
+    y += kRowH;
+    // Without GitHub: the offline package, downloaded elsewhere (issue #52).
+    make_web_link(kOfflinePackagesLinkId, tr("offline.link"), x0, y + S(4), S(260), panel);
+    hVoiceImport_ = make_button(kVoiceImportId, tr("offline.import"), client.right - x0 - S(206), y, S(206), panel);
     y += kRowH;
     hVoiceModelHint_ = make_hint(tr("voice.model_hint"), x0, y - S(4), S(560), panel, 2);
     y += S(2 * (kFontPt + 6) + 8);
@@ -451,7 +459,7 @@ void EditorApp::show_voice_state() {
         status = fill(tr("voice.installed"), {std::to_wstring(installed.version)});
         break;
     case VoiceBusy::kDownloading:
-        status = fill(tr("learning.downloading"), {std::to_wstring(voice_done_mb_), std::to_wstring(voice_total_mb_)});
+        status = offline_progress_text(voice_importing_, voice_done_mb_, voice_total_mb_);
         action = tr("learning.cancel");
         break;
     case VoiceBusy::kNone:
@@ -486,6 +494,7 @@ void EditorApp::show_voice_state() {
     EnableWindow(hVoiceDevice_, have && !qwen && voice_busy_ == VoiceBusy::kNone);
     EnableWindow(hVoiceItn_, !qwen);  // Qwen3-ASR writes numbers as it does
     EnableWindow(hVoiceModel_, voice_busy_ == VoiceBusy::kNone);
+    EnableWindow(hVoiceImport_, voice_busy_ == VoiceBusy::kNone);
     if (!have) set_check(hVoiceEnable_, false);
 }
 
@@ -523,6 +532,56 @@ void EditorApp::start_voice_install() {
         } else {
             *done = install(checked.manifest, cancel.get(), window, model);
         }
+        if (!PostMessageW(window, kVoiceInstalledMessage, 0, reinterpret_cast<LPARAM>(done))) delete done;
+    }).detach();
+}
+
+void EditorApp::start_voice_import() {
+    update::OfflinePackage package;
+    if (!pick_offline_package(hwnd_, update::PackageKind::kVoice, &package)) return;
+    const update::VoiceManifest& manifest = package.voice;
+    if (!manifest.min_app.empty() && update::is_newer_release(manifest.min_app, CXXIME_VERSION_STRING)) {
+        MessageBoxW(hwnd_, fill(tr("voice.needs_app"), {utf8_to_wstr(manifest.min_app)}).c_str(), tr("window.title"),
+                    MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    // The package's model is the one shown (and installed).
+    const voice::VoiceModel model =
+        package.kind == update::PackageKind::kQwenVoice ? voice::VoiceModel::kQwen : voice::VoiceModel::kSenseVoice;
+    if (chosen_model(hVoiceModel_) != model) {
+        combo_set_index(hVoiceModel_, model == voice::VoiceModel::kQwen ? 1 : 0);
+        voice_remote_known_ = false;
+        show_voice_device();
+    }
+    voice::InstalledModel installed;
+    const bool have = voice::find_installed(model, &installed);
+    // The same version again: nothing to do (installing it would replace the folder the running model uses).
+    if (have && installed.version == manifest.version) {
+        MessageBoxW(hwnd_, fill(tr("offline.same"), {std::to_wstring(installed.version)}).c_str(), tr("window.title"),
+                    MB_OK | MB_ICONINFORMATION);
+        show_voice_state();
+        return;
+    }
+    if (have && installed.version > manifest.version &&
+        MessageBoxW(hwnd_,
+                    fill(tr("offline.older"), {std::to_wstring(manifest.version), std::to_wstring(installed.version)})
+                        .c_str(),
+                    tr("window.title"), MB_OKCANCEL | MB_ICONQUESTION) != IDOK) {
+        show_voice_state();
+        return;
+    }
+    voice_busy_ = VoiceBusy::kDownloading;
+    voice_importing_ = true;
+    voice_note_.clear();
+    voice_done_mb_ = 0;
+    voice_total_mb_ = manifest.total_size() >> 20;
+    voice_cancel_ = std::make_shared<std::atomic<bool>>(false);
+    show_voice_state();
+    const HWND window = hwnd_;
+    const auto cancel = voice_cancel_;
+    auto shared = std::make_shared<update::OfflinePackage>(std::move(package));
+    std::thread([window, cancel, model, shared] {
+        auto* done = new VoiceInstalled(install(shared->voice, cancel.get(), window, model, shared.get()));
         if (!PostMessageW(window, kVoiceInstalledMessage, 0, reinterpret_cast<LPARAM>(done))) delete done;
     }).detach();
 }
@@ -592,6 +651,9 @@ bool EditorApp::handle_voice_command(int control_id, int notification) {
     case kVoiceRemoveId:
         if (notification == BN_CLICKED && voice_busy_ == VoiceBusy::kNone) remove_voice();
         return true;
+    case kVoiceImportId:
+        if (notification == BN_CLICKED && voice_busy_ == VoiceBusy::kNone) start_voice_import();
+        return true;
     default:
         return false;
     }
@@ -620,6 +682,8 @@ bool EditorApp::handle_voice_message(UINT message, WPARAM wparam, LPARAM lparam)
     case kVoiceInstalledMessage: {
         std::unique_ptr<VoiceInstalled> done(reinterpret_cast<VoiceInstalled*>(lparam));
         voice_busy_ = VoiceBusy::kNone;
+        const bool imported = voice_importing_;
+        voice_importing_ = false;
         voice_cancel_.reset();
         voice_remote_known_ = false;
         if (done->status == update::Status::kOk) {
@@ -642,9 +706,9 @@ bool EditorApp::handle_voice_message(UINT message, WPARAM wparam, LPARAM lparam)
             return true;
         } else {
             voice_note_ = !done->error.empty() ? done->error
-                          : done->status == update::Status::kCancelled ? tr("learning.cancelled")
+                          : done->status == update::Status::kCancelled ? tr(imported ? "offline.cancelled" : "learning.cancelled")
                           : done->status == update::Status::kDisk      ? tr("voice.failed_disk")
-                          : done->status == update::Status::kInvalid   ? tr("learning.failed_invalid")
+                          : done->status == update::Status::kInvalid   ? tr(imported ? "offline.invalid_file" : "learning.failed_invalid")
                                                                         : tr("learning.failed_network");
         }
         show_voice_state();

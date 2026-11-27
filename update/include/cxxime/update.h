@@ -217,6 +217,38 @@ struct VoiceCheckResult {
 // thread).
 VoiceCheckResult check_voice(bool qwen = false);
 
+// Offline packages (docs/offline-packages.md, issue #52): for a computer that cannot download from
+// GitHub, each downloadable part also comes as one zip, zhiyi-offline-<part>-v<N>.zip (on ModelScope,
+// kOfflinePackagesUrl): the release's signed manifest (translator.json,
+// voice.json, voice-qwen3-asr.json or glossary.json, with its .sig) and the files it lists, stored
+// uncompressed. Settings' "Import from file" reads one: the manifest's signature as for a download,
+// then each file's size and SHA-256 as it is copied out. The files of a release, downloaded one by
+// one into a folder, are read the same way from that folder (the manifest chosen).
+inline constexpr wchar_t kOfflinePackagesUrl[] = L"https://www.modelscope.cn/models/dd1000001000/zhiyi_packages/files";
+
+enum class PackageKind { kNone, kTranslator, kVoice, kQwenVoice, kGlossary };
+
+struct OfflinePackage {
+    PackageKind kind = PackageKind::kNone;
+    std::wstring path;  // the zip, or the folder of the chosen manifest
+    bool zip = false;
+    TranslatorManifest translator;          // kTranslator
+    VoiceManifest voice;                    // kVoice, kQwenVoice
+    std::vector<GlossaryPack> glossaries;   // kGlossary: those the package holds
+};
+
+// Opens a package (a .zip, or a manifest .json with its .sig and files beside it): finds its manifest,
+// checks the signature with the built-in key and parses it. kInvalid: not a package, a bad signature
+// or a file the manifest lists missing from the package (glossary packages may hold some of their packs);
+// kDisk: the file cannot be read.
+Status open_offline_package(const std::wstring& path, OfflinePackage* package);
+
+// Copies one of the package's files to `path` (via path.part), checking that it has `size` bytes and
+// the SHA-256 `sha256`. `progress` and `cancel` as for download_installer.
+Status extract_offline_file(const OfflinePackage& package, const std::string& file, std::uint64_t size,
+                            const std::string& sha256, const std::wstring& path, const Progress& progress,
+                            const std::atomic<bool>* cancel);
+
 // %USERPROFILE%\zhiyi\update-state.json: a version the user skipped, and the version being
 // installed (so the next settings start can say it was updated).
 struct State {

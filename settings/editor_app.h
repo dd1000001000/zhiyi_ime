@@ -153,6 +153,7 @@ private:
     void on_pack_downloaded(int pack_index, update::Status status, const std::wstring& path);
     void remove_pack_at(int pack_index);
     void on_pack_action(int pack_index);
+    void import_packs();  // the language packs of an offline package (issue #52)
     bool handle_learning_command(int control_id, int notification);
     bool handle_learning_message(UINT message, WPARAM wparam, LPARAM lparam);
     // Data location (editor_data_folder.cc)
@@ -168,6 +169,7 @@ private:
     void show_translator_state();
     void start_translator_check();
     void start_translator_install();
+    void start_translator_import();  // from an offline package (issue #52)
     void start_translator_test();
     void remove_translator();
     bool handle_translator_command(int control_id, int notification);
@@ -186,6 +188,7 @@ private:
     void start_voice_test();
     void start_voice_check();
     void start_voice_install();
+    void start_voice_import();  // from an offline package (issue #52)
     void remove_voice();
     bool handle_voice_command(int control_id, int notification);
     bool handle_voice_message(UINT message, WPARAM wparam, LPARAM lparam);
@@ -293,7 +296,7 @@ private:
     HWND hDigitsTranslation_ = nullptr;  // learning.digits_type_translation
     HWND hGlossPreview_ = nullptr;
     HWND hPackTabs_[2] = {};
-    HWND hCheckAllPacks_ = nullptr;
+    HWND hCheckAllPacks_ = nullptr, hImportPacks_ = nullptr;
     HWND hPackList_ = nullptr;
     std::vector<HWND> hPackActions_;  // one per row: download / cancel / check / update
     std::vector<HWND> hPackRemoves_;
@@ -302,6 +305,7 @@ private:
     int last_chinese_target_ = 0, last_english_target_ = 0;  // combo indexes
     HWND hTranslator_ = nullptr, hTranslatorDevice_ = nullptr, hTranslatorStatus_ = nullptr;
     HWND hTranslatorAction_ = nullptr, hTranslatorRemove_ = nullptr, hTranslatorHint_ = nullptr;
+    HWND hTranslatorImport_ = nullptr;
     std::vector<GpuAdapter> mt_choices_;  // list_translator_gpus() once installed, then the CPU
     enum class MtBusy { kNone, kChecking, kDownloading, kTesting } mt_busy_ = MtBusy::kNone;
     bool mt_remote_known_ = false;
@@ -309,10 +313,11 @@ private:
     std::uint64_t mt_done_mb_ = 0, mt_total_mb_ = 0;
     std::shared_ptr<std::atomic<bool>> mt_cancel_;
     std::wstring mt_note_;  // the last result (failed, cancelled)
+    bool mt_importing_ = false;  // kDownloading copies an offline package in
 
     // Voice input
     HWND hVoiceEnable_ = nullptr, hVoiceKeyText_ = nullptr, hVoiceStatus_ = nullptr;
-    HWND hVoiceAction_ = nullptr, hVoiceRemove_ = nullptr;
+    HWND hVoiceAction_ = nullptr, hVoiceRemove_ = nullptr, hVoiceImport_ = nullptr;
     HWND hVoiceDevice_ = nullptr, hVoiceLanguage_ = nullptr, hVoiceItn_ = nullptr;
     HWND hVoiceDeviceHint_ = nullptr;
     HWND hVoiceModel_ = nullptr, hVoiceModelHint_ = nullptr;  // voice.model, and what the model is
@@ -325,6 +330,7 @@ private:
     std::uint64_t voice_done_mb_ = 0, voice_total_mb_ = 0;
     std::shared_ptr<std::atomic<bool>> voice_cancel_;
     std::wstring voice_note_;  // the last result (failed, cancelled)
+    bool voice_importing_ = false;  // kDownloading copies an offline package in
 
     // Privacy
     HWND hExperience_ = nullptr;

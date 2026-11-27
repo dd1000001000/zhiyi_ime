@@ -6,6 +6,7 @@ add_library(cxxime-update STATIC
     src/update_crypto.cc
     src/update_http.cc
     src/update_manifest.cc
+    src/update_offline.cc
     src/update_public_key.inc
 )
 
@@ -18,5 +19,5 @@ target_include_directories(cxxime-update PRIVATE
 
 target_link_libraries(cxxime-update
     PUBLIC cxxime-shared
-    PRIVATE cxxime-installer-lock nlohmann_json bcrypt crypt32 winhttp shell32
+    PRIVATE cxxime-installer-lock nlohmann_json miniz bcrypt crypt32 winhttp shell32
 )

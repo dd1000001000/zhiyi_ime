@@ -181,8 +181,9 @@ bool same_sha256(const fs::path& path, const std::string& sha256) {
 }
 
 // Downloads and installs `manifest` as translator\v<N> and points translator.json at it.
+// Downloads `manifest`'s files, or copies them from an offline package (`package`), and installs them.
 MtInstalled install(const update::TranslatorManifest& manifest, const std::atomic<bool>* cancel,
-                    HWND window) {
+                    HWND window, const update::OfflinePackage* package = nullptr) {
     MtInstalled result;
     const fs::path root = translator_root();
     const fs::path downloads = root / L"download";
@@ -217,6 +218,10 @@ MtInstalled install(const update::TranslatorManifest& manifest, const std::atomi
         if (fs::exists(path, error) && same_sha256(path, file.sha256)) {
             progress(file.size, file.size);
             return update::Status::kOk;
+        }
+        if (package) {
+            return update::extract_offline_file(*package, file.file, file.size, file.sha256, path.wstring(),
+                                                progress, cancel);
         }
         return update::download_translator_file(file, path.wstring(), progress, cancel);
     };
@@ -297,6 +302,11 @@ void EditorApp::create_translator_card(HWND panel, int y) {
     hTranslatorRemove_ = make_button(kTranslatorRemoveId, tr("learning.remove"), client.right - x0 - S(78), y,
                                      S(78), panel);
     y += kRowH;
+    // Without GitHub: the offline package, downloaded elsewhere (issue #52).
+    make_web_link(kOfflinePackagesLinkId, tr("offline.link"), x0, y + S(4), S(260), panel);
+    hTranslatorImport_ = make_button(kTranslatorImportId, tr("offline.import"), client.right - x0 - S(206), y,
+                                     S(206), panel);
+    y += kRowH;
     hTranslatorHint_ = make_hint(tr("learning.translator_hint"), x0, y - S(4), client.right - x0 * 2, panel);
     y += S(40);
     card_end(panel, y);
@@ -353,7 +363,7 @@ void EditorApp::show_translator_state() {
         status = tr("learning.checking");
         break;
     case MtBusy::kDownloading:
-        status = fill(tr("learning.downloading"), {std::to_wstring(mt_done_mb_), std::to_wstring(mt_total_mb_)});
+        status = offline_progress_text(mt_importing_, mt_done_mb_, mt_total_mb_);
         action = tr("learning.cancel");
         break;
     case MtBusy::kTesting:
@@ -385,6 +395,7 @@ void EditorApp::show_translator_state() {
     ShowWindow(hTranslatorAction_, action ? SW_SHOW : SW_HIDE);
     EnableWindow(hTranslatorAction_, mt_busy_ != MtBusy::kTesting && mt_busy_ != MtBusy::kChecking);
     ShowWindow(hTranslatorRemove_, have && mt_busy_ == MtBusy::kNone ? SW_SHOW : SW_HIDE);
+    EnableWindow(hTranslatorImport_, mt_busy_ == MtBusy::kNone);
     EnableWindow(hTranslator_, have && mt_busy_ == MtBusy::kNone);
     if (!have) set_check(hTranslator_, false);
     EnableWindow(hTranslatorDevice_, have && mt_busy_ == MtBusy::kNone && get_check(hTranslator_));
@@ -422,6 +433,47 @@ void EditorApp::start_translator_install() {
         } else {
             *done = install(checked.manifest, cancel.get(), window);
         }
+        if (!PostMessageW(window, kMtInstalledMessage, 0, reinterpret_cast<LPARAM>(done))) delete done;
+    }).detach();
+}
+
+void EditorApp::start_translator_import() {
+    update::OfflinePackage package;
+    if (!pick_offline_package(hwnd_, update::PackageKind::kTranslator, &package)) return;
+    const update::TranslatorManifest& manifest = package.translator;
+    if (!manifest.min_app.empty() && update::is_newer_release(manifest.min_app, CXXIME_VERSION_STRING)) {
+        MessageBoxW(hwnd_, fill(tr("learning.translator_needs_app"), {utf8_to_wstr(manifest.min_app)}).c_str(),
+                    tr("window.title"), MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    mt::InstalledModel installed;
+    const bool have = mt::find_installed(&installed);
+    // The same version again: nothing to do (installing it would replace the folder the running model uses).
+    if (have && installed.version == manifest.version) {
+        MessageBoxW(hwnd_, fill(tr("offline.same"), {shown_version(installed.version, installed.name)}).c_str(),
+                    tr("window.title"), MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    if (have && installed.version > manifest.version &&
+        MessageBoxW(hwnd_,
+                    fill(tr("offline.older"), {shown_version(manifest.version, manifest.name),
+                                               shown_version(installed.version, installed.name)})
+                        .c_str(),
+                    tr("window.title"), MB_OKCANCEL | MB_ICONQUESTION) != IDOK) {
+        return;
+    }
+    mt_busy_ = MtBusy::kDownloading;
+    mt_importing_ = true;
+    mt_note_.clear();
+    mt_done_mb_ = 0;
+    mt_total_mb_ = (manifest.model.size + manifest.runtime.size) >> 20;
+    mt_cancel_ = std::make_shared<std::atomic<bool>>(false);
+    show_translator_state();
+    const HWND window = hwnd_;
+    const auto cancel = mt_cancel_;
+    auto shared = std::make_shared<update::OfflinePackage>(std::move(package));
+    std::thread([window, cancel, shared] {
+        auto* done = new MtInstalled(install(shared->translator, cancel.get(), window, shared.get()));
         if (!PostMessageW(window, kMtInstalledMessage, 0, reinterpret_cast<LPARAM>(done))) delete done;
     }).detach();
 }
@@ -500,6 +552,9 @@ bool EditorApp::handle_translator_command(int control_id, int notification) {
     case kTranslatorRemoveId:
         if (notification == BN_CLICKED && mt_busy_ == MtBusy::kNone) remove_translator();
         return true;
+    case kTranslatorImportId:
+        if (notification == BN_CLICKED && mt_busy_ == MtBusy::kNone) start_translator_import();
+        return true;
     default:
         return false;
     }
@@ -528,6 +583,8 @@ bool EditorApp::handle_translator_message(UINT message, WPARAM wparam, LPARAM lp
     case kMtInstalledMessage: {
         std::unique_ptr<MtInstalled> done(reinterpret_cast<MtInstalled*>(lparam));
         mt_busy_ = MtBusy::kNone;
+        const bool imported = mt_importing_;
+        mt_importing_ = false;
         mt_cancel_.reset();
         mt_remote_known_ = false;
         if (done->status == update::Status::kOk) {
@@ -539,9 +596,9 @@ bool EditorApp::handle_translator_message(UINT message, WPARAM wparam, LPARAM lp
             start_translator_test();
         } else {
             mt_note_ = !done->error.empty() ? done->error
-                       : done->status == update::Status::kCancelled ? tr("learning.cancelled")
+                       : done->status == update::Status::kCancelled ? tr(imported ? "offline.cancelled" : "learning.cancelled")
                        : done->status == update::Status::kDisk      ? tr("learning.failed_disk")
-                       : done->status == update::Status::kInvalid   ? tr("learning.failed_invalid")
+                       : done->status == update::Status::kInvalid   ? tr(imported ? "offline.invalid_file" : "learning.failed_invalid")
                                                                      : tr("learning.failed_network");
             show_translator_state();
         }

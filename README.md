@@ -67,7 +67,9 @@ zhen-feather-1127（[Hugging Face](https://huggingface.co/zhiyi-ime/zhiyi-zhen-f
 第一次用，或者要在没有互联网的电脑上用翻译、语音，看 [新手入门](docs/getting-started.md)（带设置截图）。
 
 1. 从 [Releases](https://github.com/dd1000001000/zhiyi_ime/releases/latest) 下载最新的
-   `zhiyi-v版本号-setup.exe`，双击运行并按提示安装（需要管理员权限）。
+   `zhiyi-v版本号-setup.exe`，双击运行并按提示安装（需要管理员权限）。GitHub 下载慢或打不开时，可以到魔搭社区的
+   [知意输入法离线包](https://www.modelscope.cn/models/dd1000001000/zhiyi_packages/files) 下载：`installers/` 里是每一版的安装包，还有翻译模型、语音模型和语言包的离线包
+   （在设置里点“从文件导入…”装上，见 [离线包](docs/offline-packages.md)）。
 2. 安装完成后按 `Win + 空格` 切换到“知意输入法”。也可以在“设置 > 时间和语言 > 语言和区域”中
    把它设为默认输入法。
 3. 打开设置：右键任务栏上的“中/英”，选择“设置…”。

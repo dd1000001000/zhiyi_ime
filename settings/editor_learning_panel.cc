@@ -27,6 +27,7 @@ enum ControlId {
     kDigitsTranslationId,
     kPackTabFirstId = 1510,  // .. 1511
     kCheckAllPacksId = 1515,
+    kImportPacksId = 1516,
     kPackActionFirstId = 1520,  // .. 1526, one per row
     kPackRemoveFirstId = 1540,  // .. 1546
 };
@@ -173,6 +174,12 @@ void EditorApp::create_learning_panel(HWND panel) {
     hCheckAllPacks_ = make_page_button(kCheckAllPacksId, tr("learning.check_all"),
                                        client.right - kPanelPadLeft - S(130), card_top + S(10),
                                        S(130), S(28), panel);
+    // Without GitHub: the offline package of all language packs, downloaded elsewhere (issue #52).
+    hImportPacks_ = make_page_button(kImportPacksId, tr("offline.import"),
+                                     client.right - kPanelPadLeft - S(130) - S(8) - S(130), card_top + S(10),
+                                     S(130), S(28), panel);
+    make_web_link(kOfflinePackagesLinkId, tr("offline.link"),
+                  client.right - kPanelPadLeft - S(268) - S(8) - S(150), card_top + S(14), S(150), panel);
     const char* const tab_keys[] = {"learning.tab_chinese", "learning.tab_english"};
     for (int tab = 0; tab < 2; ++tab) {
         hPackTabs_[tab] = make_page_button(kPackTabFirstId + tab, tr(tab_keys[tab]),
@@ -698,6 +705,47 @@ void EditorApp::on_pack_action(int pack_index) {
     start_pack_download(pack_index);
 }
 
+// Every pack of the offline package that this program reads and that is new here or newer than the
+// installed one, installed as a download would be.
+void EditorApp::import_packs() {
+    update::OfflinePackage package;
+    if (!pick_offline_package(hwnd_, update::PackageKind::kGlossary, &package)) return;
+    int imported = 0, failed = 0;
+    {
+        WaitCursor wait;
+        for (const update::GlossaryPack& remote : package.glossaries) {
+            if (!usable(remote)) continue;
+            for (PackState& pack : packs_) {
+                if (glossary_pack_id(pack.source, pack.target) != remote.id ||
+                    pack.busy != PackState::Busy::kNone || (pack.installed && pack.version >= remote.version)) {
+                    continue;
+                }
+                const std::wstring path = utf8_to_wstr(glossary_directory() + "\\" + remote.id + ".gloss.download");
+                const update::Status status =
+                    update::extract_offline_file(package, remote.file, remote.size, remote.sha256, path, {}, nullptr);
+                pack.note_good = false;
+                if (status == update::Status::kOk && install_pack(path, pack.source, pack.target)) {
+                    pack.note.clear();
+                    pack.remote = remote;
+                    pack.remote_known = true;
+                    ++imported;
+                } else {
+                    pack.note = status == update::Status::kInvalid ? tr("offline.invalid_file") : tr("learning.failed_disk");
+                    ++failed;
+                }
+                refresh_pack(pack);
+            }
+        }
+    }
+    read_controls(false);  // keep the unsaved choices while the menus are refilled
+    populate_learning();
+    layout_pack_rows();
+    std::wstring text = imported > 0 ? format(tr("offline.packs_imported"), {std::to_wstring(imported)})
+                                     : std::wstring(tr("offline.packs_none"));
+    if (failed > 0) text += L"\n" + format(tr("offline.packs_failed"), {std::to_wstring(failed)});
+    MessageBoxW(hwnd_, text.c_str(), tr("window.title"), MB_OK | (failed ? MB_ICONWARNING : MB_ICONINFORMATION));
+}
+
 bool EditorApp::handle_learning_command(int control_id, int notification) {
     if (control_id == kChineseTargetId || control_id == kEnglishTargetId) {
         if (notification != CBN_SELCHANGE) return true;
@@ -728,6 +776,10 @@ bool EditorApp::handle_learning_command(int control_id, int notification) {
     }
     if (control_id == kCheckAllPacksId) {
         start_pack_check(-1);
+        return true;
+    }
+    if (control_id == kImportPacksId) {
+        import_packs();
         return true;
     }
     if (control_id >= kPackActionFirstId && control_id < kPackActionFirstId + kRows) {

@@ -36,6 +36,8 @@ const wchar_t* about_link_url(UINT_PTR control_id) {
         return tr("privacy.doc_url");  // the document in the UI language
     case kReleaseLinkId:
         return update::kReleasesPage;
+    case kOfflinePackagesLinkId:
+        return update::kOfflinePackagesUrl;
     default:
         return nullptr;
     }

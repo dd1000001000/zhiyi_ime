@@ -9,6 +9,7 @@ add_executable(cxxime-settings WIN32
     editor_controls.cc
     editor_general_panel.cc
     editor_backup.cc
+    editor_offline.cc
     editor_voice_panel.cc
     editor_word_list_panel.cc
     editor_my_words.cc

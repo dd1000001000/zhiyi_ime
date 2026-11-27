@@ -90,7 +90,9 @@ word-choice and next-word model zhen-feather-1127 ([Hugging Face](https://huggin
 
 1. Download the latest `zhiyi-v<version>-setup.exe` from
    [Releases](https://github.com/dd1000001000/zhiyi_ime/releases/latest) and run it (administrator
-   approval is needed).
+   approval is needed). Where GitHub is slow or unreachable, the [offline packages on ModelScope](https://www.modelscope.cn/models/dd1000001000/zhiyi_packages/files) have
+   every installer (`installers/`) and offline packages of the translation model, the voice models and the
+   language packs, installed with "Import from file…" in Settings ([offline packages](docs/offline-packages.md)).
 2. Press `Win + Space` to switch to Zhiyi IME, or make it the default input method in Windows Settings
    > Time & language > Language & region.
 3. To open Settings, right-click 中/英 on the taskbar and choose Settings….

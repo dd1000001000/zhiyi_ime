@@ -12,6 +12,7 @@
 #include <commctrl.h>
 
 #include <cxxime/gpu_adapters.h>
+#include <cxxime/update.h>
 
 namespace cxxime {
 namespace settings {
@@ -135,6 +136,7 @@ HWND make_check(int id, const wchar_t* text, int x, int y, int width, HWND paren
 // web_link_url(id).
 constexpr int kPrivacyDocLinkId = 5004;  // docs/privacy*.md on GitHub (ui string privacy.doc_url)
 constexpr int kReleaseLinkId = 5005;     // the latest release on GitHub (update::kReleasesPage)
+constexpr int kOfflinePackagesLinkId = 5007;  // the offline packages' page (update::kOfflinePackagesUrl, issue #52)
 // The data location row on the General page (editor_data_folder.cc).
 constexpr int kDataChangeId = 5010;
 constexpr int kDataDefaultId = 5011;
@@ -143,6 +145,7 @@ constexpr int kTranslatorId = 5020;
 constexpr int kTranslatorDeviceId = 5021;
 constexpr int kTranslatorActionId = 5022;
 constexpr int kTranslatorRemoveId = 5023;
+constexpr int kTranslatorImportId = 5024;
 HWND make_web_link(int id, const wchar_t* text, int x, int y, int width, HWND parent);
 HWND make_button(int id, const wchar_t* text, int x, int y, int width, HWND parent);
 HWND make_radio(int id, const wchar_t* text, int x, int y, int width, HWND parent, bool group);
@@ -171,6 +174,13 @@ void set_edit_int(HWND edit, int value);
 int get_edit_int(HWND edit);
 bool get_check(HWND control);
 void set_check(HWND control, bool checked);
+
+// Offline packages (editor_offline.cc, update.h): the file dialog, then the package opened and checked (its
+// signature, its files, the part it is for: `want`, or either voice model for kVoice). False, after telling the
+// user why, when there is nothing to import.
+bool pick_offline_package(HWND owner, update::PackageKind want, update::OfflinePackage* package);
+// "{0} / {1} MB" while a package is copied in (learning.importing) instead of learning.downloading.
+std::wstring offline_progress_text(bool importing, std::uint64_t done_mb, std::uint64_t total_mb);
 
 LRESULT CALLBACK PanelForwardProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam,
                                   UINT_PTR subclass_id, DWORD_PTR reference_data);

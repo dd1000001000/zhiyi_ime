@@ -53,6 +53,14 @@ std::string trim_spaces(const std::string& s) {
   return s.substr(a, b - a);
 }
 
+// A list of row texts; zhen-feather-1127 writes null for the tokens no mode can write (read as "").
+std::vector<std::string> strings(const nlohmann::json& list) {
+  std::vector<std::string> out;
+  out.reserve(list.size());
+  for (const auto& v : list) out.push_back(v.is_string() ? v.get<std::string>() : std::string());
+  return out;
+}
+
 }  // namespace
 
 NextWords::NextWords(const Reranker& model, const std::string& rows_json) : model_(model) {
@@ -61,7 +69,7 @@ NextWords::NextWords(const Reranker& model, const std::string& rows_json) : mode
   if (!f) throw std::runtime_error("next_rows.json not found");
   const nlohmann::json j = nlohmann::json::parse(f);
   tokens_ = j.at("tokens").get<std::vector<int64_t>>();
-  pieces_ = j.at("pieces").get<std::vector<std::string>>();
+  pieces_ = strings(j.at("pieces"));
   if (tokens_.empty() || pieces_.size() != tokens_.size()) throw std::runtime_error("next_rows.json: rows");
   const size_t R = tokens_.size();
   body_.resize(R);
@@ -92,7 +100,7 @@ NextWords::NextWords(const Reranker& model, const std::string& rows_json) : mode
     };
     auto per_row = [&](Lang& lg, const char* chars, const char* texts) {
       lg.chars = j.at(chars).get<std::vector<int32_t>>();
-      lg.texts = j.at(texts).get<std::vector<std::string>>();
+      lg.texts = strings(j.at(texts));
       if (lg.chars.size() != R || lg.texts.size() != R) throw std::runtime_error("next_rows.json: row texts");
     };
     Lang zh;
@@ -144,8 +152,10 @@ std::vector<int64_t> NextWords::block(const std::string& context, const std::str
   const auto it = langs_.find(lang);
   const BpeTokenizer& tok = model_.tokenizer();
   std::string s = replace_all(context, tok.mask_token(), " ");
-  if (it != langs_.end() && !it->second.cjk)
-    while (!s.empty() && s.back() == ' ') s.pop_back();
+  if (it != langs_.end() && !it->second.cjk)  // the trailing white space (Python's rstrip(): line breaks too)
+    while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\n' || s.back() == '\r' ||
+                          s.back() == '\f' || s.back() == '\v'))
+      s.pop_back();
   std::vector<int64_t> ids = s.empty() ? std::vector<int64_t>{} : tok.encode(s);
   if (ids.size() > context_tokens_) ids.erase(ids.begin(), ids.end() - static_cast<std::ptrdiff_t>(context_tokens_));
   std::vector<int64_t> out{tok.cls_id()};

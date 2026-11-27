@@ -16,6 +16,9 @@
 // only to itself, so its keys and values are computed once per context (context mode) and each
 // key runs only the rest of the sequence, the typed units and the candidates (key mode). On the
 // CPU that graph replaces the whole one when it is beside it (RerankerOptions::context_cache).
+// zhen-feather-1127 comes as one file (laya.feather.onnx) with all three: the one graph's context and key modes
+// with the next-word step behind is_step, plus a ctx_tail input (the n-gram table's keys); its tokenizer is a 32k
+// Unigram one.
 // A Lite model (zhen-feather-preview-1121, bench export_slim.py) comes as three graphs: the one graph
 // (laya.one.w4.onnx, word choice and composition, plus its encoder's "hidden" output), and the
 // next-word decoder as laya.next.head.w4.onnx (hidden -> cross keys and values, with the memory
@@ -120,7 +123,8 @@ struct RerankerOptions {
 // token table 4 bits, then w8), then with ONNX Runtime's fused attention and rotary operators
 // (about 22% faster a key on the CPU), then the plain one.
 // laya.one.w4.onnx: a Lite model's one graph (its next-word decoder in kNextHeadFile / kNextStepFile).
-constexpr size_t kOneGraphFileCount = 5;
+// laya.feather.onnx: zhen-feather-1127, word choice, composition and next words in one file (is_step), with ctx_tail.
+constexpr size_t kOneGraphFileCount = 6;
 extern const char* const kNextHeadFile;  // "laya.next.head.w4.onnx"
 extern const char* const kNextStepFile;  // "laya.next.step.w4.onnx"
 extern const char* const kOneGraphFiles[kOneGraphFileCount];
@@ -248,6 +252,9 @@ class Reranker {
   // Its present outputs (present_enc_k ... present_choice_v; the next-word graph: present_0..3).
   const char* present_names_[4] = {"present_enc_k", "present_enc_v", "present_choice_k", "present_choice_v"};
   bool next_graph_ = false;  // the next-word decoder (in the one graph, or Lite's two graphs)
+  // zhen-feather-1127 (laya.feather.onnx): the table's keys read the context block's last two tokens (ctx_tail, in
+  // both modes); context mode takes an empty past and always gives the decoder's cross keys, values and mask.
+  bool ctx_tail_ = false;
   std::unique_ptr<Ort::Session> next_head_, next_step_;  // Lite's decoder graphs (else in the one graph)
   int64_t next_layers_ = 0, next_heads_ = 0, next_head_dim_ = 0;  // its decoder (dec_past_k's shape)
   mutable std::mutex contexts_mutex_;

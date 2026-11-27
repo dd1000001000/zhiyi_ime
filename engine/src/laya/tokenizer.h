@@ -3,7 +3,8 @@
 //
 // 只实现该模型实际用到的组件:
 //   added tokens 切分 (含 lstrip/rstrip) -> Replace(" " -> "▁") -> Metaspace(prepend=always, split)
-//   -> BPE (byte_fallback, fuse_unk)
+//   -> BPE (byte_fallback, fuse_unk), or Unigram (byte_fallback, fuse_unk; zhen-feather-1127's 32k tokenizer:
+//   the best path by the pieces' scores, as Hugging Face's Unigram::encode_optimized)
 // 不加 BOS/EOS (Laya 全程 add_special_tokens=False)。正确性由 laya_cli --parity 对照 Python 验证。
 //
 // 词表 (25.6 万词) 和 merges (58 万条) 不放在哈希表里, 而是一块排好序的紧凑镜像 (约 14 MB, 二分查找):
@@ -51,6 +52,12 @@ class BpeTokenizer {
     int64_t byte_ids[256];
     uint32_t mask_off, mask_len;
     uint64_t vocab_off, vocab_id, merge_key, merge_val, added, blob;
+    // A Unigram model (unigram = 1): each id's score (n_scores of them, NaN for an id outside the
+    // model's vocab), the score of an unknown character, the longest piece in bytes.
+    uint32_t unigram, n_scores;
+    uint64_t scores;
+    double unk_score;
+    uint32_t max_piece_bytes, reserved;
   };
   struct Added {
     uint32_t off, len;
@@ -65,8 +72,10 @@ class BpeTokenizer {
   void attach(const char* data, size_t size);
   std::string_view token_at(uint32_t index) const;
   const Merge* find_merge(uint64_t key) const;
+  std::vector<int64_t> encode_added(const std::string& text, bool prepend) const;  // added tokens split first
   void encode_segment(const std::string& segment, std::vector<int64_t>& out, bool prepend = true) const;
   void bpe_piece(const std::string& piece, std::vector<int64_t>& out) const;
+  void unigram_piece(const std::string& piece, std::vector<int64_t>& out) const;
 
   std::string image_;           // owned image (built from JSON and not mapped)
   cxxime::MappedFile mapped_;   // or the cache file
@@ -76,6 +85,7 @@ class BpeTokenizer {
   const uint64_t* merge_key_ = nullptr;  // (left id << 32 | right id), sorted
   const Merge* merge_val_ = nullptr;
   const Added* added_ = nullptr;
+  const double* scores_ = nullptr;  // a Unigram model's, by id
   const char* blob_ = nullptr;
   std::string mask_token_ = "<mask>";
 

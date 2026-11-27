@@ -23,7 +23,8 @@
 namespace laya {
 
 const char* const kInstructionsGuess = "Which candidate word most likely comes next after the text so far?";
-const char* const kOneGraphFiles[kOneGraphFileCount] = {"laya.one.next.slim.onnx", "laya.one.next.w8.onnx",
+const char* const kOneGraphFiles[kOneGraphFileCount] = {"laya.feather.onnx", "laya.one.next.slim.onnx",
+                                                        "laya.one.next.w8.onnx",
                                                         "laya.one.w4.onnx", "laya.one.fused.int8g.onnx",
                                                         "laya.one.int8g.onnx"};
 const char* const kNextHeadFile = "laya.next.head.w4.onnx";
@@ -47,6 +48,9 @@ Ort::SessionOptions session_options(const RerankerOptions& opt) {
   so.SetIntraOpNumThreads(opt.intra_threads);
   so.SetInterOpNumThreads(1);
   so.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+  // Errors only: laya.feather.onnx's inputs are overridable initializers (each with a small default), which
+  // ONNX Runtime would otherwise warn about one line each at every load.
+  so.SetLogSeverityLevel(3);
   return so;
 }
 
@@ -165,6 +169,13 @@ std::vector<int64_t> input_shape(const Ort::Session& session, const char* name) 
   return {};
 }
 
+// zhen-feather-1127's ctx_tail: the context block's tokens at n - 3 and n - 2 (the last two before its
+// <eos>), -1 for one the block does not have.
+std::vector<int64_t> context_tail(const std::vector<int64_t>& block) {
+  const size_t n = block.size();
+  return {n >= 3 ? block[n - 3] : -1, n >= 2 ? block[n - 2] : -1};
+}
+
 bool has_output(const Ort::Session& session, const char* name) {
   Ort::AllocatorWithDefaultOptions alloc;
   for (size_t i = 0, n = session.GetOutputCount(); i < n; ++i) {
@@ -269,9 +280,12 @@ Reranker::Reranker(const RerankerOptions& opt) {
         for (int i = 0; i < 4; ++i) present_names_[i] = numbered[i];
       }
       // The next-word decoder (export_flash_next.py): dec_past_k (layers, N, heads, past, head_dim).
+      // zhen-feather-1127: no need_cross (context mode always gives the cross keys, values and mask).
+      ctx_tail_ = has_input(*session_, "ctx_tail");
       const auto dec = input_shape(*session_, "dec_past_k");
-      if (has_input(*session_, "is_step") && has_input(*session_, "need_cross") && dec.size() == 5 && dec[0] > 0 &&
-          dec[2] > 0 && dec[4] > 0 && has_output(*session_, "cross_k_out")) {
+      if (has_input(*session_, "is_step") &&
+          (has_input(*session_, "need_cross") || (ctx_tail_ && has_output(*session_, "cross_mask_out"))) &&
+          dec.size() == 5 && dec[0] > 0 && dec[2] > 0 && dec[4] > 0 && has_output(*session_, "cross_k_out")) {
         next_graph_ = true;
         next_layers_ = dec[0];
         next_heads_ = dec[2];
@@ -635,36 +649,49 @@ std::shared_ptr<const ContextKV> Reranker::context_kv(const std::vector<int64_t>
       return contexts_.front();
     }
   }
-  // Context mode: the block as the new tokens, the past a placeholder of one position that
-  // past_mask leaves out (the graph takes no zero-length past), no markers or slots read.
+  // Context mode: the block as the new tokens, no markers or slots read. The past: empty for
+  // zhen-feather-1127 (as its release runs it), else a placeholder of one position that past_mask
+  // leaves out (those graphs take no zero-length past).
   const int64_t n = static_cast<int64_t>(ids.size());
-  std::vector<float> enc_past(static_cast<size_t>(enc_layers_ * heads_ * head_dim_), 0.0f);
-  std::vector<float> head_past(static_cast<size_t>(head_layers_ * heads_ * head_dim_), 0.0f);
+  const int64_t P0 = ctx_tail_ ? 0 : 1;
+  std::vector<float> enc_past(static_cast<size_t>(enc_layers_ * heads_ * head_dim_ * P0) + 1, 0.0f);
+  std::vector<float> head_past(static_cast<size_t>(head_layers_ * heads_ * head_dim_ * P0) + 1, 0.0f);
   std::vector<int64_t> in_ids = ids, in_units = units, zero{0};
   bool no_past[1] = {false};
-  const int64_t s_ids[2] = {1, n}, s_one[2] = {1, 1};
-  const int64_t s_enc[5] = {enc_layers_, 1, heads_, 1, head_dim_}, s_head[5] = {head_layers_, 1, heads_, 1, head_dim_};
+  const int64_t s_ids[2] = {1, n}, s_one[2] = {1, 1}, s_past[2] = {1, P0};
+  const int64_t s_enc[5] = {enc_layers_, 1, heads_, P0, head_dim_}, s_head[5] = {head_layers_, 1, heads_, P0, head_dim_};
   std::vector<Ort::Value> in;
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, in_ids.data(), in_ids.size(), s_ids, 2));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, in_units.data(), in_units.size(), s_ids, 2));
   for (int i = 0; i < 2; ++i)
-    in.push_back(Ort::Value::CreateTensor<float>(*mem_, enc_past.data(), enc_past.size(), s_enc, 5));
+    in.push_back(Ort::Value::CreateTensor<float>(*mem_, enc_past.data(), enc_past.size() - 1, s_enc, 5));
   for (int i = 0; i < 2; ++i)
-    in.push_back(Ort::Value::CreateTensor<float>(*mem_, head_past.data(), head_past.size(), s_head, 5));
-  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, no_past, 1, s_one, 2));
+    in.push_back(Ort::Value::CreateTensor<float>(*mem_, head_past.data(), head_past.size() - 1, s_head, 5));
+  in.push_back(Ort::Value::CreateTensor<bool>(*mem_, no_past, static_cast<size_t>(P0), s_past, 2));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, zero.data(), 1, s_one, 2));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, zero.data(), 1, s_one, 2));
   std::vector<const char*> in_names = {"input_ids", "unit_ids", "past_enc_k", "past_enc_v", "past_choice_k",
                                        "past_choice_v", "past_mask", "marker_pos", "slot_pos"};
+  std::vector<int64_t> tail = context_tail(ids);
+  const int64_t s_tail[2] = {1, 2};
+  if (ctx_tail_) {
+    in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, tail.data(), tail.size(), s_tail, 2));
+    in_names.push_back("ctx_tail");
+  }
   std::vector<const char*> out_names(present_names_, present_names_ + 4);
   bool cross_flag[1] = {true};
-  if (need_cross && !next_head_) {  // a bool scalar
-    in.push_back(Ort::Value::CreateTensor<bool>(*mem_, cross_flag, 1, nullptr, 0));
-    in_names.push_back("need_cross");
+  // zhen-feather-1127 gives the cross keys and values in every context mode run: kept for the next words.
+  const bool cross_out = next_graph_ && !next_head_ && (need_cross || ctx_tail_);
+  if (cross_out) {
+    if (!ctx_tail_) {  // a bool scalar
+      in.push_back(Ort::Value::CreateTensor<bool>(*mem_, cross_flag, 1, nullptr, 0));
+      in_names.push_back("need_cross");
+    }
     out_names.push_back("cross_k_out");
     out_names.push_back("cross_v_out");
   }
   const size_t kv_outputs = out_names.size();
+  if (cross_out && ctx_tail_) out_names.push_back("cross_mask_out");  // (1, block + the table's positions)
   if (next_head_) out_names.push_back("hidden");  // Lite: kept for the next-word head
   auto out = session_->Run(Ort::RunOptions{nullptr}, in_names.data(), in.data(), in.size(), out_names.data(),
                            out_names.size());
@@ -674,15 +701,22 @@ std::shared_ptr<const ContextKV> Reranker::context_kv(const std::vector<int64_t>
   for (size_t i = 0; i < kv_outputs; ++i) {
     const auto info = out[i].GetTensorTypeAndShapeInfo();
     const auto shape = info.GetShape();
-    if (shape.size() != 5 || shape[3] != n) return nullptr;
+    // The presents hold the block's n positions; the cross keys the block's and the table's.
+    if (shape.size() != 5 || (i < 4 && shape[3] != n) || (i >= 4 && shape[3] < n)) return nullptr;
+    if (i == 4) kv->cross_len = shape[3];
     const float* d = out[i].GetTensorData<float>();
     dst[i]->assign(d, d + info.GetElementCount());
   }
-  if (kv->has_cross()) {  // the one graph's decoder reads the block's positions, all of them
+  if (kv->has_cross() && ctx_tail_) {
+    const auto info = out[kv_outputs].GetTensorTypeAndShapeInfo();
+    if (info.GetElementCount() != static_cast<size_t>(kv->cross_len)) return nullptr;
+    const bool* m = out[kv_outputs].GetTensorData<bool>();
+    kv->cross_mask.assign(m, m + kv->cross_len);
+  } else if (kv->has_cross()) {  // the one graph's decoder reads the block's positions, all of them
     kv->cross_len = n;
     kv->cross_mask.assign(static_cast<size_t>(n), 1);
   }
-  if (next_head_) {
+  if (next_head_) {  // (cross_out is false with Lite's head graph, so "hidden" follows the presents)
     const auto info = out[kv_outputs].GetTensorTypeAndShapeInfo();
     const auto shape = info.GetShape();  // (1, n, width)
     if (shape.size() != 3 || shape[1] != n) return nullptr;
@@ -859,13 +893,19 @@ bool Reranker::run_one(const Sequence& seq, std::vector<float>* logits, std::vec
   int64_t no_marker = 0;
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, no_markers ? &no_marker : pos.data(), pos.size(), s_mark, 2));
   in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, slot_pos.data(), slot_pos.size(), s_slot, 2));
-  const char* in_names[9] = {"input_ids", "unit_ids", "past_enc_k", "past_enc_v", "past_choice_k",
-                             "past_choice_v", "past_mask", "marker_pos", "slot_pos"};
+  std::vector<const char*> in_names = {"input_ids", "unit_ids", "past_enc_k", "past_enc_v", "past_choice_k",
+                                       "past_choice_v", "past_mask", "marker_pos", "slot_pos"};
+  std::vector<int64_t> tail = context_tail(kv->ids);
+  const int64_t s_tail[2] = {1, 2};
+  if (ctx_tail_) {  // the same as in context mode: a candidate's first tokens and the first slots are keyed on it
+    in.push_back(Ort::Value::CreateTensor<int64_t>(*mem_, tail.data(), tail.size(), s_tail, 2));
+    in_names.push_back("ctx_tail");
+  }
   std::vector<const char*> out_names;
   if (logits) out_names.push_back("logits");
   if (char_logits) out_names.push_back("char_logits");
   if (out_names.empty()) return false;
-  auto out = session_->Run(Ort::RunOptions{nullptr}, in_names, in.data(), in.size(), out_names.data(),
+  auto out = session_->Run(Ort::RunOptions{nullptr}, in_names.data(), in.data(), in.size(), out_names.data(),
                            out_names.size());
   size_t next = 0;
   if (logits) {

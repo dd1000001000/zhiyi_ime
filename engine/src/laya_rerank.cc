@@ -123,9 +123,8 @@ laya::RerankerOptions model_options(const Config& config) {
 // onnxruntime.dll is delay-loaded: make sure it and the model exist before any ONNX Runtime
 // call (otherwise the delay-load helper raises an SEH exception). Returns what is missing.
 std::wstring missing_model_file(const laya::RerankerOptions& opt) {
-    for (const std::string& f : {std::string("tokenizer.json"), std::string("rl_agent_config.json")}) {
-        if (!has_file(opt.model_dir, f)) return laya::utf8_to_wide(f);
-    }
+    // (rl_agent_config.json is optional: only the Laya prompt format reads it, and zhen-feather-1127 has none.)
+    if (!has_file(opt.model_dir, "tokenizer.json")) return L"tokenizer.json";
     // the whole graph, or the one graph (which needs the unified model's vocabulary)
     if (!has_file(opt.model_dir, opt.onnx_file) &&
         !(has_one_graph(opt.model_dir) && has_file(opt.model_dir, "unified_vocab.json")))

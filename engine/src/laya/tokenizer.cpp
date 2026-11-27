@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -21,7 +22,9 @@ namespace laya {
 
 namespace {
 const std::string kMeta = "\xE2\x96\x81";  // "▁" (U+2581)
-constexpr char kMagic[8] = {'Z', 'Y', 'T', 'O', 'K', '0', '0', '1'};
+constexpr char kMagic[8] = {'Z', 'Y', 'T', 'O', 'K', '0', '0', '2'};  // 002: the Unigram fields
+// Hugging Face's Unigram: an unknown character scores this much below the lowest piece.
+constexpr double kUnkPenalty = 10.0;
 
 bool is_space(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v'; }
 
@@ -67,15 +70,32 @@ std::string BpeTokenizer::build_image(const std::string& path) {
   if (!f) throw std::runtime_error("cannot open tokenizer: " + path);
   nlohmann::json j = nlohmann::json::parse(f);
   const auto& model = j.at("model");
-  if (model.at("type") != "BPE") throw std::runtime_error("only BPE tokenizers are supported");
+  const bool unigram = model.at("type") == "Unigram";
+  if (model.at("type") != "BPE" && !unigram) throw std::runtime_error("only BPE and Unigram tokenizers are supported");
 
   std::unordered_map<std::string, int64_t> vocab;
-  for (auto it = model.at("vocab").begin(); it != model.at("vocab").end(); ++it)
-    vocab.emplace(it.key(), it.value().get<int64_t>());
+  std::vector<double> scores;  // Unigram: [piece, score] in id order
+  uint32_t max_piece_bytes = 0;
+  double min_score = 0;
+  if (unigram) {
+    for (const auto& e : model.at("vocab")) {
+      const std::string piece = e.at(0).get<std::string>();
+      const double score = e.at(1).get<double>();
+      vocab.emplace(piece, static_cast<int64_t>(scores.size()));
+      if (scores.empty() || score < min_score) min_score = score;
+      scores.push_back(score);
+      max_piece_bytes = (std::max)(max_piece_bytes, static_cast<uint32_t>(piece.size()));
+    }
+  } else {
+    for (auto it = model.at("vocab").begin(); it != model.at("vocab").end(); ++it)
+      vocab.emplace(it.key(), it.value().get<int64_t>());
+  }
 
   std::vector<std::pair<uint64_t, Merge>> merges;
   int32_t rank = 0;
-  for (const auto& m : model.at("merges")) {
+  static const nlohmann::json kNoMerges = nlohmann::json::array();
+  const nlohmann::json& merge_list = unigram ? kNoMerges : model.at("merges");
+  for (const auto& m : merge_list) {
     std::string a, b;
     if (m.is_array()) {
       a = m[0].get<std::string>();
@@ -124,7 +144,15 @@ std::string BpeTokenizer::build_image(const std::string& path) {
     std::snprintf(name, sizeof(name), "<0x%02X>", b);
     h.byte_ids[b] = lookup(name);
   }
-  h.unk = lookup(model.value("unk_token", std::string("<unk>")));
+  if (unigram) {
+    h.unk = model.contains("unk_id") && model["unk_id"].is_number() ? model["unk_id"].get<int64_t>() : lookup("<unk>");
+    h.unigram = 1;
+    h.n_scores = static_cast<uint32_t>(scores.size());
+    h.unk_score = min_score - kUnkPenalty;
+    h.max_piece_bytes = max_piece_bytes;
+  } else {
+    h.unk = lookup(model.value("unk_token", std::string("<unk>")));
+  }
   h.cls = lookup("<bos>");
   h.sep = lookup("<eos>");
   h.mask = lookup("<mask>");
@@ -168,6 +196,7 @@ std::string BpeTokenizer::build_image(const std::string& path) {
   h.merge_key = append_section(image, merge_key);
   h.merge_val = append_section(image, merge_val);
   h.added = append_section(image, added_rec);
+  h.scores = append_section(image, scores);
   h.blob = append_section(image, blob.data(), blob.size());
   std::memcpy(image.data(), &h, sizeof(h));
   return image;
@@ -187,6 +216,8 @@ void BpeTokenizer::attach(const char* data, size_t size) {
   merge_key_ = reinterpret_cast<const uint64_t*>(section(h->merge_key, h->n_merges * sizeof(uint64_t)));
   merge_val_ = reinterpret_cast<const Merge*>(section(h->merge_val, h->n_merges * sizeof(Merge)));
   added_ = reinterpret_cast<const Added*>(section(h->added, h->n_added * sizeof(Added)));
+  scores_ = reinterpret_cast<const double*>(section(h->scores, h->n_scores * sizeof(double)));
+  if (h->unigram && (h->n_scores == 0 || h->unk < 0)) bad("unigram without scores or <unk>");
   blob_ = section(h->blob, h->blob_size);
   if (vocab_off_[h->n_vocab] > h->blob_size || h->mask_off + h->mask_len > h->blob_size) bad("blob out of range");
   for (uint32_t i = 0; i < h->n_added; ++i)
@@ -238,7 +269,13 @@ const BpeTokenizer::Merge* BpeTokenizer::find_merge(uint64_t key) const {
   return it != end && *it == key ? merge_val_ + (it - merge_key_) : nullptr;
 }
 
-std::vector<int64_t> BpeTokenizer::encode(const std::string& text) const {
+std::vector<int64_t> BpeTokenizer::encode(const std::string& text) const { return encode_added(text, true); }
+
+std::vector<int64_t> BpeTokenizer::encode_no_prepend(const std::string& text) const {
+  return encode_added(text, false);
+}
+
+std::vector<int64_t> BpeTokenizer::encode_added(const std::string& text, bool prepend) const {
   // 1. 先按 added tokens 切分 (最长匹配), 与 HF 一样它们不经过 normalizer。
   struct Seg {
     std::string text;
@@ -274,14 +311,8 @@ std::vector<int64_t> BpeTokenizer::encode(const std::string& text) const {
     if (s.added_id >= 0)
       out.push_back(s.added_id);
     else
-      encode_segment(s.text, out);
+      encode_segment(s.text, out, prepend);
   }
-  return out;
-}
-
-std::vector<int64_t> BpeTokenizer::encode_no_prepend(const std::string& text) const {
-  std::vector<int64_t> out;
-  encode_segment(text, out, false);
   return out;
 }
 
@@ -294,7 +325,10 @@ void BpeTokenizer::encode_segment(const std::string& segment, std::vector<int64_
   for (size_t pos = prepend || starts_meta ? kMeta.size() : 1; pos <= norm.size(); ++pos) {
     bool boundary = pos == norm.size() || norm.compare(pos, kMeta.size(), kMeta) == 0;
     if (!boundary) continue;
-    bpe_piece(norm.substr(start, pos - start), out);
+    if (hdr_->unigram)
+      unigram_piece(norm.substr(start, pos - start), out);
+    else
+      bpe_piece(norm.substr(start, pos - start), out);
     start = pos;
     if (pos < norm.size()) pos += kMeta.size() - 1;
   }
@@ -342,6 +376,93 @@ void BpeTokenizer::bpe_piece(const std::string& piece, std::vector<int64_t>& out
     if (best_id < 0) break;
     sym[best_pos] = best_id;
     sym.erase(sym.begin() + static_cast<long>(best_pos) + 1);
+  }
+  out.insert(out.end(), sym.begin(), sym.end());
+  std::lock_guard<std::mutex> lk(cache_mu_);
+  if (cache_.size() > 50000) cache_.clear();
+  cache_.emplace(piece, std::move(sym));
+}
+
+void BpeTokenizer::unigram_piece(const std::string& piece, std::vector<int64_t>& out) const {
+  if (piece.empty()) return;
+  {
+    std::lock_guard<std::mutex> lk(cache_mu_);
+    auto it = cache_.find(piece);
+    if (it != cache_.end()) {
+      out.insert(out.end(), it->second.begin(), it->second.end());
+      return;
+    }
+  }
+  // Hugging Face's Unigram::encode_optimized: the best path through the pieces that start at each
+  // character (shortest first; a later candidate replaces only a strictly better score), an unknown
+  // character where no piece of exactly that character starts.
+  const size_t n = piece.size();
+  const auto char_len = [&](size_t i) -> size_t {
+    const unsigned char c = static_cast<unsigned char>(piece[i]);
+    const size_t len = c < 0x80 ? 1 : (c >> 5) == 0x6 ? 2 : (c >> 4) == 0xE ? 3 : (c >> 3) == 0x1E ? 4 : 1;
+    return (std::min)(len, n - i);
+  };
+  const auto model_id = [&](size_t begin, size_t len) -> int64_t {
+    const int64_t id = token_id(std::string_view(piece).substr(begin, len));
+    if (id < 0 || id >= static_cast<int64_t>(hdr_->n_scores) || std::isnan(scores_[id])) return -1;
+    return id;
+  };
+  struct Node {
+    int64_t id = -1;
+    double score = 0;
+    size_t start = std::string::npos;  // npos: not reached yet
+  };
+  std::vector<Node> best(n + 1);
+  for (size_t s = 0; s < n;) {
+    const double base = best[s].score;
+    const size_t cl = char_len(s);
+    bool single = false;
+    for (size_t e = s + cl; e <= n && e - s <= hdr_->max_piece_bytes;) {
+      const int64_t id = model_id(s, e - s);
+      if (id >= 0) {
+        const double c = base + scores_[id];
+        if (best[e].start == std::string::npos || c > best[e].score) best[e] = Node{id, c, s};
+        if (e == s + cl) single = true;
+      }
+      if (e == n) break;
+      e += char_len(e);
+    }
+    if (!single) {
+      const double c = base + hdr_->unk_score;
+      if (best[s + cl].start == std::string::npos || c > best[s + cl].score) best[s + cl] = Node{hdr_->unk, c, s};
+    }
+    s += cl;
+  }
+  // Back from the end; neighbouring unknown characters become one piece (fuse_unk), whose bytes are
+  // their <0xHH> tokens (byte_fallback; <unk> when one of them has none).
+  std::vector<std::pair<size_t, size_t>> spans;  // (begin, end), last first
+  std::vector<uint8_t> unknown;
+  for (size_t e = n; e > 0;) {
+    const Node& node = best[e];
+    const size_t s = node.start == std::string::npos ? e - 1 : node.start;
+    if (node.id == hdr_->unk && !spans.empty() && unknown.back())
+      spans.back().first = s;
+    else {
+      spans.emplace_back(s, e);
+      unknown.push_back(node.id == hdr_->unk);
+    }
+    e = s;
+  }
+  std::vector<int64_t> sym;
+  for (size_t k = spans.size(); k-- > 0;) {
+    const auto [s, e] = spans[k];
+    const int64_t id = model_id(s, e - s);
+    if (id >= 0) {
+      sym.push_back(id);
+      continue;
+    }
+    bool all_bytes = true;
+    for (size_t i = s; i < e; ++i) all_bytes = all_bytes && hdr_->byte_ids[static_cast<unsigned char>(piece[i])] >= 0;
+    if (!all_bytes) {
+      sym.push_back(hdr_->unk);
+      continue;
+    }
+    for (size_t i = s; i < e; ++i) sym.push_back(hdr_->byte_ids[static_cast<unsigned char>(piece[i])]);
   }
   out.insert(out.end(), sym.begin(), sym.end());
   std::lock_guard<std::mutex> lk(cache_mu_);

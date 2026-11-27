@@ -309,7 +309,7 @@ an=ang 时，`zan` 仍会出“张”；wang=huang 不和其他组叠加。模�
 | `laya.context_memory_seconds` | 60 | 读不到输入框文字的程序里，用之前打过的字当上文；这么多秒没打字就清空（0 = 一直保留） |
 | `laya.threads` | 4 | 推理线程数（CPU） |
 | `laya.cache` | true | 把模型权重按本机 CPU 打包后的副本和分词器的紧凑镜像存在 `%LOCALAPPDATA%\zhiyi\laya-cache`（首次启动生成，约 140 MB），以后启动直接映射，服务端少占约 100 MB 内存、少花约 0.8 s；false = 每次启动在内存里打包和解析，不写缓存 |
-| `laya.context_cache` | true | 模型目录里有一图（`laya.one.w4.onnx`、`laya.one.next.slim.onnx`、`laya.one.fused.int8g.onnx` 或 `laya.one.int8g.onnx`，带上文的 KV 缓存）时，CPU 上用它代替整图：上文只算一次，之后每次按键只算已打的拼音和候选；false = 每次按键用整图连上文一起重算。显卡上总用整图 |
+| `laya.context_cache` | true | 模型目录里有一图（`laya.feather.onnx`、`laya.one.w4.onnx`、`laya.one.next.slim.onnx`、`laya.one.fused.int8g.onnx` 或 `laya.one.int8g.onnx`，带上文的 KV 缓存）时，CPU 上用它代替整图：上文只算一次，之后每次按键只算已打的拼音和候选；false = 每次按键用整图连上文一起重算。显卡上总用整图 |
 | `laya.next_words` | true | 提交一个词后显示联想（[联想](next-words.md)）；模型没有续写解码器时不起作用 |
 | `laya.next_min_probability` | 0.01 | 联想词的模型概率低于它就不显示（中文时 n-gram 自己推荐的词保留），一页可能少于每页候选数 |
 | `laya.next_ngram_weight` | 0.75 | 中文联想：排序分数 = ln P_模型 + 权重 × ln P_n-gram；0 = 只用模型 |

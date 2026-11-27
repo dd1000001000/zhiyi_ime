@@ -55,7 +55,7 @@ set(LAYA_MODEL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/models/laya CACHE PATH "Laya model
 if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/tokenizer.json)
     # Copied by a file-level rule (not POST_BUILD), so replacing the model updates the copy
     # without relinking the server.
-    set(LAYA_MODEL_FILES tokenizer.json rl_agent_config.json)
+    set(LAYA_MODEL_FILES tokenizer.json)
     # The unified model (choice + long-pinyin continuation) reads its units and characters
     # from unified_vocab.json; without it the server keeps to the word choice.
     if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/unified_vocab.json)
@@ -64,8 +64,9 @@ if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/tokenizer.json)
     # The one graph with the context's KV cache, run on the CPU instead of the whole graph
     # (engine/src/laya/reranker.h kOneGraphFiles); the next-word one graph comes with
     # next_rows.json (its rows' texts and each language's masks, engine/src/laya/next_words.h); a Lite
-    # model's one graph (laya.one.w4.onnx) has its decoder beside it (laya.next.head / step.w4.onnx).
-    foreach(file laya.one.next.slim.onnx laya.one.next.w8.onnx next_rows.json laya.one.w4.onnx
+    # model's one graph (laya.one.w4.onnx) has its decoder beside it (laya.next.head / step.w4.onnx);
+    # zhen-feather-1127 is one file (laya.feather.onnx). rl_agent_config.json: only the old Laya prompt format.
+    foreach(file rl_agent_config.json laya.feather.onnx laya.one.next.slim.onnx laya.one.next.w8.onnx next_rows.json laya.one.w4.onnx
             laya.next.head.w4.onnx laya.next.step.w4.onnx laya.one.fused.int8g.onnx laya.one.int8g.onnx laya.int8g.onnx)
         if(EXISTS ${LAYA_MODEL_SOURCE_DIR}/${file})
             list(APPEND LAYA_MODEL_FILES ${file})
